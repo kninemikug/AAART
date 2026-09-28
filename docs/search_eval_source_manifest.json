@@ -1,0 +1,1038 @@
+{
+  "dataset_id": "t08-1-100-v1",
+  "github_sources": {
+    "data/issues/snapshots/discussion-comments/15005389.json": {
+      "candidate_id": "github:artraweditor/ART:discussion:412",
+      "doc_id": "discussion-comment:DC_kwDONWPV1M4A5PbN",
+      "file_sha256": "62514ae804c6d9c8ae995882801119b7a5efe8ae79570a5c7f0cafc1c20f8f01",
+      "target_url": "https://github.com/artraweditor/ART/discussions/412#discussioncomment-15005389"
+    },
+    "data/issues/snapshots/discussion-comments/15217528.json": {
+      "candidate_id": "github:artraweditor/ART:discussion:420",
+      "doc_id": "discussion-comment:DC_kwDONWPV1M4A6DN4",
+      "file_sha256": "984eaec33b091766c96148b6a185a8c46a7031b037babcb72ed1a5d514b10c34",
+      "target_url": "https://github.com/artraweditor/ART/discussions/420#discussioncomment-15217528"
+    },
+    "data/issues/snapshots/discussion-comments/15304221.json": {
+      "candidate_id": "github:artraweditor/ART:discussion:424",
+      "doc_id": "discussion-comment:DC_kwDONWPV1M4A6YYd",
+      "file_sha256": "d8cfe115fff9c3907b3b094dfc86ea0b32c8189f4836a78dcdad123234688482",
+      "target_url": "https://github.com/artraweditor/ART/discussions/424#discussioncomment-15304221"
+    },
+    "data/issues/snapshots/discussion-comments/15585143.json": {
+      "candidate_id": "github:artraweditor/ART:discussion:440",
+      "doc_id": "discussion-comment:DC_kwDONWPV1M4A7c93",
+      "file_sha256": "f60cf256bcda2ec68c392707151ed001f33067816249efea3938b3af10ad2454",
+      "target_url": "https://github.com/artraweditor/ART/discussions/440#discussioncomment-15585143"
+    },
+    "data/issues/snapshots/discussion-comments/15591494.json": {
+      "candidate_id": "github:artraweditor/ART:discussion:440",
+      "doc_id": "discussion-comment:DC_kwDONWPV1M4A7ehG",
+      "file_sha256": "c077dd82542a9c8e7e9a42bde0e1c39165cc5f1749665e55154d9899ab1c09fa",
+      "target_url": "https://github.com/artraweditor/ART/discussions/440#discussioncomment-15591494"
+    },
+    "data/issues/snapshots/discussion-comments/15597989.json": {
+      "candidate_id": "github:artraweditor/ART:discussion:442",
+      "doc_id": "discussion-comment:DC_kwDONWPV1M4A7gGl",
+      "file_sha256": "861fd65f3393475d92fbb0c8bc83dc00b6c1e4af2908284c7f4316a6953fd83f",
+      "target_url": "https://github.com/artraweditor/ART/discussions/442#discussioncomment-15597989"
+    },
+    "data/issues/snapshots/discussion-comments/15603701.json": {
+      "candidate_id": "github:artraweditor/ART:discussion:442",
+      "doc_id": "discussion-comment:DC_kwDONWPV1M4A7hf1",
+      "file_sha256": "c12686c323b16578bcd6f171a971f66ec393e9f385f45632cfb6ff94c92705ac",
+      "target_url": "https://github.com/artraweditor/ART/discussions/442#discussioncomment-15603701"
+    },
+    "data/issues/snapshots/discussion-comments/17042242.json": {
+      "candidate_id": "github:artraweditor/ART:discussion:489",
+      "doc_id": "discussion-comment:DC_kwDONWPV1M4BBAtC",
+      "file_sha256": "04dc9ee760432d0a524cb7503c1c05591b7587fb443ac1bb1c4653309f3db61e",
+      "target_url": "https://github.com/artraweditor/ART/discussions/489#discussioncomment-17042242"
+    },
+    "data/issues/snapshots/discussion-comments/17204509.json": {
+      "candidate_id": "github:artraweditor/ART:discussion:494",
+      "doc_id": "discussion-comment:DC_kwDONWPV1M4BBoUd",
+      "file_sha256": "f3581c3e2cce3e0a47fb51db171b9c597cced4c8ca47409a390e41b821e9f2de",
+      "target_url": "https://github.com/artraweditor/ART/discussions/494#discussioncomment-17204509"
+    },
+    "data/issues/snapshots/discussion-comments/17204587.json": {
+      "candidate_id": "github:artraweditor/ART:discussion:494",
+      "doc_id": "discussion-comment:DC_kwDONWPV1M4BBoVr",
+      "file_sha256": "22a19bfed32257b8ecca0df2f87d978d2ca8a37450b989b2fb45070de1997e42",
+      "target_url": "https://github.com/artraweditor/ART/discussions/494#discussioncomment-17204587"
+    },
+    "data/issues/snapshots/discussion-comments/17207510.json": {
+      "candidate_id": "github:artraweditor/ART:discussion:494",
+      "doc_id": "discussion-comment:DC_kwDONWPV1M4BBpDW",
+      "file_sha256": "a171b1565a4e3640fd93eba452c92c78846938d9e68f06ff9b3d6cbc1585e2bb",
+      "target_url": "https://github.com/artraweditor/ART/discussions/494#discussioncomment-17207510"
+    },
+    "data/issues/snapshots/discussions/412.json": {
+      "candidate_id": "github:artraweditor/ART:discussion:412",
+      "doc_id": "discussion:D_kwDONWPV1M4Ai6_I",
+      "file_sha256": "2e6adff8f509a283fa02af358b990af06a79e5c472f124c3663b2a7e5509549c",
+      "target_url": "https://github.com/orgs/artraweditor/discussions/412"
+    },
+    "data/issues/snapshots/discussions/420.json": {
+      "candidate_id": "github:artraweditor/ART:discussion:420",
+      "doc_id": "discussion:D_kwDONWPV1M4AjNbf",
+      "file_sha256": "0c59edaacd10ac2063dafa47821bbf3dabe7dd3847ef9c7892e68d17966cbc13",
+      "target_url": "https://github.com/orgs/artraweditor/discussions/420"
+    },
+    "data/issues/snapshots/discussions/424.json": {
+      "candidate_id": "github:artraweditor/ART:discussion:424",
+      "doc_id": "discussion:D_kwDONWPV1M4AjV4v",
+      "file_sha256": "403921d73aeddd6a49c29f4583ecf6dc988d919ec27e4ca4174e1ce07bd50beb",
+      "target_url": "https://github.com/orgs/artraweditor/discussions/424"
+    },
+    "data/issues/snapshots/discussions/440.json": {
+      "candidate_id": "github:artraweditor/ART:discussion:440",
+      "doc_id": "discussion:D_kwDONWPV1M4AjyUw",
+      "file_sha256": "6b96895e027d44e1b2754937678118cbe58f1bd603fdaf470f143990c8f28e5c",
+      "target_url": "https://github.com/orgs/artraweditor/discussions/440"
+    },
+    "data/issues/snapshots/discussions/442.json": {
+      "candidate_id": "github:artraweditor/ART:discussion:442",
+      "doc_id": "discussion:D_kwDONWPV1M4Ajzpk",
+      "file_sha256": "aa2c322fe50f453879376c26ee70afc0366ae1732916091a5d88edad3aac6d4a",
+      "target_url": "https://github.com/orgs/artraweditor/discussions/442"
+    },
+    "data/issues/snapshots/discussions/489.json": {
+      "candidate_id": "github:artraweditor/ART:discussion:489",
+      "doc_id": "discussion:D_kwDONWPV1M4AmoIs",
+      "file_sha256": "b2fc71a30a57454a1bc91eb17aedab6287152d5937443ce62ba4012590ae9349",
+      "target_url": "https://github.com/orgs/artraweditor/discussions/489"
+    },
+    "data/issues/snapshots/discussions/494.json": {
+      "candidate_id": "github:artraweditor/ART:discussion:494",
+      "doc_id": "discussion:D_kwDONWPV1M4Am6JE",
+      "file_sha256": "74127aa40e5c7bd3e4d2c7c52cd3f7dc1272390357a4d98f550ee0b095635a46",
+      "target_url": "https://github.com/orgs/artraweditor/discussions/494"
+    },
+    "data/issues/snapshots/issue-comments/4428738434.json": {
+      "candidate_id": "github:artraweditor/ART:issue:477",
+      "doc_id": "issue-comment:4428738434",
+      "file_sha256": "389052956325358970f93218ac4d17ae341505fc7722737534f4a5ac3ecbdda9",
+      "target_url": "https://github.com/artraweditor/ART/issues/477#issuecomment-4428738434"
+    },
+    "data/issues/snapshots/issue-comments/4433310082.json": {
+      "candidate_id": "github:artraweditor/ART:issue:477",
+      "doc_id": "issue-comment:4433310082",
+      "file_sha256": "f56b2af89440a8d8be71b8b141ff711c9ac32e31e8ae35e9f97dfd27bcf5c24b",
+      "target_url": "https://github.com/artraweditor/ART/issues/477#issuecomment-4433310082"
+    },
+    "data/issues/snapshots/issue-comments/4711197631.json": {
+      "candidate_id": "github:artraweditor/ART:issue:500",
+      "doc_id": "issue-comment:4711197631",
+      "file_sha256": "32dcb0afb1e0f5a456a78c7d3e16a4b512ad1d244b58f75af53a1895147d8cad",
+      "target_url": "https://github.com/artraweditor/ART/issues/500#issuecomment-4711197631"
+    },
+    "data/issues/snapshots/issue-comments/5102797884.json": {
+      "candidate_id": "github:artraweditor/ART:issue:516",
+      "doc_id": "issue-comment:5102797884",
+      "file_sha256": "05d83f0385b3bec5fbc7df33205ccc5ec21448da8417ec5c7d8d0d7ced6d6200",
+      "target_url": "https://github.com/artraweditor/ART/issues/516#issuecomment-5102797884"
+    },
+    "data/issues/snapshots/issue-comments/5102851028.json": {
+      "candidate_id": "github:artraweditor/ART:issue:516",
+      "doc_id": "issue-comment:5102851028",
+      "file_sha256": "cda1f829009ace381da7db1df346a7420c48272560d0746be7c9120258bca928",
+      "target_url": "https://github.com/artraweditor/ART/issues/516#issuecomment-5102851028"
+    },
+    "data/issues/snapshots/issue-comments/5103254495.json": {
+      "candidate_id": "github:artraweditor/ART:issue:516",
+      "doc_id": "issue-comment:5103254495",
+      "file_sha256": "736082dd08fe1f4407016507535fbc7eccb6a1862a1175d2bce61823427801c3",
+      "target_url": "https://github.com/artraweditor/ART/issues/516#issuecomment-5103254495"
+    },
+    "data/issues/snapshots/issue-comments/5309120735.json": {
+      "candidate_id": "github:artraweditor/ART:issue:521",
+      "doc_id": "issue-comment:5309120735",
+      "file_sha256": "3115c4f1f354a156b8ece823654fdc157a2886087e1e6f1077f3a4d9d0a031d9",
+      "target_url": "https://github.com/artraweditor/ART/issues/521#issuecomment-5309120735"
+    },
+    "data/issues/snapshots/issue-comments/5315824799.json": {
+      "candidate_id": "github:artraweditor/ART:issue:521",
+      "doc_id": "issue-comment:5315824799",
+      "file_sha256": "55a4ad01f214a571a42ba2669e6e3603d93751de4e4502bffcfc8b17aacfc058",
+      "target_url": "https://github.com/artraweditor/ART/issues/521#issuecomment-5315824799"
+    },
+    "data/issues/snapshots/issue-comments/5648127070.json": {
+      "candidate_id": "github:artraweditor/ART:issue:524",
+      "doc_id": "issue-comment:5648127070",
+      "file_sha256": "d7d4c46d954e9fa0aecfd385e6e4518d017b88e6ac242ed2ba60b3f550e5269a",
+      "target_url": "https://github.com/artraweditor/ART/issues/524#issuecomment-5648127070"
+    },
+    "data/issues/snapshots/issue-comments/5655898791.json": {
+      "candidate_id": "github:artraweditor/ART:issue:524",
+      "doc_id": "issue-comment:5655898791",
+      "file_sha256": "604f0a52d94969bf5231aca8524cc89aa0ca6457f0ee7130a01d01d92feca92f",
+      "target_url": "https://github.com/artraweditor/ART/issues/524#issuecomment-5655898791"
+    },
+    "data/issues/snapshots/issue-comments/5670040673.json": {
+      "candidate_id": "github:artraweditor/ART:issue:524",
+      "doc_id": "issue-comment:5670040673",
+      "file_sha256": "e8b866bc7b37a8e34ae7c0e830da7a14bed82cad274b33c65020d254e5168d3a",
+      "target_url": "https://github.com/artraweditor/ART/issues/524#issuecomment-5670040673"
+    },
+    "data/issues/snapshots/issue-comments/5670999476.json": {
+      "candidate_id": "github:artraweditor/ART:issue:524",
+      "doc_id": "issue-comment:5670999476",
+      "file_sha256": "67bda402d7643731cb4e6b6af2d857fae28fafc6e88eb598afc7a9e4a80b7c24",
+      "target_url": "https://github.com/artraweditor/ART/issues/524#issuecomment-5670999476"
+    },
+    "data/issues/snapshots/issues/477.json": {
+      "candidate_id": "github:artraweditor/ART:issue:477",
+      "doc_id": "issue:477",
+      "file_sha256": "2faba48ca1b98d6ccc74b615a703006a2d795f15752e310ef12a2df579388c3d",
+      "target_url": "https://github.com/artraweditor/ART/issues/477"
+    },
+    "data/issues/snapshots/issues/500.json": {
+      "candidate_id": "github:artraweditor/ART:issue:500",
+      "doc_id": "issue:500",
+      "file_sha256": "210e95a36a0726bbb7fbb3ee1949cd8af571367cc44127228c5ea6360506bc8f",
+      "target_url": "https://github.com/artraweditor/ART/issues/500"
+    },
+    "data/issues/snapshots/issues/516.json": {
+      "candidate_id": "github:artraweditor/ART:issue:516",
+      "doc_id": "issue:516",
+      "file_sha256": "d93174a2d4a7c1821fa9d1053bfda4cb3d3b2e6dde374a5d1ac4e811b18e68c0",
+      "target_url": "https://github.com/artraweditor/ART/issues/516"
+    },
+    "data/issues/snapshots/issues/521.json": {
+      "candidate_id": "github:artraweditor/ART:issue:521",
+      "doc_id": "issue:521",
+      "file_sha256": "15950aa010d1c054aee6310ed5b5a16ee35c5f97c855d32751dd606e95feb3f7",
+      "target_url": "https://github.com/artraweditor/ART/issues/521"
+    },
+    "data/issues/snapshots/issues/524.json": {
+      "candidate_id": "github:artraweditor/ART:issue:524",
+      "doc_id": "issue:524",
+      "file_sha256": "040d89a6da723ec8237bcfded57380e9b1545a6c91aaad7f8fee1c6abab282e3",
+      "target_url": "https://github.com/artraweditor/ART/issues/524"
+    }
+  },
+  "github_sources_count": 35,
+  "input_manifest": {
+    "data/issues/search-candidates.json": "c2074548354406b6bd2e886259ca8eea4a02813dead57fba77e0bf1a5bf86344",
+    "data/issues/sync-state.json": "0c2c0440ee63795103217495bfc651980f26170e024774b29bf3cc66aa464187",
+    "docs/rawpedia_collection.md": "234766dbe5ace8f8ccef4965a32ced0b79ad55939a2363bfb0ebae126863a7a0",
+    "rawpedia_files_sha256": "241c48434bab72cceacfdcc083869c4e27265e4b474d48988fab0f0cb813f56f"
+  },
+  "rawpedia_sources": {
+    "data/rawpedia/Black-and-White.md": {
+      "doc_id": "rawpedia:Black-and-White",
+      "file_sha256": "024fa08d4b4288fc14457ab43eeb393f7d993689bba3d0b2569fa456d2c0cbf2",
+      "headings_count": 0,
+      "target_url": "https://rawpedia.rawtherapee.com/black-and-white/",
+      "title": "Black-and-White"
+    },
+    "data/rawpedia/Black-and-White_addon.md": {
+      "doc_id": "rawpedia:Black-and-White_addon",
+      "file_sha256": "c57b571ae2699489e2de03815f73ff6708029c3d40964044a3de41ce25762484",
+      "headings_count": 13,
+      "target_url": "https://rawpedia.rawtherapee.com/black-and-white_addon/",
+      "title": "Black-and-White addon"
+    },
+    "data/rawpedia/CIECAM02.md": {
+      "doc_id": "rawpedia:CIECAM02",
+      "file_sha256": "d165258a2e705fe49e98ee1f09ce1e4c063157ab58f712ac0ca5090d7f09debb",
+      "headings_count": 67,
+      "target_url": "https://rawpedia.rawtherapee.com/ciecam02/",
+      "title": "CIECAM02"
+    },
+    "data/rawpedia/Capture_Sharpening.md": {
+      "doc_id": "rawpedia:Capture_Sharpening",
+      "file_sha256": "c8a9ac5f82b38d935b6b2486fdf35f1f8739b75fd3fd1925677ae77ae647b91a",
+      "headings_count": 17,
+      "target_url": "https://rawpedia.rawtherapee.com/capture_sharpening/",
+      "title": "Capture Sharpening"
+    },
+    "data/rawpedia/Channel_Mixer.md": {
+      "doc_id": "rawpedia:Channel_Mixer",
+      "file_sha256": "e881117fedfa34861ed9b55df2ed3f5e471364fc632618448fb9a051c8da1379",
+      "headings_count": 0,
+      "target_url": "https://rawpedia.rawtherapee.com/channel_mixer/",
+      "title": "Channel Mixer"
+    },
+    "data/rawpedia/Chromatic_Aberration.md": {
+      "doc_id": "rawpedia:Chromatic_Aberration",
+      "file_sha256": "a24617688841e38019a8278f2014c315cba4c096f2fecd41f7fec1cd58921e8a",
+      "headings_count": 3,
+      "target_url": "https://rawpedia.rawtherapee.com/chromatic_aberration/",
+      "title": "Chromatic Aberration"
+    },
+    "data/rawpedia/Clipping_Indication.md": {
+      "doc_id": "rawpedia:Clipping_Indication",
+      "file_sha256": "b330afc9d61dd8bf0dd1f16dcefc7cafda35f26e81e2917e19ccc2a97528c892",
+      "headings_count": 0,
+      "target_url": "https://rawpedia.rawtherapee.com/clipping_indication/",
+      "title": "Clipping Indication"
+    },
+    "data/rawpedia/Color_Management.md": {
+      "doc_id": "rawpedia:Color_Management",
+      "file_sha256": "593fa22c2225d2bc58e391882b3aed362bdaaceea8208952fe3609395990a783",
+      "headings_count": 55,
+      "target_url": "https://rawpedia.rawtherapee.com/color_management/",
+      "title": "Color Management"
+    },
+    "data/rawpedia/Color_Management_addon.md": {
+      "doc_id": "rawpedia:Color_Management_addon",
+      "file_sha256": "120f355bfe475c0953538283799c1098b97cbe5bcb30a90f0005046b89c6720e",
+      "headings_count": 30,
+      "target_url": "https://rawpedia.rawtherapee.com/color_management_addon/",
+      "title": "Color Management addon"
+    },
+    "data/rawpedia/Color_Toning.md": {
+      "doc_id": "rawpedia:Color_Toning",
+      "file_sha256": "484c20f328af379bfd2320ed6a3a1d7b01474627d8843157a4438407198fb829",
+      "headings_count": 16,
+      "target_url": "https://rawpedia.rawtherapee.com/color_toning/",
+      "title": "Color Toning"
+    },
+    "data/rawpedia/Contrast_by_Detail_Levels.md": {
+      "doc_id": "rawpedia:Contrast_by_Detail_Levels",
+      "file_sha256": "d4206295c1d5443153ccc5664ba7f764a4c3ae9f12910158829ee698e84066ac",
+      "headings_count": 3,
+      "target_url": "https://rawpedia.rawtherapee.com/contrast_by_detail_levels/",
+      "title": "Contrast by Detail Levels"
+    },
+    "data/rawpedia/Creating_processing_profiles_for_general_use.md": {
+      "doc_id": "rawpedia:Creating_processing_profiles_for_general_use",
+      "file_sha256": "92b3fa306941f14d7f11bbaaef1c9db8bbcfb140582798278ec32b61e9193d02",
+      "headings_count": 3,
+      "target_url": "https://rawpedia.rawtherapee.com/creating_processing_profiles_for_general_use/",
+      "title": "Creating processing profiles for general use"
+    },
+    "data/rawpedia/Crop.md": {
+      "doc_id": "rawpedia:Crop",
+      "file_sha256": "1e88f1dabb77cc1245841f287ce9764d4035983c3948e5df8f91527de7756193",
+      "headings_count": 7,
+      "target_url": "https://rawpedia.rawtherapee.com/crop/",
+      "title": "Crop"
+    },
+    "data/rawpedia/Dark-Frame.md": {
+      "doc_id": "rawpedia:Dark-Frame",
+      "file_sha256": "1295d7cc0534ce35ec8a5cc0e07f5352abec3027796d508181924f8306b415fc",
+      "headings_count": 3,
+      "target_url": "https://rawpedia.rawtherapee.com/dark-frame/",
+      "title": "Dark-Frame"
+    },
+    "data/rawpedia/Defringe.md": {
+      "doc_id": "rawpedia:Defringe",
+      "file_sha256": "73d97fca09088e57bfdd79a2fe4cfa24ec18c435010f2b7aab99b2ab3e17ef0f",
+      "headings_count": 4,
+      "target_url": "https://rawpedia.rawtherapee.com/defringe/",
+      "title": "Defringe"
+    },
+    "data/rawpedia/Demosaicing.md": {
+      "doc_id": "rawpedia:Demosaicing",
+      "file_sha256": "488320edb0cb0cf9231eaf25aa862c886f7d445d616fa8ed93ebd16a0cce61a5",
+      "headings_count": 10,
+      "target_url": "https://rawpedia.rawtherapee.com/demosaicing/",
+      "title": "Demosaicing"
+    },
+    "data/rawpedia/Dynamic_Range_Compression.md": {
+      "doc_id": "rawpedia:Dynamic_Range_Compression",
+      "file_sha256": "c0ad011fe62f78926cd63ef8464d0b43c1fc015f2a23fa0a94be69dfdb40d6c0",
+      "headings_count": 6,
+      "target_url": "https://rawpedia.rawtherapee.com/dynamic_range_compression/",
+      "title": "Dynamic Range Compression"
+    },
+    "data/rawpedia/Dynamic_processing_profiles.md": {
+      "doc_id": "rawpedia:Dynamic_processing_profiles",
+      "file_sha256": "1d3e2c8965bba0c232558d075e189fc46171fea7125c215e41cfe74c343255a4",
+      "headings_count": 0,
+      "target_url": "https://rawpedia.rawtherapee.com/dynamic_processing_profiles/",
+      "title": "Dynamic processing profiles"
+    },
+    "data/rawpedia/Edges_and_Microcontrast.md": {
+      "doc_id": "rawpedia:Edges_and_Microcontrast",
+      "file_sha256": "bdb76079f2b4c9900d0319098fd2e7adae1c1f12dcb899d29557b7814b2f514a",
+      "headings_count": 3,
+      "target_url": "https://rawpedia.rawtherapee.com/edges_and_microcontrast/",
+      "title": "Edges and Microcontrast"
+    },
+    "data/rawpedia/Exif_Tab.md": {
+      "doc_id": "rawpedia:Exif_Tab",
+      "file_sha256": "764adc99bac9e509cc437df454a16e3c61289a63b41582215e4409e67d9bb5ef",
+      "headings_count": 1,
+      "target_url": "https://rawpedia.rawtherapee.com/exif_tab/",
+      "title": "Exif Tab"
+    },
+    "data/rawpedia/Exposure.md": {
+      "doc_id": "rawpedia:Exposure",
+      "file_sha256": "6bf06463d4f46b5291459bd5b452d5b4b409f7362d3e73e8f0dfbd754a7a6ab1",
+      "headings_count": 26,
+      "target_url": "https://rawpedia.rawtherapee.com/exposure/",
+      "title": "Exposure"
+    },
+    "data/rawpedia/Favorites_Tab.md": {
+      "doc_id": "rawpedia:Favorites_Tab",
+      "file_sha256": "d33fad1580e65c2d64e234890b042fa457bc0d5f9b45b74ecdd9edc005e03b88",
+      "headings_count": 4,
+      "target_url": "https://rawpedia.rawtherapee.com/favorites_tab/",
+      "title": "Favorites Tab"
+    },
+    "data/rawpedia/File_Browser_Tab.md": {
+      "doc_id": "rawpedia:File_Browser_Tab",
+      "file_sha256": "566449b39d2993c0c64bb8104f06eafb73bc0a8a082fae875f5d3e45aca90d0c",
+      "headings_count": 5,
+      "target_url": "https://rawpedia.rawtherapee.com/file_browser_tab/",
+      "title": "File Browser Tab"
+    },
+    "data/rawpedia/Film_Negative.md": {
+      "doc_id": "rawpedia:Film_Negative",
+      "file_sha256": "081aed2430bf518f5a696562839d11fb663ee91e09954d82991d4c5412585f58",
+      "headings_count": 6,
+      "target_url": "https://rawpedia.rawtherapee.com/film_negative/",
+      "title": "Film Negative"
+    },
+    "data/rawpedia/Film_Simulation.md": {
+      "doc_id": "rawpedia:Film_Simulation",
+      "file_sha256": "90886f3d982724029fd7a5dfc2f70a9faafd4c798f581464c7fcfd912b685ddd",
+      "headings_count": 7,
+      "target_url": "https://rawpedia.rawtherapee.com/film_simulation/",
+      "title": "Film Simulation"
+    },
+    "data/rawpedia/Flat-Field.md": {
+      "doc_id": "rawpedia:Flat-Field",
+      "file_sha256": "e73575a51e5476815407f147449c193bf2104644ee86d7bce0ac2805416966f3",
+      "headings_count": 11,
+      "target_url": "https://rawpedia.rawtherapee.com/flat-field/",
+      "title": "Flat-Field"
+    },
+    "data/rawpedia/Forum.md": {
+      "doc_id": "rawpedia:Forum",
+      "file_sha256": "683e29cfe6859e14b7b1f099a12319a1289ef012b79dda2deb7e946f6c847f58",
+      "headings_count": 5,
+      "target_url": "https://rawpedia.rawtherapee.com/forum/",
+      "title": "Forum"
+    },
+    "data/rawpedia/Framing.md": {
+      "doc_id": "rawpedia:Framing",
+      "file_sha256": "5e2ecd4f0372ab0fb34d7fe7f364d26b5ea2d2839a30e19f60c7ce1314e2fe9a",
+      "headings_count": 18,
+      "target_url": "https://rawpedia.rawtherapee.com/framing/",
+      "title": "Framing"
+    },
+    "data/rawpedia/Gamma_-_Differential.md": {
+      "doc_id": "rawpedia:Gamma_-_Differential",
+      "file_sha256": "a76fc44629b5b4d3412b5ec94d6f449a4b88759cfb47b9c98624d8759e3ea47e",
+      "headings_count": 7,
+      "target_url": "https://rawpedia.rawtherapee.com/gamma_-_differential/",
+      "title": "Gamma - Differential"
+    },
+    "data/rawpedia/Gamut_compression.md": {
+      "doc_id": "rawpedia:Gamut_compression",
+      "file_sha256": "d97cc4a36a67312b7398386398e0c7dc07f87d90106f0e0a40c25d6f46aeb125",
+      "headings_count": 5,
+      "target_url": "https://rawpedia.rawtherapee.com/gamut_compression/",
+      "title": "Gamut Compression"
+    },
+    "data/rawpedia/General_Comments_About_Some_Toolbox_Widgets.md": {
+      "doc_id": "rawpedia:General_Comments_About_Some_Toolbox_Widgets",
+      "file_sha256": "12f19e0c6ec5bb52084149c8c562926e6d180d96cf3a3852fd5cc9bb378c9990",
+      "headings_count": 10,
+      "target_url": "https://rawpedia.rawtherapee.com/general_comments_about_some_toolbox_widgets/",
+      "title": "General Comments About Some Toolbox Widgets"
+    },
+    "data/rawpedia/Graduated_Filter.md": {
+      "doc_id": "rawpedia:Graduated_Filter",
+      "file_sha256": "9cb0d52e15d78541dbeee809912ec648656e98af5d5b4b101d111ec32ffb47ca",
+      "headings_count": 4,
+      "target_url": "https://rawpedia.rawtherapee.com/graduated_filter/",
+      "title": "Graduated Filter"
+    },
+    "data/rawpedia/HSV_Equalizer.md": {
+      "doc_id": "rawpedia:HSV_Equalizer",
+      "file_sha256": "1d31893e78a105107b302b52277c96f0ec7bea30f389e8a8c53f14944b773584",
+      "headings_count": 0,
+      "target_url": "https://rawpedia.rawtherapee.com/hsv_equalizer/",
+      "title": "HSV Equalizer"
+    },
+    "data/rawpedia/Haze_Removal.md": {
+      "doc_id": "rawpedia:Haze_Removal",
+      "file_sha256": "1857dd49ce185f777ee7cd72eec8d0f11902ac4edb24bba4a1a9234706ab6a1d",
+      "headings_count": 2,
+      "target_url": "https://rawpedia.rawtherapee.com/haze_removal/",
+      "title": "Haze Removal"
+    },
+    "data/rawpedia/How_to_PLAY_RAW.md": {
+      "doc_id": "rawpedia:How_to_PLAY_RAW",
+      "file_sha256": "69cabeb0a92d5ada3666fe0fb7a17751fea5d8e74a5c6c51fa6404156d269a9f",
+      "headings_count": 2,
+      "target_url": "https://rawpedia.rawtherapee.com/how_to_play_raw/",
+      "title": "How to PLAY RAW"
+    },
+    "data/rawpedia/How_to_convert_raw_formats_to_DNG.md": {
+      "doc_id": "rawpedia:How_to_convert_raw_formats_to_DNG",
+      "file_sha256": "2132f9298e74d7feccf81dcc0c07f52123303b4fbc9c9d95457f3299dd452f52",
+      "headings_count": 2,
+      "target_url": "https://rawpedia.rawtherapee.com/how_to_convert_raw_formats_to_dng/",
+      "title": "How to convert raw formats to DNG"
+    },
+    "data/rawpedia/How_to_create_DCP_color_profiles.md": {
+      "doc_id": "rawpedia:How_to_create_DCP_color_profiles",
+      "file_sha256": "0296cac7536d04ff0f92171b29f63b9df5fe02d780b98fc0206d9e70e9d34683",
+      "headings_count": 7,
+      "target_url": "https://rawpedia.rawtherapee.com/how_to_create_dcp_color_profiles/",
+      "title": "How to create DCP color profiles"
+    },
+    "data/rawpedia/How_to_create_LCP_profiles.md": {
+      "doc_id": "rawpedia:How_to_create_LCP_profiles",
+      "file_sha256": "6dfb9b595ccb751f0825c634eb804b5cc751c1792ac8f06f5fa61eb9477ce20f",
+      "headings_count": 3,
+      "target_url": "https://rawpedia.rawtherapee.com/how_to_create_lcp_profiles/",
+      "title": "How to create LCP profiles"
+    },
+    "data/rawpedia/How_to_extract_and_examine_ICC_profiles.md": {
+      "doc_id": "rawpedia:How_to_extract_and_examine_ICC_profiles",
+      "file_sha256": "2530a97e22550fd97bd5ed0b5f6359465771a5df059b1f5d93f4797ed3c825e0",
+      "headings_count": 9,
+      "target_url": "https://rawpedia.rawtherapee.com/how_to_extract_and_examine_icc_profiles/",
+      "title": "How to extract and examine ICC profiles"
+    },
+    "data/rawpedia/How_to_fix_crashes_on_startup.md": {
+      "doc_id": "rawpedia:How_to_fix_crashes_on_startup",
+      "file_sha256": "d4b788e3852d346bb3eb046948a2ee512de45ed97b16a4ab86bb5b90d2024a71",
+      "headings_count": 0,
+      "target_url": "https://rawpedia.rawtherapee.com/how_to_fix_crashes_on_startup/",
+      "title": "How to fix crashes on startup"
+    },
+    "data/rawpedia/How_to_get_LCP_and_DCP_profiles.md": {
+      "doc_id": "rawpedia:How_to_get_LCP_and_DCP_profiles",
+      "file_sha256": "0b7ec684bbb3e9e25b9a64ec45564127125b06eb855e7de00c6b161e7abd8942",
+      "headings_count": 3,
+      "target_url": "https://rawpedia.rawtherapee.com/how_to_get_lcp_and_dcp_profiles/",
+      "title": "How to get LCP and DCP profiles"
+    },
+    "data/rawpedia/How_to_get_Nikon_ICM_profiles.md": {
+      "doc_id": "rawpedia:How_to_get_Nikon_ICM_profiles",
+      "file_sha256": "469fbba521ac1b62dbfce0e86f92be8b9714cd59b2aae582995aedd8c81ad330",
+      "headings_count": 0,
+      "target_url": "https://rawpedia.rawtherapee.com/how_to_get_nikon_icm_profiles/",
+      "title": "How to get Nikon ICM profiles"
+    },
+    "data/rawpedia/How_to_write_useful_bug_reports.md": {
+      "doc_id": "rawpedia:How_to_write_useful_bug_reports",
+      "file_sha256": "7be874248f07cb7230b7b7f5ef945012405da85f2740b421f0c51e19d313706d",
+      "headings_count": 4,
+      "target_url": "https://rawpedia.rawtherapee.com/how_to_write_useful_bug_reports/",
+      "title": "How to write useful bug reports"
+    },
+    "data/rawpedia/IPTC_Tab.md": {
+      "doc_id": "rawpedia:IPTC_Tab",
+      "file_sha256": "fcc9b2f352cde7846b10e1ee0c387c955ef485ca90f8167706e7eb974c0cf119",
+      "headings_count": 1,
+      "target_url": "https://rawpedia.rawtherapee.com/iptc_tab/",
+      "title": "IPTC Tab"
+    },
+    "data/rawpedia/IRC.md": {
+      "doc_id": "rawpedia:IRC",
+      "file_sha256": "f97448de4e322c54c4d68f9d24611f2a3dcbb478dcae7b1936fed3dd9a6a4043",
+      "headings_count": 0,
+      "target_url": "https://rawpedia.rawtherapee.com/irc/",
+      "title": "IRC"
+    },
+    "data/rawpedia/Image_Processing_Tab.md": {
+      "doc_id": "rawpedia:Image_Processing_Tab",
+      "file_sha256": "1a8efa299b70b0be6e2050c681a9b3347656f354f51d73d224b234b97ae6a3f7",
+      "headings_count": 7,
+      "target_url": "https://rawpedia.rawtherapee.com/image_processing_tab/",
+      "title": "Image Processing Tab"
+    },
+    "data/rawpedia/Image_file_formats_and_compression.md": {
+      "doc_id": "rawpedia:Image_file_formats_and_compression",
+      "file_sha256": "b346b1cbc669056edbd5a566401eac7d10aa25aa17cd14c96483320140ae0fe5",
+      "headings_count": 12,
+      "target_url": "https://rawpedia.rawtherapee.com/image_file_formats_and_compression/",
+      "title": "Image file formats and compression"
+    },
+    "data/rawpedia/Impulse_Noise_Reduction.md": {
+      "doc_id": "rawpedia:Impulse_Noise_Reduction",
+      "file_sha256": "a8191c4be2f5b2ae18d48589a7c0f41eadcefef2250732ee007ce3f5151eb4cc",
+      "headings_count": 0,
+      "target_url": "https://rawpedia.rawtherapee.com/impulse_noise_reduction/",
+      "title": "Impulse Noise Reduction"
+    },
+    "data/rawpedia/Lab_Adjustments.md": {
+      "doc_id": "rawpedia:Lab_Adjustments",
+      "file_sha256": "ef74e0738c58d38b703bd55c76afb97437f0421bb3db6cfe522650e114d39b82",
+      "headings_count": 17,
+      "target_url": "https://rawpedia.rawtherapee.com/lab_adjustments/",
+      "title": "Lab Adjustments"
+    },
+    "data/rawpedia/Lens & Geometry.md": {
+      "doc_id": "rawpedia:Lens & Geometry",
+      "file_sha256": "d1d21dfbe6777c3b8cccaf74cbe0eb4226b3d065366d1349d6f5beba967ac479",
+      "headings_count": 28,
+      "target_url": "https://rawpedia.rawtherapee.com/lens-geometry/",
+      "title": "Lens Geometry"
+    },
+    "data/rawpedia/Linux.md": {
+      "doc_id": "rawpedia:Linux",
+      "file_sha256": "d31ea8d57d38a84bb8596aeebbefb47bae0f6cc3e609aacd35770e381cc9975c",
+      "headings_count": 19,
+      "target_url": "https://rawpedia.rawtherapee.com/linux/",
+      "title": "Linux"
+    },
+    "data/rawpedia/Linux_GTK2.md": {
+      "doc_id": "rawpedia:Linux_GTK2",
+      "file_sha256": "b6a25e0ba29132ca05657d6b9343451870955d1279031d9af85039f7556591ac",
+      "headings_count": 5,
+      "target_url": "https://rawpedia.rawtherapee.com/linux_gtk2/",
+      "title": "Linux GTK2"
+    },
+    "data/rawpedia/Local_Contrast.md": {
+      "doc_id": "rawpedia:Local_Contrast",
+      "file_sha256": "a94e539a1b82a62b3ee9ece186b71b5009406d6654e904f46e8f0929f24dd2d0",
+      "headings_count": 5,
+      "target_url": "https://rawpedia.rawtherapee.com/local_contrast/",
+      "title": "Local Contrast"
+    },
+    "data/rawpedia/Local_Lab_Controls.md": {
+      "doc_id": "rawpedia:Local_Lab_Controls",
+      "file_sha256": "950701ea8dbcc4d8bc3f0301e8a76774c16c093a2258e6ef05aaf2904f784335",
+      "headings_count": 42,
+      "target_url": "https://rawpedia.rawtherapee.com/local_lab_controls/",
+      "title": "Local Lab Controls"
+    },
+    "data/rawpedia/MacOS.md": {
+      "doc_id": "rawpedia:MacOS",
+      "file_sha256": "6b00fc37b4103ad36db37338ed8a391b4a948d61e32526936b8b9774591b6a0a",
+      "headings_count": 8,
+      "target_url": "https://rawpedia.rawtherapee.com/macos/",
+      "title": "MacOS"
+    },
+    "data/rawpedia/Making_a_Portable_Installation.md": {
+      "doc_id": "rawpedia:Making_a_Portable_Installation",
+      "file_sha256": "c329d51da7c094997968fd6a1e529dcf559ad42f0e74ddbfe63c868c680267f0",
+      "headings_count": 2,
+      "target_url": "https://rawpedia.rawtherapee.com/making_a_portable_installation/",
+      "title": "Making a Portable Installation"
+    },
+    "data/rawpedia/Metadata_Copy_Mode.md": {
+      "doc_id": "rawpedia:Metadata_Copy_Mode",
+      "file_sha256": "e8195498bfb027556dd7be14b90272b3ee30d7078c7e3aa3c7a4ceb1e499e327",
+      "headings_count": 0,
+      "target_url": "https://rawpedia.rawtherapee.com/metadata_copy_mode/",
+      "title": "Metadata Copy Mode"
+    },
+    "data/rawpedia/Noise_Reduction.md": {
+      "doc_id": "rawpedia:Noise_Reduction",
+      "file_sha256": "c57747164e174c9eb17f13f39b7e77c3ccad3bf360b6cc00e5872fa6eee81807",
+      "headings_count": 13,
+      "target_url": "https://rawpedia.rawtherapee.com/noise_reduction/",
+      "title": "Noise Reduction"
+    },
+    "data/rawpedia/Preferences.md": {
+      "doc_id": "rawpedia:Preferences",
+      "file_sha256": "1627dd20a8303e5cdfde033cde496022b7f46e33b61805a76af0a507fa2f9bb3",
+      "headings_count": 40,
+      "target_url": "https://rawpedia.rawtherapee.com/preferences/",
+      "title": "Preferences"
+    },
+    "data/rawpedia/Preprocessing.md": {
+      "doc_id": "rawpedia:Preprocessing",
+      "file_sha256": "56ef0db8e89b162320e3c35ed3eef2bb3eb19238b1a91042a059e7594b2d51de",
+      "headings_count": 5,
+      "target_url": "https://rawpedia.rawtherapee.com/preprocessing/",
+      "title": "Preprocessing"
+    },
+    "data/rawpedia/Preview_Modes.md": {
+      "doc_id": "rawpedia:Preview_Modes",
+      "file_sha256": "c7f16101b9a0c4890f9451db2bbf8e1dbd74fedff84ff30e1ce78309b372022a",
+      "headings_count": 3,
+      "target_url": "https://rawpedia.rawtherapee.com/preview_modes/",
+      "title": "Preview Modes"
+    },
+    "data/rawpedia/Queue.md": {
+      "doc_id": "rawpedia:Queue",
+      "file_sha256": "47e95d91ff1264cb208a332a24ea5b491c96f741bf1deac250555d4b0650a8f0",
+      "headings_count": 5,
+      "target_url": "https://rawpedia.rawtherapee.com/queue/",
+      "title": "Queue"
+    },
+    "data/rawpedia/RGB_Curves.md": {
+      "doc_id": "rawpedia:RGB_Curves",
+      "file_sha256": "e0412ae2bdfbfcc3596a4eb0275ba58e1255d797f91c77d29a1489b36a24b7f3",
+      "headings_count": 1,
+      "target_url": "https://rawpedia.rawtherapee.com/rgb_curves/",
+      "title": "RGB Curves"
+    },
+    "data/rawpedia/RGB_and_Lab.md": {
+      "doc_id": "rawpedia:RGB_and_Lab",
+      "file_sha256": "caf3e8a8c02eaa07e447f9058b3bbb977e6e3c9d002481d28b920854c726f7a5",
+      "headings_count": 0,
+      "target_url": "https://rawpedia.rawtherapee.com/rgb_and_lab/",
+      "title": "RGB and Lab"
+    },
+    "data/rawpedia/RTProfileSelector.md": {
+      "doc_id": "rawpedia:RTProfileSelector",
+      "file_sha256": "bfb8bdcd25d9bb6b756b17c26f4b310f6477e0abdf9b9e2f4f45bfd435bd495b",
+      "headings_count": 0,
+      "target_url": "https://rawpedia.rawtherapee.com/rtprofileselector/",
+      "title": "RTProfileSelector"
+    },
+    "data/rawpedia/RTbatch.md": {
+      "doc_id": "rawpedia:RTbatch",
+      "file_sha256": "70b612bdb80367f379f59ad47520f45459e9aeb2c3d37566b7af24d0331c7025",
+      "headings_count": 0,
+      "target_url": "https://rawpedia.rawtherapee.com/rtbatch/",
+      "title": "RTbatch"
+    },
+    "data/rawpedia/Raw_Black_Points.md": {
+      "doc_id": "rawpedia:Raw_Black_Points",
+      "file_sha256": "e3769f67e05cfdb1e9815c98b358b2db0f44a1f42d5c89bbb06d271df8fa47c5",
+      "headings_count": 1,
+      "target_url": "https://rawpedia.rawtherapee.com/raw_black_points/",
+      "title": "Raw Black Points"
+    },
+    "data/rawpedia/Raw_White_Points.md": {
+      "doc_id": "rawpedia:Raw_White_Points",
+      "file_sha256": "d11da45f0c957653732f26a7e34daa1bc3e7546381dfa4c7b6e82ebd5d504740",
+      "headings_count": 0,
+      "target_url": "https://rawpedia.rawtherapee.com/raw_white_points/",
+      "title": "Raw White Points"
+    },
+    "data/rawpedia/Rawtherapee_Processing_Challenge_feedback.md": {
+      "doc_id": "rawpedia:Rawtherapee_Processing_Challenge_feedback",
+      "file_sha256": "41d990cd56c51a60aab31e7607bb4372e4fedb88f016466546649d9e9a69d5f1",
+      "headings_count": 86,
+      "target_url": "https://rawpedia.rawtherapee.com/rawtherapee_processing_challenge_feedback/",
+      "title": "Rawtherapee Processing Challenge"
+    },
+    "data/rawpedia/Resize.md": {
+      "doc_id": "rawpedia:Resize",
+      "file_sha256": "a1eb66528342d9a6e4b3788444a7dfab3d762fa1e70909f0fbfc130807130baa",
+      "headings_count": 6,
+      "target_url": "https://rawpedia.rawtherapee.com/resize/",
+      "title": "Resize"
+    },
+    "data/rawpedia/Retinex.md": {
+      "doc_id": "rawpedia:Retinex",
+      "file_sha256": "1f9072225561ad38e4596c44ccb7176c16dc2a8ee654bcbb1a35f232fd17a448",
+      "headings_count": 24,
+      "target_url": "https://rawpedia.rawtherapee.com/retinex/",
+      "title": "Retinex"
+    },
+    "data/rawpedia/Saving_Images.md": {
+      "doc_id": "rawpedia:Saving_Images",
+      "file_sha256": "6425dcd87d9c82fb92de03364448609fff0139122aa5ab56c760d76fc240e298",
+      "headings_count": 3,
+      "target_url": "https://rawpedia.rawtherapee.com/saving_images/",
+      "title": "Saving Images"
+    },
+    "data/rawpedia/Scrollable_Toolbar.md": {
+      "doc_id": "rawpedia:Scrollable_Toolbar",
+      "file_sha256": "793550ecc04d409b0f0b5758f29fa93dfc53a7b0060c431fd9482bf4f2245173",
+      "headings_count": 0,
+      "target_url": "https://rawpedia.rawtherapee.com/scrollable_toolbar/",
+      "title": "Scrollable Toolbar"
+    },
+    "data/rawpedia/Shadows & Highlights.md": {
+      "doc_id": "rawpedia:Shadows & Highlights",
+      "file_sha256": "10283604e94d64ef6804911fbab87f8c71e9f4d35f73e94b54926b041bfea5a7",
+      "headings_count": 8,
+      "target_url": "https://rawpedia.rawtherapee.com/shadows-highlights/",
+      "title": "Shadows Highlights"
+    },
+    "data/rawpedia/Sharpening.md": {
+      "doc_id": "rawpedia:Sharpening",
+      "file_sha256": "6ed471cee6a692c13c2b6e83aaedcb25c6db6616288f852fa2f42303dbdf99ca",
+      "headings_count": 13,
+      "target_url": "https://rawpedia.rawtherapee.com/sharpening/",
+      "title": "Sharpening"
+    },
+    "data/rawpedia/Sidecar_Files_-_Processing_Profiles.md": {
+      "doc_id": "rawpedia:Sidecar_Files_-_Processing_Profiles",
+      "file_sha256": "16646b23c9d50e91ba8d35c6bd71ae7041e1ee418dfde096390051d17c7ed5e9",
+      "headings_count": 8,
+      "target_url": "https://rawpedia.rawtherapee.com/sidecar_files_-_processing_profiles/",
+      "title": "Sidecar Files - Processing Profiles"
+    },
+    "data/rawpedia/Soft_Light.md": {
+      "doc_id": "rawpedia:Soft_Light",
+      "file_sha256": "1eedb1326f588b6a82b650b8ffa6cf6dc6cc9ac41b196f05347fc115cd440125",
+      "headings_count": 0,
+      "target_url": "https://rawpedia.rawtherapee.com/soft_light/",
+      "title": "Soft Light"
+    },
+    "data/rawpedia/Spot_Removal.md": {
+      "doc_id": "rawpedia:Spot_Removal",
+      "file_sha256": "bbfb6d2c66076e6509d788a3caae77ddf1d00a2a2bad63d1b30a22c582961174",
+      "headings_count": 3,
+      "target_url": "https://rawpedia.rawtherapee.com/spot_removal/",
+      "title": "Spot Removal"
+    },
+    "data/rawpedia/Supported_Cameras.md": {
+      "doc_id": "rawpedia:Supported_Cameras",
+      "file_sha256": "65679c1dd04859e6451721d67b47aa5d77af1da882dbcce093980dd926be1cff",
+      "headings_count": 0,
+      "target_url": "https://rawpedia.rawtherapee.com/supported_cameras/",
+      "title": "Supported Cameras"
+    },
+    "data/rawpedia/The_Floating_Point_Engine.md": {
+      "doc_id": "rawpedia:The_Floating_Point_Engine",
+      "file_sha256": "431656fde224624d1541f34f361618d543ed498750bf76400122c1487061cc14",
+      "headings_count": 1,
+      "target_url": "https://rawpedia.rawtherapee.com/the_floating_point_engine/",
+      "title": "The Floating Point Engine"
+    },
+    "data/rawpedia/Tone_Mapping.md": {
+      "doc_id": "rawpedia:Tone_Mapping",
+      "file_sha256": "cb172fed447ba07f56d039e9c1eeb8c2ad86de2135c4aacedf47d67eb7b74e7e",
+      "headings_count": 7,
+      "target_url": "https://rawpedia.rawtherapee.com/tone_mapping/",
+      "title": "Tone Mapping"
+    },
+    "data/rawpedia/Toolchain_Pipeline.md": {
+      "doc_id": "rawpedia:Toolchain_Pipeline",
+      "file_sha256": "43877a890b9ae861bcea2314c79c87e52299b0c739ecbb065e58ca1c8a449ea6",
+      "headings_count": 29,
+      "target_url": "https://rawpedia.rawtherapee.com/toolchain_pipeline/",
+      "title": "Toolchain Pipeline"
+    },
+    "data/rawpedia/Tutorials/game_changer/film-simulation.md": {
+      "doc_id": "rawpedia:Tutorials/game_changer/film-simulation",
+      "file_sha256": "906b2d105be5f425bd1ea1b6d34a3f12baac0067d548fd1e04a92630f59f0169",
+      "headings_count": 9,
+      "target_url": "https://rawpedia.rawtherapee.com/tutorials/game_changer/film-simulation/",
+      "title": "05. Mastery of Colours & Film Simulation"
+    },
+    "data/rawpedia/Tutorials/game_changer/girl.md": {
+      "doc_id": "rawpedia:Tutorials/game_changer/girl",
+      "file_sha256": "d4472cdcb00a7fafa9ad73f842c16d9da6527c33cd89c8637228500a37d9997a",
+      "headings_count": 13,
+      "target_url": "https://rawpedia.rawtherapee.com/tutorials/game_changer/girl/",
+      "title": "08. A Young Girl, A Noisy Image"
+    },
+    "data/rawpedia/Tutorials/game_changer/introduction.md": {
+      "doc_id": "rawpedia:Tutorials/game_changer/introduction",
+      "file_sha256": "7794ecb9e0711ba0aa41c13f0a943a1120a6207fa719247fcce03c20454c13f1",
+      "headings_count": 5,
+      "target_url": "https://rawpedia.rawtherapee.com/tutorials/game_changer/introduction/",
+      "title": "01. Introduction to the \\\"Game changer\\\" Tutorials"
+    },
+    "data/rawpedia/Tutorials/game_changer/led.md": {
+      "doc_id": "rawpedia:Tutorials/game_changer/led",
+      "file_sha256": "9f03cf2339978c89c2a8d0b07e41d0537a02a20f852ba6a2b3d7385b39941f9c",
+      "headings_count": 12,
+      "target_url": "https://rawpedia.rawtherapee.com/tutorials/game_changer/led/",
+      "title": "04. Using LED's image"
+    },
+    "data/rawpedia/Tutorials/game_changer/mouse.md": {
+      "doc_id": "rawpedia:Tutorials/game_changer/mouse",
+      "file_sha256": "f4f78aeedef36e544b39ddc61c280e5606345d8f893af114623d3cd2c5f76a1c",
+      "headings_count": 10,
+      "target_url": "https://rawpedia.rawtherapee.com/tutorials/game_changer/mouse/",
+      "title": "07. The Harvest Mouse"
+    },
+    "data/rawpedia/Tutorials/game_changer/pagodas.md": {
+      "doc_id": "rawpedia:Tutorials/game_changer/pagodas",
+      "file_sha256": "aadebf4cd5b14f5c06713623a392101160dbb1c1668636b3f1759fd6e1d36c2a",
+      "headings_count": 17,
+      "target_url": "https://rawpedia.rawtherapee.com/tutorials/game_changer/pagodas/",
+      "title": "09. Pagodas"
+    },
+    "data/rawpedia/Tutorials/game_changer/rocks.md": {
+      "doc_id": "rawpedia:Tutorials/game_changer/rocks",
+      "file_sha256": "35f6d8e727f02e9179da348968765a8b211cdc868236c4c468f616d4f969b01d",
+      "headings_count": 14,
+      "target_url": "https://rawpedia.rawtherapee.com/tutorials/game_changer/rocks/",
+      "title": "06. Processing Cliffs in Variable Lighting"
+    },
+    "data/rawpedia/Tutorials/game_changer/shadows-highlights.md": {
+      "doc_id": "rawpedia:Tutorials/game_changer/shadows-highlights",
+      "file_sha256": "2f90d1f14f29683eb7f860e0c96a1c062c8416f4b1a8446751d5608f2acd3fe9",
+      "headings_count": 28,
+      "target_url": "https://rawpedia.rawtherapee.com/tutorials/game_changer/shadows-highlights/",
+      "title": "02. Best Shadow & Highlight Techniques"
+    },
+    "data/rawpedia/Tutorials/game_changer/sunset.md": {
+      "doc_id": "rawpedia:Tutorials/game_changer/sunset",
+      "file_sha256": "87dbf224223ce07561f549463acc5486ce29dafb2d4091dcc8ecf068f8bb9fc4",
+      "headings_count": 25,
+      "target_url": "https://rawpedia.rawtherapee.com/tutorials/game_changer/sunset/",
+      "title": "03. How to process a Sunset"
+    },
+    "data/rawpedia/Unclipped.md": {
+      "doc_id": "rawpedia:Unclipped",
+      "file_sha256": "d4292d5d6ac56b7210bf4bd69c3d487558b383329d55085cfdd70fe95f7f1cc1",
+      "headings_count": 2,
+      "target_url": "https://rawpedia.rawtherapee.com/unclipped/",
+      "title": "Unclipped"
+    },
+    "data/rawpedia/Vibrance.md": {
+      "doc_id": "rawpedia:Vibrance",
+      "file_sha256": "893883145b6dfb9bba643d85631634b5524b094e02b138d6eb7e21f4244c2fe9",
+      "headings_count": 7,
+      "target_url": "https://rawpedia.rawtherapee.com/vibrance/",
+      "title": "Vibrance"
+    },
+    "data/rawpedia/Vignetting_Filter.md": {
+      "doc_id": "rawpedia:Vignetting_Filter",
+      "file_sha256": "5c11a29ef8544ff1def1696e7960543fe448e6beab0cb9d2e062aa3330313841",
+      "headings_count": 3,
+      "target_url": "https://rawpedia.rawtherapee.com/vignetting_filter/",
+      "title": "Vignetting Filter"
+    },
+    "data/rawpedia/Watermarking.md": {
+      "doc_id": "rawpedia:Watermarking",
+      "file_sha256": "6eca9d6b424b14c2652b743b8db07ddc3be2c68ddd52cda76ccb1a23d2ccb5ba",
+      "headings_count": 0,
+      "target_url": "https://rawpedia.rawtherapee.com/watermarking/",
+      "title": "Watermarking"
+    },
+    "data/rawpedia/Wavelet_Levels.md": {
+      "doc_id": "rawpedia:Wavelet_Levels",
+      "file_sha256": "0f86f49d25ab17295902842b09f72d7d428106694e831fcc437ebad8ddfe943d",
+      "headings_count": 70,
+      "target_url": "https://rawpedia.rawtherapee.com/wavelet_levels/",
+      "title": "Wavelet Levels"
+    },
+    "data/rawpedia/Waveletnew.md": {
+      "doc_id": "rawpedia:Waveletnew",
+      "file_sha256": "1309bcbcfe7f75f730b16f560196f9310695a533d5a5478a6ed84fb8d6a7a682",
+      "headings_count": 0,
+      "target_url": "https://rawpedia.rawtherapee.com/waveletnew/",
+      "title": "Waveletnew"
+    },
+    "data/rawpedia/Wayland.md": {
+      "doc_id": "rawpedia:Wayland",
+      "file_sha256": "2685e96be4407713a0b9b4a258474d4fff5a80e5d2864c6d1aa2e8dac9f149f6",
+      "headings_count": 0,
+      "target_url": "https://rawpedia.rawtherapee.com/wayland/",
+      "title": "Wayland"
+    },
+    "data/rawpedia/White_Balance.md": {
+      "doc_id": "rawpedia:White_Balance",
+      "file_sha256": "77bdda81f03ca1f0480ea48dd3b1a80d1297832988a3072fb95b8ce4d2af80a2",
+      "headings_count": 24,
+      "target_url": "https://rawpedia.rawtherapee.com/white_balance/",
+      "title": "White Balance"
+    },
+    "data/rawpedia/Windows.md": {
+      "doc_id": "rawpedia:Windows",
+      "file_sha256": "fd5848486a41bb872b65c3657302527e326c45a7b7ba63c0425e11018452790e",
+      "headings_count": 17,
+      "target_url": "https://rawpedia.rawtherapee.com/windows/",
+      "title": "Windows"
+    },
+    "data/rawpedia/about_noise_reduction.md": {
+      "doc_id": "rawpedia:about_noise_reduction",
+      "file_sha256": "efaf0b958cb65061c27ac87603b95eb9c9807944549388a15c0c81936315f1c4",
+      "headings_count": 32,
+      "target_url": "https://rawpedia.rawtherapee.com/about_noise_reduction/",
+      "title": "About Noise Reduction"
+    },
+    "data/rawpedia/adding_support_for_new_raw_formats.md": {
+      "doc_id": "rawpedia:adding_support_for_new_raw_formats",
+      "file_sha256": "5c166281ed4c72574607cd9596ddcc3f40cd3f62754080c190f5e5fba0cb2faf",
+      "headings_count": 8,
+      "target_url": "https://rawpedia.rawtherapee.com/adding_support_for_new_raw_formats/",
+      "title": "Adding Support for New Raw Formats"
+    },
+    "data/rawpedia/batch_adjustments_-_sync.md": {
+      "doc_id": "rawpedia:batch_adjustments_-_sync",
+      "file_sha256": "0d35ffc41985b336b7dacfa8d5685414b9054c13347c5b2787d33f35db1c78c6",
+      "headings_count": 2,
+      "target_url": "https://rawpedia.rawtherapee.com/batch_adjustments_-_sync/",
+      "title": "Batch Adjustments - Sync"
+    },
+    "data/rawpedia/bit_depth.md": {
+      "doc_id": "rawpedia:bit_depth",
+      "file_sha256": "4c378f5a9fa442308e9562fb5b894de97f8709c0cd36af606fe501facc200ae1",
+      "headings_count": 5,
+      "target_url": "https://rawpedia.rawtherapee.com/bit_depth/",
+      "title": "Bit Depth"
+    },
+    "data/rawpedia/command-line_options.md": {
+      "doc_id": "rawpedia:command-line_options",
+      "file_sha256": "d2c7d884e2fa5a4a591ea785d6011983e9fc3a96380ad55cac7b7fc4b48a36fc",
+      "headings_count": 8,
+      "target_url": "https://rawpedia.rawtherapee.com/command-line_options/",
+      "title": "Command-Line Options"
+    },
+    "data/rawpedia/download.md": {
+      "doc_id": "rawpedia:download",
+      "file_sha256": "24f2e148bed6caf6dfd570ad1df376b53894a2fb93e6ee488a939c098ebe41e6",
+      "headings_count": 2,
+      "target_url": "https://rawpedia.rawtherapee.com/download/",
+      "title": "Download"
+    },
+    "data/rawpedia/edit_current_image_in_external_editor.md": {
+      "doc_id": "rawpedia:edit_current_image_in_external_editor",
+      "file_sha256": "582d5b8f52f36192874ba935e188591fef245feb7f8b6d8a0f141f8b4aafaa9d",
+      "headings_count": 0,
+      "target_url": "https://rawpedia.rawtherapee.com/edit_current_image_in_external_editor/",
+      "title": "Edit Current Image in External Editor"
+    },
+    "data/rawpedia/editor.md": {
+      "doc_id": "rawpedia:editor",
+      "file_sha256": "6ca24ee8b3cf63842ed9f02c13169b8856d34c5f8eef6e78520239fb8f01e50c",
+      "headings_count": 12,
+      "target_url": "https://rawpedia.rawtherapee.com/editor/",
+      "title": "Editor"
+    },
+    "data/rawpedia/features.md": {
+      "doc_id": "rawpedia:features",
+      "file_sha256": "9eb46614383b57777159c1ab5a11e6a5716529f3ccf2c892cdb5dd5e0b3bb0af",
+      "headings_count": 0,
+      "target_url": "https://rawpedia.rawtherapee.com/features/",
+      "title": "Features"
+    },
+    "data/rawpedia/file_browser.md": {
+      "doc_id": "rawpedia:file_browser",
+      "file_sha256": "1d5f13fa83d3871f5fe7e2533fac68a664e60ed317032ba5dfb6911ffd7a14c0",
+      "headings_count": 5,
+      "target_url": "https://rawpedia.rawtherapee.com/file_browser/",
+      "title": "File Browser"
+    },
+    "data/rawpedia/file_paths.md": {
+      "doc_id": "rawpedia:file_paths",
+      "file_sha256": "3e973c93c09169953f632e83396da5a7d2271b4039452e45ca44e56af060005f",
+      "headings_count": 5,
+      "target_url": "https://rawpedia.rawtherapee.com/file_paths/",
+      "title": "File Paths"
+    },
+    "data/rawpedia/getting_started.md": {
+      "doc_id": "rawpedia:getting_started",
+      "file_sha256": "ea91e36f8fc53dabc5d4917ea094d4285cc1c3bd3f0f456e7a2f304fc7051957",
+      "headings_count": 6,
+      "target_url": "https://rawpedia.rawtherapee.com/getting_started/",
+      "title": "Getting Started"
+    },
+    "data/rawpedia/gimp_plugin.md": {
+      "doc_id": "rawpedia:gimp_plugin",
+      "file_sha256": "61735323a50acde290458f371b8d013152dcd247b923431d4d79f70095842053",
+      "headings_count": 2,
+      "target_url": "https://rawpedia.rawtherapee.com/gimp_plugin/",
+      "title": "GIMP Plugin"
+    },
+    "data/rawpedia/icc_profile_creator.md": {
+      "doc_id": "rawpedia:icc_profile_creator",
+      "file_sha256": "3076db87dcb6f8ef4cea49020ce7a05cc6371d29fa13759ae765ad5e983d6bb0",
+      "headings_count": 5,
+      "target_url": "https://rawpedia.rawtherapee.com/icc_profile_creator/",
+      "title": "ICC Profile Creator"
+    },
+    "data/rawpedia/keyboard_shortcuts.md": {
+      "doc_id": "rawpedia:keyboard_shortcuts",
+      "file_sha256": "b4705f37e8c36adf375a58c3e11fc71bd3a9c64e3d0a1524cda4272853015776",
+      "headings_count": 2,
+      "target_url": "https://rawpedia.rawtherapee.com/keyboard_shortcuts/",
+      "title": "Keyboard Shortcuts"
+    },
+    "data/rawpedia/local_adjustments.md": {
+      "doc_id": "rawpedia:local_adjustments",
+      "file_sha256": "16cdec987f69e5be869ce50d81247517d954f45fe656d9fd17f0ea405a19c86a",
+      "headings_count": 391,
+      "target_url": "https://rawpedia.rawtherapee.com/local_adjustments/",
+      "title": "Local Adjustments"
+    }
+  },
+  "rawpedia_sources_count": 116,
+  "schema_version": 1
+}
