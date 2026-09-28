@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "caugustin"
+  },
+  "body": "Hi,\r\na quite unusual approach nowadays, reminds me of Unix (were rename is made with the mv command, as far as I remember). Works so far and feels quite practical, but I would suggest some improvements (in order of \"importance\" ;-)):\r\n\r\n1. Change the menu name to \"Rename/Move\" to make this functionality clear to the \"unsuspecting\" user. (BTW, if you need/want support for the German language, I could be of help.)\r\n\r\n2. Move the XMP file too, since this is part of the \"bundle\". (I tested on Linux. I didn't check if the Rename operation already does it. XnView MP has an interesting feature regarding sidecar files, as it includes JPEG and lets one define additional extensions.)\r\n\r\n3. When first clicking on the folder selection for the move operation, use the current directory of the file browser (as is indicated by the \".\" on first use), not with some other folder. (I tested this on macOS, Windows and Linux, and it were totally different locations; opening the home folder in Linux was the most sensible of the three. ;-))\r\n\r\n4. Related to point 3: The \"Base directory:\" is misleading, as it points to the last base directory, not the current (again, on Linux). This is shown in the \"Preview\" string, but this is not what I would expect. Didn't test it in RT.\r\n\r\nBest",
+  "createdAt": "2026-01-24T15:05:32Z",
+  "databaseId": 15591494,
+  "id": "DC_kwDONWPV1M4A7ehG",
+  "updatedAt": "2026-01-24T15:05:32Z",
+  "url": "https://github.com/artraweditor/ART/discussions/440#discussioncomment-15591494"
+}

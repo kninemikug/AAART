@@ -1,0 +1,16 @@
+{
+  "author": {
+    "login": "hubertmeier"
+  },
+  "body": "Question or feature request: Is ART capable of reading the gain maps in hdr fotos like from google pixel or other mobile phones? The image should be imported as hdr foto with applied gainmap and later exported in a hdr capable output format like jxl or again in a 8bit jpg + an additional gainmap. And hopefully would be the display sdr and hdr on  all devices the same like before if only geometric correctures are made ...\r\n\r\nthis is a real interesting projekt, the development is ways faster than on RT which i use since years ...\r\n\r\nthank you",
+  "category": {
+    "name": "Ideas"
+  },
+  "createdAt": "2026-03-15T10:30:21Z",
+  "databaseId": 9649850,
+  "id": "D_kwDONWPV1M4Akz66",
+  "number": 456,
+  "title": "JPGs with gainmap",
+  "updatedAt": "2026-03-15T19:54:55Z",
+  "url": "https://github.com/orgs/artraweditor/discussions/456"
+}

@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "agriggio"
+  },
+  "body": "Hi,\r\nClear removes the ARP completely, so not identical to reset. But when you open the image again the arp is created again with the default parameters, that's why you might see the same result.\r\nThinking about this, I agree that the current behavior is a bit surprising though. Would adding a safeguard that asks to confirm when the image has snapshots before proceeding help?",
+  "createdAt": "2026-09-26T05:35:37Z",
+  "databaseId": 18608974,
+  "id": "DC_kwDONWPV1M4BG_NO",
+  "updatedAt": "2026-09-26T05:35:37Z",
+  "url": "https://github.com/artraweditor/ART/discussions/473#discussioncomment-18608974"
+}

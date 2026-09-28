@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "kmilos"
+  },
+  "body": "It could be because G97 is not added to LibRaw yet, so who knows what input color matrix it ends up with...\n\nIt [should be identical to G95](https://www.dpreview.com/news/8943078360/panasonic-g97-zs99-tz99-refresh-usb-c).",
+  "createdAt": "2026-03-05T08:01:20Z",
+  "databaseId": 16012584,
+  "id": "DC_kwDONWPV1M4A9FUo",
+  "updatedAt": "2026-03-05T09:43:29Z",
+  "url": "https://github.com/artraweditor/ART/discussions/451#discussioncomment-16012584"
+}

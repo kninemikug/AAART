@@ -1,0 +1,16 @@
+{
+  "author": {
+    "login": "aarolep"
+  },
+  "body": "I would like to use PhotoGIMP which is custom version of GIMP as a external editor. I can use it with RawTherapee but ART doesn't recognize it. I tried to use the custom command from RawTherapee but it still doesn't work and I cant find any documentation about the custom commands on ART.\r\n\r\nThe Rawtherapee's custom command:\r\n`/usr/bin/flatpak run --branch=stable --arch=x86_64 --command=gimp-3.0 --file-forwarding org.gimp.GIMP @@u %U @@`",
+  "category": {
+    "name": "Q&A"
+  },
+  "createdAt": "2025-12-09T21:08:33Z",
+  "databaseId": 9230047,
+  "id": "D_kwDONWPV1M4AjNbf",
+  "number": 420,
+  "title": "Using external editor",
+  "updatedAt": "2025-12-10T10:16:12Z",
+  "url": "https://github.com/orgs/artraweditor/discussions/420"
+}

@@ -1,0 +1,16 @@
+{
+  "author": {
+    "login": "agriggio"
+  },
+  "body": "Hi,\r\nI've added some experimental code to use the GPU to speed-up some operations. More specifically, it currently applies to \"Noise Reduction\" and to the \"Non-local means\" and \"Wavelets\" modes of \"Smoothing\".\r\nIt should work across platforms, but I have only really tested it on Apple silicon (and briefly on Linux with a NVidia card). \r\nIf you have the chance, it would be great to get more feedback on this. You can download the nightly builds from the usual place (https://github.com/artraweditor/ART/releases/tag/nightly), and then enable GPU acceleration in \"Preferences -> Performance\".\r\n\r\n**NOTE**: do *not* expect \"night and day\" differences (a much more extensive rewrite of the whole pipeline would be needed to get close to the performance of something like vkdt for example), but it should help somewhat. \r\n\r\nThanks in advance!",
+  "category": {
+    "name": "General"
+  },
+  "createdAt": "2026-09-25T06:51:47Z",
+  "databaseId": 10884689,
+  "id": "D_kwDONWPV1M4AphZR",
+  "number": 526,
+  "title": "Added experimental GPU acceleration, needs testing!",
+  "updatedAt": "2026-09-25T19:21:15Z",
+  "url": "https://github.com/orgs/artraweditor/discussions/526"
+}

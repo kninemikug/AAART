@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "agriggio"
+  },
+  "body": "Hi,\r\n\r\n> It would be nice if ART had a similar browser/library function to DT. Is a similar import/copying functionality available in ART? Are there any plans to add such a function?\r\n\r\nNot exactly the same, but you can use the rename dialog as a sort of \"poor man's import\" functionality. Renaming in art supports the creation of subfolders based on image metadata, which seems what you are asking here.\r\n\r\nHTH",
+  "createdAt": "2026-03-10T20:45:52Z",
+  "databaseId": 16074090,
+  "id": "DC_kwDONWPV1M4A9UVq",
+  "updatedAt": "2026-03-10T20:45:52Z",
+  "url": "https://github.com/artraweditor/ART/discussions/452#discussioncomment-16074090"
+}

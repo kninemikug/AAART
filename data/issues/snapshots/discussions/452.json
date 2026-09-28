@@ -1,0 +1,16 @@
+{
+  "author": {
+    "login": "HonourableTyr"
+  },
+  "body": "Didn't know the best way to post a \"thank you\" to all the ART contributors. I'm an escapee from closed and paywalled Lightroom (LR). I really didn't like the direction that was going nor the ongoing subscription model. I've gone full FOSS across all my devices so no Windows or MacOS which also meant no Adobe. I've been looking for something that is comparable to LR and not too difficult to relearn. I've been using LR for 20 years so the \"muscle memory\" is strong.\r\n\r\nART seems to absolutely hit the spot for easy to convert my existing skills and getting comparable results quickly.\r\n\r\nThe only thing that is missing for me is a more library-like module than the file browser. I'm not looking for a database behind ART like LR has, nor the vast library of previews cluttering up disk space. I am really just looking for a way to import my images and keep my folders organised. If anyone has some recommendations I'd appreciate it.\r\n\r\nFor comparison, in Darktable (DT) you can import images and tell it to sort the imported images using the metadata from said images. My sorting is by LIBRARY/YYYY/MM/DD folders, so an ISO date format type file system structure. At the moment I am using DT as a tool purely to import my images, and then editing/exporting in ART. I had started to try editing in DT but I cannot easily get the results I can with ART.\r\n\r\nIt would be nice if ART had a similar browser/library function to DT. Is a similar import/copying functionality available in ART? Are there any plans to add such a function?\r\n\r\nThe only other thing I might miss is automatic panorama stitching and the creation of stitched DNGs. That isn't something I'm expecting to be added to ART at any point and I can go back to doing it how I used to in an external editor like GIMP. The same with object removal that requires more than just the application of a few dust removal spots (although I have removed fairly large objects just using that!).",
+  "category": {
+    "name": "General"
+  },
+  "createdAt": "2026-03-10T17:27:39Z",
+  "databaseId": 9617408,
+  "id": "D_kwDONWPV1M4AksAA",
+  "number": 452,
+  "title": "Thanks & File Browser Questions",
+  "updatedAt": "2026-03-11T05:46:53Z",
+  "url": "https://github.com/orgs/artraweditor/discussions/452"
+}

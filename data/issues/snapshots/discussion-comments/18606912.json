@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "Elcolor"
+  },
+  "body": "Verified.\r\n1-\"Apply neutral\" leaves the snapshots. \r\n2-\"Reset to default\" and \"clear\" do exactly the same thing, they delete the snapshots and leave the photo with the configuration that is in \"Default Processing Profile\". The snapshots disappear when opening another photo and returning to the previous one.",
+  "createdAt": "2026-09-26T00:32:17Z",
+  "databaseId": 18606912,
+  "id": "DC_kwDONWPV1M4BG-tA",
+  "updatedAt": "2026-09-26T00:32:17Z",
+  "url": "https://github.com/artraweditor/ART/discussions/473#discussioncomment-18606912"
+}

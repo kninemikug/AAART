@@ -1,0 +1,16 @@
+{
+  "author": {
+    "login": "kapigogle-eng"
+  },
+  "body": "Hi Alberto and the community,\r\n\r\nI’ve been using ART and absolutely love it—the engine and quality are amazing. Honestly, there are only two minor things regarding workflow and culling that keep it from being the 100% perfect app for me. I would really appreciate it if these could be considered:\r\n\r\n1. Arrow keys navigation with hidden filmstrip: Currently, when the filmstrip is hidden, pressing Left/Right arrows doesn't switch between images because the focus is lost. It would be a huge workflow improvement if the arrow keys always changed the image in the editor by default, as long as no specific slider or input box is actively focused.\r\n\r\n2. Auto-advance after deleting: When I move an image to the trash, the editor panel clears or drops the selection. It would be amazing if deleting an image automatically loaded and selected the next available image from the folder.\r\n\r\nThese two tweaks would make the culling process incredibly fast and fluid. Thank you so much for all your hard work on this amazing project!\r\n",
+  "category": {
+    "name": "Ideas"
+  },
+  "createdAt": "2026-07-05T08:01:10Z",
+  "databaseId": 10372914,
+  "id": "D_kwDONWPV1M4Ankcy",
+  "number": 507,
+  "title": "ART feature request: Arrow keys navigation and auto-advance on delete",
+  "updatedAt": "2026-07-05T15:46:41Z",
+  "url": "https://github.com/orgs/artraweditor/discussions/507"
+}

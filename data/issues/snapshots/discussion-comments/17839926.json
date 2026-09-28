@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "agriggio"
+  },
+  "body": "Hi,\r\nI still think what you are seeing is just some form of (probably impossible to turn off) default noise reduction being applied Silkypix. Of course I could be wrong, but there are techniques (e.g. based on frequency domain analysis) that would allow to confirm this if you really want to be sure. ",
+  "createdAt": "2026-07-30T12:01:11Z",
+  "databaseId": 17839926,
+  "id": "DC_kwDONWPV1M4BEDc2",
+  "updatedAt": "2026-07-30T12:01:11Z",
+  "url": "https://github.com/artraweditor/ART/discussions/451#discussioncomment-17839926"
+}

@@ -1,0 +1,16 @@
+{
+  "author": {
+    "login": "ryancara"
+  },
+  "body": "Hi there,\r\n\r\nI'm experiencing colour shifts when switching my working profile to ACESp0 that I'm not experiencing with any other colour-space. These colour shifts occur even when everything should be in gamut. Just wondering if this is a side-effect of how large the space is, or something else? \r\n\r\nRyan :) ",
+  "category": {
+    "name": "General"
+  },
+  "createdAt": "2026-05-18T14:22:17Z",
+  "databaseId": 10086352,
+  "id": "D_kwDONWPV1M4AmefQ",
+  "number": 487,
+  "title": "Question: Getting colour shifts with ACESp0",
+  "updatedAt": "2026-05-27T23:28:36Z",
+  "url": "https://github.com/orgs/artraweditor/discussions/487"
+}

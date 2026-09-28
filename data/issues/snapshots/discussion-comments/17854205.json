@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "agriggio"
+  },
+  "body": "Hi, \r\nI don't think this is a failure, but I think you can get reasonably close by tuning some parameters. Here's an example:\r\n\r\n<img width=\"2200\" height=\"1322\" alt=\"Screenshot 2026-07-31 at 15 10 26\" src=\"https://github.com/user-attachments/assets/0f7f6f7d-bfeb-4367-88a8-42ecfa98e851\" />\r\n\r\n\r\nWhat I did:\r\n- change demosaicing to \"VNG4\", to get something smoother at the (sub-)pixel level, since you are looking at pictures at 400% zoom\r\n- tweak the greens a little bit with the channel mixer (you can see the values in the screenshot). Note this might impact other colors as well, but it's hard to say as your sample pictures are mostly green :-)\r\n- add a bit of chroma noise reduction using a value of 3 \"Noise reduction -> Final Smoothing -> Chrominance\", and lowering \"Chrominance -> Automatic reduction strength\" to 0.\r\n\r\nI will let you decide if the result is close enough. Of course, you might still prefer Silkypix, and there's nothing wrong with that :-)",
+  "createdAt": "2026-07-31T13:20:26Z",
+  "databaseId": 17854205,
+  "id": "DC_kwDONWPV1M4BEG79",
+  "updatedAt": "2026-07-31T13:20:26Z",
+  "url": "https://github.com/artraweditor/ART/discussions/451#discussioncomment-17854205"
+}

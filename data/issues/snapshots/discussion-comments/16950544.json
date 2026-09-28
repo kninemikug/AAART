@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "Hombre57"
+  },
+  "body": "Sure, no hurry.\r\n\r\nHaving more utility classes (Button, ComboBox, Treeview, ...) would certainly help for the transition. Being fully SDK independent seems ambitious, but we can approach that.\r\n\r\nJust let me know if you want to tackle this yourself or need help with this very invasive transition (if you don't mind limited C++ skill).",
+  "createdAt": "2026-05-17T14:08:00Z",
+  "databaseId": 16950544,
+  "id": "DC_kwDONWPV1M4BAqUQ",
+  "updatedAt": "2026-05-17T14:08:00Z",
+  "url": "https://github.com/artraweditor/ART/discussions/485#discussioncomment-16950544"
+}

@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "mervinbeng"
+  },
+  "body": "Thanks for the very quick response. \r\n\r\nFor (2), I've tried for several hours to fix the errors on lensfun-convert-lcp to add the lens lcp profile to my local lensfun database. I seem to have fixed the python multiprocessing error which has been reported elsewhere, but there are still errors:\r\n\r\n```\r\n    self.calibration_entries = [self.get_description_element_maybe(entry) for entry in tree.getroot()[0][0][0][0]]\r\n                                                                                       ~~~~~~~~~~~~~~~~~~~~^^^\r\nIndexError: child index out of range\r\n```\r\nThe error seems to indicate that Adobe may have revised the lcp format since the conversion utility was last updated.\r\n\r\nI'll learn to be more effective with profiles / presets, and if that remains too cumbersome, I may raise a feature request. Thanks.",
+  "createdAt": "2026-06-21T08:26:54Z",
+  "databaseId": 17380128,
+  "id": "DC_kwDONWPV1M4BCTMg",
+  "updatedAt": "2026-06-21T08:26:54Z",
+  "url": "https://github.com/artraweditor/ART/discussions/502#discussioncomment-17380128"
+}
