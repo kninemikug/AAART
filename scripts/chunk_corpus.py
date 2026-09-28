@@ -384,6 +384,7 @@ def execute_chunking_build(
     physical_embedding_policy: Optional[str] = None,
     encoder_window_tokens: Optional[int] = None,
     encoder_overlap_tokens: Optional[int] = None,
+    thread_embedding_policy: Optional[str] = None,
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """Core logic to build chunks and compute gold mapping across the full parameter grid."""
     from transformers import AutoTokenizer
@@ -394,6 +395,7 @@ def execute_chunking_build(
         chunk_github_curated_unit_rule,
         chunk_github_thread_rule,
         get_evidence_char_range,
+        verify_raw_text_coverage,
     )
 
     manifest_data = json.loads(manifest_path.read_bytes())
@@ -536,6 +538,7 @@ def execute_chunking_build(
                     guard_models=guard_models,
                     encoder_window_tokens=encoder_window_tokens or w_val,
                     encoder_overlap_tokens=encoder_overlap_tokens or 0,
+                    thread_embedding_policy=thread_embedding_policy,
                 )
                 validate_chunk_provenance(c_th, get_source_text)
                 rule_chunks.append(c_th)
@@ -560,6 +563,7 @@ def execute_chunking_build(
                     guard_models=guard_models,
                     encoder_window_tokens=encoder_window_tokens or w_val,
                     encoder_overlap_tokens=encoder_overlap_tokens or 0,
+                    thread_embedding_policy=thread_embedding_policy,
                 )
                 validate_chunk_provenance(c_th, get_source_text)
                 rule_chunks.append(c_th)
@@ -585,6 +589,21 @@ def execute_chunking_build(
 
         first_c = c_list[0] if c_list else None
         actual_toks_list = [c.metadata.get("actual_tokens", 0) for c in c_list]
+
+        # Verify 100% non-whitespace coverage
+        if variant_id.startswith("R-"):
+            cov_res = verify_raw_text_coverage(c_list, rawpedia_dir, cand_file, github_dir, source_type="rawpedia")
+            if cov_res["missing_chars_count"] > 0:
+                raise ValueError(
+                    f"Coverage verification failed for {variant_id}: {cov_res['missing_chars_count']} chars missing across {cov_res['missing_intervals_count']} intervals! First: {cov_res['omissions'][0]}"
+                )
+        elif variant_id.startswith("G-"):
+            cov_res = verify_raw_text_coverage(c_list, rawpedia_dir, cand_file, github_dir, source_type="github")
+            if cov_res["missing_chars_count"] > 0:
+                raise ValueError(
+                    f"Coverage verification failed for {variant_id}: {cov_res['missing_chars_count']} chars missing across {cov_res['missing_intervals_count']} intervals! First: {cov_res['omissions'][0]}"
+                )
+
         rule_manifest[variant_id] = {
             "rule_id": variant_id,
             "rule_family": first_c.metadata.get("rule_family") if first_c else "",
@@ -599,9 +618,10 @@ def execute_chunking_build(
             "guard_group": first_c.metadata.get("guard_group") if first_c else None,
             "actual_tokens_min": min(actual_toks_list) if actual_toks_list else 0,
             "actual_tokens_max": max(actual_toks_list) if actual_toks_list else 0,
+            "zero_omission": True,
             "is_diagnostic": "full-thread" in variant_id,
         }
-        print(f"  {variant_id}: {len(c_list)} chunks -> {jsonl_path} ({file_sha[:12]}...)")
+        print(f"  {variant_id}: {len(c_list)} chunks (zero omission verified) -> {jsonl_path} ({file_sha[:12]}...)")
 
     # 6. Generate gold_mapping.json
     print(f"Generating gold mapping against {len(chunks_by_variant)} variants...")
@@ -725,6 +745,7 @@ def cmd_build(args: argparse.Namespace) -> int:
         physical_embedding_policy=getattr(args, "physical_embedding_policy", None),
         encoder_window_tokens=getattr(args, "encoder_window_tokens", None),
         encoder_overlap_tokens=getattr(args, "encoder_overlap_tokens", None),
+        thread_embedding_policy=getattr(args, "thread_embedding_policy", None),
     )
 
     # Update manifest.json
@@ -732,6 +753,7 @@ def cmd_build(args: argparse.Namespace) -> int:
     manifest_data["chunking_rules"] = rule_manifest
     manifest_data["guard_group"] = getattr(args, "guard_group", None)
     manifest_data["physical_embedding_policy"] = getattr(args, "physical_embedding_policy", None)
+    manifest_data["thread_embedding_policy"] = getattr(args, "thread_embedding_policy", None)
     manifest_data["encoder_window_tokens"] = getattr(args, "encoder_window_tokens", None)
     manifest_data["encoder_overlap_tokens"] = getattr(args, "encoder_overlap_tokens", None)
     manifest_data["model_manifest_path"] = str(model_manifest_path)
@@ -803,6 +825,7 @@ def cmd_check(args: argparse.Namespace) -> int:
             w_grid = grid_info.get("thread_window_tokens_grid", [128, 192, 224])
             g_group = manifest_data.get("guard_group")
             p_policy = manifest_data.get("physical_embedding_policy")
+            t_policy = manifest_data.get("thread_embedding_policy")
             enc_w = manifest_data.get("encoder_window_tokens")
             enc_o = manifest_data.get("encoder_overlap_tokens")
 
@@ -829,6 +852,7 @@ def cmd_check(args: argparse.Namespace) -> int:
                 physical_embedding_policy=p_policy,
                 encoder_window_tokens=enc_w,
                 encoder_overlap_tokens=enc_o,
+                thread_embedding_policy=t_policy,
             )
             for r_name, r_info in rules_info.items():
                 orig_file = REPO_ROOT / r_info["file_path"]
@@ -872,7 +896,8 @@ def main() -> int:
     bld.add_argument("--overlap-tokens-grid", nargs="+", type=int, default=[0, 32, 64], help="Overlap reference tokens grid.")
     bld.add_argument("--thread-window-tokens-grid", nargs="+", type=int, default=[128, 192, 224], help="Thread window reference tokens grid.")
     bld.add_argument("--guard-group", choices=["bge-512", "e5-512", "pooled-common-256"], default=None, help="Guard group for large chunks.")
-    bld.add_argument("--physical-embedding-policy", choices=["direct_native_v1", "direct_native_v2", "chunk_window_mean_v1"], default=None, help="Physical embedding policy.")
+    bld.add_argument("--physical-embedding-policy", choices=["direct_native_v1", "direct_native_v2", "direct_native_v3", "chunk_window_mean_v1", "chunk_window_mean_v2"], default=None, help="Physical embedding policy.")
+    bld.add_argument("--thread-embedding-policy", choices=["thread_window_mean_v1", "thread_window_mean_v2", "thread_window_mean_v3"], default=None, help="Thread embedding policy.")
     bld.add_argument("--encoder-window-tokens", type=int, default=None, help="Encoder window tokens.")
     bld.add_argument("--encoder-overlap-tokens", type=int, default=None, help="Encoder overlap tokens.")
     bld.set_defaults(func=cmd_build)

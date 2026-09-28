@@ -302,3 +302,167 @@ def test_chunk_window_mean_encoding():
     assert not np.isnan(vecs).any()
 
 
+def test_chunk_window_mean_v2_and_thread_window_mean_v3_zero_header_weight():
+    """Verify chunk_window_mean_v2 and thread_window_mean_v3 support and weighting."""
+    from scripts.benchmark_embeddings import encode_chunk_list
+    from transformers import AutoTokenizer
+
+    class DummyEncoder:
+        def __init__(self):
+            self.max_seq_length = 512
+            self.tokenizer = AutoTokenizer.from_pretrained("BAAI/bge-small-en-v1.5", revision="5c38ec7c405ec4b44b94cc5a9bb96e735b38267a")
+
+        def get_sentence_embedding_dimension(self):
+            return 8
+
+        def encode(self, texts, **kwargs):
+            arr = np.zeros((len(texts), 8), dtype=np.float32)
+            for i, t in enumerate(texts):
+                arr[i] = [len(t) % 7 + 1.0] * 8
+                arr[i] /= np.linalg.norm(arr[i])
+            return arr
+
+    dummy_enc = DummyEncoder()
+    ref_tok = dummy_enc.tokenizer
+
+    body_text = "Detailed paragraph about image processing in ART raw converter. " * 20
+    chunk_pooled = Chunk(
+        chunk_id="test_pooled_v2",
+        source_type="rawpedia",
+        doc_id="doc1",
+        section_title="Noise Reduction",
+        content=body_text,
+        char_range=(0, len(body_text)),
+        metadata={
+            "embedding_policy": "chunk_window_mean_v2",
+            "encoder_window_tokens": 64,
+        },
+    )
+
+    vecs_p = encode_chunk_list([chunk_pooled], dummy_enc, "dummy", "", ref_tok)
+    assert vecs_p.shape == (1, 8)
+    assert np.linalg.norm(vecs_p[0]) == pytest.approx(1.0, abs=1e-4)
+
+    # Thread chunk with source_segments
+    seg1_text = "First comment in github thread about bug. " * 10
+    seg2_text = "Second comment providing fix for the bug. " * 10
+    full_thread = f"{seg1_text}\n\n{seg2_text}"
+    seg1 = SourceSegment(
+        doc_id="issue:100",
+        source_path="data/issues/100.json",
+        source_file_sha256="abc",
+        json_pointer=None,
+        char_start=0,
+        char_end=len(seg1_text),
+        byte_start=0,
+        byte_end=len(seg1_text.encode("utf-8")),
+        content_char_start=0,
+        content_char_end=len(seg1_text),
+        target_url="https://github.com",
+        segment_sha256=sha256_str(seg1_text),
+    )
+    seg2 = SourceSegment(
+        doc_id="issue:100",
+        source_path="data/issues/100.json",
+        source_file_sha256="abc",
+        json_pointer=None,
+        char_start=len(seg1_text) + 2,
+        char_end=len(full_thread),
+        byte_start=len(seg1_text.encode("utf-8")) + 2,
+        byte_end=len(full_thread.encode("utf-8")),
+        content_char_start=len(seg1_text) + 2,
+        content_char_end=len(full_thread),
+        target_url="https://github.com",
+        segment_sha256=sha256_str(seg2_text),
+    )
+    chunk_thread = Chunk(
+        chunk_id="test_thread_v3",
+        source_type="github",
+        doc_id="issue:100",
+        section_title="Fix Memory Leak",
+        content=full_thread,
+        char_range=(0, len(full_thread)),
+        metadata={
+            "embedding_policy": "thread_window_mean_v3",
+            "encoder_window_tokens": 64,
+            "source_segments": [seg1.to_dict(), seg2.to_dict()],
+        },
+    )
+
+    vecs_t = encode_chunk_list([chunk_thread], dummy_enc, "dummy", "", ref_tok)
+    assert vecs_t.shape == (1, 8)
+    assert np.linalg.norm(vecs_t[0]) == pytest.approx(1.0, abs=1e-4)
+
+
+def test_cmd_decide_extension_boundary_pooled(tmp_path: Path):
+    """Verify boundary-pooled extension decision logic under §14.4."""
+    import argparse
+    import json
+    from scripts.benchmark_embeddings import cmd_decide_extension
+
+    exp_2048 = {
+        "experiment_id": "exp_2048",
+        "is_diagnostic": False,
+        "rawpedia_rule": "R-B-window-t2048-o64",
+        "github_rule": "G-A-curated-thread-w224-wo0",
+        "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+        "model_revision": "rev1",
+        "metrics": {
+            "macro": {
+                "mrr@5": 0.82,
+                "hit@5": 0.94,
+                "full_evidence@5": 0.75,
+                "budget_4096_full_evidence@5": 0.74,
+            }
+        },
+        "latency": {"p95_seconds": 0.05},
+        "vector_bytes": 1000,
+    }
+    exp_1536 = {
+        "experiment_id": "exp_1536",
+        "is_diagnostic": False,
+        "rawpedia_rule": "R-B-window-t1536-o64",
+        "github_rule": "G-A-curated-thread-w224-wo0",
+        "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+        "model_revision": "rev1",
+        "metrics": {
+            "macro": {
+                "mrr@5": 0.80,
+                "hit@5": 0.93,
+                "full_evidence@5": 0.73,
+                "budget_4096_full_evidence@5": 0.72,
+            }
+        },
+        "latency": {"p95_seconds": 0.04},
+        "vector_bytes": 800,
+    }
+    exp_1024 = {
+        "experiment_id": "exp_1024",
+        "is_diagnostic": False,
+        "rawpedia_rule": "R-B-window-t1024-o64",
+        "github_rule": "G-A-curated-thread-w224-wo0",
+        "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+        "model_revision": "rev1",
+        "metrics": {
+            "macro": {
+                "mrr@5": 0.79,
+                "hit@5": 0.91,
+                "full_evidence@5": 0.70,
+                "budget_4096_full_evidence@5": 0.71,
+            }
+        },
+        "latency": {"p95_seconds": 0.04},
+        "vector_bytes": 800,
+    }
+
+    res_file = tmp_path / "results_qp.json"
+    res_file.write_text(json.dumps({"experiments": [exp_2048, exp_1536, exp_1024]}))
+
+    dec_file = tmp_path / "decision_qp.json"
+    args = argparse.Namespace(inputs=[str(res_file)], output_json=str(dec_file), stage="boundary-pooled")
+    assert cmd_decide_extension(args) == 0
+    d = json.loads(dec_file.read_bytes())
+    assert d["trigger"] is True
+    assert d["per_model_evaluation"]["sentence-transformers/all-MiniLM-L6-v2"]["is_2048"] is True
+
+
