@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "agriggio"
+  },
+  "body": "Hi,\r\n\"Clear\" removes the sidecar completely, so it's expected that it also deletes snapshots. What you want is \"reset to default\", or maybe \"apply neutral\". Both of these should preserve your snapshots.\r\nPerhaps the name \"clear\" is a bit misleading -- if you have a better suggestion, I'm open to changing it.",
+  "createdAt": "2026-09-25T22:07:29Z",
+  "databaseId": 18606076,
+  "id": "DC_kwDONWPV1M4BG-f8",
+  "updatedAt": "2026-09-25T22:07:29Z",
+  "url": "https://github.com/artraweditor/ART/discussions/473#discussioncomment-18606076"
+}

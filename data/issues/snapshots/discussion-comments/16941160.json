@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "topoldo"
+  },
+  "body": "Same problem also reinstalling ART, Python 3.13.x (in a `shared environment`, not in a `venv`) and the yesterday's released Andrea Volpato's spektrafilm 0.3.2 from scratch.\r\nOn the contrary, JanLohse's spectral_film_lut works fine.\r\nAnyone else with this problem?\r\n\r\nRegards,\r\nTopoldo",
+  "createdAt": "2026-05-16T16:05:15Z",
+  "databaseId": 16941160,
+  "id": "DC_kwDONWPV1M4BAoBo",
+  "updatedAt": "2026-05-16T16:05:15Z",
+  "url": "https://github.com/artraweditor/ART/discussions/481#discussioncomment-16941160"
+}

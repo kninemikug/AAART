@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "HonourableTyr"
+  },
+  "body": "That might work for what I'm looking to achieve.\r\n\r\nI assume it works with commands like that below?\r\n\r\nALBUM/$(EXIF_YEAR)/$(EXIF_MONTH)/$(EXIF_DAY)/[FILENAME]\r\n\r\nI normally retain the original filename, but that isn't strictly necessary.\r\n\r\nBasically copy into a miscellaneous \"import\" folder, then use the rename function to sort everything afterwards? Seems simple and effective.\r\n\r\n",
+  "createdAt": "2026-03-10T22:40:39Z",
+  "databaseId": 16074949,
+  "id": "DC_kwDONWPV1M4A9UjF",
+  "updatedAt": "2026-03-10T22:40:39Z",
+  "url": "https://github.com/artraweditor/ART/discussions/452#discussioncomment-16074949"
+}

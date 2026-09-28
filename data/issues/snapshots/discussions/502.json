@@ -1,0 +1,16 @@
+{
+  "author": {
+    "login": "mervinbeng"
+  },
+  "body": "Thanks again for a fantastic tool!\r\n\r\nI use a relatively new lens which has no lensfun database entry (Sigma 20-200mm), but there is an Adobe lcp, which I can assign to for lens correction. Is the any way to automatically use the lens info (20-200mm F3.5/6.3 DG | Contemporary 025) to select the corresponding LCP file? Even if a cross-reference file (20-200mm... ==> SIGMA .....lcp) in .local to serve as an alias would be most useful, for this and for other lenses facing this problem. ",
+  "category": {
+    "name": "Q&A"
+  },
+  "createdAt": "2026-06-21T07:35:24Z",
+  "databaseId": 10294062,
+  "id": "D_kwDONWPV1M4AnRMu",
+  "number": 502,
+  "title": "Automatic selection or cross-refernce of lcp for lens correction?",
+  "updatedAt": "2026-06-21T11:01:47Z",
+  "url": "https://github.com/orgs/artraweditor/discussions/502"
+}

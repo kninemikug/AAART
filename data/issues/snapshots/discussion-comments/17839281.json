@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "Ricci36"
+  },
+  "body": "Could I come back to this topic?\r\n\r\nI think I've identified the problem: it's the decoding of the sensor by the software. And it's not just ART—practically every piece of software, whether free or commercial, seems to have the same issue. Apparently, they all rely on the same flawed library. Just because the Lumix DC-G97 uses the same sensor as the G90 doesn't mean the RAW data is identical!\r\n\r\nThere is one exception: the older version of Silkypix 8 SE, which is maintained by Panasonic. It reads the images correctly—no color shifts, almost no noise, and noticeably better sharpness.\r\n\r\nBelow is a crop from a photo of a gray card, loaded into Silkypix 8, ACDSee, and ART, and saved as TIFF without any automatic optimizations. I only adjusted brightness and white balance in each program to allow for a better comparison.\r\n\r\nhttps://drive.google.com/file/d/1XWkw_BmVGDlCc9dz803YOwngVwXvdlww/view?usp=sharing\r\n\r\nI think the results speak for themselves. The same image loaded into other current programs (ON1 PhotoRAW, Silkypix 12, etc.) looks similar to the versions from ACDSee and ART.",
+  "createdAt": "2026-07-30T10:57:21Z",
+  "databaseId": 17839281,
+  "id": "DC_kwDONWPV1M4BEDSx",
+  "updatedAt": "2026-07-30T11:01:20Z",
+  "url": "https://github.com/artraweditor/ART/discussions/451#discussioncomment-17839281"
+}

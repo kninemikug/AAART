@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "sophisticatedDreamer"
+  },
+  "body": "I could give an AppImage a try. Unfortunately the \"nightly\" it is only available for \"aarch64\" architecture, not for the more popular \"amd64\":\r\n\r\n`% file ART-416507b-aarch64.AppImage\r\nART-416507b-aarch64.AppImage: ELF 64-bit LSB pie executable, ARM aarch64, version 1 (SYSV), static-pie linked, BuildID[sha1]=060b570566a36a7de6d3aa53fe8f2498a9168469, stripped\r\n`",
+  "createdAt": "2026-01-28T12:29:56Z",
+  "databaseId": 15628312,
+  "id": "DC_kwDONWPV1M4A7ngY",
+  "updatedAt": "2026-01-28T12:29:56Z",
+  "url": "https://github.com/artraweditor/ART/discussions/436#discussioncomment-15628312"
+}

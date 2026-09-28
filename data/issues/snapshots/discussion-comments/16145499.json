@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "agriggio"
+  },
+  "body": "Hi,\r\nReading JPGs with gain maps is not supported directly, but it should be possible to do this with a custom image reader plugin (see https://artraweditor.github.io/Customformats). Generating HDR JPGs with gain maps is already supported (also in this case with a plugin, which is enabled by default in the official binary releases)",
+  "createdAt": "2026-03-15T19:54:54Z",
+  "databaseId": 16145499,
+  "id": "DC_kwDONWPV1M4A9lxb",
+  "updatedAt": "2026-03-15T19:54:54Z",
+  "url": "https://github.com/artraweditor/ART/discussions/456#discussioncomment-16145499"
+}

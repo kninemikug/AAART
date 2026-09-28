@@ -1,0 +1,16 @@
+{
+  "author": {
+    "login": "colings"
+  },
+  "body": "I'm a Windows user and thought it would be nice to have Windows developer documentation, like the Ubuntu one. I spun up a VM so I could make sure I documented all the necessary steps.\r\n\r\n- Install [MSYS2](https://www.msys2.org) and accept defaults\r\n  - When the install finishes, in the console that opens type:\r\n`pacman -Syu`\r\n  - Reopen the console if it closes (MSYS2 MSYS), and continue to run the command until there are no more updates.\r\n  - Install the ART dependencies:\r\n`pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-gdb mingw-w64-x86_64-make mingw-w64-x86_64-pkg-config mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja mingw-w64-x86_64-gtkmm3 mingw-w64-x86_64-lcms2 mingw-w64-x86_64-fftw mingw-w64-x86_64-exiv2 mingw-w64-x86_64-lensfun mingw-w64-x86_64-libiptcdata mingw-w64-x86_64-gtk3 mingw-w64-x86_64-mimalloc mingw-w64-x86_64-opencolorio mingw-w64-x86_64-libraw`\r\n- Install [cmake](https://cmake.org/download/#latest)\r\n- Install [Visual Studio Code](https://code.visualstudio.com/Download)\r\n  - Open Visual Studio\r\n  - Open the extensions marketplace (Ctrl+Shift+X) and install `C/C++ Extension Pack`\r\n  - Choose File, Open Folder..., and choose the root ART folder\r\n  - Choose to trust the authors\r\n  - You should get a popup saying \"Compiler kits may be present in these directories\", with a list of directories from your MSYS2 installation. Choose the Yes option to set up the compiler kits. If the popup goes away you can open the command palette (Ctrl+Shift+P) and choose `CMake: Scan for Kits` to open it again.\r\n  - Open the command palette (Ctrl+Shift+P) and choose `CMake: Set Launch/Debug Target`. First you'll be prompted to select a kit. Choose `CC xx.x.x x86_64-w64-mingw32 (mingw64)`, where xx.x.x is the version number of the compiler you have installed. Wait until VS is done configuring the project, then you will be prompted to choose a launch target. Choose `art (Install)`.\r\n  - By default the debug configuration will be selected. If you'd like to build a different one, open the command palette and choose `CMake: Select Variant`.\r\n  - In Visual Studio press Shift+F5 to start debugging.",
+  "category": {
+    "name": "General"
+  },
+  "createdAt": "2025-11-18T21:03:15Z",
+  "databaseId": 9154504,
+  "id": "D_kwDONWPV1M4Ai6_I",
+  "number": 412,
+  "title": "Windows build documentation",
+  "updatedAt": "2025-11-18T22:08:04Z",
+  "url": "https://github.com/orgs/artraweditor/discussions/412"
+}
