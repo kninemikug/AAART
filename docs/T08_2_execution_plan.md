@@ -1,12 +1,12 @@
 # Task 8-2 문서 청킹 및 임베딩 벤치마크 실행 플랜
 
-작성일/개정일: 2026-09-28 · 담당: 김대성 레인 · 구현 실행자: Antigravity(Gemini 3.8 Flash)
+작성일: 2026-09-28 · 개정일: 2026-09-29 · 담당: 김대성 레인 · 구현 실행자: Antigravity(Gemini 3.8 Flash)
 
-이 문서는 WBS Phase A의 **A-08 2/3·3/3, A-10 3/4**를 실행하기 위한 구현 계약이다. 목표는 두 출처의 후보 청크를 실제로 생성하고, 고정 100개 질문으로 **같은 임시 Chroma의 독립 컬렉션**에서 비교하여 **RawPedia 방식·크기·오버랩 + GitHub 방식·크기·오버랩 또는 내부 윈도우 크기 + 공통 임베딩 모델**을 함께 선정하는 것이다. **128~224토큰 탐색은 완료되었으며, 이번 개정의 실행 대상은 §13의 대형 청크 추가 실험**이다. §1~12의 원래 설계·명령은 이전 단계의 재현 계약으로 보존한다. 추가 실험의 완료를 뜻하지 않는다.
+이 문서는 WBS Phase A의 **A-08 2/3·3/3, A-10 3/4**를 실행하기 위한 구현 계약이다. 목표는 두 출처의 후보 청크를 실제로 생성하고, 고정 100개 질문으로 **같은 임시 Chroma의 독립 컬렉션**에서 비교하여 **RawPedia 방식·크기·오버랩 + GitHub 방식·크기·오버랩 또는 내부 윈도우 크기 + 공통 임베딩 모델**을 함께 선정하는 것이다. **128~224토큰 탐색과 §13의 N/P 실행 결과가 저장되어 있으며, 이번 개정의 실행 대상은 §14의 원문 누락 보정 및 모델별 상한 추가 검증**이다. §1~13은 이전 단계의 재현 계약으로 보존한다. 새 플랜 작성은 추가 실험의 완료를 뜻하지 않는다.
 
 권위 문서는 [WBS §5](ART_agentic_wbs.md), [Task 8-2 및 T9 상세 카드](../tasks/todo.md), [T8-1 전달 계약 §8](T08_1_execution_plan.md), [GitHub 정제 규칙](issue_filter_rules.md)다. WBS의 9/5~9/11 계획 일정은 보존하고, 실행 기록에는 실제 날짜를 쓴다.
 
-**현재 상태:** 조사 HEAD `bfb1e5706`의 [현재 리포트](chunking_embedding_benchmark.md)와 JSON은 **1080조합(정식864/진단216), `grid_complete=true`, `grid_coverage=1.0`**을 기록한다. 현재 선정은 `BAAI/bge-base-en-v1.5 + R-B-window-t224-o0 + G-A-curated-thread-w224-wo0`, Macro MRR@5=`0.7655`, Macro Hit@5=`0.9000`이다. 양쪽 크기가 기존 탐색 상한 224에 있으므로 더 큰 범위에서 비교한다. 24조합/192·32 기준선은 기존 보존 파일에 있으며, 이번에는 1080조합 리포트를 추가 기준선으로 보존한다. 아래 실측값은 저장된 JSON의 집계값이며 이번 문서 작업에서 벤치마크를 다시 수행한 값은 아니다.
+**현재 상태:** 조사 HEAD `7b4dbe8f7`의 [현재 리포트](chunking_embedding_benchmark.md)와 JSON은 **4290조합(정식3720/진단570), N=2250/P=2040**을 기록한다. 현재 선정은 `intfloat/multilingual-e5-small + R-B-window-t448-o32 + G-A-curated-thread-w224-wo0`, Macro MRR@5=`0.8032`, Macro Hit@5=`0.8854`다. E5 직접 임베딩의 상한 448과 MiniLM 평균 임베딩의 상한 1024를 각각 추가 검증한다. E5 평균 방식은 224에서 최고점을 보이므로 모든 모델/정책에서 크기가 클수록 좋다고 해석하지 않는다. 현재 원문 coverage와 지연 계측의 보정 사항은 §14.2에 기록한다. 아래 점수는 저장된 JSON의 집계값이며 이번 문서 작업에서 벤치마크를 다시 수행한 값은 아니다.
 
 ## 1. 완료 조건과 범위
 
@@ -20,7 +20,7 @@
 - 질문 생성, 질의 번역·재작성, 답변 생성, 리랭커, k 튜닝, RAGAS, 증분 갱신 구현은 각각 기존 담당 태스크에 남긴다. 질문과 참고 스팬을 검색 문서에 추가하지 않는다.
 - Chroma는 고정이다. NumPy 전수 코사인 검색은 구현 오류·ANN 누락을 확인하는 대조군으로 사용하고, Chroma 실험을 대체하지 않는다.
 - Python은 기존 root venv 3.14를 재사용한다. `requirements.txt`, 범용 설정 로더, ART 코어 변경은 추가하지 않는다. CLI는 argparse, docstring, `main()` guard를 갖춘다.
-- 최초 grid의 최소 완료 조건은 **실행 가능한 모델 2개 이상, 그중 한국어–영어 검색 후보 1개 이상**, 선택 가능한 방식 출처별 2개 이상과 §6.1 전체 행렬의 성공한 실행이다. 이 단계는 현재 리포트/상세 카드에 완료로 기록되어 있다. **대형 청크 확장의 완료 조건은 §13**이며 기존 1080조합을 새 탐색의 완료 증거로 대신하지 않는다. 실패 모델도 리포트의 실패 행으로 남기고 성능이 낮다는 이유로 대상을 빼지 않는다.
+- 최초 grid의 최소 완료 조건은 **실행 가능한 모델 2개 이상, 그중 한국어–영어 검색 후보 1개 이상**, 선택 가능한 방식 출처별 2개 이상과 §6.1 전체 행렬의 성공한 실행이다. 이 단계는 현재 리포트/상세 카드에 완료로 기록되어 있다. **N/P 확장의 계약은 §13, 이번 상한 검증의 완료 조건은 §14**다. 이전 실행 행을 새 탐색의 완료 증거로 대신하지 않는다. 실패 모델도 리포트의 실패 행으로 남기고 성능이 낮다는 이유로 대상을 빼지 않는다.
 
 ## 2. 실제 입력 조사와 고정 방법
 
@@ -901,3 +901,147 @@ fi
 ```
 
 `combine --extension-decision`은 N의 원본 실행 로그/반올림 전 집계를 이용한 trigger를 다시 계산하여 decision 파일과 대조한다. trigger=true인데 P 결과가 없으면 통합은 미완료로 남기고 최종 report 갱신을 거부한다. trigger=false인데 P를 임의 생략한 것처럼 상태를 바꾸지 않는다. 기준선 prefix의 보존본은 존재 시 SHA를 대조하며 다른 바이트를 덮어쓰지 않는다.
+
+## 14. 두 번째 상한 검증: native 입력 예산과 1536·2048 검색 청크
+
+### 14.1 최신 결과의 해석과 확장 근거
+
+2026-09-29 조사 기준 HEAD는 `7b4dbe8f7`이다. 현재 `docs/chunking_embedding_benchmark.json` SHA-256은 `c2c0beec2a4d80b05486e52dbe8f562d6f5a317110fd1ec100b7123fe67046e3`이다. 먼저 현재 MD/JSON을 `docs/chunking_embedding_baseline_large_448_1024.md/.json`으로 원본 바이트 그대로 보존한다. 기존 4290행과 모든 과거 기준선도 보존한다.
+
+아래는 **R-B 방식, GitHub=`G-A-curated-thread-w224-wo0`를 고정**한 Macro MRR@5다. 표 안에서는 모델·임베딩 정책·O가 같고 L만 바뀐다. 과거 저장 집계는 소수점 4자리이므로 새 trigger는 재측정한 query별 원시 점수로 계산한다.
+
+| 모델/정책/물리 O | L=224 | 384 | 448 | 512 | 768 | 1024 |
+|---|---:|---:|---:|---:|---:|---:|
+| E5 / native / O=32 | 0.7295 | 0.7863 | **0.8032** | 미실행 | 입력 한도 초과 | 입력 한도 초과 |
+| E5 / pooled W=224 / O=0 | **0.7673** | 미실행 | 0.6609 | 0.6663 | 0.6339 | 0.6278 |
+| MiniLM / pooled W=224 / O=128 | 0.5486 | 미실행 | 0.6170 | 0.6546 | 0.6812 | **0.7101** |
+
+- **native 후속 질문:** 448보다 실제로 긴 본문을 512 encoder 입력 예산 안에서 encode하면 개선되는가? E5 선두뿐 아니라 N의 BGE 두 모델 선두도 물리 L=448이므로 세 모델을 검증한다.
+- **pooled 후속 질문:** MiniLM에서 1024보다 긴 검색 청크를 같은 W=224로 평균하면 개선이 이어지는가? E5를 같은 정책의 대조 모델로 함께 측정한다. MiniLM O=0은 768→1024에서 0.7018→0.6539로 낮아져 O까지 고정한 비교가 필요하다.
+- 현재 전체 선두 E5/native의 0.8032와 E5/pooled의 0.6278을 L만 다른 실험처럼 잇지 않는다. 정책 변경에 따른 정보 집계 효과도 포함된다. 기존 1080행 대비 MRR은 올랐지만 Hit@5는 0.9000→0.8854로 내려갔으므로 지표별 증감을 함께 보고한다.
+
+현재 report의 경계 판정은 `L==448`을 검사하고 크기 표도 native의 224~448만 표시한다. 이는 N의 경계를 설명하며 P의 1024 결과를 포함한 전체 크기 곡선이 아니다. 후속 report는 **모델·출처·방식·guard 그룹·정책·O·고정된 다른 출처 variant**별 곡선과 경계를 출력하고 manifest의 실제 탐색 상한으로 판정한다. 다른 정책에서 같은 `R-B-window-t448-o0` 문자열을 쓰더라도 별도 행으로 식별한다.
+
+### 14.2 확대 전에 보정할 실행 계약
+
+새 숫자를 넣기 전에 아래 항목을 구현·검증한다. 기존 Task 8-2 체크는 실행 이력으로 보존하고 이번 보정 및 확장은 별도 미완료 항목으로 추적한다.
+
+| 현재 확인한 사항 | 구현·검증 조건 |
+|---|---|
+| `truncate_text_to_guard()`가 본문 끝을 줄인 뒤 R-B가 원래 `curr_idx` 또는 `t_end`로 전진함 | 길이 guard는 **새 청크 경계 결정**에 사용한다. 줄어든 실제 끝점 이후의 원문을 다음 청크에서 반드시 회수한다. 긴 한 문장·표·마지막 청크에서도 누락/무한 루프가 없어야 한다. R-A와 G-B도 같은 조건으로 검사한다. |
+| 현재 E5/native R-B 448/O=0은 pooled의 같은 L/O 구간 합집합 대비 비공백 내용을 가진 42구간, 총 11,130문자가 빠짐 | 원문 파일별 허용 본문 구간 합집합과 생성된 source segment 합집합을 직접 대조한다. 비공백 원문 누락0을 필수로 하고 누락 위치·길이를 로그로 남긴다. 골드 스팬 147개만 모두 덮는 검사로 대신하지 않는다. |
+| 현재 선정된 E5/native 448/O=32도 pooled 448/O=0 합집합 대비 비공백 내용을 가진 8구간, 총 4,585문자가 빠짐 | 위 수는 비교된 누락 구간의 전체 문자 길이 합이며 모든 문자가 비공백이라는 뜻은 아니다. `Tutorials/game_changer/introduction.md`, `keyboard_shortcuts.md`의 잘린 tail을 회귀 fixture로 포함한다. 현재 선정 행도 보정한 경계로 재측정한다. |
+| thread/pooled 초과 window 재분할이 생성 헤더까지 reference tokenize하고 그 token 수를 가중치로 사용함 | 내부 windows는 원문 body offsets에서 만들고 prefix/헤더는 입력 조립 때 붙인다. 가중치는 window가 담당한 원문 reference token 수다. 모든 encoder 입력을 검사하고 원문 coverage=100%, 생성 라벨 가중0을 보장한다. |
+| query encode 시간을 모델별로 미리 측정하고 cached vector 검색 시간에 더하여 p95를 계산함 | 각 행의 각 query/repeat에서 실제 `encode → Chroma query → 전체 content/metadata 수신 및 결과 구성`을 하나의 타이머로 잰다. 검색 부분/encode 부분은 보조 지표로 분리한다. 사전 계측 합을 end-to-end p95로 표기하지 않는다. |
+| 통합 행/선정 JSON에서 정책·guard 정보가 파일 경로에 의존함 | 각 행에 `stage_id`, `guard_group`, source별 정책/L/O/W, protocol/input/manifest/JSONL SHA를 저장한다. 행 ID와 vector cache 키에 모델 revision·정책 버전·실제 입력 hash를 포함한다. report가 경로 이름이나 `_p` 접미사로 실험 유형을 추측하지 않게 한다. |
+
+누락 수는 원문 Unicode 문자 좌표의 반열린 구간 합집합 차이를 로컬 JSONL에서 계산한 조사 결과다. 실제 판정에서는 §2의 고정 원문/허용 범위를 기준으로 RawPedia 116개와 GitHub 정제 35개 piece를 전수 검사한다. frontmatter·생성 라벨·명시적으로 제외한 비본문 범위는 coverage 분모에서 분리해 기록한다.
+
+보정 정책은 `direct_native_v3`, `chunk_window_mean_v2`, `thread_window_mean_v3`로 버전을 올린다. 모델/reference tokenizer revision, query prefix, 데이터, k, source별 분모와 Chroma 설정은 유지한다. **현재 v2/v1 vector 및 결과 cache를 새 정책의 결과로 재사용하지 않는다.** 원문 경계 또는 window 가중치가 바뀐 과거 행은 보존된 이력으로 표시하고 같은 실행 protocol의 새 기준점과 비교한다.
+
+### 14.3 필수 단계 Q-N: 512 입력 예산 안의 추가 후보
+
+이번에는 모델별 경계를 확인하는 **부분 행렬**을 사전 등록한다. 각 모델의 GitHub 선두 스레드 variant를 고정하여 R의 L/O 효과를 분리한다. GitHub 물리 L/W 전체 최적화를 다시 수행했다는 주장은 하지 않는다. 검색은 계속 두 출처가 함께 들어간 코퍼스에서 수행한다.
+
+| 축 | 후보/고정값 |
+|---|---|
+| RawPedia 방식 | R-A-heading, R-B-window 둘 다 |
+| 요청 본문 reference L | **384, 448, 464, 480, 496, 512**; 384/448은 보정한 기준점 |
+| 물리 reference O | **0, 32, 64**, 모든 L에서 교차 비교 |
+| 모델/guard | N과 같은 BGE 두 모델의 `bge-512`, E5 한 모델의 `e5-512` |
+| 고정 GitHub variant | BGE-base: curated thread W=320; BGE-small: W=384; E5: W=224; 모두 내부 O=0 |
+| 정책 | R=`direct_native_v3`, G=`thread_window_mean_v3` |
+
+**L=512는 요청 본문 상한이다. 전체 encoder 입력 한도 512와 구분한다.** 생성 헤더·prefix·special tokens를 포함한 실제 모델 token 수가 512 이하가 되도록 끝점을 정하고 잘린 나머지를 이어서 청킹한다. `encoder.max_seq_length`나 모델 설정을 늘리지 않는다. 요청 L/실제 reference L/모델 입력 tokens/guard 조정 사유를 모두 기록한다. O도 조정된 실제 경계를 기준으로 적용하고 실측 overlap을 기록한다.
+
+정식 행은 모델마다 `2×6×3×1=36`, 합계 **108행**이다. BGE 두 모델은 같은 guard 청크셋을 사용하되 GitHub W만 각각 고정한다. requested L이 달라도 guard 때문에 동일 본문·범위를 만든 경우 `geometry_equivalent=true`로 남기며 새 크기 개선으로 해석하지 않는다. 실제 입력 예산이 포화되면 `encoder_limited`로 종료한다. 같은 경량 모델의 native L을 768/1024로 계속 늘려 테스트하지 않는다.
+
+### 14.4 필수 단계 Q-P: 1536·2048 검색 청크
+
+MiniLM의 1024/O=128 개선을 검증하기 위해 아래 부분 행렬을 실행한다. E5는 동일 pooled 정책에서 확대 효과를 비교하는 대조군이다. E5 직접 방식과의 실용 스택 비교에는 Q-N의 재측정 행을 사용하며 L·guard 경계·정책이 함께 달라지는 비교로 표기한다.
+
+| 축 | 후보/고정값 |
+|---|---|
+| RawPedia 방식 | R-A-heading, R-B-window 둘 다 |
+| 검색 청크 L | **224, 768, 1024, 1536, 2048**; 224/768/1024는 보정한 기준점 |
+| 물리 O | **0, 64, 128**, 모든 L에서 교차 비교 |
+| 모델 | `sentence-transformers/all-MiniLM-L6-v2`, `intfloat/multilingual-e5-small` |
+| encoder W/내부 O | **224/0** 고정, 기존 4모델의 `pooled-common-256` guard 집합/revision 유지 |
+| 고정 GitHub variant | curated thread W=224/내부 O=0, 전체 정제 스레드 한 벡터 |
+| 정책 | R=`chunk_window_mean_v2`, G=`thread_window_mean_v3` |
+
+정식 행은 `2×5×3×1×2=60`이다. 큰 검색 청크 L을 실제로 유지하면서 원문 전체를 여러 encoder windows로 분할해 가중 평균한다. 1536/2048은 MiniLM 한 번의 입력 길이를 뜻하지 않는다. window의 원문/내용 위치, 모델별 실제 입력 tokens, 가중치, 원문 token 합집합 coverage, chunk당 window 수를 저장한다. 원문 tail까지 encode한 뒤 Chroma에는 전체 청크 본문을 반환한다.
+
+**조건부 4096:** Q-P 완주 후 모델별 정식 선두가 L=2048이고, 같은 R 방식/O/G variant/정책의 1536 및 1024보다 반올림 전 Macro MRR@5가 높으며, 아래 B=4096의 budget FullEvidence_all@5가 1024보다 낮지 않을 때 실행한다. 하나 이상의 모델이 충족하면 두 모델 모두 R 두 방식×O 세 값×L=4096을 추가하여 **12행**을 실행한다. `boundary_extension_decision.json`에 대응 행 ID·query별 차이·품질/문맥 비용·trigger를 저장한다. 조건 불충족이면 `not_triggered`와 비교 근거를 남긴다.
+
+Q-N 108 + Q-P 60 = **정식168행**, 4096 실행 시 **180행**이다. 새 진단 full-thread 행은 추가하지 않으며 기존 570개 진단 행은 보존한다. 실제 query latency 관측 수는 100문항×3회로 **50,400개**, 4096 포함 시 **54,000개**다. 기존 4290행을 이 수에 합쳐 새 protocol 완주율로 계산하지 않는다. 선언한 부분 행렬 안의 누락/실패 행은 그대로 분모에 포함한다.
+
+### 14.5 큰 청크의 품질·문맥 비용과 중단 기준
+
+기존 **Hit@1/3/5, MRR@5, FullEvidence_all@5, 출처별/micro/macro 집계, 95양성/5negative 분리**를 유지한다. 아래를 query별로 추가하여 Hit/MRR 상승이 더 긴 문맥 반환만으로 얻어진 것인지 확인한다.
+
+- 반환 top5의 총 reference tokens, 원문 위치 합집합 기준 중복 제거 tokens, 전체/complex support 근거 coverage 및 §13.5의 근거 밀도, vector bytes·색인 시간·chunk/window 수·실제 end-to-end p50/p95.
+- **문맥 예산 B=2048/4096**에서 `budget Hit@5`, `budget FullEvidence_all@5`. 원래 top5 순서대로 전체 청크를 넣고 남은 예산에 안 들어가는 청크는 건너뛴다. 예산 소비량은 고정 직렬화 `section_title + '\n' + content`의 reference tokens이며 스레드 생성 라벨도 포함한다. 이미 넣은 chunk ID만 제거하고 위치가 겹친다고 본문을 임의 축약하지 않는다. packing 결과의 원문 segment 합집합으로 기존 스팬 coverage 판정을 재사용한다. 골드 위치를 보고 자르거나 선택하지 않고 top6 이후에서 채워 넣지 않는다. 전부 못 담으면 빈 결과와 실패를 그대로 집계한다.
+- 같은 다른 축을 고정한 인접 L의 query별 reciprocal-rank 차이와 개선/악화/동률 문항 수. Macro와 두 출처를 각각 보고하며 원시 점수를 보존한다. O 변경이나 모델 변경을 크기 단독 효과에 합치지 않는다.
+
+최종 선정은 §8의 순서와 근접 후보 규칙을 유지하되 문맥 예산 결과/근거 밀도/실제 tokens를 함께 공개한다. 예산 초과로 일부 청크가 빠지는 결과는 전체 top5 결과와 별도 표로 제시한다. 예산 실험을 기존 MRR 정의의 변경으로 처리하지 않는다.
+
+경계는 모델/정책/축마다 판정한다. 더 큰 L에서 저하하면 `interior_peak`, 동일 실제 경계면 `encoder_limited` 또는 크기 효과 `no_effect`, 최고점이 실제 탐색 상한에 있고 인접 비교도 개선이면 `upper_boundary`다. 선두에 오른 L만 검사하여 단조 증가를 선언하지 않는다. 4096까지 개선되면 **이 고정 질문셋과 탐색 범위의 최선**으로 기록한다. 이후 확대는 개선 문항·예산 결과·비용 근거를 별도 제안으로 남긴다. 이번 실행에서 장문 모델 도입, 8192 이상 자동 확장, 신규 골드 질문 생성은 포함하지 않는다.
+
+### 14.6 Antigravity Step 1~6 및 산출물
+
+1. **보존·등록:** 현재 4290 MD/JSON 및 원문/147스팬/모델 revision을 고정한다. Q-N/Q-P 부분 행렬, 고정 GitHub map, 새 policy/protocol hash와 168행 예상 수를 저장한다. 기존 selected는 과거 실행 기준점으로 보존한다.
+2. **보정·회귀:** §14.2의 실제 끝점 기반 전진, body-only window 가중치, end-to-end 타이머, 명시적 정책 ID를 구현한다. 긴 문장·표·tail·비ASCII·512 입력 경계·정책별 cache 분리 테스트를 먼저 통과한다.
+3. **수직 검증·생성:** 선정 E5 448/32와 MiniLM 1024/128로 원문→청크→encode→Chroma 전체 반환→스팬 추적을 확인한다. Q-N/Q-P의 모든 후보를 생성하고 116개/35개 piece의 누락0, 실제 입력 상한, 요청/실측 L/O/W 분포와 manifest 재생성을 전수 검증한다. checkpoint: 검사 실패 시 행렬 실행을 시작하지 않는다.
+4. **168행 실행:** 두 출처 전량 혼합 검색, 100문항, k=1/3/5, seed=42, CPU, warmup=10, query-repeat=3 조건으로 실행한다. query/repeat 로그·ANN 대조·문맥 예산·실패 상태와 실제 지연을 기록한다. §14.1의 기준점을 복사하지 않고 새 정책으로 재측정한다.
+5. **4096 판정·실행:** Q-P의 대응 행과 예산 결과로 trigger를 계산한다. 조건 충족 시 12행 추가, 불충족 시 근거와 `not_triggered`를 저장한다. checkpoint: 168 또는 180행 완주·50,400 또는 54,000개 실제 지연 관측·원문 누락0.
+6. **보고·재현·T9:** 새 protocol의 native/pooled 기준점, 모델별 선두, 최종 후보/차순위를 새 Chroma DB에서 재현한다. 기존 4290행은 역사 표에 두고 새 정책의 검증된 행으로 선정한다. 모델·guard·정책·각 출처 파라미터·입력/청크/vector hash·전체 인코딩/반환 증거·재생성법을 최종 MD/JSON과 T9 인계에 기록한다. 이후 이번 추가 체크를 완료한다.
+
+후속 구현은 기존 `src/artagent/chunking.py`, `scripts/chunk_corpus.py`, `scripts/benchmark_embeddings.py`, `tests/test_chunking.py`, `tests/test_benchmark_embeddings.py`에 둔다. 새 의존성/일반 설정 로더는 필요하지 않다. 산출물은 다음처럼 기존 실행과 분리한다.
+
+| 산출물 | 위치/내용 |
+|---|---|
+| Q-N 청크·manifest | `data/chunks/t08-2-boundary-native/{bge-512,e5-512}/` |
+| Q-P 청크·manifest | `data/chunks/t08-2-boundary-pooled/` |
+| 모델별 Q-N 실행 | `data/embedding-benchmark/t08-2/boundary-native-{bge-base,bge-small,e5}-001/` |
+| Q-P 실행 | `data/embedding-benchmark/t08-2/boundary-pooled-001/` |
+| 사전 행렬/결정/통합 | `data/embedding-benchmark/t08-2/boundary-combined-001/`; manifest, 원시 query/repeat 로그, `boundary_extension_decision.json`, `results.json`, 재현 증거 |
+| 최종 리포트 | 검증 후 `docs/chunking_embedding_benchmark.md/.json`; 과거 4290행은 새 protocol의 완주율과 분리 |
+
+### 14.7 CLI 확장 계약과 실행 연결
+
+**아래 인자는 후속 구현 대상**이다. 기존 §13의 prepare→preflight→build→check→matrix→run→check→report 순서를 유지한다.
+
+- `chunk_corpus build`: 새 physical 정책 두 개와 `--thread-embedding-policy thread_window_mean_v3`를 지원한다. manifest에 전체 정책/guard 설정과 coverage 검사 결과를 저장한다. Q-N은 L=`384 448 464 480 496 512`, O=`0 32 64`; BGE 그룹 thread W=`320 384`, E5 W=`224`로 curated thread만 생성한다. Q-P는 L=`224 768 1024 1536 2048`, O=`0 64 128`, encoder W/O=`224/0`, curated thread W=`224`다.
+- `matrix`: `--model-ids`, `--github-variant-ids` 필터를 추가하여 **모델별 다른 고정 GitHub**를 명시적으로 등록한다. 필터 ID의 존재/유일성, source별 파일/policy/guard 호환성을 검증한다. Q-N은 같은 BGE manifest에서 모델별 36행씩 별도 matrix를 만들고 E5 36행을 더한다. BGE 두 작업의 환경에는 두 모델의 guard 설정을 모두 유지하고 평가 모델만 필터한다. Q-P도 기존 4모델 guard 환경에서 평가 모델 두 개만 골라 60행을 만든다. 평가 모델 필터로 guard 집합을 바꾸지 않는다.
+- `run`: `--context-budgets 2048 4096`을 지원하고 직접 계측한 300개의 query/repeat 관측을 행마다 저장한다. 각 query의 정렬된 top5/score/source segments, support별 coverage, budget packing 결과와 구성 시간을 남긴다. 동일 fingerprint의 새 protocol 완료 행만 resume한다.
+- `decide-extension`: 기존 N→P 판정과 구분하는 `--stage boundary-pooled`을 추가하여 §14.4의 4096 조건을 계산한다. `combine/check/report`는 예상 168/180행, 실패/미실행 상태, protocol 호환성, 명시적 stage/group/policy와 원문 누락 검사를 확인한다. `report`는 기준선 보존·재현/coverage 게이트를 통과한 뒤 최종 파일을 갱신한다.
+
+예를 들어 BGE-base용 matrix/run은 **위 확장 구현과 청크 검사 후** 다음처럼 호출한다. 다른 모델/단계도 같은 계약으로 해당 표의 모델·GitHub 고정값·작업 경로를 사용한다.
+
+```bash
+set -e
+ART_PIPELINE_PY=/Users/user/Workspace/Programming/Projects/AAART/venv/bin/python3
+ART_BOUNDARY_WORK=data/embedding-benchmark/t08-2/boundary-native-bge-base-001
+
+"$ART_PIPELINE_PY" scripts/benchmark_embeddings.py matrix \
+  --chunk-manifest data/chunks/t08-2-boundary-native/bge-512/manifest.json \
+  --model-manifest "$ART_BOUNDARY_WORK/environment.json" \
+  --model-ids BAAI/bge-base-en-v1.5 \
+  --github-variant-ids G-A-curated-thread-w320-wo0 \
+  --queries docs/search_eval_queries.json --ks 1 3 5 --device cpu \
+  --output-json "$ART_BOUNDARY_WORK/experiment_matrix.json"
+"$ART_PIPELINE_PY" scripts/benchmark_embeddings.py run \
+  --matrix "$ART_BOUNDARY_WORK/experiment_matrix.json" \
+  --chunk-manifest data/chunks/t08-2-boundary-native/bge-512/manifest.json \
+  --model-manifest "$ART_BOUNDARY_WORK/environment.json" \
+  --queries docs/search_eval_queries.json --ks 1 3 5 --device cpu \
+  --batch-size 16 --seed 42 --warmup-queries 10 --query-repeat 3 \
+  --context-budgets 2048 4096 --work-dir "$ART_BOUNDARY_WORK" \
+  --output-json "$ART_BOUNDARY_WORK/results.json"
+
+"$ART_PIPELINE_PY" -m pytest tests/test_chunking.py \
+  tests/test_benchmark_embeddings.py tests/test_eval_queries.py tests/test_filter_issues.py -q
+```
+
+추가 회귀는 **guard로 줄인 tail의 다음 청크 회수와 원문 합집합**, 입력 한도에 닿은 여러 L의 실제 경계 동률, 1536/2048/4096 tail의 실제 encoder/반환 coverage, 생성 헤더 가중0, budget 경계/빈 결과/중복 chunk ID, 모델별 고정 G 필터와 행 수, 매 query/repeat의 실제 encoder 호출 및 단일 타이머를 확인한다. 통합은 새 공통 평가 protocol 아래 Q-N/Q-P 정책 차이를 실험 요인으로 허용하며 과거 protocol의 결과/cache 혼입은 거부한다. 의미 성능 수치를 unit test에 고정하지 않는다. 계획 문서 수정 자체는 실행 증거가 아니며 새 CLI/회귀/168행과 조건부 실행 검증은 Antigravity가 수행한다.
