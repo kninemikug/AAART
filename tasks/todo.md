@@ -89,10 +89,10 @@
 ## Task 8-1: 수집 문서 기반 질문셋 구성 (A-08, 1/3)
 **설명:** 9/5~7에는 T4의 RawPedia 116개 원문 범위를 읽고, 9/8에는 T10-2a의 정제된 GitHub 후보를 합쳐 검색 실험 및 통계적 평가를 위한 질문 약 100개(RawPedia ~80개, GitHub ~20개)와 각 질문의 허용 원문 위치를 체계적으로 정리한다. 질문 유형(기능/사용법, 개념/이론, 트러블슈팅, 워크플로우)과 난이도(단일 사실, 복합 추론, 부정 질문)를 고르게 안배하며, 이는 정답 답변을 작성하거나 채점하는 QA 세트가 아니라, 청킹·임베딩 조합이 답변 근거를 찾아오는지를 판단할 골드 입력이다. 이후 검색·답변·평가 태스크가 같은 데이터셋을 공유한다.
 **완료 기준:**
-- [ ] 질문 약 100개 각각에 하나 이상의 허용 원문 위치(RawPedia: 문서 URL·ID·근거 절 제목, GitHub: Issue·Discussion·댓글 ID와 URL)를 연결함
-- [ ] 질문과 허용 출처가 T4의 고정 원문 범위 또는 T10-2a의 정제 후보 안에 있으며, 출처 원문 텍스트와 100% 대조 검증됨
-- [ ] 질문 의도별(How-to, Concept, Troubleshooting, Workflow) 및 난이도별(Factoid, Complex, Negative) 분류 속성을 포함함
-- [ ] 기계 판독 JSON(`docs/search_eval_queries.json`) 및 사람이 읽을 수 있는 문서(`docs/search_eval_queries.md`)를 모두 생성함
+- [x] 질문 약 100개 각각에 하나 이상의 허용 원문 위치(RawPedia: 문서 URL·ID·근거 절 제목, GitHub: Issue·Discussion·댓글 ID와 URL)를 연결함
+- [x] 질문과 허용 출처가 T4의 고정 원문 범위 또는 T10-2a의 정제 후보 안에 있으며, 출처 원문 텍스트와 100% 대조 검증됨
+- [x] 질문 의도별(How-to, Concept, Troubleshooting, Workflow) 및 난이도별(Factoid, Complex, Negative) 분류 속성을 포함함
+- [x] 기계 판독 JSON(`docs/search_eval_queries.json`) 및 사람이 읽을 수 있는 문서(`docs/search_eval_queries.md`)를 모두 생성함
 **검증:** 질문셋의 모든 질문·허용 출처를 원문 Markdown/JSON 및 원본 URL로 전수 자동 대조
 **의존:** T4, T10-2a · **담당:** 김구 · **예상 파일:** `docs/search_eval_queries.json`, `docs/search_eval_queries.md`
 **규모:** M
