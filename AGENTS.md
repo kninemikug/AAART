@@ -59,6 +59,7 @@ AAART/
 
 ## CONVENTIONS
 
+- **커밋 및 PR 국문 작성 원칙:** 모든 커밋 메시지와 GitHub Pull Request(PR)의 제목 및 본문 설명은 국문(한국어)으로 명확하고 간결하게 작성한다.
 - **C++11 / C11** — set globally via `-std=c++11`/`-std=c11` in CMake flags, not per target. GCC ≥4.9 required.
 - **Formatting:** `.clang-format` = LLVM base, IndentWidth 4, ColumnLimit 80, WebKit braces, no tabs, no short single-line if/loops.
 - **Build defaults:** `CMAKE_BUILD_TYPE` forced to Release when empty; `-DNDEBUG` in release, `-D_DEBUG` in debug. ccache auto-enabled if present.
@@ -109,6 +110,7 @@ python3 scripts/fetch_rawpedia.py -o data/rawpedia -s 50
 
 ## PIPELINE WORKING RULES
 
+- **커밋·PR 언어:** 모든 파이프라인 태스크의 커밋 메시지와 PR 내용은 국문(한국어) 작성을 원칙으로 한다.
 - The fixed 9/1~9/11 sequence is in WBS §5. Use `tasks/todo.md` for detailed acceptance criteria.
 - Keep RawPedia source Markdown, ART GitHub source snapshots, search candidates, chunks, and vector-store state separately traceable.
 - Chroma is the selected vector store. Do not choose an embedding model or final chunk rule before comparing candidates with the fixed question set.
