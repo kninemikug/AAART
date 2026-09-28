@@ -2,11 +2,11 @@
 
 작성일/개정일: 2026-09-28 · 담당: 김대성 레인 · 구현 실행자: Antigravity(Gemini 3.8 Flash)
 
-이 문서는 WBS Phase A의 **A-08 2/3·3/3, A-10 3/4**를 실행하기 위한 구현 계약이다. 목표는 두 출처의 후보 청크를 실제로 생성하고, 고정 100개 질문으로 **같은 임시 Chroma의 독립 컬렉션**에서 비교하여 **RawPedia 방식·크기·오버랩 + GitHub 방식·크기·오버랩 또는 내부 윈도우 크기 + 공통 임베딩 모델**을 함께 선정하는 것이다. 아래 값은 비교할 탐색 후보다. 이번 개정은 크기·오버랩 최적화를 추가하는 실행 플랜이며, 추가 실험의 완료를 뜻하지 않는다.
+이 문서는 WBS Phase A의 **A-08 2/3·3/3, A-10 3/4**를 실행하기 위한 구현 계약이다. 목표는 두 출처의 후보 청크를 실제로 생성하고, 고정 100개 질문으로 **같은 임시 Chroma의 독립 컬렉션**에서 비교하여 **RawPedia 방식·크기·오버랩 + GitHub 방식·크기·오버랩 또는 내부 윈도우 크기 + 공통 임베딩 모델**을 함께 선정하는 것이다. **128~224토큰 탐색은 완료되었으며, 이번 개정의 실행 대상은 §13의 대형 청크 추가 실험**이다. §1~12의 원래 설계·명령은 이전 단계의 재현 계약으로 보존한다. 추가 실험의 완료를 뜻하지 않는다.
 
 권위 문서는 [WBS §5](ART_agentic_wbs.md), [Task 8-2 및 T9 상세 카드](../tasks/todo.md), [T8-1 전달 계약 §8](T08_1_execution_plan.md), [GitHub 정제 규칙](issue_filter_rules.md)다. WBS의 9/5~9/11 계획 일정은 보존하고, 실행 기록에는 실제 날짜를 쓴다.
 
-**현재 상태:** 워크트리 HEAD `81492fec4`에는 [기존 24조합 리포트](chunking_embedding_benchmark.md)와 구현이 있다. 해당 리포트는 **192토큰/32토큰을 고정한 기준선**으로 보존한다. 크기·오버랩의 최적값이나 32토큰의 독립적인 효과를 검증한 결과로 해석하지 않는다. 이번 개정의 추가 완료 기준은 아직 수행 전이며 상세 카드에 별도 체크한다.
+**현재 상태:** 조사 HEAD `bfb1e5706`의 [현재 리포트](chunking_embedding_benchmark.md)와 JSON은 **1080조합(정식864/진단216), `grid_complete=true`, `grid_coverage=1.0`**을 기록한다. 현재 선정은 `BAAI/bge-base-en-v1.5 + R-B-window-t224-o0 + G-A-curated-thread-w224-wo0`, Macro MRR@5=`0.7655`, Macro Hit@5=`0.9000`이다. 양쪽 크기가 기존 탐색 상한 224에 있으므로 더 큰 범위에서 비교한다. 24조합/192·32 기준선은 기존 보존 파일에 있으며, 이번에는 1080조합 리포트를 추가 기준선으로 보존한다. 아래 실측값은 저장된 JSON의 집계값이며 이번 문서 작업에서 벤치마크를 다시 수행한 값은 아니다.
 
 ## 1. 완료 조건과 범위
 
@@ -20,7 +20,7 @@
 - 질문 생성, 질의 번역·재작성, 답변 생성, 리랭커, k 튜닝, RAGAS, 증분 갱신 구현은 각각 기존 담당 태스크에 남긴다. 질문과 참고 스팬을 검색 문서에 추가하지 않는다.
 - Chroma는 고정이다. NumPy 전수 코사인 검색은 구현 오류·ANN 누락을 확인하는 대조군으로 사용하고, Chroma 실험을 대체하지 않는다.
 - Python은 기존 root venv 3.14를 재사용한다. `requirements.txt`, 범용 설정 로더, ART 코어 변경은 추가하지 않는다. CLI는 argparse, docstring, `main()` guard를 갖춘다.
-- 최소 완료 조건은 **실행 가능한 모델 2개 이상, 그중 한국어–영어 검색 후보 1개 이상**, 선택 가능한 방식 출처별 2개 이상과 §6.1의 크기·오버랩 전체 Cartesian product의 성공한 실행이다. 192/32 한 점의 기존 24조합 결과만으로 추가 탐색을 완료 처리하지 않는다. 실패 모델도 리포트의 실패 행으로 남긴다. 성능이 낮다는 이유로 실행 대상을 빼지 않는다.
+- 최초 grid의 최소 완료 조건은 **실행 가능한 모델 2개 이상, 그중 한국어–영어 검색 후보 1개 이상**, 선택 가능한 방식 출처별 2개 이상과 §6.1 전체 행렬의 성공한 실행이다. 이 단계는 현재 리포트/상세 카드에 완료로 기록되어 있다. **대형 청크 확장의 완료 조건은 §13**이며 기존 1080조합을 새 탐색의 완료 증거로 대신하지 않는다. 실패 모델도 리포트의 실패 행으로 남기고 성능이 낮다는 이유로 대상을 빼지 않는다.
 
 ## 2. 실제 입력 조사와 고정 방법
 
@@ -460,7 +460,7 @@ JSON 리포트 필수 키:
 
 ## 11. Antigravity Step 1~6 체크리스트
 
-기존 24조합 구현을 확장한다. WBS의 최초 8h 배분은 기준선 계획으로 보존하되, 1080조합의 추가 실행 시간을 2h로 가정하지 않는다. Step 4에서 청크 수·encode/index/query 실측으로 추가 소요 시간을 추정하고 기록한다. 문서 벡터는 캐시하고 실행 상태를 저장하여 남은 행을 이어서 수행한다.
+이 체크리스트는 완료된 **128~224토큰/1080조합 단계의 구현·재현 순서**다. 완료 상태의 정본은 `tasks/todo.md`이고, 아래 체크박스는 원래 실행 계약을 보존한 것이다. 이번 추가 실험은 **§13.6의 확장 Step 1~6**을 사용한다. WBS의 최초 8h 배분은 보존하고 추가 실행 시간은 청크 수·encode/index/query 실측으로 추정한다. 문서 벡터 캐시와 실행 상태를 보존하여 남은 행을 이어서 수행한다.
 
 ### Step 1 — 기준선 보존과 입력·환경 재확인 (선행: 기존 T8-2 구현)
 
@@ -527,7 +527,7 @@ JSON 리포트 필수 키:
 - [ ] 각 source의 최종 파라미터·variant/실체/SHA·모델 revision/prefix/window policy/index/재생성 명령을 T9로 전달한다. 새 탐색 증거가 모두 갖춰진 뒤 추가 완료 체크를 갱신한다.
 - [ ] 코드/docs/작은 fixture의 diff를 확인하고 국문 commit/PR에 실측값과 검증을 쓴다. 원문/모델 cache/DB/큰 vectors의 의도치 않은 추가를 검사한다.
 
-최종 게이트: **선언한 크기·오버랩 전체 행렬 완주, 100문항 검색, 95양성/5negative 분리, 147근거 원문/청크 추적, 원문 coverage100%, truncation0, 파라미터별 재현 통과, 선정 JSON과 T9 실체 일치**. 현재 개정은 이 실행을 위한 플랜이며 새 체크 항목은 실행 증거가 생길 때까지 미완료다.
+최종 게이트: **선언한 크기·오버랩 전체 행렬 완주, 100문항 검색, 95양성/5negative 분리, 147근거 원문/청크 추적, 원문 coverage100%, truncation0, 파라미터별 재현 통과, 선정 JSON과 T9 실체 일치**. 대형 청크의 추가 체크 항목은 §13의 새 실행 증거가 생길 때까지 미완료다.
 
 ## 12. 후속 CLI 계약과 실행 명령
 
@@ -619,3 +619,285 @@ ART_PIPELINE_PY=/Users/user/Workspace/Programming/Projects/AAART/venv/bin/python
 `benchmark check`는 전체 로그 재집계와 파라미터별 재현 증거를 작업 JSON에 저장한다. `report`는 완료율/선정/재현 게이트를 확인한 뒤 해당 JSON과 수치로 최종 MD/JSON을 임시 파일에 생성하고 성공 시 교체한다. 실패하면 작업 결과와 기존 기준선 리포트를 보존한다. 기준선 대비 표는 새 실행에서 다시 측정한 192/32 행을 사용하고 과거 리포트 값은 별도로 표시한다.
 
 Antigravity는 위 순서를 따르고 미확인 항목을 추측으로 PASS 처리하지 않는다. 실행 불가 후보, 보존되지 않은 산출물, 미완료 재현 검사는 상태와 남은 작업을 JSON/Markdown 모두에 기록한다.
+
+## 13. 대형 청크 추가 실험: 224토큰 상한 이후
+
+§1~12의 원문/스팬/지표/선정/Chroma 계약을 재사용한다. 이 절은 **추가 크기 범위, 길이 guard 집합, 임베딩 정책, 출력 위치**를 확장한다. 신규 질문·새 모델·질의 번역을 추가하지 않으며 기존 원문과 100문항을 그대로 사용한다.
+
+### 13.1 확장 근거와 보존할 기준선
+
+현재 JSON SHA-256: `4c9034d1ce2bc35ee6133c50af78d4680d6a568ebc851677aab6f441adc8ceb5`.
+
+`BAAI/bge-base-en-v1.5`와 R-B 방식에서 다른 조건을 고정한 기존 점수는 다음과 같다.
+
+| 바꾸는 축 | 고정 조건 | 128 | 192 | 224 |
+|---|---|---:|---:|---:|
+| RawPedia 본문 L | R의 O=0, G=`G-A-curated-thread-w224-wo0` | 0.6981 | 0.7582 | **0.7655** |
+| GitHub encoder window W | R=`R-B-window-t224-o0` | 0.7155 | 0.7489 | **0.7655** |
+
+표의 값은 **Macro MRR@5**다. 해당 조건의 개선은 상한 확대의 근거이며 모든 방식/O/모델에서 단조 증가한다는 주장은 아니다. 예를 들어 R-B/O=64의 기존 192 점수는 128보다 낮다. 같은 100문항의 반복 탐색이므로 추가 결과도 이 고정셋 안의 비교로 표현한다.
+
+실행 전에 현재 MD/JSON을 `docs/chunking_embedding_baseline_grid_128_224.md/.json`으로 원본 바이트 그대로 보존하고 SHA를 기록한다. 기존 `chunking_embedding_baseline_192_32.*`, `data/chunks/t08-2-grid/`, `grid-001/`도 보존한다. 기존 selected stack은 새 선정이 검증될 때까지 T9 기준점으로 유지한다. 새 구현 조건에서 **224 및 448 비교 기준점은 재측정**하며, 과거의 점수/지연을 새 행에 복사하지 않는다.
+
+### 13.2 입력 한도에 따른 실험 그룹과 실제 크기
+
+BGE 두 모델의 배포 입력 한도는 512, MiniLM은 256이다. [BGE-small 배포 설정](https://huggingface.co/BAAI/bge-small-en-v1.5/blob/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/sentence_bert_config.json), [BGE-base 배포 설정](https://huggingface.co/BAAI/bge-base-en-v1.5/blob/main/sentence_bert_config.json), [MiniLM 배포 설정](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/blob/main/sentence_bert_config.json). E5도 512를 넘으면 잘린다고 [공식 모델 카드](https://huggingface.co/intfloat/multilingual-e5-small/blob/main/README.md)에 명시되어 있다. 실행에서는 기존 고정 revision의 로컬 설정 및 실제 `encoder.max_seq_length`를 다시 대조한다.
+
+| 그룹 | 포함 모델 | 청크 경계/encoder 길이 guard |
+|---|---|---|
+| `bge-512` | `BAAI/bge-small-en-v1.5`, `BAAI/bge-base-en-v1.5` | 두 모델의 전체 입력이 모두 512 이하인 동일 청크셋 |
+| `e5-512` | `intfloat/multilingual-e5-small` | E5의 실제 tokenizer와 `passage: `를 포함해 512 이하인 청크셋 |
+| `pooled-common-256` | 기존 4모델 전부, 조건부 단계만 | 검색 청크는 큰 L 유지; 내부 encoder windows만 모든 모델의 배포 한도 이하로 제한 |
+
+512 그룹에서 MiniLM을 제외하는 사유는 **입력 한도**다. 기존 4모델 전체 guard를 대형 청크에 그대로 적용하여 256 근처로 축소하지 않는다. BGE/E5의 토큰화가 달라 서로 경계를 제한하지 않도록 두 그룹을 분리한다. 그룹 사이의 비교는 **모델과 경계를 함께 포함한 스택 비교**이며 동일 청크에서 모델만 바꾼 효과로 설명하지 않는다. BGE 그룹 내에서는 같은 청크의 모델 비교가 가능하다.
+
+모든 그룹에서 reference tokenizer/revision은 기존 BGE-small과 같다. `L/W`는 본문 reference tokens이고, encoder 입력은 실제 title/section/라벨/prefix/special tokens를 포함한다. 헤더는 §4.1의 32 reference tokens로 제한한다. 생성 단계와 **실제 `encoder.encode()` 호출 직전**에 `truncation=False`로 token 수를 검사하며 query/document 모두 검사 대상이다. 배포된 `max_seq_length`를 임의로 늘리지 않는다.
+
+- native 물리 청크는 그룹 전체 guard에 맞게 끝점을 조정하고 requested/actual tokens·조정 사유·모델별 입력 token 수를 저장한다.
+- 스레드 내부 W도 그대로 encode하지 않고 그룹 guard에 맞는 실제 windows로 조정한다. segment 전체 coverage=100%와 원문 token 가중치를 유지한다.
+- pooled 물리 청크는 **L 자체를 모델 입력 한도로 축소하지 않는다**. 내부 windows를 조정하여 모든 원문을 encode한다.
+- 각 variant에 L/W 요청값, 실제 min/median/p95/max, guard 축소율, 같은 원문 범위/청크셋을 만든 인접 후보를 기록한다. 384/448이 실질적으로 같은 입력이면 크기 증가 효과를 관측했다고 해석하지 않는다.
+- `guard_group_id`, guard 모델/revision/한도/prefix 집합, `embedding_policy`, 정책 버전, L/O/W/내부 overlap을 schema·규칙 fingerprint·cache/experiment ID에 포함한다. 같은 variant 문자열이라도 그룹별 파일/청크/cache는 분리한다.
+
+### 13.3 필수 단계 N: native 입력 한도 안의 확대
+
+R-A/R-B와 G-B는 `direct_native_v2`로 직접 encode한다. G-A-curated/full은 전체 스레드 한 벡터를 유지하되, 길이 guard 및 공통 입력 조립을 적용한 `thread_window_mean_v2`를 사용한다. 기존 정책과 입력이 달라지는 부분은 별도 버전으로 남겨 과거 vector cache를 재사용하지 않는다.
+
+| 축 | 후보 |
+|---|---|
+| RawPedia 및 G-B 본문 L | **224, 256, 320, 384, 448** (224는 비교 기준점) |
+| 물리 청크 O | **0, 32, 64**; 각 L에서 모두 비교 |
+| G-A-curated/full 내부 W | **224, 256, 320, 384, 448**, 내부 overlap=0 |
+| 모델 | `bge-512` 2개 + `e5-512` 1개, 총 **3개** |
+
+448은 512 입력 안에서 헤더/prefix/special tokens의 여유를 둔 본문 후보이며 모든 tokenizer에서 그대로 들어간다는 보장은 아니다. 절 경계/짧은 본문/guard로 실측 크기는 달라질 수 있다. **R/G의 L/O/W는 독립적으로 결합**하고 현재 O=0이나 현재 선정 모델을 고정하지 않는다.
+
+| 항목 | 그룹당 후보 수 | 전체 3모델 실험 수 |
+|---|---:|---:|
+| RawPedia | 2×5×3 = **30** | — |
+| GitHub 정식 | G-B 5×3 + G-A-curated 5 = **20** | — |
+| GitHub 진단 | G-A-full 5 = **5** | — |
+| 정식 혼합 검색 | 30×20×모델 수 | **1800** |
+| 진단 혼합 검색 | 30×5×모델 수 | **450** |
+| 전체 | 30×25×모델 수 | **2250** |
+
+BGE 그룹은 정식1200/진단300=1500행, E5 그룹은 정식600/진단150=750행이다. 원문 청크셋은 **그룹당55개, 두 그룹 합계110개**이며 문서 vector cache는 **55×3=최대165 entry**로 재사용한다. 주 query latency 관측은 **2250×100×3=675,000개**다. §7의 분모/측정법을 바꾸지 않으며 예상 시간/공간은 작은 smoke의 실측으로 계산한다.
+
+### 13.4 조건부 단계 P: 512·768·1024 검색 청크
+
+N 완주 후 각 모델의 정식 선두에서 **R 물리 L 또는 G-B 물리 L이 448**이고, 같은 다른 축을 고정한 384 행보다 Macro MRR@5가 높으면 P를 실행한다. 추가로, 같은 방식/O/그룹의 384·448 후보가 **encoder guard 축소 때문에 동일한 전체 본문·원문 범위**를 만들어 큰 물리 청크를 관측하지 못한 경우도 P를 실행한다. 짧은 원문 때문에 같아진 경우는 이 조건에 넣지 않는다. 비교는 반올림 전 값/분자로 하며 `1e-9`는 수치 동률 판정용이다. 실행 전에 `extension_decision.json`에 대상 모델/실험 ID·384/448 점수·실측 크기·guard 사유를 기록한다. 조건을 만족한 모델/후보가 하나라도 있으면 P의 사전 정의된 전체 행렬을 실행한다.
+
+조건을 만족하지 않으면 P는 `not_triggered`와 비교 근거로 기록하고 N에서 선정한다. **G-A의 내부 W만 상한에 있는 경우는 encoder 문맥 한도의 제약**으로 기록한다. 이미 전체 스레드가 한 검색 청크이므로 W=768/1024를 직접 입력한 것처럼 표시하지 않는다. N의 guard 포화만으로 크기 효과가 확인되지 않으면 그 한계를 명시한다.
+
+P는 기존 경량 모델을 유지하면서 **큰 검색 청크를 여러 내부 windows로 encode하고 한 벡터로 집계하는 별도 정책**이다. 큰 L을 한 번에 native encode하는 실험으로 설명하지 않는다. 새 장문 모델 도입은 이번 범위에 포함하지 않는다.
+
+| 축 | 후보/정책 |
+|---|---|
+| R-A/R-B 및 G-B 검색 청크 L | **224, 448, 512, 768, 1024**; 224/448은 동일 pooled 정책의 비교 기준점 |
+| 물리 청크 O | **0, 64, 128**; L마다 모두 비교, 명목/실측 O/L 비율 병기 |
+| 내부 encoder W/O | **W=224, 내부 O=0**을 모든 모델에서 고정; 실제 길이는 `pooled-common-256` guard 적용 |
+| 모델 | 기존 **4개 전부**, MiniLM 포함 |
+| G-A-curated/full | 전체 스레드 유지, W=224/내부 O=0의 각 **1variant** |
+
+R/G-B metadata는 `target_tokens=L`, `overlap_tokens=O`, `encoder_window_tokens=224`, `encoder_overlap_tokens=0`, `embedding_policy=chunk_window_mean_v1`이다. G-A는 물리 L/O=null, `thread_window_mean_v2`로 같은 W=224를 쓴다. R의 헤딩 경계·G-B의 서로 다른 원문 분리 원칙은 유지한다.
+
+각 검색 청크의 source segments를 내부 windows로 빠짐없이 분할하고 `v_chunk=normalize(sum(w_i*v_i)/sum(w_i))`로 집계한다. `w_i`는 실제 원문 reference tokens이며 생성 라벨/title은 제외한다. 물리 청크끼리의 overlap은 허용하되 한 청크 내부의 원문은 중복 가중하지 않는다. 내부 windows의 원문 범위/입력 해시/입력 token 수/가중치/호출 수를 저장한다. 토큰 ID decode나 임의 truncation 없이 모든 내용이 임베딩에 기여해야 한다. hidden window는 별도 top-k 결과가 아니다.
+
+| 항목 | 계산 | 수 |
+|---|---|---:|
+| RawPedia | 2×5×3 | **30variant** |
+| GitHub 정식 | G-B 5×3 + curated thread 1 | **16variant** |
+| GitHub 진단 | full thread 1 | **1variant** |
+| 정식 혼합 검색 | 30×16×4 | **1920행** |
+| 진단 혼합 검색 | 30×1×4 | **120행** |
+| 전체 | 30×17×4 | **2040행** |
+| 문서 vector cache | (30+16+1)×4 | **최대188 entry** |
+
+P의 주 지연 관측은 **612,000개**다. 실제 원문이 짧아 동일 청크가 생성되는 경우를 숨기지 않는다. P 안에서는 모든 모델/길이에 같은 집계 정책을 쓰므로 크기 효과를 비교할 수 있다. N과 P의 차이는 임베딩 정책도 포함한다. native 224↔pooled 224, native 448↔pooled 448의 대응 행으로 정책 변경의 영향을 따로 보여준다.
+
+### 13.5 후속 구현·산출물·선정 계약
+
+현행 코드를 확인했으며 큰 숫자를 기존 CLI에 전달하는 것만으로 이 추가 계약을 충족하지 않는다. 다음은 **후속 구현 작업**이다.
+
+- `src/artagent/chunking.py`: 실제 입력 조립/헤더 제한/길이 검사와 그룹별 guard를 생성·encode에서 재사용한다. 현재 `TokenizerBundle.check_length_guard()`는 정의되어 있으나 생성/encode 경로에서 호출되지 않는다. N에서는 실제 경계를 검사·조정하고 P에서는 큰 source chunk와 작은 encoder window를 분리한다.
+- `scripts/chunk_corpus.py`: 그룹/정책/실측 길이를 manifest에 저장하고 보존 파일명의 `--baseline-prefix`를 추가한다. 재생성 시 현재 고정 `grid-001/environment.json` 대신 해당 manifest의 모델/정책/출력 경로를 사용한다. N/P의 규칙·그룹·정책별 모든 JSONL을 재생성한다.
+- `scripts/benchmark_embeddings.py`: 그룹 및 정책을 manifest에서 읽고 물리 pooled 청크의 encode를 추가한다. 전 encode 호출에 실제 길이 검사를 적용한다. Chroma `documents`에 현재 `content[:200]` 대신 **전체 content**를 적재하고 trace를 반환한다. 큰 청크의 끝 근거도 실제 반환 본문에 있어야 한다.
+- 현행 `run`은 query vector를 사전 encode하고 첫 query encode 시간 하나를 검색 시간에 더하며 `--query-repeat`를 측정 루프에 적용하지 않는다. 확장에서는 **100문항×3회의 실제 query encode→검색→전체 결과 구조화**를 계측한다. 진단 검색 cache와 주 latency 경로를 구분하고 예전 지연은 동일 조건의 측정값으로 재사용하지 않는다.
+- matrix/report/check의 고정 variant 수·grid 값·`data/chunks/t08-2-grid/` 경로·192/32 기준선 조회를 해당 행/manifest 참조로 바꾼다. input/protocol fingerprint, 정책, 모델 한도, 실패 상태, 100문항 로그를 저장하고 미완료 행을 이어서 수행한다.
+- `decide-extension --inputs ... --output-json ...`은 검증한 N 전체 행과 청크 실측으로 §13.4의 trigger를 계산하고 판정 파일을 저장한다. `combine --inputs ... --extension-decision ... --output-json ...`은 그룹별 **검증된 새 실행 결과**를 합친다. 질문/원문 지문, k/관련도/분모, CPU/dtype/계측/index 조건이 같아야 한다. 그룹·정책 차이는 행에 명시하고 N/P 행 수와 P trigger 판정을 보존한다. 이전 1080행은 과거 기준선 링크로 연결하며 새 성공 행 수에 더하지 않는다.
+
+공통 `protocol_fingerprint`는 입력/질문·지표·계측·index 조건의 지문이다. 그룹/모델/청크 파라미터/임베딩 정책은 비교할 실험 축이므로 각 행의 `experiment_id`에 넣고 통합 시 차이를 허용한다. 모델별 revision은 동일 모델을 N/P에서 비교할 때 일치해야 한다.
+
+새 작업 위치:
+
+```text
+docs/chunking_embedding_baseline_grid_128_224.md/.json
+data/chunks/t08-2-large-native/bge-512/       # manifest/55 variant/gold mapping
+data/chunks/t08-2-large-native/e5-512/        # manifest/55 variant/gold mapping
+data/chunks/t08-2-large-pooled/              # 조건부 manifest/47 variant/gold mapping
+data/embedding-benchmark/t08-2/large-native-bge-512-001/
+data/embedding-benchmark/t08-2/large-native-e5-512-001/
+data/embedding-benchmark/t08-2/large-pooled-001/
+data/embedding-benchmark/t08-2/large-combined-001/
+  results.json                              # N + 실행한 P의 새 결과/선정 정본
+  extension_decision.json                    # P 실행/미실행, 상한·guard 포화 근거
+  reproduction.json                         # 별도 DB 재적재 증거
+```
+
+§8.1의 선정 순서는 유지한다. 최종 후보 집합은 N의 정식1800행과, P를 실행한 경우 P의 정식1920행이다. 각 진단 행은 전 비교표에 남긴다. 선정 JSON은 현행 `selected_stack`에서 모델/R/G만 쓰던 필드를 확장하여 **그룹, 각 출처 L/O/W, physical/thread embedding policy, guard 모델 및 한도, manifest/JSONL 경로·SHA, 입력/protocol SHA, T9 재생성 명령**을 모두 갖춘다. `selected`와 `selected_stack`을 동시에 유지한다면 같은 객체를 참조하도록 정하고 서로 다른 선정값을 쓰지 않는다.
+
+추가 보고 내용:
+
+- N/P별 grid 정의·예상/성공/실패 행 수·성공률; 2250 또는 P 포함 **4290행**을 분모로 쓰고 실패를 분모에서 지우지 않는다. P가 `not_triggered`면 N의 2250이 분모다.
+- 각 source의 길이/O를 다른 축을 고정해 비교한 표, 224 대비 품질/실제 크기/지연/vector bytes/상위 문맥 tokens 증감. R/G 같은 크기만 짝짓지 않는다.
+- 큰 청크는 정답 스팬을 포함하기 쉬우므로 Hit/MRR 외에 **FullEvidence_all@5, complex 전체 근거, top5 총/중복 제거 tokens, 근거 밀도**를 병기한다. 근거 밀도는 대응 support 근거의 비공백 문자 합집합/반환 원문 비공백 문자 합집합이며 생성 prefix/라벨은 제외한다. 핵심이 적은 긴 본문 반환을 품질 상승과 구분한다.
+- `boundary_status`: `interior_peak`, `upper_boundary`, `encoder_limited`, `no_effect` 중 판정값과 원문 실측 근거. 같은 값의 plateau면 §8의 비용/동률 규칙으로 선정한다. 1024에서 계속 개선되면 **탐색 상한까지의 최선**으로 표시하고 전역 최적값을 주장하지 않는다.
+
+N/P의 해당 전체 행렬·§7 계측·회귀·재현을 통과한 뒤 최종 `docs/chunking_embedding_benchmark.md/.json`을 갱신하고 T9로 인계한다. 그 전까지 작업 리포트와 기준선 파일을 보존한다.
+
+### 13.6 Antigravity 확장 Step 1~6 및 회귀
+
+1. **기준선/입력 고정:** 현재 1080 MD/JSON 바이트·SHA, 원문/100문항/147스팬, 모델 revision/배포 한도/환경을 고정한다. 확장 전용 디렉터리와 N/P 정의를 저장한다.
+2. **guard 수직 구현:** 한 RawPedia 구간과 한 긴 GitHub body로 N의 448 입력 조립→실제 tokenizer guard→encode→Chroma 전체 content 반환→gold trace를 통과한다. 헤더/prefix로 입력이 초과하는 사례를 먼저 검증한다.
+3. **N 후보 생성/회귀:** 두 그룹의 55variant씩을 생성하고 실제 크기/O/스레드 windows·전진/tail/전체 의미 문자 coverage/147근거 추적을 검사한다. 그룹 manifest로 다른 위치에서 재생성하고 바이트를 대조한다. checkpoint: truncation0, 모델별 실제 입력 상한 준수, 그룹별 ID/cache 비충돌.
+4. **N 전 행렬 실행:** 1500+750=2250행을 사전 등록하고 고정 100문항×3회 실행·로그·계측·ANN 대조·실패 분석을 마친다. 시간/공간은 실측하고 진행 상태를 보존한다.
+5. **상한 판정/P 실행:** §13.4의 trigger 및 실측 guard 상태를 저장한다. trigger면 pooled 수직 구현/회귀를 통과한 뒤 2040행 전부 실행한다. trigger가 없으면 근거와 `not_triggered`를 남긴다. checkpoint: 원문 내용의 인코딩 누락0, P 내부 중복 가중0, N/P 별도 해석, 전체 실행율100%.
+6. **통합 선정/재현/T9:** 새 그룹 결과를 합쳐 §8로 선정하고 현재 224 비교점·N 선두·P 선두(실행 시)·최종 선정·차순위를 별도 DB에서 재현한다. MD/JSON을 새 결과로 생성하고 최종 전체 파라미터/실체/SHA/재생성법을 T9로 전달한다. 증거가 갖춰진 뒤 추가 체크 항목을 완료한다.
+
+필수 추가 테스트는 기존 `tests/test_chunking.py`, `tests/test_benchmark_embeddings.py`에 둔다.
+
+- 224/256/320/384/448×O의 전진/실제 중복/결정성, BGE/E5 서로 다른 guard와 MiniLM 제외; 헤더+prefix+special token 때문에 512를 넘는 입력의 분할/거부, encode 직전 길이 검사.
+- 512/768/1024 청크의 **tail 근거가 실제 encoder window와 Chroma 반환 content에 포함**됨; requested 큰 L 유지, 내부 W guard, 전체 coverage, 생성 라벨 가중치 제외, zero/NaN/Inf 거부. MiniLM W 입력은 256 이하.
+- 그룹/정책 변경 시 ID/cache/experiment 분리, 단일/두 모델 그룹의 행렬 수, manifest 기반 경로·policy 재생성, 3회 실제 query encoder 호출 및 지연 관측 수, 분모95/negative5/147근거 유지.
+- trigger의 양성/음성·동률/실측 plateau/encoder 한도 사례, 통합 시 다른 dataset/protocol 거부, 실패 행/부분 로그를 성공 처리하지 않음, 선정 객체/JSON→MD/재현/기준선 보존 일치.
+
+검증 명령은 아래 CLI 이후의 pytest와 §8의 새 DB 재현이다. 의미 성능의 고정 수치를 unit test로 만들거나 단순 ID 일치로 스팬 검증을 대체하지 않는다.
+
+### 13.7 추가 CLI 계약과 실행 예시
+
+**후속 구현 후 실행할 계약**이다. 기존 grid 인자는 재사용하고 `--baseline-prefix`, `--guard-group`, `--physical-embedding-policy`, `--encoder-window-tokens`, `--encoder-overlap-tokens`, `decide-extension`, `combine`을 구현한다. check/report/run은 각 manifest/행의 경로·정책·전체 파라미터를 읽어야 한다. Bash의 변수/배열은 아래 실험 디렉터리에만 쓰며 모델 revision은 기존 환경에서 상속한다.
+
+```bash
+set -e
+ART_PIPELINE_PY=/Users/user/Workspace/Programming/Projects/AAART/venv/bin/python3
+
+# 필수 N: BGE 두 모델 그룹 및 E5 한 모델 그룹을 순서대로 실행
+for ART_GUARD_GROUP in bge-512 e5-512; do
+  if [ "$ART_GUARD_GROUP" = bge-512 ]; then
+    ART_MODEL_IDS=(BAAI/bge-small-en-v1.5 BAAI/bge-base-en-v1.5)
+  else
+    ART_MODEL_IDS=(intfloat/multilingual-e5-small)
+  fi
+  ART_LARGE_CHUNKS="data/chunks/t08-2-large-native/$ART_GUARD_GROUP"
+  ART_LARGE_WORK="data/embedding-benchmark/t08-2/large-native-$ART_GUARD_GROUP-001"
+
+  "$ART_PIPELINE_PY" scripts/chunk_corpus.py prepare \
+    --baseline-md docs/chunking_embedding_benchmark.md \
+    --baseline-json docs/chunking_embedding_benchmark.json \
+    --baseline-prefix docs/chunking_embedding_baseline_grid_128_224 \
+    --output-dir "$ART_LARGE_CHUNKS"
+  "$ART_PIPELINE_PY" scripts/benchmark_embeddings.py preflight \
+    --stage tokenizers --models "${ART_MODEL_IDS[@]}" \
+    --model-manifest data/embedding-benchmark/t08-2/grid-001/environment.json \
+    --device cpu --work-dir "$ART_LARGE_WORK"
+  "$ART_PIPELINE_PY" scripts/chunk_corpus.py build \
+    --manifest "$ART_LARGE_CHUNKS/manifest.json" \
+    --model-manifest "$ART_LARGE_WORK/environment.json" \
+    --guard-group "$ART_GUARD_GROUP" --physical-embedding-policy direct_native_v2 \
+    --target-tokens-grid 224 256 320 384 448 --overlap-tokens-grid 0 32 64 \
+    --thread-window-tokens-grid 224 256 320 384 448
+  "$ART_PIPELINE_PY" scripts/chunk_corpus.py check \
+    --manifest "$ART_LARGE_CHUNKS/manifest.json" --verify-regeneration
+  "$ART_PIPELINE_PY" scripts/benchmark_embeddings.py preflight \
+    --stage runtime --model-manifest "$ART_LARGE_WORK/environment.json" \
+    --device cpu --work-dir "$ART_LARGE_WORK"
+  "$ART_PIPELINE_PY" scripts/benchmark_embeddings.py matrix \
+    --chunk-manifest "$ART_LARGE_CHUNKS/manifest.json" \
+    --model-manifest "$ART_LARGE_WORK/environment.json" \
+    --queries docs/search_eval_queries.json --ks 1 3 5 --device cpu \
+    --output-json "$ART_LARGE_WORK/experiment_matrix.json"
+  "$ART_PIPELINE_PY" scripts/benchmark_embeddings.py run \
+    --matrix "$ART_LARGE_WORK/experiment_matrix.json" \
+    --chunk-manifest "$ART_LARGE_CHUNKS/manifest.json" \
+    --model-manifest "$ART_LARGE_WORK/environment.json" \
+    --queries docs/search_eval_queries.json --ks 1 3 5 --device cpu \
+    --batch-size 16 --seed 42 --warmup-queries 10 --query-repeat 3 \
+    --work-dir "$ART_LARGE_WORK" --output-json "$ART_LARGE_WORK/results.json"
+  "$ART_PIPELINE_PY" scripts/benchmark_embeddings.py check \
+    --input-json "$ART_LARGE_WORK/results.json" --verify-top-candidates \
+    --work-dir "$ART_LARGE_WORK/recheck"
+done
+```
+
+앞 Bash 블록에 이어 실행한다. 두 N 결과를 검증한 뒤 `decide-extension`이 trigger를 계산한다. `trigger`는 JSON boolean이며 아래 분기는 이를 읽어 P를 수행한다. 판정 파일 생성/읽기 실패는 `set -e`로 중단한다.
+
+```bash
+set -e
+ART_LARGE_INPUTS=(
+  data/embedding-benchmark/t08-2/large-native-bge-512-001/results.json
+  data/embedding-benchmark/t08-2/large-native-e5-512-001/results.json
+)
+ART_EXTENSION_DECISION=data/embedding-benchmark/t08-2/large-combined-001/extension_decision.json
+"$ART_PIPELINE_PY" scripts/benchmark_embeddings.py decide-extension \
+  --inputs "${ART_LARGE_INPUTS[@]}" --output-json "$ART_EXTENSION_DECISION"
+ART_RUN_POOL="$("$ART_PIPELINE_PY" -c 'import json; from pathlib import Path; print("yes" if json.loads(Path("data/embedding-benchmark/t08-2/large-combined-001/extension_decision.json").read_bytes())["trigger"] else "no")')"
+
+if [ "$ART_RUN_POOL" = yes ]; then
+  ART_POOL_CHUNKS=data/chunks/t08-2-large-pooled
+  ART_POOL_WORK=data/embedding-benchmark/t08-2/large-pooled-001
+  "$ART_PIPELINE_PY" scripts/chunk_corpus.py prepare \
+    --baseline-md docs/chunking_embedding_benchmark.md \
+    --baseline-json docs/chunking_embedding_benchmark.json \
+    --baseline-prefix docs/chunking_embedding_baseline_grid_128_224 \
+    --output-dir "$ART_POOL_CHUNKS"
+  "$ART_PIPELINE_PY" scripts/benchmark_embeddings.py preflight \
+    --stage tokenizers \
+    --models BAAI/bge-small-en-v1.5 BAAI/bge-base-en-v1.5 \
+      sentence-transformers/all-MiniLM-L6-v2 intfloat/multilingual-e5-small \
+    --model-manifest data/embedding-benchmark/t08-2/grid-001/environment.json \
+    --device cpu --work-dir "$ART_POOL_WORK"
+  "$ART_PIPELINE_PY" scripts/chunk_corpus.py build \
+    --manifest "$ART_POOL_CHUNKS/manifest.json" \
+    --model-manifest "$ART_POOL_WORK/environment.json" \
+    --guard-group pooled-common-256 --physical-embedding-policy chunk_window_mean_v1 \
+    --target-tokens-grid 224 448 512 768 1024 --overlap-tokens-grid 0 64 128 \
+    --thread-window-tokens-grid 224 \
+    --encoder-window-tokens 224 --encoder-overlap-tokens 0
+  "$ART_PIPELINE_PY" scripts/chunk_corpus.py check \
+    --manifest "$ART_POOL_CHUNKS/manifest.json" --verify-regeneration
+  "$ART_PIPELINE_PY" scripts/benchmark_embeddings.py preflight \
+    --stage runtime --model-manifest "$ART_POOL_WORK/environment.json" \
+    --device cpu --work-dir "$ART_POOL_WORK"
+  "$ART_PIPELINE_PY" scripts/benchmark_embeddings.py matrix \
+    --chunk-manifest "$ART_POOL_CHUNKS/manifest.json" \
+    --model-manifest "$ART_POOL_WORK/environment.json" \
+    --queries docs/search_eval_queries.json --ks 1 3 5 --device cpu \
+    --output-json "$ART_POOL_WORK/experiment_matrix.json"
+  "$ART_PIPELINE_PY" scripts/benchmark_embeddings.py run \
+    --matrix "$ART_POOL_WORK/experiment_matrix.json" \
+    --chunk-manifest "$ART_POOL_CHUNKS/manifest.json" \
+    --model-manifest "$ART_POOL_WORK/environment.json" \
+    --queries docs/search_eval_queries.json --ks 1 3 5 --device cpu \
+    --batch-size 16 --seed 42 --warmup-queries 10 --query-repeat 3 \
+    --work-dir "$ART_POOL_WORK" --output-json "$ART_POOL_WORK/results.json"
+  "$ART_PIPELINE_PY" scripts/benchmark_embeddings.py check \
+    --input-json "$ART_POOL_WORK/results.json" --verify-top-candidates \
+    --work-dir "$ART_POOL_WORK/recheck"
+  ART_LARGE_INPUTS+=("$ART_POOL_WORK/results.json")
+fi
+
+"$ART_PIPELINE_PY" scripts/benchmark_embeddings.py combine \
+  --inputs "${ART_LARGE_INPUTS[@]}" --extension-decision "$ART_EXTENSION_DECISION" \
+  --output-json data/embedding-benchmark/t08-2/large-combined-001/results.json
+"$ART_PIPELINE_PY" scripts/benchmark_embeddings.py check \
+  --input-json data/embedding-benchmark/t08-2/large-combined-001/results.json \
+  --verify-top-candidates --work-dir data/embedding-benchmark/t08-2/large-recheck-001
+"$ART_PIPELINE_PY" -m pytest tests/test_chunking.py \
+  tests/test_benchmark_embeddings.py tests/test_eval_queries.py tests/test_filter_issues.py -q
+"$ART_PIPELINE_PY" scripts/benchmark_embeddings.py report \
+  --input-json data/embedding-benchmark/t08-2/large-combined-001/results.json \
+  --output-json docs/chunking_embedding_benchmark.json \
+  --output-md docs/chunking_embedding_benchmark.md
+```
+
+`combine --extension-decision`은 N의 원본 실행 로그/반올림 전 집계를 이용한 trigger를 다시 계산하여 decision 파일과 대조한다. trigger=true인데 P 결과가 없으면 통합은 미완료로 남기고 최종 report 갱신을 거부한다. trigger=false인데 P를 임의 생략한 것처럼 상태를 바꾸지 않는다. 기준선 prefix의 보존본은 존재 시 SHA를 대조하며 다른 바이트를 덮어쓰지 않는다.
