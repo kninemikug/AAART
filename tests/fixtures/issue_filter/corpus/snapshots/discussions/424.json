@@ -1,0 +1,16 @@
+{
+  "author": {
+    "login": "notaliveRN"
+  },
+  "body": "As recent addition of Filmsim's, i tried the vkdt implementation of filmsim first and liked but the workflow wasnt for me and WB is a bit messed up. as coming from that to ART, it have been a pleasent ride but i cant ignore the absence of Halation and upscale feature in ART. \r\n\r\nAs from my understanding, ART is using napari in background for filmsim's. Napari has halation and Grain. there's film grain in ART but i feel like its diffrent from napari and vkdt. \r\n\r\nim still new to all these so please guide me if im wrong somewhere.",
+  "category": {
+    "name": "Ideas"
+  },
+  "createdAt": "2025-12-19T15:59:32Z",
+  "databaseId": 9264687,
+  "id": "D_kwDONWPV1M4AjV4v",
+  "number": 424,
+  "title": "Halation,Grain and Upscaling",
+  "updatedAt": "2025-12-20T07:22:55Z",
+  "url": "https://github.com/orgs/artraweditor/discussions/424"
+}

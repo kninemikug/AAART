@@ -1,0 +1,756 @@
+{
+  "last_synced_at": "2026-09-28T02:06:12Z",
+  "records": {
+    "discussion-comment:DC_kwDONWPV1M4A5PbN": {
+      "kind": "discussion-comment",
+      "object_id": "DC_kwDONWPV1M4A5PbN",
+      "source_url": "https://github.com/artraweditor/ART/discussions/412#discussioncomment-15005389",
+      "storage_path": "snapshots/discussion-comments/15005389.json",
+      "updated_at": "2025-11-18T21:15:33Z"
+    },
+    "discussion-comment:DC_kwDONWPV1M4A5Pgv": {
+      "kind": "discussion-comment",
+      "object_id": "DC_kwDONWPV1M4A5Pgv",
+      "source_url": "https://github.com/artraweditor/ART/discussions/412#discussioncomment-15005743",
+      "storage_path": "snapshots/discussion-comments/15005743.json",
+      "updated_at": "2025-11-18T22:08:04Z"
+    },
+    "discussion-comment:DC_kwDONWPV1M4A6DN4": {
+      "kind": "discussion-comment",
+      "object_id": "DC_kwDONWPV1M4A6DN4",
+      "source_url": "https://github.com/artraweditor/ART/discussions/420#discussioncomment-15217528",
+      "storage_path": "snapshots/discussion-comments/15217528.json",
+      "updated_at": "2025-12-10T09:10:44Z"
+    },
+    "discussion-comment:DC_kwDONWPV1M4A6DcH": {
+      "kind": "discussion-comment",
+      "object_id": "DC_kwDONWPV1M4A6DcH",
+      "source_url": "https://github.com/artraweditor/ART/discussions/420#discussioncomment-15218439",
+      "storage_path": "snapshots/discussion-comments/15218439.json",
+      "updated_at": "2025-12-10T10:16:12Z"
+    },
+    "discussion-comment:DC_kwDONWPV1M4A6YYd": {
+      "kind": "discussion-comment",
+      "object_id": "DC_kwDONWPV1M4A6YYd",
+      "source_url": "https://github.com/artraweditor/ART/discussions/424#discussioncomment-15304221",
+      "storage_path": "snapshots/discussion-comments/15304221.json",
+      "updated_at": "2025-12-20T07:22:55Z"
+    },
+    "discussion-comment:DC_kwDONWPV1M4A7c93": {
+      "kind": "discussion-comment",
+      "object_id": "DC_kwDONWPV1M4A7c93",
+      "source_url": "https://github.com/artraweditor/ART/discussions/440#discussioncomment-15585143",
+      "storage_path": "snapshots/discussion-comments/15585143.json",
+      "updated_at": "2026-01-23T21:17:45Z"
+    },
+    "discussion-comment:DC_kwDONWPV1M4A7ehG": {
+      "kind": "discussion-comment",
+      "object_id": "DC_kwDONWPV1M4A7ehG",
+      "source_url": "https://github.com/artraweditor/ART/discussions/440#discussioncomment-15591494",
+      "storage_path": "snapshots/discussion-comments/15591494.json",
+      "updated_at": "2026-01-24T15:05:32Z"
+    },
+    "discussion-comment:DC_kwDONWPV1M4A7emM": {
+      "kind": "discussion-comment",
+      "object_id": "DC_kwDONWPV1M4A7emM",
+      "source_url": "https://github.com/artraweditor/ART/discussions/440#discussioncomment-15591820",
+      "storage_path": "snapshots/discussion-comments/15591820.json",
+      "updated_at": "2026-01-24T15:40:22Z"
+    },
+    "discussion-comment:DC_kwDONWPV1M4A7etI": {
+      "kind": "discussion-comment",
+      "object_id": "DC_kwDONWPV1M4A7etI",
+      "source_url": "https://github.com/artraweditor/ART/discussions/440#discussioncomment-15592264",
+      "storage_path": "snapshots/discussion-comments/15592264.json",
+      "updated_at": "2026-01-24T16:02:30Z"
+    },
+    "discussion-comment:DC_kwDONWPV1M4A7eua": {
+      "kind": "discussion-comment",
+      "object_id": "DC_kwDONWPV1M4A7eua",
+      "source_url": "https://github.com/artraweditor/ART/discussions/440#discussioncomment-15592346",
+      "storage_path": "snapshots/discussion-comments/15592346.json",
+      "updated_at": "2026-01-24T16:02:17Z"
+    },
+    "discussion-comment:DC_kwDONWPV1M4A7gGl": {
+      "kind": "discussion-comment",
+      "object_id": "DC_kwDONWPV1M4A7gGl",
+      "source_url": "https://github.com/artraweditor/ART/discussions/442#discussioncomment-15597989",
+      "storage_path": "snapshots/discussion-comments/15597989.json",
+      "updated_at": "2026-01-25T14:20:31Z"
+    },
+    "discussion-comment:DC_kwDONWPV1M4A7hXS": {
+      "kind": "discussion-comment",
+      "object_id": "DC_kwDONWPV1M4A7hXS",
+      "source_url": "https://github.com/artraweditor/ART/discussions/442#discussioncomment-15603154",
+      "storage_path": "snapshots/discussion-comments/15603154.json",
+      "updated_at": "2026-01-26T07:40:52Z"
+    },
+    "discussion-comment:DC_kwDONWPV1M4A7hf1": {
+      "kind": "discussion-comment",
+      "object_id": "DC_kwDONWPV1M4A7hf1",
+      "source_url": "https://github.com/artraweditor/ART/discussions/442#discussioncomment-15603701",
+      "storage_path": "snapshots/discussion-comments/15603701.json",
+      "updated_at": "2026-01-26T08:40:17Z"
+    },
+    "discussion-comment:DC_kwDONWPV1M4A7iwx": {
+      "kind": "discussion-comment",
+      "object_id": "DC_kwDONWPV1M4A7iwx",
+      "source_url": "https://github.com/artraweditor/ART/discussions/442#discussioncomment-15608881",
+      "storage_path": "snapshots/discussion-comments/15608881.json",
+      "updated_at": "2026-01-26T17:31:46Z"
+    },
+    "discussion-comment:DC_kwDONWPV1M4A7ngY": {
+      "kind": "discussion-comment",
+      "object_id": "DC_kwDONWPV1M4A7ngY",
+      "source_url": "https://github.com/artraweditor/ART/discussions/436#discussioncomment-15628312",
+      "storage_path": "snapshots/discussion-comments/15628312.json",
+      "updated_at": "2026-01-28T12:29:56Z"
+    },
+    "discussion-comment:DC_kwDONWPV1M4A7niR": {
+      "kind": "discussion-comment",
+      "object_id": "DC_kwDONWPV1M4A7niR",
+      "source_url": "https://github.com/artraweditor/ART/discussions/436#discussioncomment-15628433",
+      "storage_path": "snapshots/discussion-comments/15628433.json",
+      "updated_at": "2026-01-28T12:43:32Z"
+    },
+    "discussion-comment:DC_kwDONWPV1M4A9S4X": {
+      "kind": "discussion-comment",
+      "object_id": "DC_kwDONWPV1M4A9S4X",
+      "source_url": "https://github.com/artraweditor/ART/discussions/436#discussioncomment-16068119",
+      "storage_path": "snapshots/discussion-comments/16068119.json",
+      "updated_at": "2026-03-10T12:35:28Z"
+    },
+    "discussion-comment:DC_kwDONWPV1M4A9TAZ": {
+      "kind": "discussion-comment",
+      "object_id": "DC_kwDONWPV1M4A9TAZ",
+      "source_url": "https://github.com/artraweditor/ART/discussions/436#discussioncomment-16068633",
+      "storage_path": "snapshots/discussion-comments/16068633.json",
+      "updated_at": "2026-03-10T13:15:43Z"
+    },
+    "discussion-comment:DC_kwDONWPV1M4BAUmA": {
+      "kind": "discussion-comment",
+      "object_id": "DC_kwDONWPV1M4BAUmA",
+      "source_url": "https://github.com/artraweditor/ART/discussions/436#discussioncomment-16861568",
+      "storage_path": "snapshots/discussion-comments/16861568.json",
+      "updated_at": "2026-05-09T10:29:07Z"
+    },
+    "discussion-comment:DC_kwDONWPV1M4BBAtC": {
+      "kind": "discussion-comment",
+      "object_id": "DC_kwDONWPV1M4BBAtC",
+      "source_url": "https://github.com/artraweditor/ART/discussions/489#discussioncomment-17042242",
+      "storage_path": "snapshots/discussion-comments/17042242.json",
+      "updated_at": "2026-05-24T17:43:18Z"
+    },
+    "discussion-comment:DC_kwDONWPV1M4BBjaf": {
+      "kind": "discussion-comment",
+      "object_id": "DC_kwDONWPV1M4BBjaf",
+      "source_url": "https://github.com/artraweditor/ART/discussions/494#discussioncomment-17184415",
+      "storage_path": "snapshots/discussion-comments/17184415.json",
+      "updated_at": "2026-06-04T18:25:32Z"
+    },
+    "discussion-comment:DC_kwDONWPV1M4BBl7e": {
+      "kind": "discussion-comment",
+      "object_id": "DC_kwDONWPV1M4BBl7e",
+      "source_url": "https://github.com/artraweditor/ART/discussions/494#discussioncomment-17194718",
+      "storage_path": "snapshots/discussion-comments/17194718.json",
+      "updated_at": "2026-06-05T15:14:35Z"
+    },
+    "discussion-comment:DC_kwDONWPV1M4BBmO_": {
+      "kind": "discussion-comment",
+      "object_id": "DC_kwDONWPV1M4BBmO_",
+      "source_url": "https://github.com/artraweditor/ART/discussions/494#discussioncomment-17195967",
+      "storage_path": "snapshots/discussion-comments/17195967.json",
+      "updated_at": "2026-06-05T17:09:22Z"
+    },
+    "discussion-comment:DC_kwDONWPV1M4BBoUd": {
+      "kind": "discussion-comment",
+      "object_id": "DC_kwDONWPV1M4BBoUd",
+      "source_url": "https://github.com/artraweditor/ART/discussions/494#discussioncomment-17204509",
+      "storage_path": "snapshots/discussion-comments/17204509.json",
+      "updated_at": "2026-06-06T18:08:53Z"
+    },
+    "discussion-comment:DC_kwDONWPV1M4BBoVr": {
+      "kind": "discussion-comment",
+      "object_id": "DC_kwDONWPV1M4BBoVr",
+      "source_url": "https://github.com/artraweditor/ART/discussions/494#discussioncomment-17204587",
+      "storage_path": "snapshots/discussion-comments/17204587.json",
+      "updated_at": "2026-06-06T18:23:59Z"
+    },
+    "discussion-comment:DC_kwDONWPV1M4BBpDW": {
+      "kind": "discussion-comment",
+      "object_id": "DC_kwDONWPV1M4BBpDW",
+      "source_url": "https://github.com/artraweditor/ART/discussions/494#discussioncomment-17207510",
+      "storage_path": "snapshots/discussion-comments/17207510.json",
+      "updated_at": "2026-06-07T06:54:49Z"
+    },
+    "discussion-comment:DC_kwDONWPV1M4BEmvu": {
+      "kind": "discussion-comment",
+      "object_id": "DC_kwDONWPV1M4BEmvu",
+      "source_url": "https://github.com/artraweditor/ART/discussions/519#discussioncomment-17984494",
+      "storage_path": "snapshots/discussion-comments/17984494.json",
+      "updated_at": "2026-08-12T05:24:28Z"
+    },
+    "discussion-comment:DC_kwDONWPV1M4BEnWo": {
+      "kind": "discussion-comment",
+      "object_id": "DC_kwDONWPV1M4BEnWo",
+      "source_url": "https://github.com/artraweditor/ART/discussions/519#discussioncomment-17986984",
+      "storage_path": "snapshots/discussion-comments/17986984.json",
+      "updated_at": "2026-08-12T09:26:07Z"
+    },
+    "discussion-comment:DC_kwDONWPV1M4BGqgR": {
+      "kind": "discussion-comment",
+      "object_id": "DC_kwDONWPV1M4BGqgR",
+      "source_url": "https://github.com/artraweditor/ART/discussions/525#discussioncomment-18524177",
+      "storage_path": "snapshots/discussion-comments/18524177.json",
+      "updated_at": "2026-09-20T06:56:08Z"
+    },
+    "discussion:D_kwDONWPV1M4Ai6_I": {
+      "kind": "discussion",
+      "object_id": "D_kwDONWPV1M4Ai6_I",
+      "source_url": "https://github.com/orgs/artraweditor/discussions/412",
+      "storage_path": "snapshots/discussions/412.json",
+      "updated_at": "2025-11-18T22:08:04Z"
+    },
+    "discussion:D_kwDONWPV1M4AjNbf": {
+      "kind": "discussion",
+      "object_id": "D_kwDONWPV1M4AjNbf",
+      "source_url": "https://github.com/orgs/artraweditor/discussions/420",
+      "storage_path": "snapshots/discussions/420.json",
+      "updated_at": "2025-12-10T10:16:12Z"
+    },
+    "discussion:D_kwDONWPV1M4AjV4v": {
+      "kind": "discussion",
+      "object_id": "D_kwDONWPV1M4AjV4v",
+      "source_url": "https://github.com/orgs/artraweditor/discussions/424",
+      "storage_path": "snapshots/discussions/424.json",
+      "updated_at": "2025-12-20T07:22:55Z"
+    },
+    "discussion:D_kwDONWPV1M4AjoY7": {
+      "kind": "discussion",
+      "object_id": "D_kwDONWPV1M4AjoY7",
+      "source_url": "https://github.com/orgs/artraweditor/discussions/432",
+      "storage_path": "snapshots/discussions/432.json",
+      "updated_at": "2026-01-13T22:17:58Z"
+    },
+    "discussion:D_kwDONWPV1M4AjwVK": {
+      "kind": "discussion",
+      "object_id": "D_kwDONWPV1M4AjwVK",
+      "source_url": "https://github.com/orgs/artraweditor/discussions/436",
+      "storage_path": "snapshots/discussions/436.json",
+      "updated_at": "2026-05-09T10:29:07Z"
+    },
+    "discussion:D_kwDONWPV1M4AjyUw": {
+      "kind": "discussion",
+      "object_id": "D_kwDONWPV1M4AjyUw",
+      "source_url": "https://github.com/orgs/artraweditor/discussions/440",
+      "storage_path": "snapshots/discussions/440.json",
+      "updated_at": "2026-01-24T16:02:17Z"
+    },
+    "discussion:D_kwDONWPV1M4Ajzpk": {
+      "kind": "discussion",
+      "object_id": "D_kwDONWPV1M4Ajzpk",
+      "source_url": "https://github.com/orgs/artraweditor/discussions/442",
+      "storage_path": "snapshots/discussions/442.json",
+      "updated_at": "2026-01-26T17:31:10Z"
+    },
+    "discussion:D_kwDONWPV1M4AkSI2": {
+      "kind": "discussion",
+      "object_id": "D_kwDONWPV1M4AkSI2",
+      "source_url": "https://github.com/orgs/artraweditor/discussions/446",
+      "storage_path": "snapshots/discussions/446.json",
+      "updated_at": "2026-02-20T20:35:22Z"
+    },
+    "discussion:D_kwDONWPV1M4Am6JE": {
+      "kind": "discussion",
+      "object_id": "D_kwDONWPV1M4Am6JE",
+      "source_url": "https://github.com/orgs/artraweditor/discussions/494",
+      "storage_path": "snapshots/discussions/494.json",
+      "updated_at": "2026-06-07T10:59:25Z"
+    },
+    "discussion:D_kwDONWPV1M4AmoIs": {
+      "kind": "discussion",
+      "object_id": "D_kwDONWPV1M4AmoIs",
+      "source_url": "https://github.com/orgs/artraweditor/discussions/489",
+      "storage_path": "snapshots/discussions/489.json",
+      "updated_at": "2026-05-24T17:43:18Z"
+    },
+    "discussion:D_kwDONWPV1M4AnA3-": {
+      "kind": "discussion",
+      "object_id": "D_kwDONWPV1M4AnA3-",
+      "source_url": "https://github.com/orgs/artraweditor/discussions/496",
+      "storage_path": "snapshots/discussions/496.json",
+      "updated_at": "2026-06-09T14:16:35Z"
+    },
+    "discussion:D_kwDONWPV1M4Aoba5": {
+      "kind": "discussion",
+      "object_id": "D_kwDONWPV1M4Aoba5",
+      "source_url": "https://github.com/orgs/artraweditor/discussions/519",
+      "storage_path": "snapshots/discussions/519.json",
+      "updated_at": "2026-08-12T09:26:07Z"
+    },
+    "discussion:D_kwDONWPV1M4ApZJP": {
+      "kind": "discussion",
+      "object_id": "D_kwDONWPV1M4ApZJP",
+      "source_url": "https://github.com/orgs/artraweditor/discussions/525",
+      "storage_path": "snapshots/discussions/525.json",
+      "updated_at": "2026-09-20T08:38:14Z"
+    },
+    "issue-comment:2507490546": {
+      "kind": "issue-comment",
+      "object_id": "2507490546",
+      "source_url": "https://github.com/artraweditor/ART/issues/1#issuecomment-2507490546",
+      "storage_path": "snapshots/issue-comments/2507490546.json",
+      "updated_at": "2024-11-29T10:12:22Z"
+    },
+    "issue-comment:2507490549": {
+      "kind": "issue-comment",
+      "object_id": "2507490549",
+      "source_url": "https://github.com/artraweditor/ART/issues/1#issuecomment-2507490549",
+      "storage_path": "snapshots/issue-comments/2507490549.json",
+      "updated_at": "2024-11-29T10:12:22Z"
+    },
+    "issue-comment:2507490554": {
+      "kind": "issue-comment",
+      "object_id": "2507490554",
+      "source_url": "https://github.com/artraweditor/ART/issues/1#issuecomment-2507490554",
+      "storage_path": "snapshots/issue-comments/2507490554.json",
+      "updated_at": "2024-11-29T10:12:22Z"
+    },
+    "issue-comment:4428738434": {
+      "kind": "issue-comment",
+      "object_id": "4428738434",
+      "source_url": "https://github.com/artraweditor/ART/issues/477#issuecomment-4428738434",
+      "storage_path": "snapshots/issue-comments/4428738434.json",
+      "updated_at": "2026-05-12T08:35:18Z"
+    },
+    "issue-comment:4433310082": {
+      "kind": "issue-comment",
+      "object_id": "4433310082",
+      "source_url": "https://github.com/artraweditor/ART/issues/477#issuecomment-4433310082",
+      "storage_path": "snapshots/issue-comments/4433310082.json",
+      "updated_at": "2026-05-12T18:02:01Z"
+    },
+    "issue-comment:4606997959": {
+      "kind": "issue-comment",
+      "object_id": "4606997959",
+      "source_url": "https://github.com/artraweditor/ART/issues/493#issuecomment-4606997959",
+      "storage_path": "snapshots/issue-comments/4606997959.json",
+      "updated_at": "2026-06-02T21:03:52Z"
+    },
+    "issue-comment:4610067970": {
+      "kind": "issue-comment",
+      "object_id": "4610067970",
+      "source_url": "https://github.com/artraweditor/ART/issues/493#issuecomment-4610067970",
+      "storage_path": "snapshots/issue-comments/4610067970.json",
+      "updated_at": "2026-06-03T07:31:00Z"
+    },
+    "issue-comment:4672346422": {
+      "kind": "issue-comment",
+      "object_id": "4672346422",
+      "source_url": "https://github.com/artraweditor/ART/issues/497#issuecomment-4672346422",
+      "storage_path": "snapshots/issue-comments/4672346422.json",
+      "updated_at": "2026-06-10T16:44:10Z"
+    },
+    "issue-comment:4680794641": {
+      "kind": "issue-comment",
+      "object_id": "4680794641",
+      "source_url": "https://github.com/artraweditor/ART/issues/497#issuecomment-4680794641",
+      "storage_path": "snapshots/issue-comments/4680794641.json",
+      "updated_at": "2026-06-11T12:58:01Z"
+    },
+    "issue-comment:4711197631": {
+      "kind": "issue-comment",
+      "object_id": "4711197631",
+      "source_url": "https://github.com/artraweditor/ART/issues/500#issuecomment-4711197631",
+      "storage_path": "snapshots/issue-comments/4711197631.json",
+      "updated_at": "2026-06-15T18:41:28Z"
+    },
+    "issue-comment:4717365452": {
+      "kind": "issue-comment",
+      "object_id": "4717365452",
+      "source_url": "https://github.com/artraweditor/ART/issues/500#issuecomment-4717365452",
+      "storage_path": "snapshots/issue-comments/4717365452.json",
+      "updated_at": "2026-06-16T10:07:18Z"
+    },
+    "issue-comment:4775215927": {
+      "kind": "issue-comment",
+      "object_id": "4775215927",
+      "source_url": "https://github.com/artraweditor/ART/issues/503#issuecomment-4775215927",
+      "storage_path": "snapshots/issue-comments/4775215927.json",
+      "updated_at": "2026-06-23T03:05:57Z"
+    },
+    "issue-comment:4776022995": {
+      "kind": "issue-comment",
+      "object_id": "4776022995",
+      "source_url": "https://github.com/artraweditor/ART/issues/503#issuecomment-4776022995",
+      "storage_path": "snapshots/issue-comments/4776022995.json",
+      "updated_at": "2026-06-23T05:41:11Z"
+    },
+    "issue-comment:4782327066": {
+      "kind": "issue-comment",
+      "object_id": "4782327066",
+      "source_url": "https://github.com/artraweditor/ART/issues/503#issuecomment-4782327066",
+      "storage_path": "snapshots/issue-comments/4782327066.json",
+      "updated_at": "2026-06-23T18:37:50Z"
+    },
+    "issue-comment:4874521835": {
+      "kind": "issue-comment",
+      "object_id": "4874521835",
+      "source_url": "https://github.com/artraweditor/ART/issues/503#issuecomment-4874521835",
+      "storage_path": "snapshots/issue-comments/4874521835.json",
+      "updated_at": "2026-07-03T08:56:41Z"
+    },
+    "issue-comment:5002278174": {
+      "kind": "issue-comment",
+      "object_id": "5002278174",
+      "source_url": "https://github.com/artraweditor/ART/issues/510#issuecomment-5002278174",
+      "storage_path": "snapshots/issue-comments/5002278174.json",
+      "updated_at": "2026-07-17T10:39:51Z"
+    },
+    "issue-comment:5012629386": {
+      "kind": "issue-comment",
+      "object_id": "5012629386",
+      "source_url": "https://github.com/artraweditor/ART/issues/511#issuecomment-5012629386",
+      "storage_path": "snapshots/issue-comments/5012629386.json",
+      "updated_at": "2026-07-18T19:33:50Z"
+    },
+    "issue-comment:5013707366": {
+      "kind": "issue-comment",
+      "object_id": "5013707366",
+      "source_url": "https://github.com/artraweditor/ART/issues/511#issuecomment-5013707366",
+      "storage_path": "snapshots/issue-comments/5013707366.json",
+      "updated_at": "2026-07-19T01:42:56Z"
+    },
+    "issue-comment:5015711774": {
+      "kind": "issue-comment",
+      "object_id": "5015711774",
+      "source_url": "https://github.com/artraweditor/ART/issues/511#issuecomment-5015711774",
+      "storage_path": "snapshots/issue-comments/5015711774.json",
+      "updated_at": "2026-07-19T12:28:30Z"
+    },
+    "issue-comment:5016625297": {
+      "kind": "issue-comment",
+      "object_id": "5016625297",
+      "source_url": "https://github.com/artraweditor/ART/issues/511#issuecomment-5016625297",
+      "storage_path": "snapshots/issue-comments/5016625297.json",
+      "updated_at": "2026-07-19T17:07:25Z"
+    },
+    "issue-comment:5016705138": {
+      "kind": "issue-comment",
+      "object_id": "5016705138",
+      "source_url": "https://github.com/artraweditor/ART/issues/511#issuecomment-5016705138",
+      "storage_path": "snapshots/issue-comments/5016705138.json",
+      "updated_at": "2026-07-19T17:32:06Z"
+    },
+    "issue-comment:5017025408": {
+      "kind": "issue-comment",
+      "object_id": "5017025408",
+      "source_url": "https://github.com/artraweditor/ART/issues/511#issuecomment-5017025408",
+      "storage_path": "snapshots/issue-comments/5017025408.json",
+      "updated_at": "2026-07-19T19:11:18Z"
+    },
+    "issue-comment:5017181748": {
+      "kind": "issue-comment",
+      "object_id": "5017181748",
+      "source_url": "https://github.com/artraweditor/ART/issues/511#issuecomment-5017181748",
+      "storage_path": "snapshots/issue-comments/5017181748.json",
+      "updated_at": "2026-07-19T20:01:46Z"
+    },
+    "issue-comment:5020835710": {
+      "kind": "issue-comment",
+      "object_id": "5020835710",
+      "source_url": "https://github.com/artraweditor/ART/issues/511#issuecomment-5020835710",
+      "storage_path": "snapshots/issue-comments/5020835710.json",
+      "updated_at": "2026-07-20T09:40:23Z"
+    },
+    "issue-comment:5022815199": {
+      "kind": "issue-comment",
+      "object_id": "5022815199",
+      "source_url": "https://github.com/artraweditor/ART/issues/511#issuecomment-5022815199",
+      "storage_path": "snapshots/issue-comments/5022815199.json",
+      "updated_at": "2026-07-20T13:31:18Z"
+    },
+    "issue-comment:5023044699": {
+      "kind": "issue-comment",
+      "object_id": "5023044699",
+      "source_url": "https://github.com/artraweditor/ART/issues/511#issuecomment-5023044699",
+      "storage_path": "snapshots/issue-comments/5023044699.json",
+      "updated_at": "2026-07-20T13:55:19Z"
+    },
+    "issue-comment:5026829639": {
+      "kind": "issue-comment",
+      "object_id": "5026829639",
+      "source_url": "https://github.com/artraweditor/ART/issues/511#issuecomment-5026829639",
+      "storage_path": "snapshots/issue-comments/5026829639.json",
+      "updated_at": "2026-07-20T20:12:37Z"
+    },
+    "issue-comment:5029155417": {
+      "kind": "issue-comment",
+      "object_id": "5029155417",
+      "source_url": "https://github.com/artraweditor/ART/issues/511#issuecomment-5029155417",
+      "storage_path": "snapshots/issue-comments/5029155417.json",
+      "updated_at": "2026-07-21T01:26:15Z"
+    },
+    "issue-comment:5030525547": {
+      "kind": "issue-comment",
+      "object_id": "5030525547",
+      "source_url": "https://github.com/artraweditor/ART/issues/511#issuecomment-5030525547",
+      "storage_path": "snapshots/issue-comments/5030525547.json",
+      "updated_at": "2026-07-21T05:36:27Z"
+    },
+    "issue-comment:5102161552": {
+      "kind": "issue-comment",
+      "object_id": "5102161552",
+      "source_url": "https://github.com/artraweditor/ART/issues/516#issuecomment-5102161552",
+      "storage_path": "snapshots/issue-comments/5102161552.json",
+      "updated_at": "2026-07-28T09:09:05Z"
+    },
+    "issue-comment:5102797884": {
+      "kind": "issue-comment",
+      "object_id": "5102797884",
+      "source_url": "https://github.com/artraweditor/ART/issues/516#issuecomment-5102797884",
+      "storage_path": "snapshots/issue-comments/5102797884.json",
+      "updated_at": "2026-07-28T10:12:18Z"
+    },
+    "issue-comment:5102851028": {
+      "kind": "issue-comment",
+      "object_id": "5102851028",
+      "source_url": "https://github.com/artraweditor/ART/issues/516#issuecomment-5102851028",
+      "storage_path": "snapshots/issue-comments/5102851028.json",
+      "updated_at": "2026-07-28T10:16:45Z"
+    },
+    "issue-comment:5103254495": {
+      "kind": "issue-comment",
+      "object_id": "5103254495",
+      "source_url": "https://github.com/artraweditor/ART/issues/516#issuecomment-5103254495",
+      "storage_path": "snapshots/issue-comments/5103254495.json",
+      "updated_at": "2026-07-28T10:59:48Z"
+    },
+    "issue-comment:5309120735": {
+      "kind": "issue-comment",
+      "object_id": "5309120735",
+      "source_url": "https://github.com/artraweditor/ART/issues/521#issuecomment-5309120735",
+      "storage_path": "snapshots/issue-comments/5309120735.json",
+      "updated_at": "2026-08-16T18:55:42Z"
+    },
+    "issue-comment:5315824799": {
+      "kind": "issue-comment",
+      "object_id": "5315824799",
+      "source_url": "https://github.com/artraweditor/ART/issues/521#issuecomment-5315824799",
+      "storage_path": "snapshots/issue-comments/5315824799.json",
+      "updated_at": "2026-08-17T12:08:58Z"
+    },
+    "issue-comment:5639914151": {
+      "kind": "issue-comment",
+      "object_id": "5639914151",
+      "source_url": "https://github.com/artraweditor/ART/issues/524#issuecomment-5639914151",
+      "storage_path": "snapshots/issue-comments/5639914151.json",
+      "updated_at": "2026-09-11T19:57:01Z"
+    },
+    "issue-comment:5641740288": {
+      "kind": "issue-comment",
+      "object_id": "5641740288",
+      "source_url": "https://github.com/artraweditor/ART/issues/524#issuecomment-5641740288",
+      "storage_path": "snapshots/issue-comments/5641740288.json",
+      "updated_at": "2026-09-11T23:19:04Z"
+    },
+    "issue-comment:5648127070": {
+      "kind": "issue-comment",
+      "object_id": "5648127070",
+      "source_url": "https://github.com/artraweditor/ART/issues/524#issuecomment-5648127070",
+      "storage_path": "snapshots/issue-comments/5648127070.json",
+      "updated_at": "2026-09-12T19:20:16Z"
+    },
+    "issue-comment:5648562175": {
+      "kind": "issue-comment",
+      "object_id": "5648562175",
+      "source_url": "https://github.com/artraweditor/ART/issues/524#issuecomment-5648562175",
+      "storage_path": "snapshots/issue-comments/5648562175.json",
+      "updated_at": "2026-09-12T20:41:20Z"
+    },
+    "issue-comment:5653112906": {
+      "kind": "issue-comment",
+      "object_id": "5653112906",
+      "source_url": "https://github.com/artraweditor/ART/issues/524#issuecomment-5653112906",
+      "storage_path": "snapshots/issue-comments/5653112906.json",
+      "updated_at": "2026-09-13T11:57:30Z"
+    },
+    "issue-comment:5655898791": {
+      "kind": "issue-comment",
+      "object_id": "5655898791",
+      "source_url": "https://github.com/artraweditor/ART/issues/524#issuecomment-5655898791",
+      "storage_path": "snapshots/issue-comments/5655898791.json",
+      "updated_at": "2026-09-13T20:26:25Z"
+    },
+    "issue-comment:5670040673": {
+      "kind": "issue-comment",
+      "object_id": "5670040673",
+      "source_url": "https://github.com/artraweditor/ART/issues/524#issuecomment-5670040673",
+      "storage_path": "snapshots/issue-comments/5670040673.json",
+      "updated_at": "2026-09-14T20:03:00Z"
+    },
+    "issue-comment:5670999476": {
+      "kind": "issue-comment",
+      "object_id": "5670999476",
+      "source_url": "https://github.com/artraweditor/ART/issues/524#issuecomment-5670999476",
+      "storage_path": "snapshots/issue-comments/5670999476.json",
+      "updated_at": "2026-09-14T21:23:19Z"
+    },
+    "issue:1": {
+      "kind": "issue",
+      "object_id": "1",
+      "source_url": "https://github.com/artraweditor/ART/issues/1",
+      "storage_path": "snapshots/issues/1.json",
+      "updated_at": "2020-03-17T21:44:12Z"
+    },
+    "issue:293": {
+      "kind": "issue",
+      "object_id": "293",
+      "source_url": "https://github.com/artraweditor/ART/issues/293",
+      "storage_path": "snapshots/issues/293.json",
+      "updated_at": "2024-11-29T10:30:30Z"
+    },
+    "issue:295": {
+      "kind": "issue",
+      "object_id": "295",
+      "source_url": "https://github.com/artraweditor/ART/issues/295",
+      "storage_path": "snapshots/issues/295.json",
+      "updated_at": "2024-11-29T10:30:35Z"
+    },
+    "issue:297": {
+      "kind": "issue",
+      "object_id": "297",
+      "source_url": "https://github.com/artraweditor/ART/issues/297",
+      "storage_path": "snapshots/issues/297.json",
+      "updated_at": "2024-11-29T10:30:41Z"
+    },
+    "issue:301": {
+      "kind": "issue",
+      "object_id": "301",
+      "source_url": "https://github.com/artraweditor/ART/issues/301",
+      "storage_path": "snapshots/issues/301.json",
+      "updated_at": "2024-11-29T10:30:55Z"
+    },
+    "issue:302": {
+      "kind": "issue",
+      "object_id": "302",
+      "source_url": "https://github.com/artraweditor/ART/issues/302",
+      "storage_path": "snapshots/issues/302.json",
+      "updated_at": "2024-11-29T10:30:57Z"
+    },
+    "issue:303": {
+      "kind": "issue",
+      "object_id": "303",
+      "source_url": "https://github.com/artraweditor/ART/issues/303",
+      "storage_path": "snapshots/issues/303.json",
+      "updated_at": "2024-11-29T10:30:59Z"
+    },
+    "issue:315": {
+      "kind": "issue",
+      "object_id": "315",
+      "source_url": "https://github.com/artraweditor/ART/issues/315",
+      "storage_path": "snapshots/issues/315.json",
+      "updated_at": "2024-11-29T10:31:37Z"
+    },
+    "issue:319": {
+      "kind": "issue",
+      "object_id": "319",
+      "source_url": "https://github.com/artraweditor/ART/issues/319",
+      "storage_path": "snapshots/issues/319.json",
+      "updated_at": "2024-11-29T10:31:52Z"
+    },
+    "issue:323": {
+      "kind": "issue",
+      "object_id": "323",
+      "source_url": "https://github.com/artraweditor/ART/issues/323",
+      "storage_path": "snapshots/issues/323.json",
+      "updated_at": "2024-11-29T10:32:02Z"
+    },
+    "issue:477": {
+      "kind": "issue",
+      "object_id": "477",
+      "source_url": "https://github.com/artraweditor/ART/issues/477",
+      "storage_path": "snapshots/issues/477.json",
+      "updated_at": "2026-05-12T18:02:01Z"
+    },
+    "issue:493": {
+      "kind": "issue",
+      "object_id": "493",
+      "source_url": "https://github.com/artraweditor/ART/issues/493",
+      "storage_path": "snapshots/issues/493.json",
+      "updated_at": "2026-06-03T07:31:00Z"
+    },
+    "issue:497": {
+      "kind": "issue",
+      "object_id": "497",
+      "source_url": "https://github.com/artraweditor/ART/issues/497",
+      "storage_path": "snapshots/issues/497.json",
+      "updated_at": "2026-06-11T12:58:01Z"
+    },
+    "issue:500": {
+      "kind": "issue",
+      "object_id": "500",
+      "source_url": "https://github.com/artraweditor/ART/issues/500",
+      "storage_path": "snapshots/issues/500.json",
+      "updated_at": "2026-06-16T10:07:18Z"
+    },
+    "issue:503": {
+      "kind": "issue",
+      "object_id": "503",
+      "source_url": "https://github.com/artraweditor/ART/issues/503",
+      "storage_path": "snapshots/issues/503.json",
+      "updated_at": "2026-07-03T08:56:41Z"
+    },
+    "issue:510": {
+      "kind": "issue",
+      "object_id": "510",
+      "source_url": "https://github.com/artraweditor/ART/issues/510",
+      "storage_path": "snapshots/issues/510.json",
+      "updated_at": "2026-07-26T15:38:43Z"
+    },
+    "issue:511": {
+      "kind": "issue",
+      "object_id": "511",
+      "source_url": "https://github.com/artraweditor/ART/issues/511",
+      "storage_path": "snapshots/issues/511.json",
+      "updated_at": "2026-07-21T05:36:27Z"
+    },
+    "issue:516": {
+      "kind": "issue",
+      "object_id": "516",
+      "source_url": "https://github.com/artraweditor/ART/issues/516",
+      "storage_path": "snapshots/issues/516.json",
+      "updated_at": "2026-07-28T10:59:48Z"
+    },
+    "issue:517": {
+      "kind": "issue",
+      "object_id": "517",
+      "source_url": "https://github.com/artraweditor/ART/issues/517",
+      "storage_path": "snapshots/issues/517.json",
+      "updated_at": "2026-08-12T05:22:29Z"
+    },
+    "issue:521": {
+      "kind": "issue",
+      "object_id": "521",
+      "source_url": "https://github.com/artraweditor/ART/issues/521",
+      "storage_path": "snapshots/issues/521.json",
+      "updated_at": "2026-08-17T18:41:52Z"
+    },
+    "issue:524": {
+      "kind": "issue",
+      "object_id": "524",
+      "source_url": "https://github.com/artraweditor/ART/issues/524",
+      "storage_path": "snapshots/issues/524.json",
+      "updated_at": "2026-09-14T21:23:58Z"
+    },
+    "issue:84": {
+      "kind": "issue",
+      "object_id": "84",
+      "source_url": "https://github.com/artraweditor/ART/issues/84",
+      "storage_path": "snapshots/issues/84.json",
+      "updated_at": "2024-11-29T10:18:51Z"
+    }
+  },
+  "repository": "artraweditor/ART",
+  "version": 1
+}

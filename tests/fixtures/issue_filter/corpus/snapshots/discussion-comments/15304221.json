@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "agriggio"
+  },
+  "body": "Hi,\r\n\r\nART uses a LUT for the film simulations. This means that it can only apply \"point-wise\" functions, i.e. effects that look at a single pixel at a time. Both halation and grain are \"spatial\" operations, that need to look at a neighborhood of each pixel, and are not possible to implement with a LUT. That's why they are not available in the film simulations. \r\nBut they exist in other forms in ART, specifically in \"Local Editing -> Smoothing\" (mode \"Halation\" for halation, and mode \"Add noise\" for grain). Grain is also available in \"Special Effects\", but that's a simple recipe that might not be to your liking. \r\nIf you want more control, including support for multiple instances and masking, you can take a look at the Add noise mode of the smoothing tool. It won't be the same as filmsim, because the algorithm is very different, but it gives you a bit more flexibility than the simple film grain tool.\r\n\r\nHope this helps",
+  "createdAt": "2025-12-20T07:22:55Z",
+  "databaseId": 15304221,
+  "id": "DC_kwDONWPV1M4A6YYd",
+  "updatedAt": "2025-12-20T07:22:55Z",
+  "url": "https://github.com/artraweditor/ART/discussions/424#discussioncomment-15304221"
+}
