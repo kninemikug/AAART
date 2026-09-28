@@ -194,3 +194,111 @@ def test_matrix_cartesian_counts():
     assert diagnostic_combinations == 216
     assert total == 1080
 
+
+def test_decide_extension_logic(tmp_path):
+    """Test decide_extension trigger rules according to §13.4."""
+    import argparse
+    import json
+    from scripts.benchmark_embeddings import cmd_decide_extension
+
+    # Case 1: Physical L=448 outperforms 384 -> trigger True
+    exp_448 = {
+        "experiment_id": "exp_448",
+        "is_diagnostic": False,
+        "rawpedia_rule": "R-B-window-t448-o0",
+        "github_rule": "G-A-curated-thread-w224-wo0",
+        "model_id": "BAAI/bge-base-en-v1.5",
+        "model_revision": "rev1",
+        "metrics": {"macro": {"mrr@5": 0.80, "hit@5": 0.92, "full_evidence@5": 0.70}},
+        "latency": {"p95_seconds": 0.05},
+        "vector_bytes": 1000,
+    }
+    exp_384 = {
+        "experiment_id": "exp_384",
+        "is_diagnostic": False,
+        "rawpedia_rule": "R-B-window-t384-o0",
+        "github_rule": "G-A-curated-thread-w224-wo0",
+        "model_id": "BAAI/bge-base-en-v1.5",
+        "model_revision": "rev1",
+        "metrics": {"macro": {"mrr@5": 0.78, "hit@5": 0.90, "full_evidence@5": 0.68}},
+        "latency": {"p95_seconds": 0.04},
+        "vector_bytes": 800,
+    }
+    res_file1 = tmp_path / "results1.json"
+    res_file1.write_text(json.dumps({"experiments": [exp_448, exp_384]}))
+
+    dec_file1 = tmp_path / "decision1.json"
+    args1 = argparse.Namespace(inputs=[str(res_file1)], output_json=str(dec_file1))
+    assert cmd_decide_extension(args1) == 0
+    d1 = json.loads(dec_file1.read_bytes())
+    assert d1["trigger"] is True
+    assert d1["per_model_evaluation"]["BAAI/bge-base-en-v1.5"]["triggered_by_mrr"] is True
+
+    # Case 2: Only internal W=448, physical L=224 -> trigger False
+    exp_w448 = {
+        "experiment_id": "exp_w448",
+        "is_diagnostic": False,
+        "rawpedia_rule": "R-B-window-t224-o0",
+        "github_rule": "G-A-curated-thread-w448-wo0",
+        "model_id": "BAAI/bge-base-en-v1.5",
+        "model_revision": "rev1",
+        "metrics": {"macro": {"mrr@5": 0.77, "hit@5": 0.90, "full_evidence@5": 0.65}},
+        "latency": {"p95_seconds": 0.05},
+        "vector_bytes": 1000,
+    }
+    res_file2 = tmp_path / "results2.json"
+    res_file2.write_text(json.dumps({"experiments": [exp_w448]}))
+
+    dec_file2 = tmp_path / "decision2.json"
+    args2 = argparse.Namespace(inputs=[str(res_file2)], output_json=str(dec_file2))
+    assert cmd_decide_extension(args2) == 0
+    d2 = json.loads(dec_file2.read_bytes())
+    assert d2["trigger"] is False
+    assert d2["per_model_evaluation"]["BAAI/bge-base-en-v1.5"]["has_physical_448"] is False
+
+
+def test_chunk_window_mean_encoding():
+    """Verify chunk_window_mean_v1 policy splits large content into windows and returns normalized vector."""
+    from scripts.benchmark_embeddings import encode_chunk_list
+    from transformers import AutoTokenizer
+
+    class DummyEncoder:
+        def __init__(self):
+            self.max_seq_length = 512
+            self.tokenizer = AutoTokenizer.from_pretrained("BAAI/bge-small-en-v1.5", revision="5c38ec7c405ec4b44b94cc5a9bb96e735b38267a")
+
+        def get_sentence_embedding_dimension(self):
+            return 8
+
+        def encode(self, texts, **kwargs):
+            # Deterministic pseudo-embedding: count letters
+            arr = np.zeros((len(texts), 8), dtype=np.float32)
+            for i, t in enumerate(texts):
+                arr[i] = [len(t) % 7 + 1.0] * 8
+                arr[i] /= np.linalg.norm(arr[i])
+            return arr
+
+    dummy_enc = DummyEncoder()
+    ref_tok = dummy_enc.tokenizer
+
+    long_text = "This is a long test document sentence for chunk window mean pooling. " * 30
+    chunk = Chunk(
+        chunk_id="test_chunk",
+        source_type="rawpedia",
+        doc_id="doc1",
+        section_title="Test Section",
+        content=long_text,
+        char_range=(0, len(long_text)),
+        metadata={
+            "embedding_policy": "chunk_window_mean_v1",
+            "encoder_window_tokens": 64,
+        },
+    )
+
+    vecs = encode_chunk_list([chunk], dummy_enc, "dummy", "", ref_tok)
+    assert vecs.shape == (1, 8)
+    norm = np.linalg.norm(vecs[0])
+    assert norm == pytest.approx(1.0, abs=1e-4)
+    assert not np.isnan(vecs).any()
+
+

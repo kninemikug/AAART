@@ -525,6 +525,60 @@ class TokenizerBundle:
                 f"Length guard violated for model {model_id}: tokens={len(tokens)} > max_seq_length={max_seq_length}"
             )
 
+    def truncate_text_to_guard(
+        self,
+        text: str,
+        header: str,
+        guard_models: Dict[str, Dict[str, Any]],
+    ) -> Tuple[str, bool]:
+        """Truncate text so that f"{prefix}{header}\n{text}" fits in max_seq_length for all guard models."""
+        adjusted = False
+        cur_text = text
+        for m_id, m_cfg in guard_models.items():
+            tok = self.candidate_tokenizers.get(m_id, self.ref_tokenizer)
+            max_len = m_cfg.get("max_seq_length", 512)
+            prefix = m_cfg.get("doc_prefix", "")
+            full_text = f"{header}\n{cur_text}".strip() if header else cur_text
+            if prefix:
+                full_text = f"{prefix}{full_text}"
+            tokens = tok.encode(full_text, add_special_tokens=True)
+            if len(tokens) > max_len:
+                adjusted = True
+                excess = len(tokens) - max_len
+                offsets = self.get_token_offsets(cur_text)
+                if offsets:
+                    target_tokens_count = max(1, len(offsets) - excess - 4)
+                    cut_char = offsets[min(target_tokens_count - 1, len(offsets) - 1)][1]
+                    cur_text = cur_text[:cut_char]
+                while len(tok.encode(f"{prefix}{header}\n{cur_text}".strip() if header else f"{prefix}{cur_text}", add_special_tokens=True)) > max_len:
+                    if len(cur_text) <= 10:
+                        break
+                    cur_text = cur_text[:int(len(cur_text) * 0.9)]
+        return cur_text, adjusted
+
+
+def build_chunk_header(
+    page_title: Optional[str],
+    section_title: Optional[str],
+    tokenizer_bundle: Optional[Any] = None,
+) -> str:
+    """Build header string according to §4.1: page_title \n section_title (deduplicating identical titles), truncated to 32 ref tokens."""
+    p = (page_title or "").strip()
+    s = (section_title or "").strip()
+    if p and s and p != s:
+        header = f"{p}\n{s}"
+    else:
+        header = s or p
+    if header and tokenizer_bundle is not None:
+        if hasattr(tokenizer_bundle, "truncate_header_text"):
+            return tokenizer_bundle.truncate_header_text(header, max_tokens=32)
+        elif hasattr(tokenizer_bundle, "encode"):
+            enc_h = tokenizer_bundle(header, return_offsets_mapping=True, add_special_tokens=False)
+            offsets_h = enc_h.get("offset_mapping", [])
+            if len(offsets_h) > 32:
+                return header[:offsets_h[31][1]].strip()
+    return header
+
 
 # =========================================================================
 # RawPedia Chunking
@@ -715,6 +769,11 @@ def chunk_rawpedia_heading_rule(
     tokenizer_bundle: TokenizerBundle,
     target_tokens: int = 192,
     overlap_tokens: int = 32,
+    guard_group: Optional[str] = None,
+    physical_embedding_policy: Optional[str] = None,
+    guard_models: Optional[Dict[str, Any]] = None,
+    encoder_window_tokens: Optional[int] = None,
+    encoder_overlap_tokens: Optional[int] = None,
 ) -> List[Chunk]:
     """Generate chunks under rule R-A-heading with (target_tokens, overlap_tokens) grid support."""
     text = raw_bytes.decode("utf-8")
@@ -722,7 +781,8 @@ def chunk_rawpedia_heading_rule(
     page_title, _, fm_end, sections = parse_rawpedia_markdown_sections(text)
     rule_family = "R-A-heading"
     rule_id = f"{rule_family}-t{target_tokens}-o{overlap_tokens}"
-    rule_fingerprint = f"{rule_id}:{BGE_REVISION}"
+    pol = physical_embedding_policy or ("direct_native_v2" if guard_group else "direct_native_v1")
+    rule_fingerprint = f"{rule_id}:{guard_group}:{pol}:{BGE_REVISION}" if guard_group else f"{rule_id}:{BGE_REVISION}"
 
     chunks: List[Chunk] = []
 
@@ -730,16 +790,19 @@ def chunk_rawpedia_heading_rule(
         sec_text = sec.text
         if not sec_text.strip():
             continue
+        header = build_chunk_header(page_title, sec.heading_title, tokenizer_bundle)
         sec_tokens = tokenizer_bundle.count_ref_tokens(sec_text)
         last_sec_range: Optional[Tuple[int, int]] = None
 
         if sec_tokens <= target_tokens:
             # Entire section fits in one chunk
+            if guard_models and pol == "direct_native_v2":
+                sec_text, _ = tokenizer_bundle.truncate_text_to_guard(sec_text, header, guard_models)
             c_start = sec.char_start
-            c_end = sec.char_end
+            c_end = c_start + len(sec_text)
             b_start = len(text[:c_start].encode("utf-8"))
             b_end = len(text[:c_end].encode("utf-8"))
-            actual_toks = sec_tokens
+            actual_toks = tokenizer_bundle.count_ref_tokens(sec_text)
             actual_overlap_toks = 0  # Section start: no overlap across section boundary
 
             seg = SourceSegment(
@@ -771,8 +834,8 @@ def chunk_rawpedia_heading_rule(
                 "rule_fingerprint": rule_fingerprint,
                 "target_tokens": target_tokens,
                 "overlap_tokens": overlap_tokens,
-                "encoder_window_tokens": None,
-                "encoder_overlap_tokens": None,
+                "encoder_window_tokens": encoder_window_tokens,
+                "encoder_overlap_tokens": encoder_overlap_tokens,
                 "actual_tokens": actual_toks,
                 "actual_overlap_tokens": actual_overlap_toks,
                 "content_sha256": sha256_str(sec_text),
@@ -785,6 +848,8 @@ def chunk_rawpedia_heading_rule(
                 "target_url": target_url,
                 "source_path": file_path,
                 "source_file_sha256": file_sha,
+                "embedding_policy": pol,
+                "guard_group": guard_group,
                 "source_segments": [seg.to_dict()],
             }
             chunks.append(
@@ -836,9 +901,11 @@ def chunk_rawpedia_heading_rule(
                         sub_st = offsets[t_idx][0]
                         sub_ed = offsets[t_end - 1][1]
                         sub_slice = combined[sub_st:sub_ed]
+                        if guard_models and pol == "direct_native_v2":
+                            sub_slice, _ = tokenizer_bundle.truncate_text_to_guard(sub_slice, header, guard_models)
 
                         c_start = sec.char_start + win_start_rel + sub_st
-                        c_end = sec.char_start + win_start_rel + sub_ed
+                        c_end = c_start + len(sub_slice)
                         b_start = len(text[:c_start].encode("utf-8"))
                         b_end = len(text[:c_end].encode("utf-8"))
                         actual_toks = tokenizer_bundle.count_ref_tokens(sub_slice)
@@ -876,8 +943,8 @@ def chunk_rawpedia_heading_rule(
                             "rule_fingerprint": rule_fingerprint,
                             "target_tokens": target_tokens,
                             "overlap_tokens": overlap_tokens,
-                            "encoder_window_tokens": None,
-                            "encoder_overlap_tokens": None,
+                            "encoder_window_tokens": encoder_window_tokens,
+                            "encoder_overlap_tokens": encoder_overlap_tokens,
                             "actual_tokens": actual_toks,
                             "actual_overlap_tokens": actual_overlap_toks,
                             "content_sha256": sha256_str(sub_slice),
@@ -890,6 +957,8 @@ def chunk_rawpedia_heading_rule(
                             "target_url": target_url,
                             "source_path": file_path,
                             "source_file_sha256": file_sha,
+                            "embedding_policy": pol,
+                            "guard_group": guard_group,
                             "source_segments": [seg.to_dict()],
                         }
                         chunks.append(
@@ -912,8 +981,11 @@ def chunk_rawpedia_heading_rule(
                     sent_idx += 1
                     continue
 
+                if guard_models and pol == "direct_native_v2":
+                    combined, _ = tokenizer_bundle.truncate_text_to_guard(combined, header, guard_models)
+
                 c_start = sec.char_start + win_start_rel
-                c_end = sec.char_start + win_end_rel
+                c_end = c_start + len(combined)
                 b_start = len(text[:c_start].encode("utf-8"))
                 b_end = len(text[:c_end].encode("utf-8"))
                 actual_toks = tokenizer_bundle.count_ref_tokens(combined)
@@ -951,8 +1023,8 @@ def chunk_rawpedia_heading_rule(
                     "rule_fingerprint": rule_fingerprint,
                     "target_tokens": target_tokens,
                     "overlap_tokens": overlap_tokens,
-                    "encoder_window_tokens": None,
-                    "encoder_overlap_tokens": None,
+                    "encoder_window_tokens": encoder_window_tokens,
+                    "encoder_overlap_tokens": encoder_overlap_tokens,
                     "actual_tokens": actual_toks,
                     "actual_overlap_tokens": actual_overlap_toks,
                     "content_sha256": sha256_str(combined),
@@ -965,6 +1037,8 @@ def chunk_rawpedia_heading_rule(
                     "target_url": target_url,
                     "source_path": file_path,
                     "source_file_sha256": file_sha,
+                    "embedding_policy": pol,
+                    "guard_group": guard_group,
                     "source_segments": [seg.to_dict()],
                 }
                 chunks.append(
@@ -1009,6 +1083,11 @@ def chunk_rawpedia_window_rule(
     tokenizer_bundle: TokenizerBundle,
     target_tokens: int = 192,
     overlap_tokens: int = 32,
+    guard_group: Optional[str] = None,
+    physical_embedding_policy: Optional[str] = None,
+    guard_models: Optional[Dict[str, Any]] = None,
+    encoder_window_tokens: Optional[int] = None,
+    encoder_overlap_tokens: Optional[int] = None,
 ) -> List[Chunk]:
     """Generate chunks under rule R-B-window (sliding sentence window across headings)."""
     text = raw_bytes.decode("utf-8")
@@ -1016,7 +1095,8 @@ def chunk_rawpedia_window_rule(
     page_title, body_text, fm_end, sections = parse_rawpedia_markdown_sections(text)
     rule_family = "R-B-window"
     rule_id = f"{rule_family}-t{target_tokens}-o{overlap_tokens}"
-    rule_fingerprint = f"{rule_id}:{BGE_REVISION}"
+    pol = physical_embedding_policy or ("direct_native_v2" if guard_group else "direct_native_v1")
+    rule_fingerprint = f"{rule_id}:{guard_group}:{pol}:{BGE_REVISION}" if guard_group else f"{rule_id}:{BGE_REVISION}"
 
     sentences = split_text_by_sentences(body_text)
     if not sentences:
@@ -1064,7 +1144,12 @@ def chunk_rawpedia_window_rule(
                 sub_slice = chunk_content[sub_st:sub_ed]
 
                 c_start = fm_end + window_start_rel + sub_st
-                c_end = fm_end + window_start_rel + sub_ed
+                sec_title, sec_path = find_section_title(c_start)
+                header = build_chunk_header(page_title, sec_title, tokenizer_bundle)
+                if guard_models and pol == "direct_native_v2":
+                    sub_slice, _ = tokenizer_bundle.truncate_text_to_guard(sub_slice, header, guard_models)
+
+                c_end = c_start + len(sub_slice)
                 b_start = len(text[:c_start].encode("utf-8"))
                 b_end = len(text[:c_end].encode("utf-8"))
                 actual_toks = tokenizer_bundle.count_ref_tokens(sub_slice)
@@ -1073,7 +1158,6 @@ def chunk_rawpedia_window_rule(
                 )
                 last_window_range = (c_start, c_end)
 
-                sec_title, sec_path = find_section_title(c_start)
                 seg = SourceSegment(
                     doc_id=doc_id,
                     source_path=file_path,
@@ -1103,8 +1187,8 @@ def chunk_rawpedia_window_rule(
                     "rule_fingerprint": rule_fingerprint,
                     "target_tokens": target_tokens,
                     "overlap_tokens": overlap_tokens,
-                    "encoder_window_tokens": None,
-                    "encoder_overlap_tokens": None,
+                    "encoder_window_tokens": encoder_window_tokens,
+                    "encoder_overlap_tokens": encoder_overlap_tokens,
                     "actual_tokens": actual_toks,
                     "actual_overlap_tokens": actual_overlap_toks,
                     "content_sha256": sha256_str(sub_slice),
@@ -1117,6 +1201,8 @@ def chunk_rawpedia_window_rule(
                     "target_url": target_url,
                     "source_path": file_path,
                     "source_file_sha256": file_sha,
+                    "embedding_policy": pol,
+                    "guard_group": guard_group,
                     "source_segments": [seg.to_dict()],
                 }
                 chunks.append(
@@ -1140,7 +1226,12 @@ def chunk_rawpedia_window_rule(
             continue
 
         c_start = fm_end + window_start_rel
-        c_end = fm_end + window_end_rel
+        sec_title, sec_path = find_section_title(c_start)
+        header = build_chunk_header(page_title, sec_title, tokenizer_bundle)
+        if guard_models and pol == "direct_native_v2":
+            chunk_content, _ = tokenizer_bundle.truncate_text_to_guard(chunk_content, header, guard_models)
+
+        c_end = c_start + len(chunk_content)
         b_start = len(text[:c_start].encode("utf-8"))
         b_end = len(text[:c_end].encode("utf-8"))
         actual_toks = tokenizer_bundle.count_ref_tokens(chunk_content)
@@ -1148,8 +1239,6 @@ def chunk_rawpedia_window_rule(
             text, last_window_range, (c_start, c_end), tokenizer_bundle
         )
         last_window_range = (c_start, c_end)
-
-        sec_title, sec_path = find_section_title(c_start)
 
         seg = SourceSegment(
             doc_id=doc_id,
@@ -1181,8 +1270,8 @@ def chunk_rawpedia_window_rule(
             "rule_fingerprint": rule_fingerprint,
             "target_tokens": target_tokens,
             "overlap_tokens": overlap_tokens,
-            "encoder_window_tokens": None,
-            "encoder_overlap_tokens": None,
+            "encoder_window_tokens": encoder_window_tokens,
+            "encoder_overlap_tokens": encoder_overlap_tokens,
             "actual_tokens": actual_toks,
             "actual_overlap_tokens": actual_overlap_toks,
             "content_sha256": sha256_str(chunk_content),
@@ -1195,6 +1284,8 @@ def chunk_rawpedia_window_rule(
             "target_url": target_url,
             "source_path": file_path,
             "source_file_sha256": file_sha,
+            "embedding_policy": pol,
+            "guard_group": guard_group,
             "source_segments": [seg.to_dict()],
         }
 
@@ -1243,17 +1334,24 @@ def chunk_github_curated_unit_rule(
     tokenizer_bundle: TokenizerBundle,
     target_tokens: int = 192,
     overlap_tokens: int = 32,
+    guard_group: Optional[str] = None,
+    physical_embedding_policy: Optional[str] = None,
+    guard_models: Optional[Dict[str, Any]] = None,
+    encoder_window_tokens: Optional[int] = None,
+    encoder_overlap_tokens: Optional[int] = None,
 ) -> List[Chunk]:
     """Generate chunks under rule G-B-curated-unit with (target_tokens, overlap_tokens) grid support."""
     rule_family = "G-B-curated-unit"
     rule_id = f"{rule_family}-t{target_tokens}-o{overlap_tokens}"
-    rule_fingerprint = f"{rule_id}:{BGE_REVISION}"
+    pol = physical_embedding_policy or ("direct_native_v2" if guard_group else "direct_native_v1")
+    rule_fingerprint = f"{rule_id}:{guard_group}:{pol}:{BGE_REVISION}" if guard_group else f"{rule_id}:{BGE_REVISION}"
     candidate_id = candidate["candidate_id"]
     chunks: List[Chunk] = []
 
     curated_content = candidate.get("curated_content", [])
     source_locations = candidate.get("source_locations", [])
     loc_by_ref = {loc["ref_id"]: loc for loc in source_locations}
+    header = build_chunk_header(candidate.get("title", ""), "/body", tokenizer_bundle)
 
     for idx, c_slice in enumerate(curated_content):
         ref_id = c_slice["ref_id"]
@@ -1274,12 +1372,16 @@ def chunk_github_curated_unit_rule(
         if not slice_text.strip():
             continue
 
-        b_start = len(body[:c_start].encode("utf-8"))
-        b_end = len(body[:c_end].encode("utf-8"))
         slice_tokens = tokenizer_bundle.count_ref_tokens(slice_text)
 
         if slice_tokens <= target_tokens:
-            actual_toks = slice_tokens
+            if guard_models and pol == "direct_native_v2":
+                slice_text, _ = tokenizer_bundle.truncate_text_to_guard(slice_text, header, guard_models)
+
+            c_end = c_start + len(slice_text)
+            b_start = len(body[:c_start].encode("utf-8"))
+            b_end = len(body[:c_end].encode("utf-8"))
+            actual_toks = tokenizer_bundle.count_ref_tokens(slice_text)
             actual_overlap_toks = 0
 
             seg = SourceSegment(
@@ -1317,8 +1419,8 @@ def chunk_github_curated_unit_rule(
                 "rule_fingerprint": rule_fingerprint,
                 "target_tokens": target_tokens,
                 "overlap_tokens": overlap_tokens,
-                "encoder_window_tokens": None,
-                "encoder_overlap_tokens": None,
+                "encoder_window_tokens": encoder_window_tokens,
+                "encoder_overlap_tokens": encoder_overlap_tokens,
                 "actual_tokens": actual_toks,
                 "actual_overlap_tokens": actual_overlap_toks,
                 "content_sha256": sha256_str(slice_text),
@@ -1331,6 +1433,8 @@ def chunk_github_curated_unit_rule(
                 "section_path": ["body"],
                 "title": candidate.get("title", ""),
                 "target_url": loc.get("url", candidate["url"]),
+                "embedding_policy": pol,
+                "guard_group": guard_group,
                 "source_segments": [seg.to_dict()],
             }
 
@@ -1382,9 +1486,11 @@ def chunk_github_curated_unit_rule(
                         sub_st = offsets[t_i][0]
                         sub_ed = offsets[t_e - 1][1]
                         piece = sub_text[sub_st:sub_ed]
+                        if guard_models and pol == "direct_native_v2":
+                            piece, _ = tokenizer_bundle.truncate_text_to_guard(piece, header, guard_models)
 
                         sub_c_start = c_start + w_start_rel + sub_st
-                        sub_c_end = c_start + w_start_rel + sub_ed
+                        sub_c_end = sub_c_start + len(piece)
                         sub_b_start = len(body[:sub_c_start].encode("utf-8"))
                         sub_b_end = len(body[:sub_c_end].encode("utf-8"))
                         actual_toks = tokenizer_bundle.count_ref_tokens(piece)
@@ -1427,8 +1533,8 @@ def chunk_github_curated_unit_rule(
                             "rule_fingerprint": rule_fingerprint,
                             "target_tokens": target_tokens,
                             "overlap_tokens": overlap_tokens,
-                            "encoder_window_tokens": None,
-                            "encoder_overlap_tokens": None,
+                            "encoder_window_tokens": encoder_window_tokens,
+                            "encoder_overlap_tokens": encoder_overlap_tokens,
                             "actual_tokens": actual_toks,
                             "actual_overlap_tokens": actual_overlap_toks,
                             "content_sha256": sha256_str(piece),
@@ -1441,6 +1547,8 @@ def chunk_github_curated_unit_rule(
                             "section_path": ["body"],
                             "title": candidate.get("title", ""),
                             "target_url": loc.get("url", candidate["url"]),
+                            "embedding_policy": pol,
+                            "guard_group": guard_group,
                             "source_segments": [seg.to_dict()],
                         }
                         chunks.append(
@@ -1463,8 +1571,11 @@ def chunk_github_curated_unit_rule(
                     s_idx += 1
                     continue
 
+                if guard_models and pol == "direct_native_v2":
+                    sub_text, _ = tokenizer_bundle.truncate_text_to_guard(sub_text, header, guard_models)
+
                 sub_c_start = c_start + w_start_rel
-                sub_c_end = c_start + w_end_rel
+                sub_c_end = sub_c_start + len(sub_text)
                 sub_b_start = len(body[:sub_c_start].encode("utf-8"))
                 sub_b_end = len(body[:sub_c_end].encode("utf-8"))
                 actual_toks = tokenizer_bundle.count_ref_tokens(sub_text)
@@ -1507,8 +1618,8 @@ def chunk_github_curated_unit_rule(
                     "rule_fingerprint": rule_fingerprint,
                     "target_tokens": target_tokens,
                     "overlap_tokens": overlap_tokens,
-                    "encoder_window_tokens": None,
-                    "encoder_overlap_tokens": None,
+                    "encoder_window_tokens": encoder_window_tokens,
+                    "encoder_overlap_tokens": encoder_overlap_tokens,
                     "actual_tokens": actual_toks,
                     "actual_overlap_tokens": actual_overlap_toks,
                     "content_sha256": sha256_str(sub_text),
@@ -1521,6 +1632,8 @@ def chunk_github_curated_unit_rule(
                     "section_path": ["body"],
                     "title": candidate.get("title", ""),
                     "target_url": loc.get("url", candidate["url"]),
+                    "embedding_policy": pol,
+                    "guard_group": guard_group,
                     "source_segments": [seg.to_dict()],
                 }
                 chunks.append(
@@ -1563,11 +1676,17 @@ def chunk_github_thread_rule(
     curated_only: bool = True,
     thread_obj: Optional[Any] = None,
     target_tokens: int = 192,
+    guard_group: Optional[str] = None,
+    guard_models: Optional[Dict[str, Any]] = None,
+    encoder_window_tokens: Optional[int] = None,
+    encoder_overlap_tokens: Optional[int] = None,
 ) -> Chunk:
     """Generate thread chunk under rule G-A-curated-thread or G-A-full-thread."""
+    w_val = encoder_window_tokens or target_tokens
     rule_family = "G-A-curated-thread" if curated_only else "G-A-full-thread"
-    rule_id = f"{rule_family}-w{target_tokens}-wo0"
-    rule_fingerprint = f"{rule_id}:{BGE_REVISION}"
+    rule_id = f"{rule_family}-w{w_val}-wo0"
+    w_policy = "thread_window_mean_v2" if guard_group else "thread_window_mean_v1"
+    rule_fingerprint = f"{rule_id}:{guard_group}:{w_policy}:{BGE_REVISION}" if guard_group else f"{rule_id}:{BGE_REVISION}"
     candidate_id = candidate["candidate_id"]
 
     segments: List[SourceSegment] = []
@@ -1734,8 +1853,8 @@ def chunk_github_thread_rule(
         "rule_fingerprint": rule_fingerprint,
         "target_tokens": None,
         "overlap_tokens": None,
-        "encoder_window_tokens": target_tokens,
-        "encoder_overlap_tokens": 0,
+        "encoder_window_tokens": w_val,
+        "encoder_overlap_tokens": encoder_overlap_tokens or 0,
         "actual_tokens": tokenizer_bundle.count_ref_tokens(full_content),
         "actual_overlap_tokens": 0,
         "content_sha256": sha256_str(full_content),
@@ -1748,7 +1867,8 @@ def chunk_github_thread_rule(
         "section_path": [candidate.get("title", "")],
         "title": candidate.get("title", ""),
         "target_url": candidate.get("url", ""),
-        "embedding_policy": "thread_window_mean_v1",
+        "embedding_policy": w_policy,
+        "guard_group": guard_group,
         "source_segments": [s.to_dict() for s in segments],
     }
 

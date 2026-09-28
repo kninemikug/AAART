@@ -280,28 +280,45 @@ def cmd_prepare(args: argparse.Namespace) -> int:
         print(f"ERROR: Evidence count mismatch: total={total_evidence} (support={support_count}, counter={counter_count})", file=sys.stderr)
         return 1
 
-    # 4. Preserve 192/32 baseline benchmark files if provided
+    # 4. Preserve baseline benchmark files if provided
     baseline_record = {}
+    baseline_prefix = getattr(args, "baseline_prefix", None)
     if getattr(args, "baseline_md", None):
         base_md_in = Path(args.baseline_md).resolve()
-        preserved_md = REPO_ROOT / "docs/chunking_embedding_baseline_192_32.md"
+        if baseline_prefix:
+            preserved_md = REPO_ROOT / f"{baseline_prefix}.md"
+        else:
+            preserved_md = REPO_ROOT / "docs/chunking_embedding_baseline_192_32.md"
         if base_md_in.is_file():
             if not preserved_md.is_file():
+                preserved_md.parent.mkdir(parents=True, exist_ok=True)
                 preserved_md.write_bytes(base_md_in.read_bytes())
             md_sha = sha256_bytes(preserved_md.read_bytes())
+            try:
+                rel_md = preserved_md.relative_to(REPO_ROOT).as_posix()
+            except ValueError:
+                rel_md = str(preserved_md)
             baseline_record["markdown"] = {
-                "source_path": "docs/chunking_embedding_baseline_192_32.md",
+                "source_path": rel_md,
                 "file_sha256": md_sha,
             }
     if getattr(args, "baseline_json", None):
         base_json_in = Path(args.baseline_json).resolve()
-        preserved_json = REPO_ROOT / "docs/chunking_embedding_baseline_192_32.json"
+        if baseline_prefix:
+            preserved_json = REPO_ROOT / f"{baseline_prefix}.json"
+        else:
+            preserved_json = REPO_ROOT / "docs/chunking_embedding_baseline_192_32.json"
         if base_json_in.is_file():
             if not preserved_json.is_file():
+                preserved_json.parent.mkdir(parents=True, exist_ok=True)
                 preserved_json.write_bytes(base_json_in.read_bytes())
             json_sha = sha256_bytes(preserved_json.read_bytes())
+            try:
+                rel_json = preserved_json.relative_to(REPO_ROOT).as_posix()
+            except ValueError:
+                rel_json = str(preserved_json)
             baseline_record["json"] = {
-                "source_path": "docs/chunking_embedding_baseline_192_32.json",
+                "source_path": rel_json,
                 "file_sha256": json_sha,
             }
 
@@ -363,6 +380,10 @@ def execute_chunking_build(
     overlap_tokens_grid: List[int],
     thread_window_tokens_grid: List[int],
     target_dir: Path,
+    guard_group: Optional[str] = None,
+    physical_embedding_policy: Optional[str] = None,
+    encoder_window_tokens: Optional[int] = None,
+    encoder_overlap_tokens: Optional[int] = None,
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """Core logic to build chunks and compute gold mapping across the full parameter grid."""
     from transformers import AutoTokenizer
@@ -385,6 +406,7 @@ def execute_chunking_build(
     for m_id, m_info in model_data.get("models", {}).items():
         candidate_toks[m_id] = AutoTokenizer.from_pretrained(m_id, revision=m_info["revision"])
     tokenizer_bundle = TokenizerBundle(bge_tok, candidate_toks)
+    guard_models = model_data.get("models", {})
 
     # 2. Source getter for validation
     source_cache: Dict[str, Tuple[str, str]] = {}
@@ -419,7 +441,7 @@ def execute_chunking_build(
     chunks_by_variant: Dict[str, List[Chunk]] = {}
     rule_manifest: Dict[str, Any] = {}
 
-    # Build RawPedia rules across (L, O) grid: 2 rules * 3 L * 3 O = 18 variants
+    # Build RawPedia rules across (L, O) grid
     for r_rule in rawpedia_rules:
         for l_val in target_tokens_grid:
             for o_val in overlap_tokens_grid:
@@ -434,11 +456,33 @@ def execute_chunking_build(
                     b = rf.read_bytes()
                     if r_rule == "R-A-heading":
                         c_list = chunk_rawpedia_heading_rule(
-                            rel_p, b, doc_id, page_url, tokenizer_bundle, l_val, o_val
+                            rel_p,
+                            b,
+                            doc_id,
+                            page_url,
+                            tokenizer_bundle,
+                            l_val,
+                            o_val,
+                            guard_group=guard_group,
+                            physical_embedding_policy=physical_embedding_policy,
+                            guard_models=guard_models,
+                            encoder_window_tokens=encoder_window_tokens,
+                            encoder_overlap_tokens=encoder_overlap_tokens,
                         )
                     elif r_rule == "R-B-window":
                         c_list = chunk_rawpedia_window_rule(
-                            rel_p, b, doc_id, page_url, tokenizer_bundle, l_val, o_val
+                            rel_p,
+                            b,
+                            doc_id,
+                            page_url,
+                            tokenizer_bundle,
+                            l_val,
+                            o_val,
+                            guard_group=guard_group,
+                            physical_embedding_policy=physical_embedding_policy,
+                            guard_models=guard_models,
+                            encoder_window_tokens=encoder_window_tokens,
+                            encoder_overlap_tokens=encoder_overlap_tokens,
                         )
                     else:
                         raise ValueError(f"Unknown RawPedia rule {r_rule}")
@@ -450,7 +494,7 @@ def execute_chunking_build(
                 chunks_by_variant[variant_id] = rule_chunks
 
     # Build GitHub rules
-    # G-B-curated-unit across (L, O) grid: 3 L * 3 O = 9 variants
+    # G-B-curated-unit across (L, O) grid
     if "G-B-curated-unit" in github_rules:
         for l_val in target_tokens_grid:
             for o_val in overlap_tokens_grid:
@@ -459,14 +503,23 @@ def execute_chunking_build(
                 rule_chunks = []
                 for cand in candidates:
                     c_list = chunk_github_curated_unit_rule(
-                        cand, github_dir, tokenizer_bundle, l_val, o_val
+                        cand,
+                        github_dir,
+                        tokenizer_bundle,
+                        l_val,
+                        o_val,
+                        guard_group=guard_group,
+                        physical_embedding_policy=physical_embedding_policy,
+                        guard_models=guard_models,
+                        encoder_window_tokens=encoder_window_tokens,
+                        encoder_overlap_tokens=encoder_overlap_tokens,
                     )
                     for c in c_list:
                         validate_chunk_provenance(c, get_source_text)
                     rule_chunks.extend(c_list)
                 chunks_by_variant[variant_id] = rule_chunks
 
-    # G-A-curated-thread across thread_window_tokens_grid: 3 variants
+    # G-A-curated-thread across thread_window_tokens_grid
     if "G-A-curated-thread" in github_rules:
         for w_val in thread_window_tokens_grid:
             variant_id = f"G-A-curated-thread-w{w_val}-wo0"
@@ -474,13 +527,21 @@ def execute_chunking_build(
             rule_chunks = []
             for cand in candidates:
                 c_th = chunk_github_thread_rule(
-                    cand, github_dir, tokenizer_bundle, curated_only=True, target_tokens=w_val
+                    cand,
+                    github_dir,
+                    tokenizer_bundle,
+                    curated_only=True,
+                    target_tokens=w_val,
+                    guard_group=guard_group,
+                    guard_models=guard_models,
+                    encoder_window_tokens=encoder_window_tokens or w_val,
+                    encoder_overlap_tokens=encoder_overlap_tokens or 0,
                 )
                 validate_chunk_provenance(c_th, get_source_text)
                 rule_chunks.append(c_th)
             chunks_by_variant[variant_id] = rule_chunks
 
-    # G-A-full-thread across thread_window_tokens_grid: 3 diagnostic variants
+    # G-A-full-thread across thread_window_tokens_grid
     if "G-A-full-thread" in github_rules:
         for w_val in thread_window_tokens_grid:
             variant_id = f"G-A-full-thread-w{w_val}-wo0"
@@ -489,7 +550,16 @@ def execute_chunking_build(
             for cand in candidates:
                 th_obj = threads_by_key[cand["source_record_key"]]
                 c_th = chunk_github_thread_rule(
-                    cand, github_dir, tokenizer_bundle, curated_only=False, thread_obj=th_obj, target_tokens=w_val
+                    cand,
+                    github_dir,
+                    tokenizer_bundle,
+                    curated_only=False,
+                    thread_obj=th_obj,
+                    target_tokens=w_val,
+                    guard_group=guard_group,
+                    guard_models=guard_models,
+                    encoder_window_tokens=encoder_window_tokens or w_val,
+                    encoder_overlap_tokens=encoder_overlap_tokens or 0,
                 )
                 validate_chunk_provenance(c_th, get_source_text)
                 rule_chunks.append(c_th)
@@ -514,6 +584,7 @@ def execute_chunking_build(
             rel_file_path = str(jsonl_path)
 
         first_c = c_list[0] if c_list else None
+        actual_toks_list = [c.metadata.get("actual_tokens", 0) for c in c_list]
         rule_manifest[variant_id] = {
             "rule_id": variant_id,
             "rule_family": first_c.metadata.get("rule_family") if first_c else "",
@@ -524,12 +595,16 @@ def execute_chunking_build(
             "overlap_tokens": first_c.metadata.get("overlap_tokens") if first_c else None,
             "encoder_window_tokens": first_c.metadata.get("encoder_window_tokens") if first_c else None,
             "encoder_overlap_tokens": first_c.metadata.get("encoder_overlap_tokens") if first_c else None,
+            "embedding_policy": first_c.metadata.get("embedding_policy") if first_c else None,
+            "guard_group": first_c.metadata.get("guard_group") if first_c else None,
+            "actual_tokens_min": min(actual_toks_list) if actual_toks_list else 0,
+            "actual_tokens_max": max(actual_toks_list) if actual_toks_list else 0,
             "is_diagnostic": "full-thread" in variant_id,
         }
         print(f"  {variant_id}: {len(c_list)} chunks -> {jsonl_path} ({file_sha[:12]}...)")
 
     # 6. Generate gold_mapping.json
-    print("Generating gold mapping against all 33 variants...")
+    print(f"Generating gold mapping against {len(chunks_by_variant)} variants...")
     queries_data = json.loads((REPO_ROOT / "docs/search_eval_queries.json").read_bytes())
     queries = queries_data["queries"]
 
@@ -646,11 +721,20 @@ def cmd_build(args: argparse.Namespace) -> int:
         overlap_tokens_grid=overlap_tokens_grid,
         thread_window_tokens_grid=thread_window_tokens_grid,
         target_dir=target_dir,
+        guard_group=getattr(args, "guard_group", None),
+        physical_embedding_policy=getattr(args, "physical_embedding_policy", None),
+        encoder_window_tokens=getattr(args, "encoder_window_tokens", None),
+        encoder_overlap_tokens=getattr(args, "encoder_overlap_tokens", None),
     )
 
     # Update manifest.json
     manifest_data = json.loads(manifest_path.read_bytes())
     manifest_data["chunking_rules"] = rule_manifest
+    manifest_data["guard_group"] = getattr(args, "guard_group", None)
+    manifest_data["physical_embedding_policy"] = getattr(args, "physical_embedding_policy", None)
+    manifest_data["encoder_window_tokens"] = getattr(args, "encoder_window_tokens", None)
+    manifest_data["encoder_overlap_tokens"] = getattr(args, "encoder_overlap_tokens", None)
+    manifest_data["model_manifest_path"] = str(model_manifest_path)
     manifest_data["search_grid"] = {
         "target_tokens_grid": target_tokens_grid,
         "overlap_tokens_grid": overlap_tokens_grid,
@@ -710,15 +794,26 @@ def cmd_check(args: argparse.Namespace) -> int:
     # 3. Optional regeneration verification
     if args.verify_regeneration:
         import tempfile
-        print("Verifying deterministic regeneration across all 33 variants in temporary directory...")
+        print(f"Verifying deterministic regeneration across all {len(rules_info)} variants in temporary directory...")
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_target = Path(tmpdir)
             grid_info = manifest_data.get("search_grid", {})
             t_grid = grid_info.get("target_tokens_grid", [128, 192, 224])
             o_grid = grid_info.get("overlap_tokens_grid", [0, 32, 64])
             w_grid = grid_info.get("thread_window_tokens_grid", [128, 192, 224])
-            model_manifest_path = REPO_ROOT / "data/embedding-benchmark/t08-2/grid-001/environment.json"
-            if not model_manifest_path.is_file():
+            g_group = manifest_data.get("guard_group")
+            p_policy = manifest_data.get("physical_embedding_policy")
+            enc_w = manifest_data.get("encoder_window_tokens")
+            enc_o = manifest_data.get("encoder_overlap_tokens")
+
+            model_manifest_path = None
+            if manifest_data.get("model_manifest_path") and Path(manifest_data["model_manifest_path"]).is_file():
+                model_manifest_path = Path(manifest_data["model_manifest_path"])
+            elif (manifest_path.parent / "environment.json").is_file():
+                model_manifest_path = manifest_path.parent / "environment.json"
+            elif (REPO_ROOT / "data/embedding-benchmark/t08-2/grid-001/environment.json").is_file():
+                model_manifest_path = REPO_ROOT / "data/embedding-benchmark/t08-2/grid-001/environment.json"
+            else:
                 model_manifest_path = REPO_ROOT / "data/embedding-benchmark/t08-2/run-001/environment.json"
 
             regen_manifest, _ = execute_chunking_build(
@@ -730,6 +825,10 @@ def cmd_check(args: argparse.Namespace) -> int:
                 overlap_tokens_grid=o_grid,
                 thread_window_tokens_grid=w_grid,
                 target_dir=tmp_target,
+                guard_group=g_group,
+                physical_embedding_policy=p_policy,
+                encoder_window_tokens=enc_w,
+                encoder_overlap_tokens=enc_o,
             )
             for r_name, r_info in rules_info.items():
                 orig_file = REPO_ROOT / r_info["file_path"]
@@ -759,6 +858,7 @@ def main() -> int:
     prep.add_argument("--queries", default="docs/search_eval_queries.json", help="Path to evaluation queries.")
     prep.add_argument("--baseline-md", default="docs/chunking_embedding_benchmark.md", help="Path to baseline markdown.")
     prep.add_argument("--baseline-json", default="docs/chunking_embedding_benchmark.json", help="Path to baseline json.")
+    prep.add_argument("--baseline-prefix", default=None, help="Prefix for preserved baseline files.")
     prep.add_argument("--output-dir", default="data/chunks/t08-2-grid", help="Output directory for chunks and manifest.")
     prep.set_defaults(func=cmd_prepare)
 
@@ -771,6 +871,10 @@ def main() -> int:
     bld.add_argument("--target-tokens-grid", nargs="+", type=int, default=[128, 192, 224], help="Target reference tokens grid.")
     bld.add_argument("--overlap-tokens-grid", nargs="+", type=int, default=[0, 32, 64], help="Overlap reference tokens grid.")
     bld.add_argument("--thread-window-tokens-grid", nargs="+", type=int, default=[128, 192, 224], help="Thread window reference tokens grid.")
+    bld.add_argument("--guard-group", choices=["bge-512", "e5-512", "pooled-common-256"], default=None, help="Guard group for large chunks.")
+    bld.add_argument("--physical-embedding-policy", choices=["direct_native_v1", "direct_native_v2", "chunk_window_mean_v1"], default=None, help="Physical embedding policy.")
+    bld.add_argument("--encoder-window-tokens", type=int, default=None, help="Encoder window tokens.")
+    bld.add_argument("--encoder-overlap-tokens", type=int, default=None, help="Encoder overlap tokens.")
     bld.set_defaults(func=cmd_build)
 
     # check subcommand
