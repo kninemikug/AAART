@@ -1,10 +1,12 @@
 # Task 8-2 문서 청킹 및 임베딩 벤치마크 실행 플랜
 
-작성일: 2026-09-28 · 담당: 김대성 레인 · 구현 실행자: Antigravity(Gemini 3.8 Flash)
+작성일/개정일: 2026-09-28 · 담당: 김대성 레인 · 구현 실행자: Antigravity(Gemini 3.8 Flash)
 
-이 문서는 WBS Phase A의 **A-08 2/3·3/3, A-10 3/4**를 실행하기 위한 구현 계약이다. 목표는 두 출처의 후보 청크를 실제로 생성하고, 고정 100개 질문으로 **같은 임시 Chroma의 독립 컬렉션**에서 비교하여 **RawPedia 규칙 1개 + GitHub 규칙 1개 + 공통 임베딩 모델 1개**를 선정하는 것이다. 아래 수치와 모델은 실험 후보이며 선정 결과가 아니다. 이번 커밋은 플랜 작성이고, 구현·모델 설치·벤치마크 완료를 뜻하지 않는다.
+이 문서는 WBS Phase A의 **A-08 2/3·3/3, A-10 3/4**를 실행하기 위한 구현 계약이다. 목표는 두 출처의 후보 청크를 실제로 생성하고, 고정 100개 질문으로 **같은 임시 Chroma의 독립 컬렉션**에서 비교하여 **RawPedia 방식·크기·오버랩 + GitHub 방식·크기·오버랩 또는 내부 윈도우 크기 + 공통 임베딩 모델**을 함께 선정하는 것이다. 아래 값은 비교할 탐색 후보다. 이번 개정은 크기·오버랩 최적화를 추가하는 실행 플랜이며, 추가 실험의 완료를 뜻하지 않는다.
 
 권위 문서는 [WBS §5](ART_agentic_wbs.md), [Task 8-2 및 T9 상세 카드](../tasks/todo.md), [T8-1 전달 계약 §8](T08_1_execution_plan.md), [GitHub 정제 규칙](issue_filter_rules.md)다. WBS의 9/5~9/11 계획 일정은 보존하고, 실행 기록에는 실제 날짜를 쓴다.
+
+**현재 상태:** 워크트리 HEAD `81492fec4`에는 [기존 24조합 리포트](chunking_embedding_benchmark.md)와 구현이 있다. 해당 리포트는 **192토큰/32토큰을 고정한 기준선**으로 보존한다. 크기·오버랩의 최적값이나 32토큰의 독립적인 효과를 검증한 결과로 해석하지 않는다. 이번 개정의 추가 완료 기준은 아직 수행 전이며 상세 카드에 별도 체크한다.
 
 ## 1. 완료 조건과 범위
 
@@ -18,7 +20,7 @@
 - 질문 생성, 질의 번역·재작성, 답변 생성, 리랭커, k 튜닝, RAGAS, 증분 갱신 구현은 각각 기존 담당 태스크에 남긴다. 질문과 참고 스팬을 검색 문서에 추가하지 않는다.
 - Chroma는 고정이다. NumPy 전수 코사인 검색은 구현 오류·ANN 누락을 확인하는 대조군으로 사용하고, Chroma 실험을 대체하지 않는다.
 - Python은 기존 root venv 3.14를 재사용한다. `requirements.txt`, 범용 설정 로더, ART 코어 변경은 추가하지 않는다. CLI는 argparse, docstring, `main()` guard를 갖춘다.
-- 최소 완료 조건은 **실행 가능한 모델 2개 이상, 그중 한국어–영어 검색 후보 1개 이상**, 선택 가능한 청킹 규칙 출처별 2개 이상, 해당 Cartesian product 전체의 성공한 실행이다. 실패 모델도 리포트의 실패 행으로 남긴다. 성능이 낮다는 이유로 실행 대상을 빼지 않는다.
+- 최소 완료 조건은 **실행 가능한 모델 2개 이상, 그중 한국어–영어 검색 후보 1개 이상**, 선택 가능한 방식 출처별 2개 이상과 §6.1의 크기·오버랩 전체 Cartesian product의 성공한 실행이다. 192/32 한 점의 기존 24조합 결과만으로 추가 탐색을 완료 처리하지 않는다. 실패 모델도 리포트의 실패 행으로 남긴다. 성능이 낮다는 이유로 실행 대상을 빼지 않는다.
 
 ## 2. 실제 입력 조사와 고정 방법
 
@@ -58,7 +60,7 @@ GitHub 후보 번호는 D #412/#420/#424/#440/#442/#489/#494, I #477/#500/#516/#
 | `docs/rawpedia_collection.md` | `234766dbe5ace8f8ccef4965a32ced0b79ad55939a2363bfb0ebae126863a7a0` |
 | RawPedia 목록 집계(`input_manifest.rawpedia_files_sha256`) | `241c48434bab72cceacfdcc083869c4e27265e4b474d48988fab0f0cb813f56f` |
 
-`prepare`는 다음을 검증하고 `data/chunks/t08-2/manifest.json`에 고정한다.
+`prepare`는 다음을 검증하고 새 `data/chunks/t08-2-grid/manifest.json`에 고정한다. 기존 `data/chunks/t08-2/`의 기준선 청크와 manifest는 보존한다.
 
 1. 위 파일 지문과 골드의 `input_manifest`를 대조한다. RawPedia 집계는 기존 `compute_rawpedia_files_sha256()`의 직렬화 방식으로 계산하고, 저장된 T8-1 source manifest의 **116개 파일별 해시**도 대조한다. 현재 원문에서 다시 만든 해시만 서로 비교하는 검사는 입력 드리프트를 놓친다.
 2. GitHub 후보의 모든 `source_locations` 파일/본문 해시, `curated_content` 범위·복사 텍스트, thread 지문을 검증한다. `src/artagent/issue_filter.py`의 `load_sources()`와 thread 구성·지문 함수를 재사용한다. 전체 스레드 기준선에 쓰는 추가 댓글도 별도 파일·본문 해시로 고정한다.
@@ -85,7 +87,7 @@ GitHub 후보 번호는 D #412/#420/#424/#440/#442/#489/#494, I #477/#500/#516/#
 
 `metadata` 필수 내용:
 
-- `schema_version`, `rule_id`, `rule_fingerprint`, `content_sha256`, `source_group_id`, `product_scope`, `range_basis`, `section_kind`, `section_path`, `source_segments`.
+- `schema_version`, `rule_id`, `rule_fingerprint`, `content_sha256`, `source_group_id`, `product_scope`, `range_basis`, `section_kind`, `section_path`, `source_segments`, `rule_family`, `target_tokens`, `overlap_tokens`, `encoder_window_tokens`, `encoder_overlap_tokens`. 적용되지 않는 파라미터는 null로 명시하며, 각 물리 청크의 `actual_tokens`, `actual_overlap_tokens`, 길이/오버랩 조정 사유도 보존한다.
 - RawPedia: `page_title`, `target_url`, `upstream_source_url`, `source_path`, `source_file_sha256`. `product_scope=rawtherapee_reference`; ART로 도구명·PP3·CLI를 치환하지 않는다.
 - GitHub: `candidate_id`, `source_kind`, `thread_sha256`, 원본 title/URL, `knowledge_status`, `limitations`, `relations`, `accepted_answer_availability`, source별 actor/시각/`source_role`. `product_scope=art_snapshot`. 원문 내 가설·실패 보고·버전/플랫폼 한계를 유지한다.
 - `source_segments` 각 원소: `doc_id`, `source_path`, `source_file_sha256`, `json_pointer`, `char_start`, `char_end`, `byte_start`, `byte_end`, `content_char_start`, `content_char_end`, `target_url`, `segment_sha256`. GitHub는 추가로 `ref_id`, `body_sha256`, `curated_content_index`(미선택 원문이면 null), `source_role`, `curated`를 기록한다.
@@ -108,7 +110,7 @@ RawPedia는 `read_bytes().decode('utf-8')`, GitHub는 `json.loads(read_bytes())[
 
 ### 3.3 결정적 ID와 T9 Chroma 직렬화
 
-ID digest는 `schema_version + rule_fingerprint + source_type + doc_id + 순서 있는 source segment 식별자/해시/범위 + content_sha256`의 canonical JSON(`sort_keys=True`, 고정 separators, UTF-8)의 SHA-256 전체다. 시각, 실행 경로, 배치 순서, 임베딩 모델은 ID에 넣지 않는다. 규칙 fingerprint에는 경계·오버랩·직렬화 규칙과 **경계 계산에 사용한 tokenizer revision 집합**을 넣는다. 같은 규칙/입력은 같은 순서·ID·JSONL 바이트를 만들어야 한다.
+ID digest는 `schema_version + rule_fingerprint + source_type + doc_id + 순서 있는 source segment 식별자/해시/범위 + content_sha256`의 canonical JSON(`sort_keys=True`, 고정 separators, UTF-8)의 SHA-256 전체다. 시각, 실행 경로, 배치 순서, 임베딩 모델은 ID에 넣지 않는다. 규칙 fingerprint에는 **방식, target/overlap, encoder window/overlap, 경계 guard 정책**, 직렬화 규칙과 **경계 계산에 사용한 tokenizer revision 집합**을 넣는다. 같은 규칙/입력은 같은 순서·ID·JSONL 바이트를 만들어야 한다.
 
 Chroma에는 `ids=chunk_id`, `documents=content`, **명시적으로 계산한 embeddings**, scalar metadata(`source_type`, `doc_id`, `candidate_id`, `source_group_id`, `rule_id`, `section_title`, `trace_ref`, `content_sha256`, `product_scope`, `knowledge_status` 등)를 넣는다. 해당하지 않는 nullable 값은 metadata에서 생략한다. 복합 배열/객체는 정본 JSONL에 보존하고 `trace_ref=chunk_id`로 조회한다. 이 방식은 source segment를 지우지 않고 Chroma metadata의 중첩 값 처리 차이를 피한다.
 
@@ -116,31 +118,49 @@ Chroma에는 `ids=chunk_id`, `documents=content`, **명시적으로 계산한 em
 
 ## 4. 청킹 후보 설계
 
-### 4.1 공통 경계 규칙: 모델 간 같은 청크셋
+### 4.1 크기·오버랩 탐색 공간과 공통 경계
 
-청크 크기를 문자 수로 토큰 수처럼 취급하지 않는다. 경계 기준 tokenizer는 `BAAI/bge-small-en-v1.5`의 fast tokenizer로 고정하고 revision을 기록한다. 실험 대상 모든 모델의 tokenizer로 **title/절 정보·모델 prefix·special tokens까지 포함한 실제 입력 길이**를 검사한다.
+경계 기준은 `BAAI/bge-small-en-v1.5`의 fast tokenizer이며 불변 revision을 기록한다. 크기/오버랩은 **원문 본문의 reference token 수**다. 제목/절 정보·모델 prefix·special tokens를 포함한 실제 입력 길이는 모든 비교 모델의 tokenizer로 검사한다.
 
-- 첫 후보 값은 본문 목표 **192 reference tokens**, 슬라이딩 overlap **32 tokens**다. 이것은 실험 시작 값이며 최종 운영 규칙으로 확정한 값이 아니다.
-- 제목/절 정보는 임베딩 입력에 `page_title 또는 thread_title + '\n' + section_title + '\n' + content`로 추가하되, 이미 같은 제목이면 한 번만 넣는다. 헤더가 32 reference tokens를 넘으면 tokenizer offset의 원문 경계에서 32개로 자르고 표시용 전체 제목은 metadata에 보존한다.
-- 각 모델의 실제 `max_seq_length` 이하로 들어오도록 **동일한 공통 경계**를 줄인다. MiniLM의 기본 256을 임의로 512로 늘리지 않는다. 줄인 청크를 모델마다 따로 만들지 않는다.
-- 토큰 경계는 tokenizer offset mapping을 문자 경계로 변환한다. 인코딩한 ID를 decode하여 content를 재생성하면 원문 공백·Unicode가 달라질 수 있으므로 사용하지 않는다.
-- 길이를 초과한 문장/표/목록/코드 블록은 강제 분할하되 source segment를 보존하고 `oversize_split` 사유를 기록한다. 모든 실제 임베딩 입력에서 묵시적 truncation은 **0건**이어야 한다.
-- 마지막 조각, 첫 제목 이전 본문, 제목 없는 페이지를 버리지 않는다. 공백만인 구간은 생략 가능하나 생략 위치·이유를 기록한다. 본문 의미 문자와 정제 구간의 합집합 coverage는 100%여야 한다.
+| 탐색 축 | 필수 후보 | 목적 |
+|---|---|---|
+| 본문 목표 크기 L | **128, 192, 224 tokens** | 짧은 근거의 정밀성부터 더 넓은 문맥까지 공통 입력 한도 안에서 비교 |
+| 물리 청크 오버랩 O | **0, 32, 64 tokens** | 중복 없음/중간/큰 중복의 근거 회수와 저장·검색 부담 비교 |
+| 크기×오버랩 | **9쌍 전부** | O 효과와 L 효과 및 상호작용을 분리; 192/32는 기존 기준선 포함 |
 
-네 모델의 tokenizer가 준비되면 경계 규칙·revision·파일 지문을 고정한다. 특정 모델을 실행 환경 문제로 제외하면 그 사실과 확정된 tokenizer 집합을 기록한 뒤 청크셋과 전체 실험 행렬을 다시 고정한다. 결과 점수를 본 뒤 경계나 overlap을 조합별로 바꾸지 않는다.
+```text
+(L,O) = (128,0), (128,32), (128,64),
+        (192,0), (192,32), (192,64),
+        (224,0), (224,32), (224,64)
+목표 stride = L - O > 0
+```
 
-### 4.2 RawPedia 두 후보
+128은 작은 문맥, 224는 MiniLM 기본 256 안에서 본문 이외 입력을 고려한 큰 공통 후보다. 이 값은 실측 최적값이 아니라 **탐색 범위**다. 모델별 토큰화가 다르므로 224가 항상 그대로 들어간다고 가정하지 않는다. `64/128=50%`, `64/224≈28.6%`처럼 같은 O의 상대 비율도 달라진다. nominal/실측 overlap 비율을 둘 다 보고한다. 최종 주장은 이 등록 범위에서의 최선 조합이며 전체 가능한 길이의 전역 최적값이라는 표현은 쓰지 않는다.
 
-| 규칙 ID | 생성 규칙 | 긴 구간/오버랩 | 비교할 가설 |
-|---|---|---|---|
-| `R-A-heading` | frontmatter를 위치만 유지해 제외. H2/H3의 실제 계층으로 원문을 연속 leaf 구간으로 나누고 같은 구간의 문단·목록·표·코드 블록을 목표 192 tokens까지 묶음 | 짧은 H3를 다른 H2/H3와 합치지 않음. 보통 overlap 0; 한 블록 자체가 초과하면 문장/토큰으로 나누고 그 블록 안에서만 overlap 32 | 도구/하위 제어의 의미 경계를 보존하면 혼동이 줄어드는가 |
-| `R-B-window` | frontmatter 이후 페이지 본문을 문장 경계를 우선하는 192-token sliding window로 순회. H2/H3 경계를 넘는 것을 허용 | overlap 32, 목표 stride 160; 한 문장이 너무 길면 토큰 경계로 분할. 최종 tail 보존 | 경계 근처의 조건·비교 근거를 overlap으로 더 잘 회수하는가 |
+공통 생성 조건:
 
-`R-A-heading`의 H4 이하 제목은 해당 H3 본문 안에 보존하며 metadata에는 실제 전체 heading path를 담는다. 코드 fence 내부의 `##`를 제목으로 파싱하지 않는다. ATX/setext 제목·반복 제목·HTML 블록을 fixture로 확인한다. 제목 없는 `Channel_Mixer.md`, `RGB_and_Lab.md`, `Impulse_Noise_Reduction.md`는 `section_kind=page_body`, 빈 heading path로 같은 본문 분할을 적용한다. `Sharpening.md`의 반복 `Radius`는 제목 문자열만으로 구분하지 않고 계층과 절대 위치로 구분한다.
+- 임베딩 입력은 `page_title 또는 thread_title + '\n' + section_title + '\n' + content`다. 동일 제목은 한 번만 넣고 헤더는 최대 32 reference tokens로 제한한다. 표시용 제목 원문은 metadata에 보존한다.
+- 같은 `(방식,L,O)`의 청크셋은 모든 모델에서 공통으로 쓴다. 전체 모델 입력 한도를 만족하는 최대 문자 끝점을 찾아 경계를 줄이며 MiniLM 한도를 임의로 늘리지 않는다. guard 정책/fingerprint를 기록하고 **실제 encoder 호출 직전에도 길이를 검사**한다.
+- reference tokenizer offset으로 원문을 슬라이스한다. token ID를 decode해서 content를 다시 만들지 않는다. 정상 경계는 문장/블록을 우선하지만, 긴 문장/표/코드는 원문 offset을 유지해 분할한다.
+- O는 앞 청크 마지막 reference tokens에 해당하는 **실제 원문 범위**를 다음 청크 시작에 포함한다. 끝 문장이 O보다 길다고 overlap을 0으로 만들지 않는다. 필요하면 문장 중간의 토큰 경계를 쓴다. O=0은 중복이 없는 대조군이다.
+- `actual_tokens`는 청크 source 범위에 포함된 reference token 수이며, `actual_overlap_tokens`는 같은 원문 단위에서 인접 청크의 source 범위 교집합에 포함된 reference token 수다. 경계를 만들 때 사용한 원문 token offset 표를 기준으로 집계하고, 제목/prefix/직렬화 구분자는 제외한다. 첫 청크·다른 절/원문으로 넘어간 청크는 0이다. 실제 `O/L` 비율과 모델별 실제 encoder 입력 token 수를 별도로 보고한다.
+- guard/tail/절 경계 때문에 O를 줄이면 요청값과 실측값, 사유를 저장한다. 직전 청크의 유효 길이보다 O가 크면 전진을 보장하는 값으로 줄인다. `next_start > current_start`, 원문 tail 도달, 비공백 coverage=100%를 검사한다.
+- frontmatter는 본문에서 제외하되 절대 위치를 보존한다. 첫 제목 이전 본문, 제목 없는 페이지, 마지막 짧은 조각도 처리한다. 공백만인 생략 구간은 위치와 이유를 기록한다. 묵시적 truncation은 0건이어야 한다.
 
-R-B의 문장은 `.?!` 뒤 공백/줄바꿈 경계를 사용하되 backtick/fenced code와 URL 내부에서는 끊지 않는다. 문장 offset을 원문에서 유지하고 구간을 선택한 뒤 전체 모델 길이 guard를 적용한다. overlap은 직전 window 끝에서 reference tokens 32개에 대응하는 문자 시작점으로 계산한다. 길이 guard로 window가 짧아져 overlap이 전진을 막으면 overlap을 줄이고 실제 값을 저장한다. `next_start > current_start`, tail 도달, 의미 문자 coverage를 검사한다.
+모델/tokenizer 집합을 확정하고 grid를 manifest에 저장한 뒤 전 후보를 생성한다. 모델 제외로 guard 조건이 달라지면 전체 후보와 행렬을 다시 고정한다. 점수를 보고 개별 질문에 맞게 경계를 바꾸지 않는다. 문장 경계 때문에 서로 다른 O 후보가 실제 같은 청크를 내는지 검사하고 실제 파라미터 효과를 보고한다.
 
-첫 실행은 위 두 후보로 제한한다. 크기 민감도를 추가한다면 기존 후보를 유지한 채 `R-B-window-128-o24` 같은 **새 rule ID**를 미리 등록하고 모든 모델/양쪽 GitHub 규칙에 교차 실행한다. 점수 보고 후 특정 질문에만 맞춘 분할은 금지한다.
+### 4.2 RawPedia: 방식 2개 × 크기 3개 × 오버랩 3개
+
+| 방식 | 생성 규칙 | 오버랩 적용 위치 | 후보 수 |
+|---|---|---|---:|
+| `R-A-heading` | H2/H3를 연속 leaf 구간으로 나누고 같은 구간의 문단/목록/표/코드를 L까지 묶음. 짧은 절은 유지 | 같은 H2/H3 구간을 복수 청크로 나눌 때 O 적용. 절 경계는 넘지 않음; 한 청크인 절은 actual overlap=0 | 9 |
+| `R-B-window` | frontmatter 이후 본문에 L 크기 문장 우선 sliding window. H2/H3 경계 통과 허용 | 페이지 내 연속 청크에 O 적용; 목표 stride=L-O | 9 |
+
+**합계 18개 후보 청크셋**을 만든다. variant ID/파일명은 `R-A-heading-t128-o0`, `R-B-window-t224-o64` 등이다. `rule_family`에는 기본 방식, `rule_id`에는 variant ID를 넣고 L/O를 manifest와 fingerprint에 포함한다. 파라미터만 바꿔 같은 파일명을 덮어쓰지 않는다.
+
+H4 이하 제목은 해당 H3 본문에 유지하고 실제 전체 heading path를 저장한다. 코드 fence 안 `##`는 제목이 아니다. ATX/setext/HTML/반복 제목을 검사한다. `Channel_Mixer.md`, `RGB_and_Lab.md`, `Impulse_Noise_Reduction.md`는 `section_kind=page_body`, 빈 heading path다. `Sharpening.md`의 반복 `Radius`는 계층/절대 위치로 구별한다.
+
+R-B의 문장 경계는 `.?!` 뒤 공백/줄바꿈을 쓰되 URL/backtick/fenced code 내부에서 끊지 않는다. 정상 청크 끝은 문장 경계를 우선하고, 다음 시작은 §4.1의 token overlap을 적용한다. 처음부터 크기와 O를 함께 교차 비교하므로 192/32에서 방식만 비교한 결과를 전체 최적화로 보고하지 않는다.
 
 ### 4.3 GitHub: 전체 스레드와 유의미 단위
 
@@ -150,7 +170,11 @@ R-B의 문장은 `.?!` 뒤 공백/줄바꿈 경계를 사용하되 backtick/fenc
 |---|---|---|
 | `G-A-full-thread` | 포함된 12개 후보의 원본 부모 `/body` + 해당 스레드의 **모든 저장된 댓글 39개**를 한 논리 청크로 직렬화; 미선택·감사 댓글도 provenance와 `curated=false`로 구분 | 정제 밖 문맥의 효과·노이즈를 측정하는 진단 기준선 |
 | `G-A-curated-thread` | 각 후보의 `curated_content` 35개 조각을 부모/시간순으로 모은 스레드 청크. 제거한 푸터·미선택 댓글은 다시 넣지 않음 | 선택 가능: 스레드 수준 문맥 보존 |
-| `G-B-curated-unit` | 각 `curated_content` 조각을 독립 청크로 사용. 긴 조각은 공통 길이 guard로 문단/문장 분할; 원문 role과 후보 연결 보존 | 선택 가능: 작은 기술 문맥의 정밀 검색 |
+| `G-B-curated-unit` | 각 `curated_content` 조각을 L/O로 분할한 독립 청크. 같은 조각 안에서 O 적용; 서로 다른 댓글은 합치지 않음. 원문 role/후보 연결 보존 | 선택 가능: 작은 기술 문맥의 정밀 검색 |
+
+GitHub variant는 **G-B의 (L,O) 9쌍**과 **G-A-curated의 내부 encoder window L=128/192/224 3개**로 정식 12개다. G-A-full도 같은 window L 3개를 진단 후보로 만든다. 스레드는 부모/댓글을 합친 한 논리 청크라 물리 `target_tokens`/`overlap_tokens`는 null, `encoder_window_tokens=L`, `encoder_overlap_tokens=0`이다. G-B는 `target_tokens=L`, `overlap_tokens=O`, encoder window 파라미터는 null이다. 스레드 내부 window의 0 overlap은 전체 본문을 중복 없이 가중 평균하는 정책이며, 물리 청크 O=0 실험과 구분한다.
+
+variant ID는 `G-B-curated-unit-t128-o0`, `G-A-curated-thread-w224-wo0`, `G-A-full-thread-w192-wo0`처럼 파라미터를 포함한다. 스레드 3variant의 본문/논리 청크 수가 같아도 내부 encoder 입력은 다르므로 다른 embedding cache key와 실험으로 처리한다.
 
 전체 스레드 수집은 `load_sources()`가 만든 thread를 `source_record_key`로 찾아 사용한다. 후보 파일의 `source_locations`는 전체 댓글 목록이 아니다. 관계의 상대 항목 #503/#510 등은 metadata만 보존하고 정제 후보 밖 원문을 추가 적재하지 않는다.
 
@@ -162,12 +186,21 @@ Q/A를 묶는 확장 후보는 명시적인 질문–답변 관계가 있을 때
 
 스레드를 한 번 encode하여 256/512 tokens 뒤를 버리면 비교 자체가 잘못된다. G-A 두 변형은 **한 논리 청크/한 벡터**를 유지하되 전체 내용을 공통 guard를 만족하는 내부 window로 나눈다.
 
-1. 직렬화된 source segments를 순회하면서 reference 목표 192 tokens, **overlap 0**인 내부 windows를 만든다. 원문 라벨·title을 포함한 입력 길이를 전 모델에서 검사하고 source coverage 100%를 확인한다.
+1. 직렬화된 source segments를 순회하면서 variant에 저장한 `encoder_window_tokens=L`(128/192/224), **encoder overlap 0**인 내부 windows를 만든다. 원문 라벨·title을 포함한 입력 길이를 전 모델에서 검사하고 source coverage 100%를 확인한다.
 2. 모델별 prefix를 한 번 붙여 각 window를 encode/L2 normalize한다.
 3. `v_thread = normalize(sum(w_i * v_i) / sum(w_i))`; `w_i`는 해당 window에 포함된 원문 본문의 reference token 수다. 생성한 라벨/title token은 가중치에서 제외한다. 빈 본문 window는 생성하지 않는다.
-4. `embedding_policy=thread_window_mean_v1`, window 범위·입력 해시·가중치·개수·총 encoder 호출량을 캐시에 저장한다. mean vector의 0/NaN 여부를 검사한다.
+4. `embedding_policy=thread_window_mean_v1`, window L/O, 각 원문 범위·입력 해시·가중치·개수·총 encoder 호출량을 캐시에 저장한다. segment 전체를 window라고 간주하지 않고 L/guard에 맞춰 실제로 분할한다. mean vector의 0/NaN 여부를 검사한다.
 
 단일 길이 안에 들어오는 스레드는 같은 식의 window 1개다. R-A/R-B/G-B는 직접 encode하는 물리 청크를 사용한다. 이 실험은 순수 경계뿐 아니라 **스레드 벡터 집계 정책을 포함한 스택**의 비교라고 리포트에 명시한다. 반환 스레드 content는 전체를 반환하며, 숨은 window를 별도 top-k 결과처럼 세지 않는다. 긴 청크가 Hit를 얻는 대가로 늘리는 context tokens도 §7에서 보고한다.
+
+### 4.5 기존 구현에서 이번 탐색에 필요한 수정
+
+아래는 현행 구현을 조사해 확인한 후속 작업이다. 이 개정에서는 플랜만 갱신한다.
+
+- `scripts/chunk_corpus.py`: 단일 L/O 인자를 **grid 생성**으로 확장하고 manifest에 18 RawPedia/12 정식 GitHub/3 진단 GitHub variant를 등록한다. `check --verify-regeneration`의 고정 `target_tokens=192`, `overlap_tokens=32`와 고정 경로를 제거하고 해당 manifest 값으로 모든 variant를 재생성한다.
+- `src/artagent/chunking.py`: 방식과 variant ID를 구분하고 공통 guard/실제 token overlap/실측 파라미터를 구현한다. O=0/32/64가 문장 단위 처리 때문에 모두 0 overlap으로 같아지는 경우를 검출한다. 원문 위치/해시는 기존 계약을 유지한다.
+- `scripts/benchmark_embeddings.py`: 고정된 R/G 방식 목록 대신 manifest의 variant를 탐색한다. 긴 스레드 encode는 원문 segment를 실제 L 크기 내부 window로 나누고 길이 guard/원문 coverage를 확인한다. window마다 원문 reference token 가중치를 사용한다. 단순히 segment 전체를 encode하거나 비공백 문자 수를 token 수로 대체하지 않는다.
+- cache/collection/리포트에는 양쪽 출처의 크기·O와 window 정책을 포함한다. 선정/재현 검사는 전체 파라미터를 읽는다. 보고서 생성기의 192/32 고정 문구도 실제 선정값으로 바꾼다.
 
 ## 5. 임베딩 모델 후보와 로컬 실행 계약
 
@@ -188,9 +221,9 @@ BGE 사양/instruction: [BGE-small 공식 모델 카드](https://huggingface.co/
 
 ### 5.2 환경 준비 및 설치 시점
 
-이 워크트리에는 `venv/`가 없다. 현재 사용 가능한 기존 interpreter는 `/Users/user/Workspace/Programming/Projects/AAART/venv/bin/python3` **3.14.3**, macOS arm64이고 `pytest=9.1.1`은 설치되어 있다. 조사 시 `torch`, `sentence-transformers`, `transformers`, `tokenizers`, `numpy`, `chromadb`는 미설치였다.
+이 워크트리에는 `venv/`가 없다. 사용 가능한 기존 interpreter는 `/Users/user/Workspace/Programming/Projects/AAART/venv/bin/python3` **3.14.3**, macOS arm64다. 이번 개정에서 package metadata와 [설치 기록](pipeline_setup.md)을 확인했다. `pytest=9.1.1`, `torch=2.14.0`, `sentence-transformers=6.1.0`, `transformers=5.17.0`, `tokenizers=0.23.2`, `numpy=2.5.3`, `chromadb=1.5.9`가 설치되어 있다. 기존 `run-001/environment.json`에도 4모델 revision과 CPU smoke 상태가 있으며 새 실험 시작 때 다시 확인한다.
 
-- Step 1~2는 표준 라이브러리와 기존 pytest로 진행한다. Step 3의 실제 tokenizer 소비 직전에 `sentence-transformers`와 필요한 전이 의존성을, Step 4의 Chroma 소비 직전에 `chromadb`를 설치한다. numpy는 실제 벡터 연산/대조 검색 소비 때 확인한다.
+- 기존 의존성을 재사용한다. Step 3의 tokenizer, Step 4의 모델/Chroma 소비 직전에 import/version을 확인하며 누락 또는 호환성 실패가 있을 때만 해당 의존성을 설치한다. numpy는 실제 벡터 연산/대조 검색 소비 때 확인한다.
 - 설치 전 기존 venv의 `pip --version`, 패키지 목록, macOS/Python wheel 호환성을 확인한다. `pip install --dry-run --only-binary=:all: sentence-transformers` 및 이후 `chromadb`로 의존성 해결을 먼저 점검한다. 실제 설치 버전은 당시 root venv에서 검증된 버전으로 정하고 `pip check`를 통과시킨다.
 - 설치 명령·실제 버전·최초 소비처를 `docs/pipeline_setup.md`에 기록한다. 이 플랜에서 미검증 버전 번호를 고정하거나 다른 Python venv로 바꾸지 않는다. 공식 설치 안내는 [Sentence Transformers](https://www.sbert.net/docs/installation.html), PyTorch 배포 확인은 [공식 PyPI 파일 목록](https://pypi.org/project/torch/)을 참조한다. Python 하한 충족만으로 모든 전이 의존성의 3.14 호환성을 단정하지 않는다.
 - 각 모델을 CPU에서 불변 revision으로 로드하여 한국어 query 2개/영문 문서 2개를 encode한다. 차원·finite·norm·입력 한도·pooling을 확인한다. `trust_remote_code=False`로 로드 가능한 후보를 사용한다.
@@ -199,13 +232,15 @@ BGE 사양/instruction: [BGE-small 공식 모델 카드](https://huggingface.co/
 
 ### 5.3 재사용할 인터페이스
 
-초기 구현은 `src/artagent/chunking.py`와 얇은 CLI, `scripts/benchmark_embeddings.py`의 함수로 시작한다. T9가 검색 부분을 공통 모듈로 옮길 수 있도록 다음 계약을 분리한다. 패키지 전체 레이아웃을 새로 설계하지 않는다.
+기존 `src/artagent/chunking.py`와 CLI, `scripts/benchmark_embeddings.py`를 확장한다. T9가 검색 부분을 공통 모듈로 옮길 수 있도록 다음 계약을 유지하며 grid 열거를 추가한다. 패키지 전체 레이아웃을 새로 설계하지 않는다.
 
 ```python
 load_documents(rawpedia_dir, candidates_path, source_manifest) -> list[SourceDocument]
 chunk_document(document, rule, tokenizer_bundle) -> list[Chunk]
+enumerate_chunking_variants(search_grid) -> list[ChunkingVariant]
 validate_chunk(chunk, source_documents) -> None
 map_evidence_to_chunks(queries, chunks) -> GoldMapping
+build_experiment_matrix(chunk_manifest, model_manifest, evaluation_contract) -> ExperimentMatrix
 
 load_encoder(model_id, revision, device="cpu") -> Encoder
 encode_documents(chunks, encoder, batch_size=16) -> numpy.ndarray  # [N, D]
@@ -215,19 +250,32 @@ search(collection, query_vector, k=5) -> list[SearchResult]
 evaluate_query(query, results, gold_mapping, ks=(1, 3, 5)) -> QueryMetrics
 ```
 
-`Encoder`는 query/document prefix, revision, dimension, max length, pooling, normalize, thread pooling을 보유한다. `SearchResult`는 `rank`, `chunk_id`, `distance`, `cosine_similarity`, `source_type`, `doc_id`, `trace_ref`, 전체 source segments를 반환한다. T9에서 같은 encoder와 검색 경로를 재사용한다.
+`ChunkingVariant`는 family/variant ID, 적용 가능한 target/overlap/window 파라미터와 fingerprint를 갖는다. `Encoder`는 query/document prefix, revision, dimension, max length, pooling, normalize, thread pooling을 보유한다. `SearchResult`는 `rank`, `chunk_id`, `distance`, `cosine_similarity`, `source_type`, `doc_id`, `trace_ref`, 전체 source segments를 반환한다. T9에서 같은 encoder와 검색 경로를 재사용한다.
 
 벡터는 **float32, L2 norm 1**로 통일한다. SentenceTransformer의 배포된 pooling을 사용하고 `encode(..., normalize_embeddings=True, convert_to_numpy=True)` 뒤 dtype/shape/norm을 검사한다. zero/NaN/Inf 벡터는 실패하고 `abs(norm-1) <= 1e-5`를 확인한다. query prefix는 한 번만 붙인다. 코사인 유사도는 `q @ documents.T`, cosine distance는 `1 - similarity`이며 Chroma distance는 작을수록 가깝다. E5 예제의 `*100`은 적용하지 않는다. 정규화·encode 인자는 [SentenceTransformer API](https://www.sbert.net/docs/package_reference/sentence_transformer/model.html)를 참조한다.
 
 ## 6. 실험 행렬과 Chroma 실행기
 
-### 6.1 결과를 보기 전에 행렬 고정
+### 6.1 두 출처 파라미터를 독립적으로 교차 비교
 
-정식 선정 행렬은 `(R-A-heading, R-B-window) × (G-A-curated-thread, G-B-curated-unit) × 실행 가능한 모델`이다. 4모델이면 **16조합**, 최소 2개 모델이면 8조합이다. 전체 댓글 기준선은 `RawPedia 2규칙 × G-A-full-thread × 동일 모델`로 추가 8조합(최소 4조합)이다. **4모델 실행 시 총 24조합**을 비교표에 남긴다.
+RawPedia와 GitHub의 L/O를 같은 값으로 강제하지 않는다. 예를 들어 `R-B-window-t224-o64 + G-B-curated-unit-t128-o0`도 비교해야 한다. 크기→오버랩→모델 순으로 하나씩 승자를 고정하면 상호작용을 놓치므로 등록한 **전체 결합 행렬**에서 하나의 스택을 선정한다.
 
-각 조합에는 RawPedia 116문서에서 생성한 해당 규칙의 모든 청크와 GitHub 12후보에서 생성한 해당 규칙의 모든 청크를 함께 적재한다. 두 출처를 각각 독립 검색한 최선 점수를 혼합 검색 결과처럼 합치지 않는다.
+| 범주 | 계산 | 4모델 | 최소 2모델 |
+|---|---|---:|---:|
+| RawPedia 후보 | 2방식 × 3크기 × 3오버랩 | 18청크셋 | 18청크셋 |
+| 정식 GitHub 후보 | G-B의 3크기×3오버랩 + G-A-curated의 3window 크기 | 12청크셋 | 12청크셋 |
+| 진단 GitHub 후보 | G-A-full의 3window 크기 | 3청크셋 | 3청크셋 |
+| 정식 혼합 검색 | 18 × 12 × 모델 수 | **864조합** | **432조합** |
+| 진단 혼합 검색 | 18 × 3 × 모델 수 | **216조합** | **108조합** |
+| 전체 | 18 × 15 × 모델 수 | **1,080조합** | **540조합** |
 
-후보 JSONL, encoding policy, 모델 revision, k, dtype, device, prefix, index 설정, 평가 기준의 fingerprint로 `experiment_id`를 만든다. 모델/차원/규칙이 다른 조합은 별도 collection에 둔다. 동일 client/work-dir에서 조건을 맞추며 T9의 실제 저장소는 후속 작업에서 구성한다.
+매 조합에 해당 RawPedia variant의 전체 116문서 청크와 GitHub variant의 전체 12후보 청크를 함께 넣는다. 출처별 독립 검색의 최고 점수를 합쳐 혼합 검색 결과로 쓰지 않는다. 정식/진단 구분과 각 variant의 파라미터를 명시한 `experiment_matrix.json`을 **실행 전에 저장**한다. 모든 등록 행은 완료/실패 상태와 로그를 가져야 한다.
+
+모델 수 M은 전체 4후보의 preflight 결과로 고정한다. 전부 실행 가능하면 M=4를 사용한다. 환경/import/load 실패로 실행 불가인 모델만 사유를 남겨 M에서 제외할 수 있으며, 새 조건으로 청크와 행렬을 재고정한다. `grid_coverage=성공 행 수/(18×15×M)`, `grid_complete=(grid_coverage==1)`로 정의한다. 실패 행의 상태 기록만으로 성공 처리하지 않고, 실행 중 실패한 모델/파라미터를 분모에서 삭제하지 않는다. 후보 전체 대비 제외 모델 수와 이유도 별도 출력한다.
+
+실험 ID는 R/G variant ID·청크 SHA·모델 revision·encoder policy·k·device/dtype·평가/index 설정의 fingerprint다. 같은 `(L,O)`만 짝짓는 축소 행렬이나 기존 최상위 모델만 실행하는 행렬로 바꾸지 않는다. 192/32 기준선도 새 실행 조건에서 재측정하며 이전 점수를 그대로 새 결과에 복사하지 않는다.
+
+1080조합에서 새로 encode할 출처 후보는 **33청크셋 × 4모델 = 최대132개 cache entry**다. 문서 벡터는 출처 후보별로 생성한 뒤 혼합 조합에서 재사용한다. 같은 입력의 vector는 공유 가능하나 각 조합의 실제 Chroma 검색/평가는 수행한다. 시간/디스크/청크 수를 먼저 실측해 일정을 기록하고, 실행 중단 시 상태를 보존해 남은 행을 계속 실행한다. 탐색 공간을 줄여 완료 기준을 충족한 것처럼 보고하지 않는다.
 
 ### 6.2 Chroma 고정 조건
 
@@ -242,7 +290,7 @@ evaluate_query(query, results, gold_mapping, ks=(1, 3, 5)) -> QueryMetrics
 
 ### 6.3 캐시와 ANN 검색 누락 검사
 
-embedding cache key는 청크셋 SHA, 모델 revision, 실제 입력 문자열 SHA, prefix/pooling/thread policy, dtype다. query cache에는 질문 JSON SHA와 전체 query ID/원문/prefix를 포함한다. 같은 RawPedia 청크를 GitHub 규칙마다 재인코딩하지 않는다. 실험 결과 캐시는 experiment ID로 구분한다.
+embedding cache key는 청크셋 SHA, 전체 L/O·encoder window 파라미터, 모델 revision, 실제 입력 문자열 SHA, prefix/pooling/thread policy, dtype다. query cache에는 질문 JSON SHA와 전체 query ID/원문/prefix를 포함한다. 같은 RawPedia 청크를 GitHub 규칙마다 재인코딩하지 않는다. 실험 결과 캐시는 experiment ID로 구분한다.
 
 전체 100문항의 float32 정규화 벡터로 NumPy 전수 코사인 top5도 별도로 계산한다. Chroma top5와의 집합 일치율(`ANN overlap@5`), 동점, 최대 score 차이를 보고한다. 이 검사는 gold와 무관하다. 조합별 평균 overlap이 0.98 미만이면 index 적용/설정/encode 오류를 조사하고 해결 전에는 선정 대상으로 삼지 않는다. index 조건을 바꾸면 새 공통 조건으로 **전 조합을 재적재·재측정**한다. NumPy 결과를 Chroma의 Hit/MRR로 기록하지 않는다.
 
@@ -312,10 +360,12 @@ Q096~Q100은 `expected_behavior=unsupported_or_insufficient_evidence`, `gold_sup
 
 ### 8.1 결과를 보기 전에 선정 순서 고정
 
-1. 입력/청크/모델/Chroma 실행/ANN 검사를 통과한 **정식 행렬**만 선정 대상이다. G-A-full-thread는 진단 행으로 비교표에 남긴다.
+1. §6.1의 정식 파라미터 행렬 전체가 완료된 뒤 입력/청크/모델/Chroma/ANN 검사를 통과한 행을 선정 대상으로 삼는다. 입력 한도 때문에 후보를 축소/제외하면 원인과 실측 길이를 남기고 `grid_complete`와 `grid_coverage`를 함께 보고한다. 사전 등록한 행을 점수로 제외하지 않는다. G-A-full-thread는 진단 행으로 비교표에 남긴다.
 2. 95개 양성의 **Macro MRR@5** 내림차순으로 정렬한다. 동률이면 Macro Hit@5, complex의 Macro FullEvidence_all@5, query p95초, 총 vector bytes, experiment ID 순으로 비교한다. 각 출처 결과도 병기한다.
 3. 경량성에 따른 재선정은 미리 정한 범위 안에서만 허용한다. 선두와 Macro MRR@5 및 Macro Hit@5 차이가 모두 **0.01 이내**, 출처별 MRR@5 차이가 각각 **0.02 이내**인 조합을 근접 후보로 표시한다. 이 중 complex FullEvidence_all@5가 선두 이상인 후보에서 p95가 낮은 조합을 고르고, 동률이면 총 vector bytes, experiment ID 순으로 고른다. 선두도 이 후보 집합에 포함한다.
-4. `selected`에 최종 R/G/model/policy/index 값, 선두와 차이, 적용한 선정 단계, 출처별 득실, 실패 query ID, 긴 청크의 문맥 부담을 기록한다. 근접 대안이 없으면 선두를 선택한다.
+4. `selected`에는 R 방식/L/O와 G 방식/L/O 또는 window L/O를 **서로 독립적인 필드**로 기록하고 모델/policy/index 값, 선두와 차이, 선정 단계, 출처별 득실, 실패 query ID, 문맥 부담을 기록한다. 크기별·오버랩별 MRR/Hit/FullEvidence/p95/저장 크기 표도 생성하여 192/32 기준선과 증감을 보여준다. 근접 대안이 없으면 선두를 선택한다.
+
+크기·오버랩의 효과는 다른 축을 고정한 **쌍별 비교**로 설명한다. 예를 들어 같은 모델/R 방식/L/G variant에서 R의 O=0→32→64만 바꾸고, 같은 모델/R 방식/O/G variant에서 R의 L=128→192→224만 바꾼다. G-B도 R variant와 모델을 고정해 같은 방법으로 비교한다. 각 고정 조건의 3×3 표에 주 지표와 지연/청크 수/vector bytes를 함께 넣고, 최종 선정 조합의 이웃 셀을 본문에 제시한다. 방식·모델까지 다른 행의 점수 차이를 오버랩의 단독 효과로 설명하지 않는다.
 
 1/2 percentage point는 선정 절차의 근접 폭이며 WBS의 품질 합격 임계치나 통계적 유의차가 아니다. 이번에 별도 최소 Hit 합격선을 만들지 않는다. 전 조합의 절대 성능이 낮아도 수치/실패 분석과 고정셋 위의 비교 선정임을 명시한다. 최소 실행 조건을 충족하지 못하면 `selection_status=incomplete`, `selected=null`이다.
 
@@ -325,7 +375,7 @@ Q096~Q100은 `expected_behavior=unsupported_or_insufficient_evidence`, `gold_sup
 
 - 같은 입력/규칙/tokenizer revision으로 다른 위치에 다시 생성하여 **전 후보 JSONL의 바이트/ID/위치/content hash가 일치**해야 한다. 시각이 포함된 실행 로그는 비교 대상에서 분리한다.
 - 전 조합의 저장된 query 결과에서 지표를 재계산하여 리포트 JSON의 분자/분모/값과 일치시킨다.
-- 정식 선두, 최종 선정 조합(선두와 다르면), 차순위 조합을 새로운 Chroma 작업 위치에 재적재해 100문항을 재검색한다. 주 지표 절대 차이 `1e-9` 이내, vector는 `allclose(atol=1e-6, rtol=1e-5)`, distance 차이는 `1e-5` 이내를 초기 검증값으로 삼는다.
+- 정식 선두, 최종 선정 조합(선두와 다르면), 차순위 조합, 192/32 기준선을 **저장한 전체 파라미터로** 새로운 Chroma 작업 위치에 재적재해 100문항을 재검색한다. 주 지표 절대 차이 `1e-9` 이내, vector는 `allclose(atol=1e-6, rtol=1e-5)`, distance 차이는 `1e-5` 이내를 초기 검증값으로 삼는다.
 - ANN/동점의 순위 변동이 지표를 바꾸면 차이를 기록하고 원인을 해결한다. 허용 오차를 조용히 넓히지 않는다. latency는 동일값을 요구하지 않고 회차별 분포/환경 차이를 보고한다.
 
 ### 8.3 T9에 전달할 입력
@@ -334,38 +384,41 @@ Q096~Q100은 `expected_behavior=unsupported_or_insufficient_evidence`, `gold_sup
 
 | 인계 항목 | 필수 내용 |
 |---|---|
-| 청크 | 선정 RawPedia/GitHub JSONL 상대/실체 경로, 출처별 건수/SHA-256, source_segments 포함 schema version |
+| 청크/파라미터 | 선정 R/G variant ID와 방식, 각 source의 target/overlap 또는 encoder window/overlap, 명목/실측값; JSONL 경로/건수/SHA-256, source_segments schema |
 | 원문 고정점 | dataset ID, 질문 JSON SHA, source manifest SHA, RawPedia 집계 SHA, GitHub candidate/rules/thread SHA |
 | 모델 | 전체 model ID, Hub commit revision, 로컬 cache 재확보법, tokenizer/pooling/prefix/입력 상한, D/dtype/norm, thread pooling |
 | Chroma | 검증한 package version, cosine/HNSW 실제 값, 삽입 순서/배치, metadata flatten 규칙, 검색 결과 계약 |
 | 재현 | 청크 재생성/적재/100문항 검색 명령, 환경 versions/seed, 전체 비교표/선정 순서, 재실행 차이 |
 | 후속 갱신 | candidate_id→청크 ID 목록, RawPedia doc_id→청크 ID 목록. 원문/규칙 변경 시 ID 변경과 이전 ID 삭제 필요성 |
 
-후보 청크는 `data/chunks/t08-2/`에 보존하고 선정 manifest에서 원래 파일을 참조한다. T9의 별도 워크트리에는 실체를 전달하거나 동일 main 입력에서 기록한 명령으로 재생성하고 SHA를 대조한다. 모델 cache/Chroma DB는 git에 커밋하지 않는다. T9는 실제 저장소 구성과 재적재·갱신·검색 제외 구현을 담당한다.
+새 후보 청크는 `data/chunks/t08-2-grid/`에 보존하고 선정 manifest에서 원래 파일을 참조한다. T9의 별도 워크트리에는 실체를 전달하거나 동일 main 입력에서 기록한 명령으로 재생성하고 SHA를 대조한다. 모델 cache/Chroma DB는 git에 커밋하지 않는다. T9는 실제 저장소 구성과 재적재·갱신·검색 제외 구현을 담당한다.
 
 ## 9. 산출물 구조와 리포트 명세
 
-아래는 **후속 구현에서 만들 구조**다.
+기존 module/CLI/test/리포트를 확장한다. grid 산출물은 아래 **새 출력 위치**를 사용한다. 실행 전에 기존 `docs/chunking_embedding_benchmark.md/.json`을 `docs/chunking_embedding_baseline_192_32.md/.json`으로 바이트 그대로 보존하고 SHA를 기록한다. 새 전 조합 결과/재현 검사를 통과한 뒤에만 최종 benchmark 리포트를 원자적으로 갱신한다.
 
 ```text
 src/artagent/chunking.py                    # 원문/segment/청크 생성·검증
 scripts/chunk_corpus.py                     # prepare/build/check CLI
-scripts/benchmark_embeddings.py             # preflight/run/check/report CLI
+scripts/benchmark_embeddings.py             # preflight/matrix/run/check/report CLI
 tests/test_chunking.py                     # 범위·결정성·실제 원문 회귀
 tests/test_benchmark_embeddings.py          # 지표 및 Chroma roundtrip
 tests/fixtures/chunking/                    # 작은 Markdown/JSON fixture
 docs/pipeline_setup.md                      # 실제 설치 의존성 기록
 docs/chunking_embedding_benchmark.json       # 전체 비교·선정·재현 정본
 docs/chunking_embedding_benchmark.md         # JSON에서 생성한 보고서
-data/chunks/t08-2/
-  manifest.json                             # 입력/규칙/tokenizer revision
-  rawpedia/R-A-heading.jsonl
-  rawpedia/R-B-window.jsonl
-  github/G-A-full-thread.jsonl
-  github/G-A-curated-thread.jsonl
-  github/G-B-curated-unit.jsonl
-  gold_mapping.json                         # query/evidence→청크/coverage
-data/embedding-benchmark/t08-2/<run-id>/
+docs/chunking_embedding_baseline_192_32.md/.json  # 기존 결과 원본 보존
+data/chunks/t08-2-grid/
+  manifest.json                             # 입력/규칙/grid/tokenizer revision
+  rawpedia/R-A-heading-t128-o0.jsonl         # R-A 9 + R-B 9 = 18개
+  rawpedia/R-B-window-t224-o64.jsonl
+  github/G-B-curated-unit-t128-o0.jsonl      # G-B 9개
+  github/G-A-curated-thread-w192-wo0.jsonl   # G-A-curated 3개
+  github/G-A-full-thread-w224-wo0.jsonl      # G-A-full 3개
+  gold_mapping.json                         # query/evidence→전체 variant 매핑
+data/embedding-benchmark/t08-2/grid-001/
+  experiment_matrix.json                    # 정식864/진단216 등록 행
+  results.json                              # 검증·재현 전 작업 리포트
   environment.json                          # versions/hardware/model settings
   models/                                   # 고정 revision 로컬 cache
   vectors/<cache-key>.npy                    # ID 순서 sidecar와 벡터
@@ -377,9 +430,10 @@ data/embedding-benchmark/t08-2/<run-id>/
 
 JSON 리포트 필수 키:
 
-- `schema_version`, `run_id`, `dataset_id`, `input_fingerprints`, `environment`, `model_candidates`(unavailable 포함), `chunking_candidates`, `evaluation_contract`, `chroma_settings`, `experiments`, `selection_order`, `selection_status`, `selected`, `reproduction`, `limitations`.
+- `schema_version`, `run_id`, `dataset_id`, `input_fingerprints`, `environment`, `model_candidates`(unavailable 포함), `chunking_candidates`, `evaluation_contract`, `search_grid`, `grid_complete`, `grid_coverage`, `baseline`, `chroma_settings`, `experiments`, `selection_order`, `selection_status`, `selected`, `reproduction`, `limitations`.
 - `evaluation_contract`: ks=`[1,3,5]`, relevance coverage threshold=`0.5`, strict threshold=`1.0`, 합집합 정의, denominators rawpedia=`80`/github=`15`/positive=`95`/negative=`5`, evidence_count=`147`.
-- `experiments[]`: ID, 정식/진단 구분, R/G/model/revision/policy, count/bytes, rawpedia/github/macro/micro의 Hit@1/3/5 및 MRR@1/3/5, complex Any/All/Full, negative 별도 표, latency 세부/분포, ANN 검사, 실패 원인, 100문항 로그 경로/SHA.
+- `search_grid`: L=`[128,192,224]`, O=`[0,32,64]`, R=18/G정식=12/G진단=3, source별 독립 결합, 모델 수와 예상/완료/실패 행 수. `baseline`은 원래 24조합 리포트 SHA와 192/32 재측정 행을 연결한다.
+- `experiments[]`: ID, 정식/진단 구분, R/G variant/family/L/O/encoder window, model/revision/policy, count/bytes, rawpedia/github/macro/micro의 Hit@1/3/5 및 MRR@1/3/5, complex Any/All/Full, negative 별도 표, latency 세부/분포, ANN 검사, 실패 원인, 100문항 로그 경로/SHA.
 - query 로그: ID/source/category/intent/difficulty/group, 실제 top5 전체 ID/순위/source/distance/원문 위치, 대응 evidence/coverage, 지표/null, 3회 latency. 실패 문항도 오류 행으로 보존한다. 한 회차라도 100문항 검색에 실패한 조합은 완료 행으로 처리하지 않는다.
 - Markdown 순서: 입력 요약→전 조합 비교표→출처별/complex/negative 세부→속도/크기→선정 순서/득실→재현법→제약. JSON에서 수치를 생성하며 수동으로 다른 수치로 고치지 않는다.
 
@@ -389,88 +443,95 @@ JSON 리포트 필수 키:
 |---|---|
 | Markdown 구조 | frontmatter 제외 뒤 절대 위치, H2/H3/H4/setext, code 안 가짜 heading, 반복 Radius, 첫 도입/제목 없음, 긴 표/코드, 마지막 tail |
 | 문자/바이트 | CRLF, 한국어/이모지/결합문자, UTF-8 중간 경계 거부, 원문 범위와 content 범위 구분 |
-| sliding window | stride 전진, overlap 양/경계, 짧은 페이지/긴 문장, 의미 문자 coverage100%, 비공백 누락0 |
+| 크기/오버랩 | 9쌍/18 R/12 정식 G/3 진단 G, O=0 및 32/64 실제 token 중복, 문장이 O보다 긴 경우, L=128 O=64 전진, 독립 source 조합, 명목/실측값 |
+| sliding window | stride 전진, guard로 줄인 overlap 사유, tail/긴 문장, 의미 문자 coverage100%, 비공백 누락0 |
 | GitHub 원문 | body/file hash 분리, candidate/ref 구분, D #442 다중 segment, D #494 삭제 footer 보존, I #524 실패 버전 caveat 유지 |
 | 짧은 정답 보존 | I #500의 67문자와 D #489의 72문자 유지, negative를 support로 바꾸지 않음 |
 | 전체 스레드 | 선정 12부모+39댓글, 후보 밖 스레드 비적재, G-A-curated의 35조각/23댓글 범위 유지, reply 관계 비추론 |
 | 변조 거부 | content 1문자, source hash/range/URL/ref/body hash 변조, manifest drift, path traversal 실패 |
-| ID/결정성 | 두 번 생성 바이트 일치, 탐색 순서/작업 위치와 무관한 ID, 원문/규칙 변경 시 ID 변경, duplicate ID0 |
+| ID/결정성 | 두 번 생성 바이트 일치, 탐색 순서/작업 위치와 무관한 ID, L/O/window 변경 시 ID/cache 분리, variant 출력 비덮어쓰기, duplicate ID0 |
 | 모델 입력 | prefix 한 번, 실제 token 상한, truncation0, thread windows 전체 범위, weighted mean/norm/float32, pooling 설정 보존 |
 | 골드 매핑 | 동일 doc의 다른 절/다른 body의 동일 문장 거부, 50% 직전/경계, 범위 중복 비가산, 전체 147 evidence |
 | 지표 | rank1/3/5/범위 밖, MRR 예, Any/All/Full, macro/micro, negative N/A/분모95, 부분 실패 조합 거부 |
 | Chroma | 실제 2출처/vector add→query→trace roundtrip, count/차원, distance 방향, source filter 비사용, 동점 순서, 재개방 |
-| 재현/표시 | 저장한 100문항 재집계, JSON→Markdown 일치, 실패 시 기존 성공 산출물 보존, 재적재 결과/지표 일치 |
+| 재현/표시 | manifest의 128/0·224/64 및 스레드 w128/w224 재생성, 고정192/32 제거, 전체 grid 로그 재집계, JSON→Markdown 파라미터 일치, 기준선 보존, 재적재 결과/지표 일치 |
 
 주 로직은 작은 fixture와 수작업 vectors로 검증한다. 모델 semantic 성능을 고정 기대값의 단위 테스트로 만들지 않는다. 실제 원문/147스팬 회귀와 실제 Chroma roundtrip은 의존성 준비 뒤 반드시 실행한다. 테스트 중 숨은 네트워크 다운로드 대신 사전 cache를 쓰며 skip/xfail로 필수 검증을 줄이지 않는다.
 
 ## 11. Antigravity Step 1~6 체크리스트
 
-WBS 8h를 다음과 같이 배분한다. 모델 download/전체 encode 대기 시간은 별도로 측정한다. 시간 내 미완료 조합은 상태를 저장하고 계속 실행하며 일부 조합만으로 완료를 보고하지 않는다.
+기존 24조합 구현을 확장한다. WBS의 최초 8h 배분은 기준선 계획으로 보존하되, 1080조합의 추가 실행 시간을 2h로 가정하지 않는다. Step 4에서 청크 수·encode/index/query 실측으로 추가 소요 시간을 추정하고 기록한다. 문서 벡터는 캐시하고 실행 상태를 저장하여 남은 행을 이어서 수행한다.
 
-### Step 1 — 입력 고정과 환경 조사 (0.75h, 선행: T4/T10-2a/T8-1)
+### Step 1 — 기준선 보존과 입력·환경 재확인 (선행: 기존 T8-2 구현)
 
-대상: `scripts/chunk_corpus.py`, 청크 manifest, 기존 검증기. 새 의존성 설치는 아직 필요 없다.
+대상: 기존 리포트/청크/환경, `scripts/chunk_corpus.py`, 새 grid manifest.
 
-- [ ] 116파일/12후보/35조각/39전체댓글/100문항/147스팬을 재집계하고 고정 manifest·원문을 전수 대조한다.
-- [ ] prepare CLI로 입력/schema/rules/dataset/HEAD/URL/hash를 저장하고 기존 query/filter check를 실행한다.
-- [ ] root Python/package/hardware/wheel 상황을 조사하고 모델 preflight 절차를 기록한다.
+- [ ] 기존 24조합 리포트 MD/JSON을 §9의 기준선 파일로 바이트 그대로 보존하고 SHA를 기록한다. 기존 청크/벡터/환경 디렉터리를 덮어쓰지 않는다.
+- [ ] 116파일/12후보/35조각/39전체댓글/100문항/147스팬을 재집계하고 고정 manifest·원문을 전수 대조한다. 기존 query/filter check를 통과한다.
+- [ ] root Python/package/hardware를 확인하고 기존 모델 revision/cache를 재사용한다. 필요한 의존성이 이미 있으면 다시 설치하지 않는다.
+- [ ] L=`[128,192,224]`, 물리 O=`[0,32,64]`, thread window L 동일/내부 O=0, 비교 방식·모델·선정 순서를 실험 전에 선언한다.
 
-검증: 입력 오류0, query ID 유일, 95/5 분모, 기존 13개 query tests 통과. 다음 단계: Step 2.
+검증: 기준선 보존 SHA 일치, 입력 오류0, query ID 유일, 95/5 분모, 원문·골드 변경0. 다음 단계: Step 2.
 
-### Step 2 — segment 및 골드 매핑의 작은 수직 구현 (1.25h, 선행: Step 1)
+### Step 2 — 파라미터·variant·원문 좌표 계약 확장 (선행: Step 1)
 
-대상: `src/artagent/chunking.py`, `scripts/chunk_corpus.py`, `tests/test_chunking.py`, 작은 fixture.
+대상: `src/artagent/chunking.py`, `scripts/chunk_corpus.py`, `tests/test_chunking.py`.
 
-- [ ] 범위/hash/변조/관련도 경계의 실패 테스트부터 작성한다.
-- [ ] RawPedia 단락과 GitHub 단일/복합 segment로 원문→청크→저장→재읽기→gold coverage를 통과한다. 처음에는 fixture 경계를 쓴다.
-- [ ] CRLF/이모지/비연속 source segment, candidate/ref 구분, negative N/A를 검증한다.
+- [ ] `rule_family`와 variant ID, L/O/window, 명목/실측 token 수·overlap·조정 사유를 schema/manifest에 넣는다. 파일/ID/cache가 다른 파라미터에서 충돌하지 않게 한다.
+- [ ] 짧은 fixture로 O=0/32/64, 마지막 문장이 O보다 긴 경우, L=128/O=64의 전진과 tail을 검증한다. 스레드의 물리 overlap과 내부 window 정책을 구분한다.
+- [ ] 기존 범위/hash/변조/coverage 회귀를 통과하고 CRLF/이모지/비연속 source segment, candidate/ref 구분, negative N/A를 유지한다.
 
-검증/checkpoint 1: 원문 위치 복원 및 관련도 분자/분모 테스트 통과. 좌표 계약을 확정한 뒤 전체 생성한다.
+검증/checkpoint 1: 실제 overlap 보존, 전진/coverage100%, 좌표 복원, 파라미터별 결정성·비덮어쓰기. 이후 전체 청크 생성으로 진행한다.
 
-### Step 3 — tokenizer 준비와 전체 후보 생성 (1.75h, 선행: Step 2)
+### Step 3 — 전체 크기·오버랩 후보 생성 (선행: Step 2)
 
-대상: 청킹 module/CLI/tests, `docs/pipeline_setup.md`, 생성 청크, `.gitignore`.
+대상: 청킹 module/CLI/tests, 신규 `data/chunks/t08-2-grid/`, `docs/pipeline_setup.md`.
 
-- [ ] 실제 tokenizer 소비 의존성을 root venv에 설치하고 실제 버전/최초 사용처를 기록한다. 모델/tokenizer revision을 고정한다.
-- [ ] R-A/R-B/G-A-full/G-A-curated/G-B를 구현하고 길이/overlap/비공백 coverage/ID/segment/URL을 전수 검사한다.
-- [ ] 모든 JSONL/gold mapping을 생성하고 147스팬의 출처별 전체 청크셋 coverage와 허용 범위를 확인한다. 다른 출력 위치에서 다시 생성해 바이트 비교한다.
+- [ ] 기존 tokenizer/model revision과 배포된 pooling/prefix/입력 한도를 고정한다. 필요한 의존성만 소비 시 설치하고 변경된 버전을 기록한다.
+- [ ] R-A 9개/R-B 9개/G-B 9개/G-A-curated 내부 window 3개/G-A-full 내부 window 3개, **합계 33variant**를 생성한다. 출력 이름/fingerprint에 모든 파라미터를 반영한다.
+- [ ] 9쌍의 요청값·실측값, 실제 encoder 길이, overlap/stride/tail, 전체 원문 범위/segment/URL/ID를 전수 검사한다. 요청값이 다르지만 실제 청크가 같은 경우를 보고한다.
+- [ ] 모든 JSONL/gold mapping을 생성하고 147스팬의 출처별 전체 청크셋 coverage를 검사한다. `check --verify-regeneration`은 각 variant의 manifest 값으로 다른 위치에 재생성하여 바이트를 비교한다.
 
-검증: 정식 후보 출처별 2규칙 + 진단 1규칙, 원문 추적, 실제 tokenizer guard 통과. 청크 수는 실행 후 실측한다.
+검증: R=18/G정식=12/G진단=3, 각 variant의 의미 문자 coverage100%, 복원 불가0, truncation0, 결정성. 청크 수·실제 overlap 분포는 실행으로 채운다.
 
-### Step 4 — 모델·Chroma smoke와 계측 구현 (1.25h, 선행: Step 3)
+### Step 4 — encoder 확장·행렬 고정·실행 부담 실측 (선행: Step 3)
 
-대상: `scripts/benchmark_embeddings.py`, `tests/test_benchmark_embeddings.py`, `docs/pipeline_setup.md`.
+대상: `scripts/benchmark_embeddings.py`, `tests/test_benchmark_embeddings.py`, 실험 행렬/환경.
 
-- [ ] chromadb를 소비 시 설치하고 pip check/import, 전체 모델 CPU smoke/thread pooling을 실행한다. 실행 가능한 모델을 확정한다.
-- [ ] metric, 수작업 vector Chroma roundtrip, query cache 미사용 latency 테스트를 통과하고 정식 16 + 진단 8조합의 행렬을 저장한다.
-- [ ] 고정 Q001/Q002/Q025/Q049/Q060/Q071/Q081/Q085/Q096/Q099의 10문항으로 각 모델/양쪽 출처의 encode→Chroma→trace→metric을 smoke한다. 점수를 보고 골드/규칙을 바꾸지 않는다.
+- [ ] Chroma/import/CPU smoke를 확인하고 스레드를 manifest의 window L로 실제 분할하여 encode한다. 가중치는 reference token 수를 사용하고 전체 segment coverage를 검사한다.
+- [ ] metric, 실제 Chroma roundtrip, query cache 미사용 latency, 파라미터별 cache/collection 분리 테스트를 통과한다. report/check의 고정192/32 및 고정경로를 제거한다.
+- [ ] `matrix` 명령으로 source별 독립 Cartesian product를 저장한다. 4모델이면 **정식864 + 진단216 = 1080**, 실행 불가 사유가 있는 2모델이면 **432 + 108 = 540**을 확인한다.
+- [ ] 고정 Q001/Q002/Q025/Q049/Q060/Q071/Q081/Q085/Q096/Q099 10문항으로 각 모델/출처와 크기·O 경계 사례를 smoke한다. 점수로 후보를 제거하지 않는다.
+- [ ] 33 source variant의 벡터 캐시를 설계하고 최대132 encode entry를 재사용한다. 실측 청크 수/index 시간/쿼리 지연/디스크로 전체 실행의 추가 시간·공간을 추정해 기록한다.
 
-검증/checkpoint 2: 2개 모델 이상(다국어 1개 이상), 혼합 검색, 명시 embedding, truncation0, negative null, distance/지표/분모 일치. smoke를 100문항 결과로 보고하지 않는다. tokenizer 준비 후 모델 제외가 발생하면 §4.1대로 후보 manifest와 전 행렬을 재고정한다.
+검증/checkpoint 2: 모델 2개 이상(다국어 1개 이상), 모든 행의 파라미터·예상 수 명시, 혼합 검색, truncation0, negative null, distance/지표/분모 일치. tokenizer 집합이 바뀌면 후보와 행렬을 모두 재고정한다.
 
-### Step 5 — 전 조합·100문항 정량 실행 (2h, 선행: Step 4)
+### Step 5 — 전체 등록 행과 100문항 정량 실행 (선행: Step 4)
 
-대상: runner, 실험 logs/vectors/Chroma, 리포트 JSON experiments.
+대상: runner, 실험 logs/vectors/Chroma, 작업 리포트 `grid-001/results.json`.
 
-- [ ] 고정 행렬 전체를 순서대로 적재하고 100문항×3회를 실행한다. 4개 모델이면 24조합, 각 조합 95양성 + 5negative다.
+- [ ] 행렬 전체를 순서대로 적재하고 각 조합에서 warmup10 뒤 **100문항×3회**를 실행한다. 4모델/1080조합이면 주 지연 관측324,000개이며, 품질 분모는 조합당 고유 양성95/negative5다.
+- [ ] 문서 벡터만 재사용하고 주 지연의 query encode는 매회 실제 호출한다. 모든 행에 상태·오류·100문항 top5/coverage/latency 로그를 저장하고 중단 시 미완료 행에서 재개한다.
 - [ ] 출처/macro/micro Hit/MRR, complex 전체 근거, negative 별도 평가, 지연/크기/메모리/문맥 부담, ANN 검사를 집계한다.
-- [ ] 실패/출처 혼동/분할 스팬을 원문과 확인하고 순위·위치가 있는 100문항 로그를 저장한다. 실패 행을 제외하여 평균을 내지 않는다.
+- [ ] L/O 3×3의 쌍별 비교와 기준선 재측정 값을 생성한다. 정식/진단/실패 행을 구분하며 실패 행을 조용히 제거하여 완료율을 높이지 않는다.
 
-검증: 정식 전 조합 완주, 100문항 로그, 95/5 분모, 전체 비교표/재집계 일치. 다운로드/encode 초과 시간도 기록하고 남은 조합을 계속 실행한다.
+검증: `grid_complete=true`, 정식·진단 모든 등록 행의 결과/상태, 선정 대상 모델들의 전 조합 성공, 100문항 로그, 95/5 분모, 비교표/재집계 일치. 후보 모델 전체가 실행 가능하면 1080행을 완주한다.
 
-### Step 6 — 선정·재현·T9 확정 인계 (1h, 선행: Step 5)
+### Step 6 — 파라미터 포함 선정·재현·T9 인계 (선행: Step 5)
 
-대상: `docs/chunking_embedding_benchmark.md/.json`, 선정 청크 manifest, 관련 상세 카드.
+대상: 최종 `docs/chunking_embedding_benchmark.md/.json`, 선정 manifest, Task 8-2 추가 체크 항목.
 
-- [ ] §8.1로 공통 모델/R/G를 선정하고 정식 전체 비교/진단 차이/근거/출처별 득실/근접 후보를 기록한다.
-- [ ] 선두/선정 조합/차순위를 새 Chroma에서 재실행하고 JSON→Markdown, 청크 재생성, 필수 tests를 통과한다.
-- [ ] 실체/SHA/모델 revision/prefix/thread policy/index 설정/명령을 T9로 전달한다. 증거가 갖춰진 뒤 Task 8-2 완료 체크를 갱신한다.
+- [ ] §8.1로 공통 모델과 **R/G 각각의 방식·L/O 또는 내부 window L/O**를 선정한다. 기준선 대비 증감, 출처별 득실, 이웃 셀, 동률/근접 후보를 기록한다.
+- [ ] 선두/선정 조합/차순위/192·32 기준선을 저장된 전체 파라미터로 새 Chroma에서 재실행한다. 청크 재생성/재집계/필수 tests를 통과한다.
+- [ ] 검증을 마친 작업 JSON에서 최종 MD/JSON을 생성하고 기존 리포트를 원자적으로 갱신한다. 기준선 파일과 SHA는 유지한다.
+- [ ] 각 source의 최종 파라미터·variant/실체/SHA·모델 revision/prefix/window policy/index/재생성 명령을 T9로 전달한다. 새 탐색 증거가 모두 갖춰진 뒤 추가 완료 체크를 갱신한다.
 - [ ] 코드/docs/작은 fixture의 diff를 확인하고 국문 commit/PR에 실측값과 검증을 쓴다. 원문/모델 cache/DB/큰 vectors의 의도치 않은 추가를 검사한다.
 
-최종 게이트: **정식 전 조합 완주, 100문항 검색, 95양성/5negative 분리, 147근거 원문/청크 추적, 원문 coverage100%, truncation0, 재현 통과, 선정 JSON과 T9 실체 일치**.
+최종 게이트: **선언한 크기·오버랩 전체 행렬 완주, 100문항 검색, 95양성/5negative 분리, 147근거 원문/청크 추적, 원문 coverage100%, truncation0, 파라미터별 재현 통과, 선정 JSON과 T9 실체 일치**. 현재 개정은 이 실행을 위한 플랜이며 새 체크 항목은 실행 증거가 생길 때까지 미완료다.
 
 ## 12. 후속 CLI 계약과 실행 명령
 
-기존 query/filter check 외에는 **후속 구현이 제공해야 하는 CLI**다. help와 실제 동작을 이 계약에 맞추고 저장소 root에서 실행한다.
+기존 CLI를 다음 계약으로 **확장한 뒤** 실행한다. `matrix` 및 grid 인자, 기준선 보존/최종 JSON 출력 인자는 후속 구현 대상이다. 명령의 help/동작/manifest를 함께 갱신하고 저장소 root에서 실행한다.
 
 ```bash
 ART_PIPELINE_PY=/Users/user/Workspace/Programming/Projects/AAART/venv/bin/python3
@@ -480,7 +541,7 @@ ART_PIPELINE_PY=/Users/user/Workspace/Programming/Projects/AAART/venv/bin/python
 "$ART_PIPELINE_PY" scripts/filter_issues.py --check
 "$ART_PIPELINE_PY" -m pytest tests/test_eval_queries.py tests/test_filter_issues.py -q
 
-# Step 1: 표준 라이브러리로 입력 고정
+# Step 1: 기준선 바이트 보존·입력 고정; 이미 있는 보존본은 SHA 일치 확인
 "$ART_PIPELINE_PY" scripts/chunk_corpus.py prepare \
   --rawpedia-dir data/rawpedia \
   --rawpedia-collection docs/rawpedia_collection.md \
@@ -488,57 +549,73 @@ ART_PIPELINE_PY=/Users/user/Workspace/Programming/Projects/AAART/venv/bin/python
   --github-dir data/issues \
   --source-manifest docs/search_eval_source_manifest.json \
   --queries docs/search_eval_queries.json \
-  --output-dir data/chunks/t08-2
+  --baseline-md docs/chunking_embedding_benchmark.md \
+  --baseline-json docs/chunking_embedding_benchmark.json \
+  --output-dir data/chunks/t08-2-grid
 
-# Step 3: 의존성 소비 시 설치한 뒤 tokenizer/revision 고정
+# Step 3: 기존 모델 revision 재사용, 새 작업 위치에 tokenizer/환경 고정
 "$ART_PIPELINE_PY" scripts/benchmark_embeddings.py preflight \
   --stage tokenizers \
   --models BAAI/bge-small-en-v1.5 BAAI/bge-base-en-v1.5 \
     sentence-transformers/all-MiniLM-L6-v2 intfloat/multilingual-e5-small \
-  --device cpu --work-dir data/embedding-benchmark/t08-2/run-001
+  --model-manifest data/embedding-benchmark/t08-2/run-001/environment.json \
+  --device cpu --work-dir data/embedding-benchmark/t08-2/grid-001
 
 "$ART_PIPELINE_PY" scripts/chunk_corpus.py build \
-  --manifest data/chunks/t08-2/manifest.json \
-  --model-manifest data/embedding-benchmark/t08-2/run-001/environment.json \
+  --manifest data/chunks/t08-2-grid/manifest.json \
+  --model-manifest data/embedding-benchmark/t08-2/grid-001/environment.json \
   --rawpedia-rules R-A-heading R-B-window \
   --github-rules G-A-full-thread G-A-curated-thread G-B-curated-unit \
-  --target-tokens 192 --overlap-tokens 32
+  --target-tokens-grid 128 192 224 --overlap-tokens-grid 0 32 64 \
+  --thread-window-tokens-grid 128 192 224
 
 "$ART_PIPELINE_PY" scripts/chunk_corpus.py check \
-  --manifest data/chunks/t08-2/manifest.json \
+  --manifest data/chunks/t08-2-grid/manifest.json \
   --queries docs/search_eval_queries.json --verify-regeneration
 
-# Step 4: 같은 revision으로 모델/Chroma 실제 실행 확인
+# Step 4: 같은 revision으로 모델/Chroma smoke, 실제 실행 전 행렬 저장
 "$ART_PIPELINE_PY" scripts/benchmark_embeddings.py preflight \
   --stage runtime \
-  --model-manifest data/embedding-benchmark/t08-2/run-001/environment.json \
-  --device cpu --work-dir data/embedding-benchmark/t08-2/run-001
+  --model-manifest data/embedding-benchmark/t08-2/grid-001/environment.json \
+  --device cpu --work-dir data/embedding-benchmark/t08-2/grid-001
 
-# Step 5: 고정 행렬과 100문항 실행
+"$ART_PIPELINE_PY" scripts/benchmark_embeddings.py matrix \
+  --chunk-manifest data/chunks/t08-2-grid/manifest.json \
+  --model-manifest data/embedding-benchmark/t08-2/grid-001/environment.json \
+  --queries docs/search_eval_queries.json --ks 1 3 5 --device cpu \
+  --output-json data/embedding-benchmark/t08-2/grid-001/experiment_matrix.json
+
+# Step 5: 고정한 전체 행렬 실행; 작업 결과로 저장하고 완료 행만 재사용
 "$ART_PIPELINE_PY" scripts/benchmark_embeddings.py run \
-  --chunk-manifest data/chunks/t08-2/manifest.json \
-  --model-manifest data/embedding-benchmark/t08-2/run-001/environment.json \
+  --matrix data/embedding-benchmark/t08-2/grid-001/experiment_matrix.json \
+  --chunk-manifest data/chunks/t08-2-grid/manifest.json \
+  --model-manifest data/embedding-benchmark/t08-2/grid-001/environment.json \
   --queries docs/search_eval_queries.json \
   --ks 1 3 5 --device cpu --batch-size 16 --seed 42 \
   --warmup-queries 10 --query-repeat 3 \
-  --work-dir data/embedding-benchmark/t08-2/run-001 \
-  --output-json docs/chunking_embedding_benchmark.json
+  --work-dir data/embedding-benchmark/t08-2/grid-001 \
+  --output-json data/embedding-benchmark/t08-2/grid-001/results.json
 
-# Step 6: 재집계 및 별도 DB 재적재로 재현 확인
+# Step 6: 재집계/별도 DB 재적재/필수 테스트 후 최종 리포트 갱신
 "$ART_PIPELINE_PY" scripts/benchmark_embeddings.py check \
-  --input-json docs/chunking_embedding_benchmark.json \
+  --input-json data/embedding-benchmark/t08-2/grid-001/results.json \
   --verify-top-candidates \
-  --work-dir data/embedding-benchmark/t08-2/recheck-001
-
-"$ART_PIPELINE_PY" scripts/benchmark_embeddings.py report \
-  --input-json docs/chunking_embedding_benchmark.json \
-  --output-md docs/chunking_embedding_benchmark.md
+  --work-dir data/embedding-benchmark/t08-2/grid-recheck-001
 
 "$ART_PIPELINE_PY" -m pytest tests/test_chunking.py \
   tests/test_benchmark_embeddings.py tests/test_eval_queries.py \
   tests/test_filter_issues.py -q
+
+"$ART_PIPELINE_PY" scripts/benchmark_embeddings.py report \
+  --input-json data/embedding-benchmark/t08-2/grid-001/results.json \
+  --output-json docs/chunking_embedding_benchmark.json \
+  --output-md docs/chunking_embedding_benchmark.md
 ```
 
-`preflight --stage tokenizers`는 revision/tokenizer 준비만, `--stage runtime`은 같은 revision의 모델/Chroma smoke를 수행한다. 환경 기록이 늘어도 이미 고정한 tokenizer 집합/규칙 fingerprint는 변경하지 않는다. `build`는 원문 manifest를 보존하며 규칙/청크 SHA를 추가한다. `chunk_corpus check --verify-regeneration`은 임시 출력 위치에 생성하여 비교한다. `run`은 동일 fingerprint의 완료 행만 재사용하고 미완료 행은 다시 실행한다. `benchmark check`는 재현 로그를 work-dir에 저장하고 리포트의 reproduction 증거를 갱신한다. `report`는 해당 JSON에서 Markdown을 생성한다. 이 과정에서 원문/모델 선정 값/골드는 변경하지 않는다.
+`prepare --baseline-*`는 §9의 고정 보존 경로에 원본 바이트를 저장하고 SHA를 manifest에 기록한다. 보존본이 이미 있으면 덮어쓰지 않고 manifest의 SHA와 대조한다. `preflight --stage tokenizers --model-manifest`는 기존 revision을 재사용하고 새 작업 위치에 환경을 저장하며, `--stage runtime`은 동일 revision의 모델/Chroma smoke를 수행한다. 환경 기록이 늘어도 tokenizer 집합/규칙 fingerprint는 바꾸지 않는다.
+
+`build`는 9쌍의 R/G-B와 스레드 window 3개를 모두 생성하며 manifest에 각 variant의 파라미터를 저장한다. `chunk_corpus check --verify-regeneration`은 variant마다 manifest 값을 읽어 임시 출력에서 비교한다. `matrix`는 전체 variant의 source별 독립 결합을 만들고 모델 수에 맞는 예상 행 수를 검사한다. `run --matrix`는 현재 입력/파라미터와 행렬의 지문을 대조하고 동일 fingerprint의 완료 행만 재사용한다. 행렬 지문은 불변 실험 정의를 기준으로 하며 진행 상태/시각은 별도 필드여서 재개 때 지문을 바꾸지 않는다.
+
+`benchmark check`는 전체 로그 재집계와 파라미터별 재현 증거를 작업 JSON에 저장한다. `report`는 완료율/선정/재현 게이트를 확인한 뒤 해당 JSON과 수치로 최종 MD/JSON을 임시 파일에 생성하고 성공 시 교체한다. 실패하면 작업 결과와 기존 기준선 리포트를 보존한다. 기준선 대비 표는 새 실행에서 다시 측정한 192/32 행을 사용하고 과거 리포트 값은 별도로 표시한다.
 
 Antigravity는 위 순서를 따르고 미확인 항목을 추측으로 PASS 처리하지 않는다. 실행 불가 후보, 보존되지 않은 산출물, 미완료 재현 검사는 상태와 남은 작업을 JSON/Markdown 모두에 기록한다.
