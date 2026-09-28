@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "agriggio"
+  },
+  "body": "Hi, \r\nyou are right, you can only reuse masks in tools that appear later in the pipeline. This is not something that can be relaxed easily, and I have no plans of changing it in the near future, sorry. However, you can copy/paste a mask from a tool to another freely. The masks might not be identical (because the result of parametric masks depend on where they are applied in the pipeline), but should be close enough to give you a reasonable starting point.\r\nIf this is still not enough, I'm afraid ART is not the right tool, sorry.\r\n\r\nHTH",
+  "createdAt": "2026-01-26T08:40:17Z",
+  "databaseId": 15603701,
+  "id": "DC_kwDONWPV1M4A7hf1",
+  "updatedAt": "2026-01-26T08:40:17Z",
+  "url": "https://github.com/artraweditor/ART/discussions/442#discussioncomment-15603701"
+}

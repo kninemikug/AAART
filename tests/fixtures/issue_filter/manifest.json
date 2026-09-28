@@ -1,0 +1,648 @@
+{
+  "commit": "97ef792d441e713262a024f6131bb212f1066d73",
+  "entries": {
+    "snapshots/discussion-comments/15005389.json": {
+      "fixture_sha256": "62514ae804c6d9c8ae995882801119b7a5efe8ae79570a5c7f0cafc1c20f8f01",
+      "original_relative_path": "data/issues/snapshots/discussion-comments/15005389.json",
+      "original_sha256": "62514ae804c6d9c8ae995882801119b7a5efe8ae79570a5c7f0cafc1c20f8f01",
+      "unmodified_copy": true
+    },
+    "snapshots/discussion-comments/15005743.json": {
+      "fixture_sha256": "844443b0f54d5de57a008a200173c57bcfabfca4fc7d08daceb22aba4f5e21f9",
+      "original_relative_path": "data/issues/snapshots/discussion-comments/15005743.json",
+      "original_sha256": "844443b0f54d5de57a008a200173c57bcfabfca4fc7d08daceb22aba4f5e21f9",
+      "unmodified_copy": true
+    },
+    "snapshots/discussion-comments/15217528.json": {
+      "fixture_sha256": "984eaec33b091766c96148b6a185a8c46a7031b037babcb72ed1a5d514b10c34",
+      "original_relative_path": "data/issues/snapshots/discussion-comments/15217528.json",
+      "original_sha256": "984eaec33b091766c96148b6a185a8c46a7031b037babcb72ed1a5d514b10c34",
+      "unmodified_copy": true
+    },
+    "snapshots/discussion-comments/15218439.json": {
+      "fixture_sha256": "5ca3833d10c60d689202a80a08be8c812a3d52afa2c617c4cf5c0f38dc8e8d45",
+      "original_relative_path": "data/issues/snapshots/discussion-comments/15218439.json",
+      "original_sha256": "5ca3833d10c60d689202a80a08be8c812a3d52afa2c617c4cf5c0f38dc8e8d45",
+      "unmodified_copy": true
+    },
+    "snapshots/discussion-comments/15304221.json": {
+      "fixture_sha256": "d8cfe115fff9c3907b3b094dfc86ea0b32c8189f4836a78dcdad123234688482",
+      "original_relative_path": "data/issues/snapshots/discussion-comments/15304221.json",
+      "original_sha256": "d8cfe115fff9c3907b3b094dfc86ea0b32c8189f4836a78dcdad123234688482",
+      "unmodified_copy": true
+    },
+    "snapshots/discussion-comments/15585143.json": {
+      "fixture_sha256": "f60cf256bcda2ec68c392707151ed001f33067816249efea3938b3af10ad2454",
+      "original_relative_path": "data/issues/snapshots/discussion-comments/15585143.json",
+      "original_sha256": "f60cf256bcda2ec68c392707151ed001f33067816249efea3938b3af10ad2454",
+      "unmodified_copy": true
+    },
+    "snapshots/discussion-comments/15591494.json": {
+      "fixture_sha256": "c077dd82542a9c8e7e9a42bde0e1c39165cc5f1749665e55154d9899ab1c09fa",
+      "original_relative_path": "data/issues/snapshots/discussion-comments/15591494.json",
+      "original_sha256": "c077dd82542a9c8e7e9a42bde0e1c39165cc5f1749665e55154d9899ab1c09fa",
+      "unmodified_copy": true
+    },
+    "snapshots/discussion-comments/15591820.json": {
+      "fixture_sha256": "c58166f0e3d5dc96aea78272bbad2bd755faa2e01a792e734ac9845785c7c0be",
+      "original_relative_path": "data/issues/snapshots/discussion-comments/15591820.json",
+      "original_sha256": "c58166f0e3d5dc96aea78272bbad2bd755faa2e01a792e734ac9845785c7c0be",
+      "unmodified_copy": true
+    },
+    "snapshots/discussion-comments/15592264.json": {
+      "fixture_sha256": "7ebe548f7189c47b5cbca7cc67f71ec55ac1dcf066f1c0d9fa3986142df5d12d",
+      "original_relative_path": "data/issues/snapshots/discussion-comments/15592264.json",
+      "original_sha256": "7ebe548f7189c47b5cbca7cc67f71ec55ac1dcf066f1c0d9fa3986142df5d12d",
+      "unmodified_copy": true
+    },
+    "snapshots/discussion-comments/15592346.json": {
+      "fixture_sha256": "d1f6a0ef2331a338c103ee0ab18d09de874ed3e542475fdbd41e29df14ce0118",
+      "original_relative_path": "data/issues/snapshots/discussion-comments/15592346.json",
+      "original_sha256": "d1f6a0ef2331a338c103ee0ab18d09de874ed3e542475fdbd41e29df14ce0118",
+      "unmodified_copy": true
+    },
+    "snapshots/discussion-comments/15597989.json": {
+      "fixture_sha256": "861fd65f3393475d92fbb0c8bc83dc00b6c1e4af2908284c7f4316a6953fd83f",
+      "original_relative_path": "data/issues/snapshots/discussion-comments/15597989.json",
+      "original_sha256": "861fd65f3393475d92fbb0c8bc83dc00b6c1e4af2908284c7f4316a6953fd83f",
+      "unmodified_copy": true
+    },
+    "snapshots/discussion-comments/15603154.json": {
+      "fixture_sha256": "15bfe429b4981159b6e5cbb296c412eb601e94ec21c628179f5da7f43cab850e",
+      "original_relative_path": "data/issues/snapshots/discussion-comments/15603154.json",
+      "original_sha256": "15bfe429b4981159b6e5cbb296c412eb601e94ec21c628179f5da7f43cab850e",
+      "unmodified_copy": true
+    },
+    "snapshots/discussion-comments/15603701.json": {
+      "fixture_sha256": "c12686c323b16578bcd6f171a971f66ec393e9f385f45632cfb6ff94c92705ac",
+      "original_relative_path": "data/issues/snapshots/discussion-comments/15603701.json",
+      "original_sha256": "c12686c323b16578bcd6f171a971f66ec393e9f385f45632cfb6ff94c92705ac",
+      "unmodified_copy": true
+    },
+    "snapshots/discussion-comments/15608881.json": {
+      "fixture_sha256": "8309e1f5565f1e2a435029adbed6c21f8910e03c3b102a804541439770e1d42d",
+      "original_relative_path": "data/issues/snapshots/discussion-comments/15608881.json",
+      "original_sha256": "8309e1f5565f1e2a435029adbed6c21f8910e03c3b102a804541439770e1d42d",
+      "unmodified_copy": true
+    },
+    "snapshots/discussion-comments/15628312.json": {
+      "fixture_sha256": "c22ca0adb1248b5fadcbc4998454f6d94b1eb061b27f37cd4b2f39ee99407259",
+      "original_relative_path": "data/issues/snapshots/discussion-comments/15628312.json",
+      "original_sha256": "c22ca0adb1248b5fadcbc4998454f6d94b1eb061b27f37cd4b2f39ee99407259",
+      "unmodified_copy": true
+    },
+    "snapshots/discussion-comments/15628433.json": {
+      "fixture_sha256": "78b9af288146a1a08662c03067cb19b68e41c24ef521f5f49a0477f289fbbf50",
+      "original_relative_path": "data/issues/snapshots/discussion-comments/15628433.json",
+      "original_sha256": "78b9af288146a1a08662c03067cb19b68e41c24ef521f5f49a0477f289fbbf50",
+      "unmodified_copy": true
+    },
+    "snapshots/discussion-comments/16068119.json": {
+      "fixture_sha256": "c11ef4d5b325ec89e0f7863fdae322f5edca855cb8af6fd3bde9f401c0870f75",
+      "original_relative_path": "data/issues/snapshots/discussion-comments/16068119.json",
+      "original_sha256": "c11ef4d5b325ec89e0f7863fdae322f5edca855cb8af6fd3bde9f401c0870f75",
+      "unmodified_copy": true
+    },
+    "snapshots/discussion-comments/16068633.json": {
+      "fixture_sha256": "0ccade928b30446c2025d088f44c476cbfbd12cfd574e6ccf217868da51b3c50",
+      "original_relative_path": "data/issues/snapshots/discussion-comments/16068633.json",
+      "original_sha256": "0ccade928b30446c2025d088f44c476cbfbd12cfd574e6ccf217868da51b3c50",
+      "unmodified_copy": true
+    },
+    "snapshots/discussion-comments/16861568.json": {
+      "fixture_sha256": "be71169400e204fdf78d67c9a9e15847207f4dcb0e7991fc6f0470950af4807d",
+      "original_relative_path": "data/issues/snapshots/discussion-comments/16861568.json",
+      "original_sha256": "be71169400e204fdf78d67c9a9e15847207f4dcb0e7991fc6f0470950af4807d",
+      "unmodified_copy": true
+    },
+    "snapshots/discussion-comments/17042242.json": {
+      "fixture_sha256": "04dc9ee760432d0a524cb7503c1c05591b7587fb443ac1bb1c4653309f3db61e",
+      "original_relative_path": "data/issues/snapshots/discussion-comments/17042242.json",
+      "original_sha256": "04dc9ee760432d0a524cb7503c1c05591b7587fb443ac1bb1c4653309f3db61e",
+      "unmodified_copy": true
+    },
+    "snapshots/discussion-comments/17184415.json": {
+      "fixture_sha256": "be2ab93eba7c8a681f12f25d087ea5d201dcdf3f8461bab030e45254e14d0538",
+      "original_relative_path": "data/issues/snapshots/discussion-comments/17184415.json",
+      "original_sha256": "be2ab93eba7c8a681f12f25d087ea5d201dcdf3f8461bab030e45254e14d0538",
+      "unmodified_copy": true
+    },
+    "snapshots/discussion-comments/17194718.json": {
+      "fixture_sha256": "a03fc90fc28cb26d2bfea8949901cb9038dbbd99863ca9d08d61807cf779453c",
+      "original_relative_path": "data/issues/snapshots/discussion-comments/17194718.json",
+      "original_sha256": "a03fc90fc28cb26d2bfea8949901cb9038dbbd99863ca9d08d61807cf779453c",
+      "unmodified_copy": true
+    },
+    "snapshots/discussion-comments/17195967.json": {
+      "fixture_sha256": "022700fa78477a59e6e5827b207a7b49472643f43221a992380e45951b182695",
+      "original_relative_path": "data/issues/snapshots/discussion-comments/17195967.json",
+      "original_sha256": "022700fa78477a59e6e5827b207a7b49472643f43221a992380e45951b182695",
+      "unmodified_copy": true
+    },
+    "snapshots/discussion-comments/17204509.json": {
+      "fixture_sha256": "f3581c3e2cce3e0a47fb51db171b9c597cced4c8ca47409a390e41b821e9f2de",
+      "original_relative_path": "data/issues/snapshots/discussion-comments/17204509.json",
+      "original_sha256": "f3581c3e2cce3e0a47fb51db171b9c597cced4c8ca47409a390e41b821e9f2de",
+      "unmodified_copy": true
+    },
+    "snapshots/discussion-comments/17204587.json": {
+      "fixture_sha256": "22a19bfed32257b8ecca0df2f87d978d2ca8a37450b989b2fb45070de1997e42",
+      "original_relative_path": "data/issues/snapshots/discussion-comments/17204587.json",
+      "original_sha256": "22a19bfed32257b8ecca0df2f87d978d2ca8a37450b989b2fb45070de1997e42",
+      "unmodified_copy": true
+    },
+    "snapshots/discussion-comments/17207510.json": {
+      "fixture_sha256": "a171b1565a4e3640fd93eba452c92c78846938d9e68f06ff9b3d6cbc1585e2bb",
+      "original_relative_path": "data/issues/snapshots/discussion-comments/17207510.json",
+      "original_sha256": "a171b1565a4e3640fd93eba452c92c78846938d9e68f06ff9b3d6cbc1585e2bb",
+      "unmodified_copy": true
+    },
+    "snapshots/discussion-comments/17984494.json": {
+      "fixture_sha256": "ee23979686884eef176ad1411f474e64a26694ba3dec4df64d11c773ab27db7e",
+      "original_relative_path": "data/issues/snapshots/discussion-comments/17984494.json",
+      "original_sha256": "ee23979686884eef176ad1411f474e64a26694ba3dec4df64d11c773ab27db7e",
+      "unmodified_copy": true
+    },
+    "snapshots/discussion-comments/17986984.json": {
+      "fixture_sha256": "f6d4c2b55f920a77ace5659ad2e8720936583141f06b5c169de9b7d01be50ba7",
+      "original_relative_path": "data/issues/snapshots/discussion-comments/17986984.json",
+      "original_sha256": "f6d4c2b55f920a77ace5659ad2e8720936583141f06b5c169de9b7d01be50ba7",
+      "unmodified_copy": true
+    },
+    "snapshots/discussion-comments/18524177.json": {
+      "fixture_sha256": "238b8f85c7290721e175a3014054299410240dd78147083340c693b389582923",
+      "original_relative_path": "data/issues/snapshots/discussion-comments/18524177.json",
+      "original_sha256": "238b8f85c7290721e175a3014054299410240dd78147083340c693b389582923",
+      "unmodified_copy": true
+    },
+    "snapshots/discussions/412.json": {
+      "fixture_sha256": "2e6adff8f509a283fa02af358b990af06a79e5c472f124c3663b2a7e5509549c",
+      "original_relative_path": "data/issues/snapshots/discussions/412.json",
+      "original_sha256": "2e6adff8f509a283fa02af358b990af06a79e5c472f124c3663b2a7e5509549c",
+      "unmodified_copy": true
+    },
+    "snapshots/discussions/420.json": {
+      "fixture_sha256": "0c59edaacd10ac2063dafa47821bbf3dabe7dd3847ef9c7892e68d17966cbc13",
+      "original_relative_path": "data/issues/snapshots/discussions/420.json",
+      "original_sha256": "0c59edaacd10ac2063dafa47821bbf3dabe7dd3847ef9c7892e68d17966cbc13",
+      "unmodified_copy": true
+    },
+    "snapshots/discussions/424.json": {
+      "fixture_sha256": "403921d73aeddd6a49c29f4583ecf6dc988d919ec27e4ca4174e1ce07bd50beb",
+      "original_relative_path": "data/issues/snapshots/discussions/424.json",
+      "original_sha256": "403921d73aeddd6a49c29f4583ecf6dc988d919ec27e4ca4174e1ce07bd50beb",
+      "unmodified_copy": true
+    },
+    "snapshots/discussions/432.json": {
+      "fixture_sha256": "9c7dd432fc791cb4e7e503dca46a108d3bda82a0149cbba1b678d8f760b71147",
+      "original_relative_path": "data/issues/snapshots/discussions/432.json",
+      "original_sha256": "9c7dd432fc791cb4e7e503dca46a108d3bda82a0149cbba1b678d8f760b71147",
+      "unmodified_copy": true
+    },
+    "snapshots/discussions/436.json": {
+      "fixture_sha256": "5f857e482ce0b0d53e0514c47f3cfbdc8cbd75282558c045dc5102068abfecf3",
+      "original_relative_path": "data/issues/snapshots/discussions/436.json",
+      "original_sha256": "5f857e482ce0b0d53e0514c47f3cfbdc8cbd75282558c045dc5102068abfecf3",
+      "unmodified_copy": true
+    },
+    "snapshots/discussions/440.json": {
+      "fixture_sha256": "6b96895e027d44e1b2754937678118cbe58f1bd603fdaf470f143990c8f28e5c",
+      "original_relative_path": "data/issues/snapshots/discussions/440.json",
+      "original_sha256": "6b96895e027d44e1b2754937678118cbe58f1bd603fdaf470f143990c8f28e5c",
+      "unmodified_copy": true
+    },
+    "snapshots/discussions/442.json": {
+      "fixture_sha256": "aa2c322fe50f453879376c26ee70afc0366ae1732916091a5d88edad3aac6d4a",
+      "original_relative_path": "data/issues/snapshots/discussions/442.json",
+      "original_sha256": "aa2c322fe50f453879376c26ee70afc0366ae1732916091a5d88edad3aac6d4a",
+      "unmodified_copy": true
+    },
+    "snapshots/discussions/446.json": {
+      "fixture_sha256": "8edef844df74e446830b066a6b885cfc43d1c802bcd3df6774d90f94ad1573be",
+      "original_relative_path": "data/issues/snapshots/discussions/446.json",
+      "original_sha256": "8edef844df74e446830b066a6b885cfc43d1c802bcd3df6774d90f94ad1573be",
+      "unmodified_copy": true
+    },
+    "snapshots/discussions/489.json": {
+      "fixture_sha256": "b2fc71a30a57454a1bc91eb17aedab6287152d5937443ce62ba4012590ae9349",
+      "original_relative_path": "data/issues/snapshots/discussions/489.json",
+      "original_sha256": "b2fc71a30a57454a1bc91eb17aedab6287152d5937443ce62ba4012590ae9349",
+      "unmodified_copy": true
+    },
+    "snapshots/discussions/494.json": {
+      "fixture_sha256": "74127aa40e5c7bd3e4d2c7c52cd3f7dc1272390357a4d98f550ee0b095635a46",
+      "original_relative_path": "data/issues/snapshots/discussions/494.json",
+      "original_sha256": "74127aa40e5c7bd3e4d2c7c52cd3f7dc1272390357a4d98f550ee0b095635a46",
+      "unmodified_copy": true
+    },
+    "snapshots/discussions/496.json": {
+      "fixture_sha256": "cf03b9385a07d144725dd009068fb8d56678cb247b51ae4ca115c57f482d98e1",
+      "original_relative_path": "data/issues/snapshots/discussions/496.json",
+      "original_sha256": "cf03b9385a07d144725dd009068fb8d56678cb247b51ae4ca115c57f482d98e1",
+      "unmodified_copy": true
+    },
+    "snapshots/discussions/519.json": {
+      "fixture_sha256": "b999f64e9fae1740a89c27e62ad4c44c19ac7e75776671e03e7223fe1cb806e9",
+      "original_relative_path": "data/issues/snapshots/discussions/519.json",
+      "original_sha256": "b999f64e9fae1740a89c27e62ad4c44c19ac7e75776671e03e7223fe1cb806e9",
+      "unmodified_copy": true
+    },
+    "snapshots/discussions/525.json": {
+      "fixture_sha256": "7bb5dc629fa0f083a4badbba08aa9a30e602269b21face43d3b45ebc9de72fa5",
+      "original_relative_path": "data/issues/snapshots/discussions/525.json",
+      "original_sha256": "7bb5dc629fa0f083a4badbba08aa9a30e602269b21face43d3b45ebc9de72fa5",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/2507490546.json": {
+      "fixture_sha256": "15a0f82a0ec3435f9172afde772125314a2a403a2e390611c7bb1159698b201d",
+      "original_relative_path": "data/issues/snapshots/issue-comments/2507490546.json",
+      "original_sha256": "15a0f82a0ec3435f9172afde772125314a2a403a2e390611c7bb1159698b201d",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/2507490549.json": {
+      "fixture_sha256": "c0e000038c4674c6ca1faa376a43a95a6cf272137ba0ab8a75004fd1c9a63c84",
+      "original_relative_path": "data/issues/snapshots/issue-comments/2507490549.json",
+      "original_sha256": "c0e000038c4674c6ca1faa376a43a95a6cf272137ba0ab8a75004fd1c9a63c84",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/2507490554.json": {
+      "fixture_sha256": "bfd7b2eb6f5d6e0a1b6d12e85eba0db7b4fa4756823da94226406f428bb183b7",
+      "original_relative_path": "data/issues/snapshots/issue-comments/2507490554.json",
+      "original_sha256": "bfd7b2eb6f5d6e0a1b6d12e85eba0db7b4fa4756823da94226406f428bb183b7",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/4428738434.json": {
+      "fixture_sha256": "389052956325358970f93218ac4d17ae341505fc7722737534f4a5ac3ecbdda9",
+      "original_relative_path": "data/issues/snapshots/issue-comments/4428738434.json",
+      "original_sha256": "389052956325358970f93218ac4d17ae341505fc7722737534f4a5ac3ecbdda9",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/4433310082.json": {
+      "fixture_sha256": "f56b2af89440a8d8be71b8b141ff711c9ac32e31e8ae35e9f97dfd27bcf5c24b",
+      "original_relative_path": "data/issues/snapshots/issue-comments/4433310082.json",
+      "original_sha256": "f56b2af89440a8d8be71b8b141ff711c9ac32e31e8ae35e9f97dfd27bcf5c24b",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/4606997959.json": {
+      "fixture_sha256": "8d6e9cd170eee7e6414d9ebf55a74a24db1b9a5e7023d75a19bfba69658c070c",
+      "original_relative_path": "data/issues/snapshots/issue-comments/4606997959.json",
+      "original_sha256": "8d6e9cd170eee7e6414d9ebf55a74a24db1b9a5e7023d75a19bfba69658c070c",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/4610067970.json": {
+      "fixture_sha256": "7c0c7800cc2575558151c5fb3b2ae6a45fb4afaea89029b58adff50387fd1a65",
+      "original_relative_path": "data/issues/snapshots/issue-comments/4610067970.json",
+      "original_sha256": "7c0c7800cc2575558151c5fb3b2ae6a45fb4afaea89029b58adff50387fd1a65",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/4672346422.json": {
+      "fixture_sha256": "d64dd6c670d1b1e43c37b9f6816490c954c3a2a04740c549cb8f0de097de84e4",
+      "original_relative_path": "data/issues/snapshots/issue-comments/4672346422.json",
+      "original_sha256": "d64dd6c670d1b1e43c37b9f6816490c954c3a2a04740c549cb8f0de097de84e4",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/4680794641.json": {
+      "fixture_sha256": "7734972f108d67c4cba1cf0a45d202bb0af415519e5411ce1325d8515b8dfabc",
+      "original_relative_path": "data/issues/snapshots/issue-comments/4680794641.json",
+      "original_sha256": "7734972f108d67c4cba1cf0a45d202bb0af415519e5411ce1325d8515b8dfabc",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/4711197631.json": {
+      "fixture_sha256": "32dcb0afb1e0f5a456a78c7d3e16a4b512ad1d244b58f75af53a1895147d8cad",
+      "original_relative_path": "data/issues/snapshots/issue-comments/4711197631.json",
+      "original_sha256": "32dcb0afb1e0f5a456a78c7d3e16a4b512ad1d244b58f75af53a1895147d8cad",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/4717365452.json": {
+      "fixture_sha256": "257d626e28127d0323505d9aa6ce9e1f48911a90eee84730c7b5da64f62357b4",
+      "original_relative_path": "data/issues/snapshots/issue-comments/4717365452.json",
+      "original_sha256": "257d626e28127d0323505d9aa6ce9e1f48911a90eee84730c7b5da64f62357b4",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/4775215927.json": {
+      "fixture_sha256": "216ea9b9c88adc36771461cb203fb6c285f2fa90ef1cbd90b9b1f952e29d115f",
+      "original_relative_path": "data/issues/snapshots/issue-comments/4775215927.json",
+      "original_sha256": "216ea9b9c88adc36771461cb203fb6c285f2fa90ef1cbd90b9b1f952e29d115f",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/4776022995.json": {
+      "fixture_sha256": "c897598fcf64a0ef3dfe0507694f0dc1b66da9892b5e824cda74da0aa1eb120f",
+      "original_relative_path": "data/issues/snapshots/issue-comments/4776022995.json",
+      "original_sha256": "c897598fcf64a0ef3dfe0507694f0dc1b66da9892b5e824cda74da0aa1eb120f",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/4782327066.json": {
+      "fixture_sha256": "8641fdbc9d789e06f9d99c65eb539a7467ec7f2f79d99b0336164b6c842c841b",
+      "original_relative_path": "data/issues/snapshots/issue-comments/4782327066.json",
+      "original_sha256": "8641fdbc9d789e06f9d99c65eb539a7467ec7f2f79d99b0336164b6c842c841b",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/4874521835.json": {
+      "fixture_sha256": "443ac5873993d7f98d1d3161433cbad2dc03587bd05d4adfeb75f58b933af993",
+      "original_relative_path": "data/issues/snapshots/issue-comments/4874521835.json",
+      "original_sha256": "443ac5873993d7f98d1d3161433cbad2dc03587bd05d4adfeb75f58b933af993",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/5002278174.json": {
+      "fixture_sha256": "1ee6b937ea944b2439bf47e951107b60e866d5de00d3b42f705f004ec8ecd8d3",
+      "original_relative_path": "data/issues/snapshots/issue-comments/5002278174.json",
+      "original_sha256": "1ee6b937ea944b2439bf47e951107b60e866d5de00d3b42f705f004ec8ecd8d3",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/5012629386.json": {
+      "fixture_sha256": "84b7ef1c9be6e5eacd950c00dd3aa7d3160f19b67f6649559dffaf6f5988f238",
+      "original_relative_path": "data/issues/snapshots/issue-comments/5012629386.json",
+      "original_sha256": "84b7ef1c9be6e5eacd950c00dd3aa7d3160f19b67f6649559dffaf6f5988f238",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/5013707366.json": {
+      "fixture_sha256": "08102a0eadf4a503a660f0f3e48d503df90c4940b3b4b61d1868c4372f6c6522",
+      "original_relative_path": "data/issues/snapshots/issue-comments/5013707366.json",
+      "original_sha256": "08102a0eadf4a503a660f0f3e48d503df90c4940b3b4b61d1868c4372f6c6522",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/5015711774.json": {
+      "fixture_sha256": "b19687cab462c7484ea30934e69afb3725ee5cf431af4e1e27c5b811c28f965b",
+      "original_relative_path": "data/issues/snapshots/issue-comments/5015711774.json",
+      "original_sha256": "b19687cab462c7484ea30934e69afb3725ee5cf431af4e1e27c5b811c28f965b",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/5016625297.json": {
+      "fixture_sha256": "ad080277457bff538bc18d745550d9f44c6e7856c45cd6fcabd11956e3b87150",
+      "original_relative_path": "data/issues/snapshots/issue-comments/5016625297.json",
+      "original_sha256": "ad080277457bff538bc18d745550d9f44c6e7856c45cd6fcabd11956e3b87150",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/5016705138.json": {
+      "fixture_sha256": "4471be46e8aedd8a24932cdfc45984f0af91380199c3fef667ed1d29c524594f",
+      "original_relative_path": "data/issues/snapshots/issue-comments/5016705138.json",
+      "original_sha256": "4471be46e8aedd8a24932cdfc45984f0af91380199c3fef667ed1d29c524594f",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/5017025408.json": {
+      "fixture_sha256": "511db8228b9a76ebe80f134cecce4366eae5c0b4b2ea78d05ddacdc4169bb51b",
+      "original_relative_path": "data/issues/snapshots/issue-comments/5017025408.json",
+      "original_sha256": "511db8228b9a76ebe80f134cecce4366eae5c0b4b2ea78d05ddacdc4169bb51b",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/5017181748.json": {
+      "fixture_sha256": "4ce3219e90a6f083a50350065ba09f8bd463a60292272e6b76838cb84070116d",
+      "original_relative_path": "data/issues/snapshots/issue-comments/5017181748.json",
+      "original_sha256": "4ce3219e90a6f083a50350065ba09f8bd463a60292272e6b76838cb84070116d",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/5020835710.json": {
+      "fixture_sha256": "17a3758ca6d70d9078cf91a1d8a3e55a7485d22d1e9d04a7cf0c660cc17cb31d",
+      "original_relative_path": "data/issues/snapshots/issue-comments/5020835710.json",
+      "original_sha256": "17a3758ca6d70d9078cf91a1d8a3e55a7485d22d1e9d04a7cf0c660cc17cb31d",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/5022815199.json": {
+      "fixture_sha256": "a309f2c9dc21962f07e528fbeb765f8e965321028d7a095b547f6f517aa7510e",
+      "original_relative_path": "data/issues/snapshots/issue-comments/5022815199.json",
+      "original_sha256": "a309f2c9dc21962f07e528fbeb765f8e965321028d7a095b547f6f517aa7510e",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/5023044699.json": {
+      "fixture_sha256": "58e4fc6ab9b5c5566e6e4c9d775fb69a2d11e561f5c5e981423d5a04eef26981",
+      "original_relative_path": "data/issues/snapshots/issue-comments/5023044699.json",
+      "original_sha256": "58e4fc6ab9b5c5566e6e4c9d775fb69a2d11e561f5c5e981423d5a04eef26981",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/5026829639.json": {
+      "fixture_sha256": "d3cd92d659a72fd22ccafcc86e10656470d31908d5e87c9da0d95e430c850fd3",
+      "original_relative_path": "data/issues/snapshots/issue-comments/5026829639.json",
+      "original_sha256": "d3cd92d659a72fd22ccafcc86e10656470d31908d5e87c9da0d95e430c850fd3",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/5029155417.json": {
+      "fixture_sha256": "816f61632cfd3c8b7af0b4acc082defa7c00934c23b0b1c18292520d7174401d",
+      "original_relative_path": "data/issues/snapshots/issue-comments/5029155417.json",
+      "original_sha256": "816f61632cfd3c8b7af0b4acc082defa7c00934c23b0b1c18292520d7174401d",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/5030525547.json": {
+      "fixture_sha256": "ed1892e75a9ecd1f8b64a05a85d19d35e502310bc143ec97d2338d7f281ea38f",
+      "original_relative_path": "data/issues/snapshots/issue-comments/5030525547.json",
+      "original_sha256": "ed1892e75a9ecd1f8b64a05a85d19d35e502310bc143ec97d2338d7f281ea38f",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/5102161552.json": {
+      "fixture_sha256": "ab77c5ed9c2803fc2936148835b352f2d843b7a93f6652dfc4462333b964bac7",
+      "original_relative_path": "data/issues/snapshots/issue-comments/5102161552.json",
+      "original_sha256": "ab77c5ed9c2803fc2936148835b352f2d843b7a93f6652dfc4462333b964bac7",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/5102797884.json": {
+      "fixture_sha256": "05d83f0385b3bec5fbc7df33205ccc5ec21448da8417ec5c7d8d0d7ced6d6200",
+      "original_relative_path": "data/issues/snapshots/issue-comments/5102797884.json",
+      "original_sha256": "05d83f0385b3bec5fbc7df33205ccc5ec21448da8417ec5c7d8d0d7ced6d6200",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/5102851028.json": {
+      "fixture_sha256": "cda1f829009ace381da7db1df346a7420c48272560d0746be7c9120258bca928",
+      "original_relative_path": "data/issues/snapshots/issue-comments/5102851028.json",
+      "original_sha256": "cda1f829009ace381da7db1df346a7420c48272560d0746be7c9120258bca928",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/5103254495.json": {
+      "fixture_sha256": "736082dd08fe1f4407016507535fbc7eccb6a1862a1175d2bce61823427801c3",
+      "original_relative_path": "data/issues/snapshots/issue-comments/5103254495.json",
+      "original_sha256": "736082dd08fe1f4407016507535fbc7eccb6a1862a1175d2bce61823427801c3",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/5309120735.json": {
+      "fixture_sha256": "3115c4f1f354a156b8ece823654fdc157a2886087e1e6f1077f3a4d9d0a031d9",
+      "original_relative_path": "data/issues/snapshots/issue-comments/5309120735.json",
+      "original_sha256": "3115c4f1f354a156b8ece823654fdc157a2886087e1e6f1077f3a4d9d0a031d9",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/5315824799.json": {
+      "fixture_sha256": "55a4ad01f214a571a42ba2669e6e3603d93751de4e4502bffcfc8b17aacfc058",
+      "original_relative_path": "data/issues/snapshots/issue-comments/5315824799.json",
+      "original_sha256": "55a4ad01f214a571a42ba2669e6e3603d93751de4e4502bffcfc8b17aacfc058",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/5639914151.json": {
+      "fixture_sha256": "3417812d1f43326c935269783d7c177adddc2169e0a0b73347bb79b8cb22bc0d",
+      "original_relative_path": "data/issues/snapshots/issue-comments/5639914151.json",
+      "original_sha256": "3417812d1f43326c935269783d7c177adddc2169e0a0b73347bb79b8cb22bc0d",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/5641740288.json": {
+      "fixture_sha256": "6be788f30de5cbfbec4681c0c020e04c66c97764346303c134fc7b416e04e423",
+      "original_relative_path": "data/issues/snapshots/issue-comments/5641740288.json",
+      "original_sha256": "6be788f30de5cbfbec4681c0c020e04c66c97764346303c134fc7b416e04e423",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/5648127070.json": {
+      "fixture_sha256": "d7d4c46d954e9fa0aecfd385e6e4518d017b88e6ac242ed2ba60b3f550e5269a",
+      "original_relative_path": "data/issues/snapshots/issue-comments/5648127070.json",
+      "original_sha256": "d7d4c46d954e9fa0aecfd385e6e4518d017b88e6ac242ed2ba60b3f550e5269a",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/5648562175.json": {
+      "fixture_sha256": "f1c03dc5585622cb2c09edd1c72bb605c7b080d073ec32a3e06867e119ac8931",
+      "original_relative_path": "data/issues/snapshots/issue-comments/5648562175.json",
+      "original_sha256": "f1c03dc5585622cb2c09edd1c72bb605c7b080d073ec32a3e06867e119ac8931",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/5653112906.json": {
+      "fixture_sha256": "0982cbefb4e4bfa617b11b0e735fabb1fab09681068254d82a3d83dda8b7f573",
+      "original_relative_path": "data/issues/snapshots/issue-comments/5653112906.json",
+      "original_sha256": "0982cbefb4e4bfa617b11b0e735fabb1fab09681068254d82a3d83dda8b7f573",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/5655898791.json": {
+      "fixture_sha256": "604f0a52d94969bf5231aca8524cc89aa0ca6457f0ee7130a01d01d92feca92f",
+      "original_relative_path": "data/issues/snapshots/issue-comments/5655898791.json",
+      "original_sha256": "604f0a52d94969bf5231aca8524cc89aa0ca6457f0ee7130a01d01d92feca92f",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/5670040673.json": {
+      "fixture_sha256": "e8b866bc7b37a8e34ae7c0e830da7a14bed82cad274b33c65020d254e5168d3a",
+      "original_relative_path": "data/issues/snapshots/issue-comments/5670040673.json",
+      "original_sha256": "e8b866bc7b37a8e34ae7c0e830da7a14bed82cad274b33c65020d254e5168d3a",
+      "unmodified_copy": true
+    },
+    "snapshots/issue-comments/5670999476.json": {
+      "fixture_sha256": "67bda402d7643731cb4e6b6af2d857fae28fafc6e88eb598afc7a9e4a80b7c24",
+      "original_relative_path": "data/issues/snapshots/issue-comments/5670999476.json",
+      "original_sha256": "67bda402d7643731cb4e6b6af2d857fae28fafc6e88eb598afc7a9e4a80b7c24",
+      "unmodified_copy": true
+    },
+    "snapshots/issues/1.json": {
+      "fixture_sha256": "d41d7d9e46ad23b676a95aa740aa716b0fa8a864bb8a68b790fe086880e35819",
+      "original_relative_path": "data/issues/snapshots/issues/1.json",
+      "original_sha256": "d41d7d9e46ad23b676a95aa740aa716b0fa8a864bb8a68b790fe086880e35819",
+      "unmodified_copy": true
+    },
+    "snapshots/issues/293.json": {
+      "fixture_sha256": "899bafb46da9fd8cf598f28ff0ac560b7f0b5e3c253f2bbf755bcac2628344ef",
+      "original_relative_path": "data/issues/snapshots/issues/293.json",
+      "original_sha256": "899bafb46da9fd8cf598f28ff0ac560b7f0b5e3c253f2bbf755bcac2628344ef",
+      "unmodified_copy": true
+    },
+    "snapshots/issues/295.json": {
+      "fixture_sha256": "b3d04986b67ab6d89a8f04f16ddaec9f5b7d99d8b60992aaddc2e4468772bfa8",
+      "original_relative_path": "data/issues/snapshots/issues/295.json",
+      "original_sha256": "b3d04986b67ab6d89a8f04f16ddaec9f5b7d99d8b60992aaddc2e4468772bfa8",
+      "unmodified_copy": true
+    },
+    "snapshots/issues/297.json": {
+      "fixture_sha256": "f699734523ba1701d9f4b196cb4dd3d3f776dcd23dc29f2a35e471434529def1",
+      "original_relative_path": "data/issues/snapshots/issues/297.json",
+      "original_sha256": "f699734523ba1701d9f4b196cb4dd3d3f776dcd23dc29f2a35e471434529def1",
+      "unmodified_copy": true
+    },
+    "snapshots/issues/301.json": {
+      "fixture_sha256": "c2dd6858dd3285f9aae794b2d423935f21993425fb63be62af752cf046d1923c",
+      "original_relative_path": "data/issues/snapshots/issues/301.json",
+      "original_sha256": "c2dd6858dd3285f9aae794b2d423935f21993425fb63be62af752cf046d1923c",
+      "unmodified_copy": true
+    },
+    "snapshots/issues/302.json": {
+      "fixture_sha256": "910776ace117c3a6d31c865d09050d0850db054de3eb4f598f9b59f76f0d01c8",
+      "original_relative_path": "data/issues/snapshots/issues/302.json",
+      "original_sha256": "910776ace117c3a6d31c865d09050d0850db054de3eb4f598f9b59f76f0d01c8",
+      "unmodified_copy": true
+    },
+    "snapshots/issues/303.json": {
+      "fixture_sha256": "2ab68335e3e65b84ef47a9547acac3627ad246509ca6d452f35ec1a5e44241c1",
+      "original_relative_path": "data/issues/snapshots/issues/303.json",
+      "original_sha256": "2ab68335e3e65b84ef47a9547acac3627ad246509ca6d452f35ec1a5e44241c1",
+      "unmodified_copy": true
+    },
+    "snapshots/issues/315.json": {
+      "fixture_sha256": "bd2c23674f5d7c6a171dbaff09506ceb2fcad2ab685e879db96580b86fb170c4",
+      "original_relative_path": "data/issues/snapshots/issues/315.json",
+      "original_sha256": "bd2c23674f5d7c6a171dbaff09506ceb2fcad2ab685e879db96580b86fb170c4",
+      "unmodified_copy": true
+    },
+    "snapshots/issues/319.json": {
+      "fixture_sha256": "bc5de246e772b120cd5f97749a2189d28acfbdea8669aee1a1ff6201b212817f",
+      "original_relative_path": "data/issues/snapshots/issues/319.json",
+      "original_sha256": "bc5de246e772b120cd5f97749a2189d28acfbdea8669aee1a1ff6201b212817f",
+      "unmodified_copy": true
+    },
+    "snapshots/issues/323.json": {
+      "fixture_sha256": "cbb747f32e90c1cc757eb9ca6dcd3deab5bcb774a0409d0f36863caab35fd1c7",
+      "original_relative_path": "data/issues/snapshots/issues/323.json",
+      "original_sha256": "cbb747f32e90c1cc757eb9ca6dcd3deab5bcb774a0409d0f36863caab35fd1c7",
+      "unmodified_copy": true
+    },
+    "snapshots/issues/477.json": {
+      "fixture_sha256": "2faba48ca1b98d6ccc74b615a703006a2d795f15752e310ef12a2df579388c3d",
+      "original_relative_path": "data/issues/snapshots/issues/477.json",
+      "original_sha256": "2faba48ca1b98d6ccc74b615a703006a2d795f15752e310ef12a2df579388c3d",
+      "unmodified_copy": true
+    },
+    "snapshots/issues/493.json": {
+      "fixture_sha256": "3949034304936f8b8af1258e1da4739eeed124828d980bb51db36df08df5cc09",
+      "original_relative_path": "data/issues/snapshots/issues/493.json",
+      "original_sha256": "3949034304936f8b8af1258e1da4739eeed124828d980bb51db36df08df5cc09",
+      "unmodified_copy": true
+    },
+    "snapshots/issues/497.json": {
+      "fixture_sha256": "14b92304cb772dbbc91f5faab984bfe5fdb47acaf2cc617c705a13ba4feafcb7",
+      "original_relative_path": "data/issues/snapshots/issues/497.json",
+      "original_sha256": "14b92304cb772dbbc91f5faab984bfe5fdb47acaf2cc617c705a13ba4feafcb7",
+      "unmodified_copy": true
+    },
+    "snapshots/issues/500.json": {
+      "fixture_sha256": "210e95a36a0726bbb7fbb3ee1949cd8af571367cc44127228c5ea6360506bc8f",
+      "original_relative_path": "data/issues/snapshots/issues/500.json",
+      "original_sha256": "210e95a36a0726bbb7fbb3ee1949cd8af571367cc44127228c5ea6360506bc8f",
+      "unmodified_copy": true
+    },
+    "snapshots/issues/503.json": {
+      "fixture_sha256": "66c603916bd63343c25a87d6eda804bf31976756f658b04834e368288a438c5a",
+      "original_relative_path": "data/issues/snapshots/issues/503.json",
+      "original_sha256": "66c603916bd63343c25a87d6eda804bf31976756f658b04834e368288a438c5a",
+      "unmodified_copy": true
+    },
+    "snapshots/issues/510.json": {
+      "fixture_sha256": "347a48d6c11a5c3ba5b69d4738fa9e8c485886ecea99dd5254fe264b70ebf858",
+      "original_relative_path": "data/issues/snapshots/issues/510.json",
+      "original_sha256": "347a48d6c11a5c3ba5b69d4738fa9e8c485886ecea99dd5254fe264b70ebf858",
+      "unmodified_copy": true
+    },
+    "snapshots/issues/511.json": {
+      "fixture_sha256": "ec8ef81ed921e3e9d55eea84b569eef5401481908cb7aec3a5dbed2daa177822",
+      "original_relative_path": "data/issues/snapshots/issues/511.json",
+      "original_sha256": "ec8ef81ed921e3e9d55eea84b569eef5401481908cb7aec3a5dbed2daa177822",
+      "unmodified_copy": true
+    },
+    "snapshots/issues/516.json": {
+      "fixture_sha256": "d93174a2d4a7c1821fa9d1053bfda4cb3d3b2e6dde374a5d1ac4e811b18e68c0",
+      "original_relative_path": "data/issues/snapshots/issues/516.json",
+      "original_sha256": "d93174a2d4a7c1821fa9d1053bfda4cb3d3b2e6dde374a5d1ac4e811b18e68c0",
+      "unmodified_copy": true
+    },
+    "snapshots/issues/517.json": {
+      "fixture_sha256": "e08100e56e94fc3f04268d7b6d68fcc4774c65587cccaa896b6caed51b8b20cf",
+      "original_relative_path": "data/issues/snapshots/issues/517.json",
+      "original_sha256": "e08100e56e94fc3f04268d7b6d68fcc4774c65587cccaa896b6caed51b8b20cf",
+      "unmodified_copy": true
+    },
+    "snapshots/issues/521.json": {
+      "fixture_sha256": "15950aa010d1c054aee6310ed5b5a16ee35c5f97c855d32751dd606e95feb3f7",
+      "original_relative_path": "data/issues/snapshots/issues/521.json",
+      "original_sha256": "15950aa010d1c054aee6310ed5b5a16ee35c5f97c855d32751dd606e95feb3f7",
+      "unmodified_copy": true
+    },
+    "snapshots/issues/524.json": {
+      "fixture_sha256": "040d89a6da723ec8237bcfded57380e9b1545a6c91aaad7f8fee1c6abab282e3",
+      "original_relative_path": "data/issues/snapshots/issues/524.json",
+      "original_sha256": "040d89a6da723ec8237bcfded57380e9b1545a6c91aaad7f8fee1c6abab282e3",
+      "unmodified_copy": true
+    },
+    "snapshots/issues/84.json": {
+      "fixture_sha256": "547d17db8b307b2729c47c07f4ca2c775f01d9444e8ead0f2441a2c55d64852e",
+      "original_relative_path": "data/issues/snapshots/issues/84.json",
+      "original_sha256": "547d17db8b307b2729c47c07f4ca2c775f01d9444e8ead0f2441a2c55d64852e",
+      "unmodified_copy": true
+    }
+  },
+  "record_count": 107
+}
