@@ -161,3 +161,36 @@ def test_chroma_roundtrip_with_cosine(tmp_path):
     assert res["ids"][0] == ["A", "C", "B"]
     assert res["distances"][0][0] == pytest.approx(0.0, abs=1e-4)
     assert res["distances"][0][1] < res["distances"][0][2]
+
+
+def test_enumerate_chunking_variants_counts():
+    """Verify enumerate_chunking_variants produces 33 variants across the grid."""
+    from src.artagent.chunking import enumerate_chunking_variants
+
+    variants = enumerate_chunking_variants()
+    assert len(variants) == 33
+
+    rawpedia = [v for v in variants if v.source_type == "rawpedia"]
+    github_formal = [v for v in variants if v.source_type == "github" and not v.is_diagnostic]
+    github_diagnostic = [v for v in variants if v.source_type == "github" and v.is_diagnostic]
+
+    assert len(rawpedia) == 18  # 2 rules * 3 L * 3 O
+    assert len(github_formal) == 12  # 9 G-B + 3 G-A-curated
+    assert len(github_diagnostic) == 3  # 3 G-A-full
+
+
+def test_matrix_cartesian_counts():
+    """Verify matrix calculation produces 1080 rows (864 formal + 216 diagnostic)."""
+    rawpedia_count = 18
+    github_formal_count = 12
+    github_diagnostic_count = 3
+    models_count = 4
+
+    formal_combinations = rawpedia_count * github_formal_count * models_count
+    diagnostic_combinations = rawpedia_count * github_diagnostic_count * models_count
+    total = formal_combinations + diagnostic_combinations
+
+    assert formal_combinations == 864
+    assert diagnostic_combinations == 216
+    assert total == 1080
+

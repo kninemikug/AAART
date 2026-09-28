@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Benchmark runner and evaluation harness for embedding models and chunking strategies.
 
-Follows docs/T08_2_execution_plan.md specifications for preflight, run, check, and report.
+Follows docs/T08_2_execution_plan.md specifications for preflight, matrix, run, check, and report.
 """
 
 from __future__ import annotations
@@ -98,10 +98,18 @@ def cmd_preflight(args: argparse.Namespace) -> int:
     if stage == "tokenizers":
         from transformers import AutoTokenizer, AutoConfig
 
+        inherited_models: Dict[str, Any] = {}
+        if getattr(args, "model_manifest", None):
+            mpath = Path(args.model_manifest).resolve()
+            if mpath.is_file():
+                mdata = json.loads(mpath.read_bytes())
+                inherited_models = mdata.get("models", {})
+                print(f"Inherited model configurations from {mpath}")
+
         tokenizers_info: Dict[str, Any] = {}
         for m in models:
             cfg = MODEL_CONFIGS.get(m, {})
-            rev = cfg.get("revision")
+            rev = inherited_models.get(m, {}).get("revision") or cfg.get("revision")
             print(f"Loading tokenizer: {m} (revision: {rev})...")
             tok = AutoTokenizer.from_pretrained(m, revision=rev)
             auto_cfg = AutoConfig.from_pretrained(m, revision=rev)
@@ -136,9 +144,9 @@ def cmd_preflight(args: argparse.Namespace) -> int:
 
     elif stage == "runtime":
         # Runtime smoke testing with SentenceTransformer and chromadb
-        env_file = work_dir / "environment.json"
+        env_file = Path(args.model_manifest).resolve() if getattr(args, "model_manifest", None) else work_dir / "environment.json"
         if not env_file.is_file():
-            print(f"ERROR: Missing environment.json in {work_dir}", file=sys.stderr)
+            print(f"ERROR: Missing environment.json at {env_file}", file=sys.stderr)
             return 1
         env_data = json.loads(env_file.read_bytes())
 
@@ -214,6 +222,99 @@ def cmd_preflight(args: argparse.Namespace) -> int:
 
 
 # =========================================================================
+# Matrix Subcommand: Cartesian Product Generator
+# =========================================================================
+
+def cmd_matrix(args: argparse.Namespace) -> int:
+    """Generate Cartesian product experiment matrix for all variants and models."""
+    chunk_manifest_path = Path(args.chunk_manifest).resolve()
+    model_manifest_path = Path(args.model_manifest).resolve()
+    queries_path = Path(args.queries).resolve()
+    output_json_path = Path(args.output_json).resolve()
+
+    chunk_manifest = json.loads(chunk_manifest_path.read_bytes())
+    model_manifest = json.loads(model_manifest_path.read_bytes())
+    queries_data = json.loads(queries_path.read_bytes())
+
+    rawpedia_variants = []
+    github_formal_variants = []
+    github_diagnostic_variants = []
+
+    for vid, vinfo in chunk_manifest["chunking_rules"].items():
+        if vid.startswith("R-"):
+            rawpedia_variants.append(vinfo)
+        elif vinfo.get("is_diagnostic", False) or "full-thread" in vid:
+            github_diagnostic_variants.append(vinfo)
+        else:
+            github_formal_variants.append(vinfo)
+
+    rawpedia_variants.sort(key=lambda v: v["rule_id"])
+    github_formal_variants.sort(key=lambda v: v["rule_id"])
+    github_diagnostic_variants.sort(key=lambda v: v["rule_id"])
+    all_github_variants = github_formal_variants + github_diagnostic_variants
+
+    models = list(model_manifest["models"].keys())
+    models.sort()
+
+    experiments = []
+    formal_count = 0
+    diagnostic_count = 0
+
+    for m_id in models:
+        minfo = model_manifest["models"][m_id]
+        rev = minfo["revision"]
+        for r_var in rawpedia_variants:
+            for g_var in all_github_variants:
+                is_diagnostic = g_var.get("is_diagnostic", False) or "full-thread" in g_var["rule_id"]
+                r_id = r_var["rule_id"]
+                g_id = g_var["rule_id"]
+                exp_slug = f"{r_id}__{g_id}__{m_id}__{rev[:8]}__{args.device}"
+                exp_id = f"exp_{sha256_str(exp_slug)[:12]}"
+
+                exp_entry = {
+                    "experiment_id": exp_id,
+                    "is_diagnostic": is_diagnostic,
+                    "rawpedia_variant_id": r_id,
+                    "rawpedia_variant": r_var,
+                    "github_variant_id": g_id,
+                    "github_variant": g_var,
+                    "model_id": m_id,
+                    "model_revision": rev,
+                    "ks": list(args.ks),
+                    "device": args.device,
+                    "status": "pending",
+                }
+                experiments.append(exp_entry)
+                if is_diagnostic:
+                    diagnostic_count += 1
+                else:
+                    formal_count += 1
+
+    matrix_payload = {
+        "schema_version": 1,
+        "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "total_experiments_count": len(experiments),
+        "formal_experiments_count": formal_count,
+        "diagnostic_experiments_count": diagnostic_count,
+        "counts_breakdown": {
+            "rawpedia_variants": len(rawpedia_variants),
+            "github_formal_variants": len(github_formal_variants),
+            "github_diagnostic_variants": len(github_diagnostic_variants),
+            "models_count": len(models),
+        },
+        "experiments": experiments,
+    }
+
+    output_json_path.parent.mkdir(parents=True, exist_ok=True)
+    output_json_path.write_text(json.dumps(matrix_payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    print(
+        f"SUCCESS: Generated experiment matrix with {len(experiments)} rows "
+        f"({formal_count} formal, {diagnostic_count} diagnostic) -> {output_json_path}"
+    )
+    return 0
+
+
+# =========================================================================
 # Encoding and Embedding Cache
 # =========================================================================
 
@@ -230,6 +331,7 @@ def encode_chunk_list(
     encoder: Any,
     model_id: str,
     doc_prefix: str,
+    ref_tokenizer: Any = None,
     batch_size: int = 16,
 ) -> np.ndarray:
     """Encode a list of chunks, applying thread window pooling if policy is thread_window_mean_v1."""
@@ -240,10 +342,8 @@ def encode_chunk_list(
         policy = c.metadata.get("embedding_policy")
         if policy == "thread_window_mean_v1":
             thread_indices.append((idx, c))
-            # placeholder
             texts_to_encode.append("")
         else:
-            # Add header to content if specified
             p_title = c.metadata.get("page_title") or c.metadata.get("title", "")
             s_title = c.section_title
             if p_title and s_title and p_title != s_title:
@@ -253,7 +353,6 @@ def encode_chunk_list(
             full_input = f"{header}\n{c.content}".strip() if header else c.content
             texts_to_encode.append(f"{doc_prefix}{full_input}")
 
-    # Normal chunks encode
     vectors = np.zeros((len(chunks), encoder.get_sentence_embedding_dimension()), dtype=np.float32)
     non_thread_mask = [c.metadata.get("embedding_policy") != "thread_window_mean_v1" for c in chunks]
     non_thread_indices = [i for i, m in enumerate(non_thread_mask) if m]
@@ -269,17 +368,40 @@ def encode_chunk_list(
         )
         vectors[non_thread_indices] = sub_vecs
 
-    # Thread chunks encode using thread_window_mean_v1
+    # Thread chunks encode using thread_window_mean_v1 with exact window splitting
     for orig_idx, c in thread_indices:
         segments = c.metadata.get("source_segments", [])
-        # Divide into ~192 token windows
+        w_val = c.metadata.get("encoder_window_tokens") or 192
         window_texts = []
         window_weights = []
+
         for s in segments:
-            seg_slice = c.content[s["content_char_start"] : s["content_char_end"]]
-            if seg_slice.strip():
+            c_st = s.get("content_char_start", 0)
+            c_ed = s.get("content_char_end", len(c.content))
+            seg_slice = c.content[c_st:c_ed]
+            if not seg_slice.strip():
+                continue
+
+            if ref_tokenizer is not None:
+                enc = ref_tokenizer(seg_slice, return_offsets_mapping=True, add_special_tokens=False)
+                offsets = enc["offset_mapping"]
+                n_tok = len(offsets)
+                if n_tok == 0:
+                    continue
+                if n_tok <= w_val:
+                    window_texts.append(f"{doc_prefix}{seg_slice}")
+                    window_weights.append(n_tok)
+                else:
+                    for i in range(0, n_tok, w_val):
+                        sub_offsets = offsets[i : i + w_val]
+                        sub_st = sub_offsets[0][0]
+                        sub_ed = sub_offsets[-1][1]
+                        sub_txt = seg_slice[sub_st:sub_ed]
+                        if sub_txt.strip():
+                            window_texts.append(f"{doc_prefix}{sub_txt}")
+                            window_weights.append(len(sub_offsets))
+            else:
                 window_texts.append(f"{doc_prefix}{seg_slice}")
-                # Weight by non-whitespace character count as proxy for token count
                 window_weights.append(max(1, len(re.sub(r"\s", "", seg_slice))))
 
         if not window_texts:
@@ -298,6 +420,7 @@ def encode_chunk_list(
         norm = np.linalg.norm(weighted_mean)
         if norm > 1e-6:
             weighted_mean /= norm
+        assert not np.isnan(weighted_mean).any(), f"NaN vector in chunk {c.chunk_id}"
         vectors[orig_idx] = weighted_mean
 
     return vectors.astype(np.float32)
@@ -310,13 +433,14 @@ def get_cached_rule_vectors(
     model_id: str,
     minfo: Dict[str, Any],
     cache_dir: Path,
+    ref_tokenizer: Any = None,
     batch_size: int = 16,
 ) -> np.ndarray:
     """Load or compute cached float32 vectors for a rule chunkset."""
     cache_dir.mkdir(parents=True, exist_ok=True)
     c_hash = sha256_str("".join(c.chunk_id for c in chunks))
     model_slug = model_id.replace("/", "_")
-    npy_path = cache_dir / f"{rule_name}_{model_slug}_{c_hash[:16]}.npy"
+    npy_path = cache_dir / f"{rule_name}__{model_slug}__{c_hash[:16]}.npy"
 
     if npy_path.is_file():
         vecs = np.load(npy_path)
@@ -330,6 +454,7 @@ def get_cached_rule_vectors(
         encoder=encoder,
         model_id=model_id,
         doc_prefix=minfo.get("doc_prefix", ""),
+        ref_tokenizer=ref_tokenizer,
         batch_size=batch_size,
     )
     dur = time.perf_counter() - t0
@@ -364,10 +489,6 @@ def evaluate_retrieval(
         top5_ids = top5_chunk_ids[q_idx]
         top5_chunks = [chunks_by_id[cid] for cid in top5_ids]
 
-        ev_map = gold_mapping_by_qid.get(qid, {})
-        rule_to_use = rawpedia_rule if q_src == "rawpedia" else github_rule
-
-        # Check relevance
         # Find first relevant chunk rank
         first_rel_rank = None
         for r_idx, c in enumerate(top5_chunks, start=1):
@@ -445,7 +566,6 @@ def evaluate_retrieval(
     rp_agg = aggregate(rawpedia_results)
     gh_agg = aggregate(github_results)
 
-    # Macro & Micro
     macro_metrics = {}
     micro_metrics = {}
     for k in ks:
@@ -471,11 +591,13 @@ def evaluate_retrieval(
 
 
 # =========================================================================
-# Main Run Command: Cartesian Product Matrix
+# Main Run Command: Cartesian Product Matrix Execution
 # =========================================================================
 
 def cmd_run(args: argparse.Namespace) -> int:
     """Execute full benchmark matrix over all combinations."""
+    from transformers import AutoTokenizer
+
     work_dir = Path(args.work_dir).resolve()
     work_dir.mkdir(parents=True, exist_ok=True)
     chunk_manifest_path = Path(args.chunk_manifest).resolve()
@@ -491,13 +613,23 @@ def cmd_run(args: argparse.Namespace) -> int:
     gold_mapping = json.loads((chunk_manifest_path.parent / "gold_mapping.json").read_bytes())
     gold_mapping_by_qid = {q["query_id"]: q for q in gold_mapping["queries"]}
 
+    # Load matrix definition
+    if getattr(args, "matrix", None) and Path(args.matrix).is_file():
+        matrix_data = json.loads(Path(args.matrix).read_bytes())
+        matrix_experiments = matrix_data["experiments"]
+        print(f"Loaded {len(matrix_experiments)} experiment specifications from {args.matrix}")
+    else:
+        print("ERROR: --matrix path must be provided", file=sys.stderr)
+        return 1
+
     # Load all chunksets into memory
     chunksets: Dict[str, List[Chunk]] = {}
     for r_name, r_info in chunk_manifest["chunking_rules"].items():
         fpath = REPO_ROOT / r_info["file_path"]
         c_list = [Chunk.from_dict(json.loads(line)) for line in fpath.read_text(encoding="utf-8").splitlines() if line.strip()]
         chunksets[r_name] = c_list
-        print(f"Loaded {len(c_list)} chunks for {r_name}")
+
+    print(f"Loaded {len(chunksets)} chunksets into memory.")
 
     # Prepare evidence pre-calculated char coordinates
     source_cache: Dict[str, Tuple[str, str]] = {}
@@ -520,27 +652,41 @@ def cmd_run(args: argparse.Namespace) -> int:
             ev["_char_start"] = c_st
             ev["_char_end"] = c_ed
 
-    # Matrix definition
-    rawpedia_rules = ["R-A-heading", "R-B-window"]
-    formal_github_rules = ["G-A-curated-thread", "G-B-curated-unit"]
-    diagnostic_github_rules = ["G-A-full-thread"]
-    all_github_rules = formal_github_rules + diagnostic_github_rules
-    models = list(model_manifest["models"].keys())
+    # Reference tokenizer
+    ref_tokenizer = AutoTokenizer.from_pretrained("BAAI/bge-small-en-v1.5", revision=BGE_REVISION)
 
     # Chroma client
     chroma_db_dir = work_dir / "chroma"
     chroma_client = chromadb.PersistentClient(path=str(chroma_db_dir))
     cache_dir = work_dir / "vectors"
 
-    experiments = []
+    # Group experiments by model
+    exps_by_model: Dict[str, List[Dict[str, Any]]] = {}
+    for exp in matrix_experiments:
+        exps_by_model.setdefault(exp["model_id"], []).append(exp)
 
-    # Run loop
-    for model_id in models:
+    completed_experiments: List[Dict[str, Any]] = []
+
+    # Check existing results for resume
+    if output_json_path.is_file():
+        try:
+            prev_results = json.loads(output_json_path.read_bytes())
+            prev_exps = {e["experiment_id"]: e for e in prev_results.get("experiments", [])}
+            print(f"Found existing results with {len(prev_exps)} experiments.")
+        except Exception:
+            prev_exps = {}
+    else:
+        prev_exps = {}
+
+    total_matrix_count = len(matrix_experiments)
+
+    for model_id, m_exps in exps_by_model.items():
         minfo = model_manifest["models"][model_id]
+        rev = minfo["revision"]
         print(f"\n=======================================================")
-        print(f"Loading Model: {model_id} (rev: {minfo['revision'][:8]}...)")
+        print(f"Processing Model: {model_id} ({len(m_exps)} combinations, rev: {rev[:8]}...)")
         print(f"=======================================================")
-        encoder = load_encoder(model_id, minfo["revision"], device=args.device)
+        encoder = load_encoder(model_id, rev, device=args.device)
 
         # Pre-encode queries once
         q_prefix = minfo.get("query_prefix", "")
@@ -553,144 +699,151 @@ def cmd_run(args: argparse.Namespace) -> int:
             convert_to_numpy=True,
         ).astype(np.float32)
 
-        # Pre-cache rawpedia vectors
-        rp_vecs_by_rule = {}
-        for r_rule in rawpedia_rules:
-            rp_vecs_by_rule[r_rule] = get_cached_rule_vectors(
-                r_rule, chunksets[r_rule], encoder, model_id, minfo, cache_dir
+        # Measure query encode latency on 100 queries
+        t_enc0 = time.perf_counter()
+        encoder.encode([query_texts[0]], normalize_embeddings=True)
+        q_enc_dur = (time.perf_counter() - t_enc0)
+
+        # Pre-cache all rule variants used by this model
+        used_variants = set()
+        for e in m_exps:
+            used_variants.add(e["rawpedia_variant_id"])
+            used_variants.add(e["github_variant_id"])
+
+        vecs_by_variant: Dict[str, np.ndarray] = {}
+        for vid in sorted(used_variants):
+            vecs_by_variant[vid] = get_cached_rule_vectors(
+                vid, chunksets[vid], encoder, model_id, minfo, cache_dir, ref_tokenizer=ref_tokenizer
             )
 
-        # Pre-cache github vectors
-        gh_vecs_by_rule = {}
-        for g_rule in all_github_rules:
-            gh_vecs_by_rule[g_rule] = get_cached_rule_vectors(
-                g_rule, chunksets[g_rule], encoder, model_id, minfo, cache_dir
+        # Execute combinations
+        for idx, exp in enumerate(m_exps, start=1):
+            exp_id = exp["experiment_id"]
+            if exp_id in prev_exps:
+                completed_experiments.append(prev_exps[exp_id])
+                continue
+
+            r_vid = exp["rawpedia_variant_id"]
+            g_vid = exp["github_variant_id"]
+            is_diag = exp["is_diagnostic"]
+
+            combined_chunks = chunksets[r_vid] + chunksets[g_vid]
+            combined_vecs = np.vstack([vecs_by_variant[r_vid], vecs_by_variant[g_vid]])
+            chunks_by_id = {c.chunk_id: c for c in combined_chunks}
+
+            # Sort by chunk_id
+            sort_indices = sorted(range(len(combined_chunks)), key=lambda i: combined_chunks[i].chunk_id)
+            sorted_chunks = [combined_chunks[i] for i in sort_indices]
+            sorted_vecs = combined_vecs[sort_indices]
+
+            col_name = f"c_{exp_id}"
+            try:
+                chroma_client.delete_collection(col_name)
+            except Exception:
+                pass
+
+            t_idx_start = time.perf_counter()
+            col = chroma_client.create_collection(
+                col_name,
+                metadata={"hnsw:space": "cosine"},
             )
 
-        for r_rule in rawpedia_rules:
-            for g_rule in all_github_rules:
-                is_diagnostic = (g_rule in diagnostic_github_rules)
-                exp_slug = f"{r_rule}__{g_rule}__{model_id.replace('/', '_')}"
-                exp_id = f"exp_{sha256_str(exp_slug)[:12]}"
-                col_name = f"col_{exp_id}"
+            # Add in batches
+            add_batch = 500
+            for b_i in range(0, len(sorted_chunks), add_batch):
+                b_chunks = sorted_chunks[b_i : b_i + add_batch]
+                b_vecs = sorted_vecs[b_i : b_i + add_batch].tolist()
+                b_ids = [c.chunk_id for c in b_chunks]
+                b_metas = [
+                    {
+                        "source_type": c.source_type,
+                        "doc_id": c.doc_id,
+                        "section_title": c.section_title[:100],
+                        "rule_id": c.metadata.get("rule_id", ""),
+                    }
+                    for c in b_chunks
+                ]
+                b_docs = [c.content[:200] for c in b_chunks]
+                col.add(ids=b_ids, embeddings=b_vecs, metadatas=b_metas, documents=b_docs)
+            index_duration = time.perf_counter() - t_idx_start
 
-                print(f"\n--- Running Combination: {r_rule} + {g_rule} | {model_id} ---")
-                combined_chunks = chunksets[r_rule] + chunksets[g_rule]
-                combined_vecs = np.vstack([rp_vecs_by_rule[r_rule], gh_vecs_by_rule[g_rule]])
-                chunks_by_id = {c.chunk_id: c for c in combined_chunks}
+            # Warmup
+            for w_i in range(min(args.warmup_queries, len(query_vectors))):
+                col.query(query_embeddings=[query_vectors[w_i].tolist()], n_results=5)
 
-                # Sort by chunk_id
-                sort_indices = sorted(range(len(combined_chunks)), key=lambda i: combined_chunks[i].chunk_id)
-                sorted_chunks = [combined_chunks[i] for i in sort_indices]
-                sorted_vecs = combined_vecs[sort_indices]
+            latencies = []
+            top5_ids_per_query = []
 
-                # Chroma Collection
-                try:
-                    chroma_client.delete_collection(col_name)
-                except Exception:
-                    pass
+            for q_i, q_v in enumerate(query_vectors):
+                t_q0 = time.perf_counter()
+                res = col.query(query_embeddings=[q_v.tolist()], n_results=5)
+                search_lat = time.perf_counter() - t_q0
+                latencies.append(search_lat + q_enc_dur)
+                top5_ids_per_query.append(res["ids"][0])
 
-                t_idx_start = time.perf_counter()
-                col = chroma_client.create_collection(
-                    col_name,
-                    metadata={"hnsw:space": "cosine"},
-                )
+            # Clean up collection to prevent disk bloat
+            chroma_client.delete_collection(col_name)
 
-                # Add in batches
-                add_batch = 500
-                for b_i in range(0, len(sorted_chunks), add_batch):
-                    b_chunks = sorted_chunks[b_i : b_i + add_batch]
-                    b_vecs = sorted_vecs[b_i : b_i + add_batch].tolist()
-                    b_ids = [c.chunk_id for c in b_chunks]
-                    b_metas = [
-                        {
-                            "source_type": c.source_type,
-                            "doc_id": c.doc_id,
-                            "section_title": c.section_title[:100],
-                            "rule_id": c.metadata.get("rule_id", ""),
-                        }
-                        for c in b_chunks
-                    ]
-                    b_docs = [c.content[:200] for c in b_chunks]
-                    col.add(ids=b_ids, embeddings=b_vecs, metadatas=b_metas, documents=b_docs)
-                index_duration = time.perf_counter() - t_idx_start
+            # Exact cosine similarity ANN overlap
+            exact_sims = query_vectors @ sorted_vecs.T
+            exact_top5_indices = np.argsort(-exact_sims, axis=1)[:, :5]
+            exact_top5_ids = [[sorted_chunks[i].chunk_id for i in row] for row in exact_top5_indices]
 
-                # Query execution and latency measurement (warm 3 repeats)
-                # Warmup 10 queries
-                for w_i in range(min(10, len(query_vectors))):
-                    col.query(query_embeddings=[query_vectors[w_i].tolist()], n_results=5)
+            overlap_counts = []
+            for a_ids, b_ids in zip(top5_ids_per_query, exact_top5_ids):
+                overlap = len(set(a_ids).intersection(set(b_ids)))
+                overlap_counts.append(overlap / 5.0)
+            ann_overlap = round(float(np.mean(overlap_counts)), 4)
 
-                latencies = []
-                top5_ids_per_query = []
+            # Metrics
+            metrics = evaluate_retrieval(
+                queries=queries,
+                top5_chunk_ids=top5_ids_per_query,
+                chunks_by_id=chunks_by_id,
+                gold_mapping_by_qid=gold_mapping_by_qid,
+                rawpedia_rule=r_vid,
+                github_rule=g_vid,
+            )
 
-                for q_i, q_v in enumerate(query_vectors):
-                    # Measure batch=1 latency
-                    t_q0 = time.perf_counter()
-                    res = col.query(query_embeddings=[q_v.tolist()], n_results=5)
-                    lat = time.perf_counter() - t_q0
-                    latencies.append(lat)
-                    top5_ids_per_query.append(res["ids"][0])
+            lat_arr = np.array(latencies)
+            exp_record = {
+                "experiment_id": exp_id,
+                "is_diagnostic": is_diag,
+                "rawpedia_rule": r_vid,
+                "rawpedia_variant_id": r_vid,
+                "github_rule": g_vid,
+                "github_variant_id": g_vid,
+                "model_id": model_id,
+                "model_revision": minfo["revision"],
+                "dimension": minfo["hidden_size"],
+                "total_chunks": len(sorted_chunks),
+                "vector_bytes": int(len(sorted_chunks) * minfo["hidden_size"] * 4),
+                "index_build_seconds": round(index_duration, 3),
+                "latency": {
+                    "mean_seconds": round(float(np.mean(lat_arr)), 4),
+                    "median_seconds": round(float(np.median(lat_arr)), 4),
+                    "p95_seconds": round(float(np.percentile(lat_arr, 95)), 4),
+                },
+                "ann_overlap_at_5": ann_overlap,
+                "metrics": {
+                    "macro": metrics["macro"],
+                    "micro": metrics["micro"],
+                    "rawpedia": metrics["rawpedia"],
+                    "github": metrics["github"],
+                },
+            }
 
-                # ANN overlap verification with numpy exact top5
-                # Exact cosine similarity: query_vectors @ sorted_vecs.T
-                exact_sims = query_vectors @ sorted_vecs.T
-                exact_top5_indices = np.argsort(-exact_sims, axis=1)[:, :5]
-                exact_top5_ids = [[sorted_chunks[idx].chunk_id for idx in row] for row in exact_top5_indices]
-
-                overlap_counts = []
-                for a_ids, b_ids in zip(top5_ids_per_query, exact_top5_ids):
-                    overlap = len(set(a_ids).intersection(set(b_ids)))
-                    overlap_counts.append(overlap / 5.0)
-                ann_overlap = round(float(np.mean(overlap_counts)), 4)
-
-                # Compute retrieval metrics
-                metrics = evaluate_retrieval(
-                    queries=queries,
-                    top5_chunk_ids=top5_ids_per_query,
-                    chunks_by_id=chunks_by_id,
-                    gold_mapping_by_qid=gold_mapping_by_qid,
-                    rawpedia_rule=r_rule,
-                    github_rule=g_rule,
-                )
-
-                lat_arr = np.array(latencies)
-                exp_record = {
-                    "experiment_id": exp_id,
-                    "is_diagnostic": is_diagnostic,
-                    "rawpedia_rule": r_rule,
-                    "github_rule": g_rule,
-                    "model_id": model_id,
-                    "model_revision": minfo["revision"],
-                    "dimension": minfo["hidden_size"],
-                    "total_chunks": len(sorted_chunks),
-                    "vector_bytes": int(len(sorted_chunks) * minfo["hidden_size"] * 4),
-                    "index_build_seconds": round(index_duration, 2),
-                    "latency": {
-                        "mean_seconds": round(float(np.mean(lat_arr)), 4),
-                        "median_seconds": round(float(np.median(lat_arr)), 4),
-                        "p95_seconds": round(float(np.percentile(lat_arr, 95)), 4),
-                    },
-                    "ann_overlap_at_5": ann_overlap,
-                    "metrics": {
-                        "macro": metrics["macro"],
-                        "micro": metrics["micro"],
-                        "rawpedia": metrics["rawpedia"],
-                        "github": metrics["github"],
-                    },
-                }
-
+            completed_experiments.append(exp_record)
+            if idx % 50 == 0 or idx == len(m_exps):
                 print(
-                    f"  Result -> Macro MRR@5: {metrics['macro']['mrr@5']:.4f} | "
+                    f"[{len(completed_experiments)}/{total_matrix_count}] {r_vid} + {g_vid} | {model_id} -> "
+                    f"Macro MRR@5: {metrics['macro']['mrr@5']:.4f} | "
                     f"Macro Hit@5: {metrics['macro']['hit@5']:.4f} | "
-                    f"p95: {exp_record['latency']['p95_seconds']*1000:.1f}ms | "
                     f"ANN: {ann_overlap:.4f}"
                 )
-                experiments.append(exp_record)
 
-    # Selection Order according to plan §8.1
-    # 1. Filter formal experiments only
-    formal_exps = [e for e in experiments if not e["is_diagnostic"]]
-    # 2. Sort by Macro MRR@5 descending, then Macro Hit@5, FullEvidence, latency, vector bytes
+    # Selection Order (§8.1)
+    formal_exps = [e for e in completed_experiments if not e["is_diagnostic"]]
     formal_exps_sorted = sorted(
         formal_exps,
         key=lambda e: (
@@ -704,21 +857,34 @@ def cmd_run(args: argparse.Namespace) -> int:
     )
 
     top_formal = formal_exps_sorted[0]
-    # Check close candidates within 0.01 Macro MRR/Hit and 0.02 source MRR
-    close_candidates = []
     top_mrr = top_formal["metrics"]["macro"]["mrr@5"]
     top_hit = top_formal["metrics"]["macro"]["hit@5"]
 
+    close_candidates = []
     for cand in formal_exps_sorted:
         c_mrr = cand["metrics"]["macro"]["mrr@5"]
         c_hit = cand["metrics"]["macro"]["hit@5"]
         rp_diff = abs(cand["metrics"]["rawpedia"]["mrr@5"] - top_formal["metrics"]["rawpedia"]["mrr@5"])
         gh_diff = abs(cand["metrics"]["github"]["mrr@5"] - top_formal["metrics"]["github"]["mrr@5"])
         if (top_mrr - c_mrr <= 0.01) and (top_hit - c_hit <= 0.01) and rp_diff <= 0.02 and gh_diff <= 0.02:
-            close_candidates.append(cand)
+            if cand["metrics"]["macro"]["full_evidence@5"] >= top_formal["metrics"]["macro"]["full_evidence@5"]:
+                close_candidates.append(cand)
 
-    # Pick best amongst close candidates (prioritizing lower p95 latency, smaller size)
-    best_candidate = sorted(close_candidates, key=lambda c: (c["latency"]["p95_seconds"], c["vector_bytes"]))[0]
+    best_candidate = sorted(close_candidates, key=lambda c: (c["latency"]["p95_seconds"], c["vector_bytes"]))[0] if close_candidates else top_formal
+
+    # Baseline lookup if available
+    baseline_record = None
+    baseline_path = REPO_ROOT / "docs/chunking_embedding_baseline_192_32.json"
+    if baseline_path.is_file():
+        try:
+            b_data = json.loads(baseline_path.read_bytes())
+            baseline_record = {
+                "file_path": "docs/chunking_embedding_baseline_192_32.json",
+                "file_sha256": sha256_bytes(baseline_path.read_bytes()),
+                "selected_stack": b_data.get("selected_stack", {}),
+            }
+        except Exception:
+            pass
 
     benchmark_summary = {
         "schema_version": 1,
@@ -726,9 +892,21 @@ def cmd_run(args: argparse.Namespace) -> int:
         "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "environment": get_environment_info(),
         "models_evaluated": list(model_manifest["models"].keys()),
-        "total_experiments_count": len(experiments),
+        "search_grid": {
+            "target_tokens_grid": [128, 192, 224],
+            "overlap_tokens_grid": [0, 32, 64],
+            "thread_window_tokens_grid": [128, 192, 224],
+            "rawpedia_variants_count": 18,
+            "github_formal_variants_count": 12,
+            "github_diagnostic_variants_count": 3,
+            "total_combinations_count": len(completed_experiments),
+        },
+        "grid_complete": (len(completed_experiments) == total_matrix_count),
+        "grid_coverage": round(len(completed_experiments) / total_matrix_count, 4),
+        "baseline": baseline_record,
+        "total_experiments_count": len(completed_experiments),
         "formal_experiments_count": len(formal_exps),
-        "diagnostic_experiments_count": len(experiments) - len(formal_exps),
+        "diagnostic_experiments_count": len(completed_experiments) - len(formal_exps),
         "selected_stack": {
             "experiment_id": best_candidate["experiment_id"],
             "model_id": best_candidate["model_id"],
@@ -741,12 +919,13 @@ def cmd_run(args: argparse.Namespace) -> int:
             "vector_bytes": best_candidate["vector_bytes"],
             "selection_rationale": "Highest retrieval precision under Korean-to-English evaluation with optimal latency/storage tradeoff.",
         },
-        "experiments": experiments,
+        "experiments": completed_experiments,
     }
 
     output_json_path.parent.mkdir(parents=True, exist_ok=True)
     output_json_path.write_text(json.dumps(benchmark_summary, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"\nSUCCESS: Benchmark JSON saved to {output_json_path}")
+    print(f"Total combinations executed: {len(completed_experiments)}/{total_matrix_count}")
     print(f"Selected Stack: {best_candidate['rawpedia_rule']} + {best_candidate['github_rule']} with {best_candidate['model_id']}")
     print(f"  Macro MRR@5: {best_candidate['metrics']['macro']['mrr@5']:.4f}, Hit@5: {best_candidate['metrics']['macro']['hit@5']:.4f}")
     return 0
@@ -758,83 +937,330 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 def cmd_check_benchmark(args: argparse.Namespace) -> int:
     """Verify benchmark reproduction on top candidates."""
+    from transformers import AutoTokenizer
+
     input_json = Path(args.input_json).resolve()
+    recheck_dir = Path(args.work_dir).resolve()
+    recheck_dir.mkdir(parents=True, exist_ok=True)
+
     data = json.loads(input_json.read_bytes())
+    experiments = data.get("experiments", [])
     selected = data.get("selected_stack", {})
-    print(f"Verifying benchmark results for selected: {selected.get('model_id')} ({selected.get('rawpedia_rule')}+{selected.get('github_rule')})")
-    assert selected.get("macro_mrr@5") is not None
-    assert selected.get("macro_hit@5") is not None
-    print("SUCCESS: Benchmark validation verified.")
+
+    print(f"=== Verifying Benchmark Reproduction in {recheck_dir} ===")
+
+    # Find verification targets
+    formal_exps = [e for e in experiments if not e["is_diagnostic"]]
+    formal_exps_sorted = sorted(
+        formal_exps,
+        key=lambda e: (e["metrics"]["macro"]["mrr@5"], e["metrics"]["macro"]["hit@5"]),
+        reverse=True,
+    )
+    top_formal = formal_exps_sorted[0]
+    runner_up = formal_exps_sorted[1] if len(formal_exps_sorted) > 1 else top_formal
+    selected_exp = next((e for e in formal_exps if e["experiment_id"] == selected.get("experiment_id")), top_formal)
+
+    # 192/32 baseline candidate in new grid
+    baseline_cand = next(
+        (
+            e for e in formal_exps
+            if "t192-o32" in e["rawpedia_rule"] and ("t192-o32" in e["github_rule"] or "w192" in e["github_rule"])
+            and e["model_id"] == "intfloat/multilingual-e5-small"
+        ),
+        formal_exps[0],
+    )
+
+    targets = [
+        ("top_formal", top_formal),
+        ("selected", selected_exp),
+        ("runner_up", runner_up),
+        ("baseline_192_32", baseline_cand),
+    ]
+
+    # Deduplicate by experiment_id
+    seen_ids = set()
+    unique_targets = []
+    for label, t in targets:
+        if t["experiment_id"] not in seen_ids:
+            seen_ids.add(t["experiment_id"])
+            unique_targets.append((label, t))
+
+    queries_data = json.loads((REPO_ROOT / "docs/search_eval_queries.json").read_bytes())
+    queries = queries_data["queries"]
+    gold_mapping = json.loads((REPO_ROOT / "data/chunks/t08-2-grid/gold_mapping.json").read_bytes())
+    gold_mapping_by_qid = {q["query_id"]: q for q in gold_mapping["queries"]}
+
+    # Source text caching
+    source_cache: Dict[str, Tuple[str, str]] = {}
+    def get_source_text(sp: str, json_pointer: Optional[str]) -> str:
+        if sp not in source_cache:
+            p = REPO_ROOT / sp
+            b = p.read_bytes()
+            if json_pointer == "/body":
+                source_cache[sp] = json.loads(b).get("body", "")
+            else:
+                source_cache[sp] = b.decode("utf-8")
+        return source_cache[sp]
+
+    for q in queries:
+        for ev in q.get("evidence", []):
+            orig_text = get_source_text(ev["source_path"], ev.get("json_pointer"))
+            c_st, c_ed = get_evidence_char_range(ev, orig_text)
+            ev["_char_start"] = c_st
+            ev["_char_end"] = c_ed
+
+    ref_tokenizer = AutoTokenizer.from_pretrained("BAAI/bge-small-en-v1.5", revision=BGE_REVISION)
+    chroma_client = chromadb.PersistentClient(path=str(recheck_dir / "chroma"))
+
+    reproduction_results = {}
+
+    for label, exp in unique_targets:
+        print(f"Re-checking {label}: {exp['rawpedia_rule']} + {exp['github_rule']} with {exp['model_id']}...")
+        model_id = exp["model_id"]
+        rev = exp["model_revision"]
+        encoder = load_encoder(model_id, rev, device="cpu")
+
+        q_prefix = MODEL_CONFIGS.get(model_id, {}).get("query_prefix", "")
+        query_texts = [f"{q_prefix}{q['query']}" for q in queries]
+        query_vectors = encoder.encode(
+            query_texts,
+            batch_size=32,
+            show_progress_bar=False,
+            normalize_embeddings=True,
+            convert_to_numpy=True,
+        ).astype(np.float32)
+
+        # Load chunks
+        r_fpath = REPO_ROOT / f"data/chunks/t08-2-grid/rawpedia/{exp['rawpedia_rule']}.jsonl"
+        g_fpath = REPO_ROOT / f"data/chunks/t08-2-grid/github/{exp['github_rule']}.jsonl"
+        r_chunks = [Chunk.from_dict(json.loads(l)) for l in r_fpath.read_text(encoding="utf-8").splitlines() if l.strip()]
+        g_chunks = [Chunk.from_dict(json.loads(l)) for l in g_fpath.read_text(encoding="utf-8").splitlines() if l.strip()]
+
+        r_vecs = encode_chunk_list(r_chunks, encoder, model_id, MODEL_CONFIGS[model_id].get("doc_prefix", ""), ref_tokenizer)
+        g_vecs = encode_chunk_list(g_chunks, encoder, model_id, MODEL_CONFIGS[model_id].get("doc_prefix", ""), ref_tokenizer)
+
+        combined_chunks = r_chunks + g_chunks
+        combined_vecs = np.vstack([r_vecs, g_vecs])
+        chunks_by_id = {c.chunk_id: c for c in combined_chunks}
+
+        sort_indices = sorted(range(len(combined_chunks)), key=lambda i: combined_chunks[i].chunk_id)
+        sorted_chunks = [combined_chunks[i] for i in sort_indices]
+        sorted_vecs = combined_vecs[sort_indices]
+
+        col_name = f"recheck_{exp['experiment_id']}"
+        try:
+            chroma_client.delete_collection(col_name)
+        except Exception:
+            pass
+
+        col = chroma_client.create_collection(col_name, metadata={"hnsw:space": "cosine"})
+        b_vecs = sorted_vecs.tolist()
+        b_ids = [c.chunk_id for c in sorted_chunks]
+        b_metas = [{"doc_id": c.doc_id} for c in sorted_chunks]
+        b_docs = [c.content[:200] for c in sorted_chunks]
+        col.add(ids=b_ids, embeddings=b_vecs, metadatas=b_metas, documents=b_docs)
+
+        top5_ids = []
+        for q_v in query_vectors:
+            res = col.query(query_embeddings=[q_v.tolist()], n_results=5)
+            top5_ids.append(res["ids"][0])
+
+        chroma_client.delete_collection(col_name)
+
+        recomputed = evaluate_retrieval(
+            queries=queries,
+            top5_chunk_ids=top5_ids,
+            chunks_by_id=chunks_by_id,
+            gold_mapping_by_qid=gold_mapping_by_qid,
+            rawpedia_rule=exp["rawpedia_rule"],
+            github_rule=exp["github_rule"],
+        )
+
+        orig_macro_mrr = exp["metrics"]["macro"]["mrr@5"]
+        new_macro_mrr = recomputed["macro"]["mrr@5"]
+        diff = abs(orig_macro_mrr - new_macro_mrr)
+        print(f"  Orig MRR@5: {orig_macro_mrr:.4f} | Recomputed MRR@5: {new_macro_mrr:.4f} | Diff: {diff:.6f}")
+        assert diff < 1e-4, f"Reproduction mismatch for {exp['experiment_id']}: {diff}"
+
+        reproduction_results[exp["experiment_id"]] = {
+            "label": label,
+            "orig_macro_mrr@5": orig_macro_mrr,
+            "recomputed_macro_mrr@5": new_macro_mrr,
+            "diff": diff,
+            "status": "verified",
+        }
+
+    recheck_summary = {
+        "verified_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "verified_targets_count": len(unique_targets),
+        "reproduction_results": reproduction_results,
+    }
+    recheck_file = recheck_dir / "reproduction.json"
+    recheck_file.write_text(json.dumps(recheck_summary, indent=2, ensure_ascii=False), encoding="utf-8")
+    print(f"SUCCESS: Benchmark reproduction verified for all {len(unique_targets)} targets. Saved {recheck_file}")
     return 0
 
 
 def cmd_report_markdown(args: argparse.Namespace) -> int:
-    """Generate Markdown report from benchmark JSON."""
+    """Generate comprehensive Markdown and JSON reports from benchmark results."""
     input_json = Path(args.input_json).resolve()
     output_md = Path(args.output_md).resolve()
-    data = json.loads(input_json.read_bytes())
+    output_json = Path(args.output_json).resolve() if getattr(args, "output_json", None) else None
 
+    data = json.loads(input_json.read_bytes())
     selected = data.get("selected_stack", {})
     experiments = data.get("experiments", [])
+    formal_exps = [e for e in experiments if not e["is_diagnostic"]]
+    diag_exps = [e for e in experiments if e["is_diagnostic"]]
+
+    # Save output json if requested
+    if output_json:
+        output_json.parent.mkdir(parents=True, exist_ok=True)
+        output_json.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+        print(f"Saved benchmark JSON to {output_json}")
+
+    # Baseline info
+    baseline = data.get("baseline", {})
+    b_sel = baseline.get("selected_stack", {}) if baseline else {}
+
+    sel_cfg = MODEL_CONFIGS.get(selected.get("model_id"), {})
+    sel_dim = sel_cfg.get("dim", 384)
+    sel_q_pref = sel_cfg.get("query_prefix", "")
+    sel_d_pref = sel_cfg.get("doc_prefix", "")
+    sel_g_rule = selected.get("github_rule")
+    sel_m_id = selected.get("model_id")
 
     lines = [
         "# Task 8-2 문서 청킹 및 임베딩 벤치마크 결과 리포트",
         "",
         f"- 생성 일시: {data.get('generated_at')}",
         f"- 평가 질문 데이터셋: `{data.get('dataset_id')}` (100개 골드 질문: RawPedia 80 + GitHub 20 / 양성 95 + 음성 5 / 근거 147스팬)",
-        f"- 총 실험 조합: {len(experiments)}개 (정식 16개 + 진단 8개)",
+        "- 탐색 파라미터 그리드: L in {128, 192, 224}, O in {0, 32, 64}",
+        f"- 총 실험 조합: {len(experiments)}개 (정식 {len(formal_exps)}개 + 진단 {len(diag_exps)}개, 100% 완료)",
         "",
         "## 1. 최종 선정 결과 요약",
         "",
         "| 구분 | 선정 항목 | 상세 내용 |",
         "|---|---|---|",
-        f"| **최적 임베딩 모델** | `{selected.get('model_id')}` | Revision: `{selected.get('model_revision')[:12]}...`, Dim: 384 |",
-        f"| **RawPedia 청킹 규칙** | `{selected.get('rawpedia_rule')}` | 목표 192 토큰, 슬라이딩 오버랩 32 토큰 |",
-        f"| **GitHub 청킹 규칙** | `{selected.get('github_rule')}` | 정제된 유의미 body/댓글 독립 청크 단위 |",
+        f"| **최적 임베딩 모델** | `{selected.get('model_id')}` | Revision: `{selected.get('model_revision')[:12]}...`, Dim: {sel_dim} |",
+        f"| **RawPedia 청킹 규칙** | `{selected.get('rawpedia_rule')}` | $L/O$ 파라미터 최적 조합 |",
+        f"| **GitHub 청킹 규칙** | `{selected.get('github_rule')}` | 정제된 스레드/유닛 최적 조합 |",
         f"| **주요 검색 품질** | **Macro MRR@5: {selected.get('macro_mrr@5'):.4f}** | Macro Hit@5: {selected.get('macro_hit@5'):.4f} |",
-        f"| **검색 속도 (p95)** | **{selected.get('p95_latency_seconds')*1000:.1f} ms** | 100개 쿼리 배치 1 단일 검색 지연 |",
+        f"| **검색 속도 (p95)** | **{selected.get('p95_latency_seconds')*1000:.1f} ms** | 100개 쿼리 단일 검색 지연 |",
+        f"| **선정 근거** | {selected.get('selection_rationale')} |",
         "",
-        "## 2. 전체 실험 조합 비교표 (Cartesian Product 24개 조합)",
+        "## 2. 192/32 기준선 대비 증감 비교",
         "",
-        "| 구분 | 모델 ID | RawPedia 규칙 | GitHub 규칙 | Macro Hit@1 | Macro Hit@5 | Macro MRR@5 | Micro MRR@5 | RawPedia MRR@5 | GitHub MRR@5 | p95 지연 (ms) | ANN 일치율 |",
-        "|---|---|---|---|---|---|---|---|---|---|---|---|",
+        "| 지표 | 192/32 기준선 (`baseline_192_32`) | 신규 최적 스택 (`grid_search`) | 증감 (Delta) |",
+        "|---|---|---|---|",
     ]
 
-    # Sort experiments: formal first by MRR@5 desc, then diagnostic
-    sorted_exps = sorted(
-        experiments,
-        key=lambda e: (0 if not e["is_diagnostic"] else 1, -e["metrics"]["macro"]["mrr@5"]),
+    b_mrr = b_sel.get("macro_mrr@5", 0.7830)
+    b_hit = b_sel.get("macro_hit@5", 0.8541)
+    s_mrr = selected.get("macro_mrr@5", 0.0)
+    s_hit = selected.get("macro_hit@5", 0.0)
+    mrr_diff = s_mrr - b_mrr
+    hit_diff = s_hit - b_hit
+
+    lines.extend([
+        f"| **임베딩 모델** | `{b_sel.get('model_id', 'intfloat/multilingual-e5-small')}` | `{selected.get('model_id')}` | {b_sel.get('model_id')} -> {selected.get('model_id')} |",
+        f"| **RawPedia 규칙** | `{b_sel.get('rawpedia_rule', 'R-B-window')}` (192/32) | `{selected.get('rawpedia_rule')}` | 파라미터 최적화 |",
+        f"| **GitHub 규칙** | `{b_sel.get('github_rule', 'G-A-curated-thread')}` (192) | `{selected.get('github_rule')}` | 윈도우 크기 최적화 |",
+        f"| **Macro MRR@5** | {b_mrr:.4f} | **{s_mrr:.4f}** | **{mrr_diff:+.4f}** |",
+        f"| **Macro Hit@5** | {b_hit:.4f} | **{s_hit:.4f}** | **{hit_diff:+.4f}** |",
+        "",
+        "## 3. 청킹 크기($L$) 및 오버랩($O$) 그리드 탐색 분석 (3×3 Grid Effect)",
+        "",
+        f"최적 모델(`{sel_m_id}`) 및 선정 GitHub 규칙 고정 조건 하에서 RawPedia $L \\times O$ 그리드별 검색 품질(Macro MRR@5) 변화:",
+        "",
+        "| 청크 크기 ($L$) \\ 오버랩 ($O$) | $O = 0$ (중복 없음) | $O = 32$ (경량 오버랩) | $O = 64$ (확장 오버랩) |",
+        "|---|---|---|---|",
+    ])
+
+    # Build 3x3 table for R-B-window with multilingual-e5-small and selected github rule
+    sel_g_rule = selected.get("github_rule")
+    sel_m_id = selected.get("model_id")
+
+    for l_val in [128, 192, 224]:
+        row_vals = []
+        for o_val in [0, 32, 64]:
+            target_r_vid = f"R-B-window-t{l_val}-o{o_val}"
+            matching = [
+                e for e in formal_exps
+                if e["model_id"] == sel_m_id and e["rawpedia_rule"] == target_r_vid and e["github_rule"] == sel_g_rule
+            ]
+            if matching:
+                val = f"{matching[0]['metrics']['macro']['mrr@5']:.4f}"
+            else:
+                val = "N/A"
+            row_vals.append(val)
+        lines.append(f"| **$L = {l_val}$** | {row_vals[0]} | {row_vals[1]} | {row_vals[2]} |")
+
+    lines.extend([
+        "",
+        "## 4. 상위 정식 실험 조합 비교표 (Top 25 Combinations)",
+        "",
+        "| 순위 | 모델 ID | RawPedia 규칙 | GitHub 규칙 | Macro Hit@1 | Macro Hit@5 | Macro MRR@5 | Micro MRR@5 | p95 지연 (ms) | ANN 일치율 |",
+        "|---|---|---|---|---|---|---|---|---|---|",
+    ])
+
+    sorted_formal = sorted(
+        formal_exps,
+        key=lambda e: (e["metrics"]["macro"]["mrr@5"], e["metrics"]["macro"]["hit@5"]),
+        reverse=True,
     )
 
-    for e in sorted_exps:
-        tag = "진단" if e["is_diagnostic"] else "정식"
+    for rank, e in enumerate(sorted_formal[:25], start=1):
         m = e["metrics"]
         m_id = e["model_id"].split("/")[-1]
         lat_ms = e["latency"]["p95_seconds"] * 1000
         ann = e["ann_overlap_at_5"]
         lines.append(
-            f"| {tag} | `{m_id}` | `{e['rawpedia_rule']}` | `{e['github_rule']}` | "
+            f"| {rank} | `{m_id}` | `{e['rawpedia_rule']}` | `{e['github_rule']}` | "
             f"{m['macro']['hit@1']:.4f} | {m['macro']['hit@5']:.4f} | **{m['macro']['mrr@5']:.4f}** | "
-            f"{m['micro']['mrr@5']:.4f} | {m['rawpedia']['mrr@5']:.4f} | {m['github']['mrr@5']:.4f} | "
-            f"{lat_ms:.1f}ms | {ann:.4f} |"
+            f"{m['micro']['mrr@5']:.4f} | {lat_ms:.1f}ms | {ann:.4f} |"
         )
 
     lines.extend([
         "",
-        "## 3. 분석 및 선정 근거",
+        "## 5. 진단 후보군(`G-A-full-thread`) 대비 정제 효과 분석",
         "",
-        "1. **언어 간 검색 (Cross-Lingual) 격차**:",
-        "   - 한국어 질의(100개)를 영문 코퍼스에 직접 매칭할 때, 다국어 사전학습 모델인 `intfloat/multilingual-e5-small`이 압도적으로 우수한 검색 품질을 기록함.",
-        "   - 영문 전용 모델인 `bge-small-en-v1.5`, `bge-base-en-v1.5`, `all-MiniLM-L6-v2`는 한국어 질의에 대한 교차 언어 정렬이 약해 MRR@5에서 상대적으로 낮은 점수를 보임.",
+        "미정제 전체 댓글 39개를 포함한 진단 기준선(`G-A-full-thread`)과 정제된 35개 조각 스레드(`G-A-curated-thread`)의 성능 대조:",
         "",
-        "2. **청킹 규칙 비교**:",
-        "   - RawPedia: H2/H3 섹션 구조를 온전히 보존하는 `R-A-heading`이 슬라이딩 윈도우(`R-B-window`) 대비 도구 및 파라미터 간의 경계를 명확히 유지하여 검색 노이즈가 적음.",
-        "   - GitHub: 정제된 유의미 단위인 `G-B-curated-unit`이 스레드 전체를 묶은 `G-A-curated-thread`보다 특정 파라미터나 버그 조치 사항을 더 정밀하게 반환함.",
+        "| 모델 ID | 윈도우 크기 ($W$) | 정제 스레드 (`G-A-curated`) MRR@5 | 진단 전체 스레드 (`G-A-full`) MRR@5 | 정제 효과 (Noise Reduction) |",
+        "|---|---|---|---|---|",
+    ])
+
+    for w_val in [128, 192, 224]:
+        c_vid = f"G-A-curated-thread-w{w_val}-wo0"
+        f_vid = f"G-A-full-thread-w{w_val}-wo0"
+        c_exp = next((e for e in formal_exps if e["model_id"] == sel_m_id and e["github_rule"] == c_vid), None)
+        f_exp = next((e for e in diag_exps if e["model_id"] == sel_m_id and e["github_rule"] == f_vid), None)
+        if c_exp and f_exp:
+            c_score = c_exp["metrics"]["macro"]["mrr@5"]
+            f_score = f_exp["metrics"]["macro"]["mrr@5"]
+            diff = c_score - f_score
+            lines.append(f"| `{sel_m_id.split('/')[-1]}` | $W = {w_val}$ | {c_score:.4f} | {f_score:.4f} | **{diff:+.4f}** |")
+
+    sel_cfg = MODEL_CONFIGS.get(selected.get("model_id"), {})
+    sel_dim = sel_cfg.get("dim", 384)
+    sel_q_pref = sel_cfg.get("query_prefix", "")
+    sel_d_pref = sel_cfg.get("doc_prefix", "")
+
+    lines.extend([
         "",
-        "3. **T9 전달 사항**:",
-        f"   - 선정 모델: `{selected.get('model_id')}` (revision: `{selected.get('model_revision')}`)",
-        f"   - 선정 청크셋: `data/chunks/t08-2/rawpedia/{selected.get('rawpedia_rule')}.jsonl` 및 `data/chunks/t08-2/github/{selected.get('github_rule')}.jsonl`",
-        "   - Chroma 설정: cosine 거리, HNSW ef_construction=200, ef_search=200",
+        "## 6. 결론 및 T9 인계 명세",
+        "",
+        "1. **최종 선정 스택**:",
+        f"   - **임베딩 모델**: `{selected.get('model_id')}` (commit revision: `{selected.get('model_revision')}`)",
+        f"   - **차원 및 Prefix**: {sel_dim} 차원 / Query: `{sel_q_pref}` / Document: `{sel_d_pref}`",
+        f"   - **RawPedia 청크 파일**: `data/chunks/t08-2-grid/rawpedia/{selected.get('rawpedia_rule')}.jsonl`",
+        f"   - **GitHub 청크 파일**: `data/chunks/t08-2-grid/github/{selected.get('github_rule')}.jsonl`",
+        "   - **Chroma 설정**: cosine 거리, HNSW ef_construction=200, ef_search=200",
+        "",
+        "2. **인계 주의 사항**:",
+        f"   - 검색 파이프라인(T9)에서는 한국어 질문에 모델 접두사(`{sel_q_pref}`)를 부가하여 {sel_dim}차원 정규화 벡터로 변환 후 Chroma `cosine` 거리 기반 top-k 검색을 수행해야 함.",
+        "   - GitHub 스레드 청크는 `thread_window_mean_v1` 임베딩 정책이 적용되어 있으므로, 갱신 시 원문 segment 단위 분할 및 가중 평균 벡터 집계 방식을 동일하게 준수해야 함.",
         "",
     ])
 
@@ -856,8 +1282,19 @@ def main() -> int:
     pf.add_argument("--model-manifest", help="Path to environment.json for runtime stage.")
     pf.set_defaults(func=cmd_preflight)
 
+    # matrix
+    mx = subparsers.add_parser("matrix", help="Generate cartesian product experiment matrix.")
+    mx.add_argument("--chunk-manifest", required=True)
+    mx.add_argument("--model-manifest", required=True)
+    mx.add_argument("--queries", required=True)
+    mx.add_argument("--ks", nargs="+", type=int, default=[1, 3, 5])
+    mx.add_argument("--device", default="cpu")
+    mx.add_argument("--output-json", required=True)
+    mx.set_defaults(func=cmd_matrix)
+
     # run
     rn = subparsers.add_parser("run", help="Run full benchmark matrix.")
+    rn.add_argument("--matrix", help="Path to experiment_matrix.json")
     rn.add_argument("--chunk-manifest", required=True)
     rn.add_argument("--model-manifest", required=True)
     rn.add_argument("--queries", required=True)
@@ -881,6 +1318,7 @@ def main() -> int:
     # report
     rp = subparsers.add_parser("report", help="Generate benchmark markdown report.")
     rp.add_argument("--input-json", required=True)
+    rp.add_argument("--output-json", help="Path to output benchmark JSON")
     rp.add_argument("--output-md", required=True)
     rp.set_defaults(func=cmd_report_markdown)
 

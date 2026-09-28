@@ -280,7 +280,32 @@ def cmd_prepare(args: argparse.Namespace) -> int:
         print(f"ERROR: Evidence count mismatch: total={total_evidence} (support={support_count}, counter={counter_count})", file=sys.stderr)
         return 1
 
-    # 4. Save data/chunks/t08-2/manifest.json
+    # 4. Preserve 192/32 baseline benchmark files if provided
+    baseline_record = {}
+    if getattr(args, "baseline_md", None):
+        base_md_in = Path(args.baseline_md).resolve()
+        preserved_md = REPO_ROOT / "docs/chunking_embedding_baseline_192_32.md"
+        if base_md_in.is_file():
+            if not preserved_md.is_file():
+                preserved_md.write_bytes(base_md_in.read_bytes())
+            md_sha = sha256_bytes(preserved_md.read_bytes())
+            baseline_record["markdown"] = {
+                "source_path": "docs/chunking_embedding_baseline_192_32.md",
+                "file_sha256": md_sha,
+            }
+    if getattr(args, "baseline_json", None):
+        base_json_in = Path(args.baseline_json).resolve()
+        preserved_json = REPO_ROOT / "docs/chunking_embedding_baseline_192_32.json"
+        if base_json_in.is_file():
+            if not preserved_json.is_file():
+                preserved_json.write_bytes(base_json_in.read_bytes())
+            json_sha = sha256_bytes(preserved_json.read_bytes())
+            baseline_record["json"] = {
+                "source_path": "docs/chunking_embedding_baseline_192_32.json",
+                "file_sha256": json_sha,
+            }
+
+    # 5. Save manifest.json in output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = output_dir / "manifest.json"
 
@@ -293,6 +318,7 @@ def cmd_prepare(args: argparse.Namespace) -> int:
         "execution_head": get_current_git_head(),
         "prepared_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "input_fingerprints": actual_fingerprints,
+        "baseline_files": baseline_record,
         "counts": {
             "rawpedia_files": 116,
             "github_candidates": 12,
@@ -323,6 +349,8 @@ def cmd_prepare(args: argparse.Namespace) -> int:
     print(f"SUCCESS: Frozen input manifest written to: {manifest_path}")
     print(f"  RawPedia files: 116 | GitHub candidates: 12 (curated: 35, comments: 39)")
     print(f"  Queries: 100 (95 positive, 5 negative) | Evidence spans: 147 (142 support, 5 counter)")
+    if baseline_record:
+        print(f"  Preserved baseline records: {list(baseline_record.keys())}")
     return 0
 
 
@@ -331,11 +359,12 @@ def execute_chunking_build(
     model_manifest_path: Path,
     rawpedia_rules: List[str],
     github_rules: List[str],
-    target_tokens: int,
-    overlap_tokens: int,
+    target_tokens_grid: List[int],
+    overlap_tokens_grid: List[int],
+    thread_window_tokens_grid: List[int],
     target_dir: Path,
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-    """Core logic to build chunks and compute gold mapping."""
+    """Core logic to build chunks and compute gold mapping across the full parameter grid."""
     from transformers import AutoTokenizer
     from src.artagent.chunking import (
         TokenizerBundle,
@@ -387,74 +416,93 @@ def execute_chunking_build(
     inv = load_sources(github_dir)
     threads_by_key = {t.record_key: t for t in inv.threads}
 
-    chunks_by_rule: Dict[str, List[Chunk]] = {}
+    chunks_by_variant: Dict[str, List[Chunk]] = {}
     rule_manifest: Dict[str, Any] = {}
 
-    # Build RawPedia rules
+    # Build RawPedia rules across (L, O) grid: 2 rules * 3 L * 3 O = 18 variants
     for r_rule in rawpedia_rules:
-        print(f"Building chunks for {r_rule}...")
-        rule_chunks: List[Chunk] = []
-        for rf in rawpedia_files:
-            rel_p = rf.relative_to(REPO_ROOT).as_posix()
-            info = rawpedia_info[rel_p]
-            doc_id = info["doc_id"]
-            page_url = info["page_url"]
-            b = rf.read_bytes()
-            if r_rule == "R-A-heading":
-                c_list = chunk_rawpedia_heading_rule(
-                    rel_p, b, doc_id, page_url, tokenizer_bundle, target_tokens, overlap_tokens
-                )
-            elif r_rule == "R-B-window":
-                c_list = chunk_rawpedia_window_rule(
-                    rel_p, b, doc_id, page_url, tokenizer_bundle, target_tokens, overlap_tokens
-                )
-            else:
-                raise ValueError(f"Unknown RawPedia rule {r_rule}")
+        for l_val in target_tokens_grid:
+            for o_val in overlap_tokens_grid:
+                variant_id = f"{r_rule}-t{l_val}-o{o_val}"
+                print(f"Building chunks for {variant_id}...")
+                rule_chunks: List[Chunk] = []
+                for rf in rawpedia_files:
+                    rel_p = rf.relative_to(REPO_ROOT).as_posix()
+                    info = rawpedia_info[rel_p]
+                    doc_id = info["doc_id"]
+                    page_url = info["page_url"]
+                    b = rf.read_bytes()
+                    if r_rule == "R-A-heading":
+                        c_list = chunk_rawpedia_heading_rule(
+                            rel_p, b, doc_id, page_url, tokenizer_bundle, l_val, o_val
+                        )
+                    elif r_rule == "R-B-window":
+                        c_list = chunk_rawpedia_window_rule(
+                            rel_p, b, doc_id, page_url, tokenizer_bundle, l_val, o_val
+                        )
+                    else:
+                        raise ValueError(f"Unknown RawPedia rule {r_rule}")
 
-            for c in c_list:
-                validate_chunk_provenance(c, get_source_text)
-            rule_chunks.extend(c_list)
+                    for c in c_list:
+                        validate_chunk_provenance(c, get_source_text)
+                    rule_chunks.extend(c_list)
 
-        chunks_by_rule[r_rule] = rule_chunks
+                chunks_by_variant[variant_id] = rule_chunks
 
     # Build GitHub rules
-    for g_rule in github_rules:
-        print(f"Building chunks for {g_rule}...")
-        rule_chunks = []
-        for cand in candidates:
-            if g_rule == "G-B-curated-unit":
-                c_list = chunk_github_curated_unit_rule(
-                    cand, github_dir, tokenizer_bundle, target_tokens, overlap_tokens
-                )
-                for c in c_list:
-                    validate_chunk_provenance(c, get_source_text)
-                rule_chunks.extend(c_list)
-            elif g_rule == "G-A-curated-thread":
+    # G-B-curated-unit across (L, O) grid: 3 L * 3 O = 9 variants
+    if "G-B-curated-unit" in github_rules:
+        for l_val in target_tokens_grid:
+            for o_val in overlap_tokens_grid:
+                variant_id = f"G-B-curated-unit-t{l_val}-o{o_val}"
+                print(f"Building chunks for {variant_id}...")
+                rule_chunks = []
+                for cand in candidates:
+                    c_list = chunk_github_curated_unit_rule(
+                        cand, github_dir, tokenizer_bundle, l_val, o_val
+                    )
+                    for c in c_list:
+                        validate_chunk_provenance(c, get_source_text)
+                    rule_chunks.extend(c_list)
+                chunks_by_variant[variant_id] = rule_chunks
+
+    # G-A-curated-thread across thread_window_tokens_grid: 3 variants
+    if "G-A-curated-thread" in github_rules:
+        for w_val in thread_window_tokens_grid:
+            variant_id = f"G-A-curated-thread-w{w_val}-wo0"
+            print(f"Building chunks for {variant_id}...")
+            rule_chunks = []
+            for cand in candidates:
                 c_th = chunk_github_thread_rule(
-                    cand, github_dir, tokenizer_bundle, curated_only=True, target_tokens=target_tokens
+                    cand, github_dir, tokenizer_bundle, curated_only=True, target_tokens=w_val
                 )
                 validate_chunk_provenance(c_th, get_source_text)
                 rule_chunks.append(c_th)
-            elif g_rule == "G-A-full-thread":
+            chunks_by_variant[variant_id] = rule_chunks
+
+    # G-A-full-thread across thread_window_tokens_grid: 3 diagnostic variants
+    if "G-A-full-thread" in github_rules:
+        for w_val in thread_window_tokens_grid:
+            variant_id = f"G-A-full-thread-w{w_val}-wo0"
+            print(f"Building chunks for {variant_id}...")
+            rule_chunks = []
+            for cand in candidates:
                 th_obj = threads_by_key[cand["source_record_key"]]
                 c_th = chunk_github_thread_rule(
-                    cand, github_dir, tokenizer_bundle, curated_only=False, thread_obj=th_obj, target_tokens=target_tokens
+                    cand, github_dir, tokenizer_bundle, curated_only=False, thread_obj=th_obj, target_tokens=w_val
                 )
                 validate_chunk_provenance(c_th, get_source_text)
                 rule_chunks.append(c_th)
-            else:
-                raise ValueError(f"Unknown GitHub rule {g_rule}")
-
-        chunks_by_rule[g_rule] = rule_chunks
+            chunks_by_variant[variant_id] = rule_chunks
 
     # 5. Save JSONL files and write metadata
-    for rule_name, c_list in chunks_by_rule.items():
-        if rule_name.startswith("R-"):
+    for variant_id, c_list in chunks_by_variant.items():
+        if variant_id.startswith("R-"):
             out_subdir = target_dir / "rawpedia"
         else:
             out_subdir = target_dir / "github"
         out_subdir.mkdir(parents=True, exist_ok=True)
-        jsonl_path = out_subdir / f"{rule_name}.jsonl"
+        jsonl_path = out_subdir / f"{variant_id}.jsonl"
 
         lines = [json.dumps(c.to_dict(), ensure_ascii=False) for c in c_list]
         file_bytes = ("\n".join(lines) + "\n").encode("utf-8")
@@ -464,18 +512,24 @@ def execute_chunking_build(
             rel_file_path = jsonl_path.relative_to(REPO_ROOT).as_posix()
         except ValueError:
             rel_file_path = str(jsonl_path)
-        rule_manifest[rule_name] = {
-            "rule_id": rule_name,
+
+        first_c = c_list[0] if c_list else None
+        rule_manifest[variant_id] = {
+            "rule_id": variant_id,
+            "rule_family": first_c.metadata.get("rule_family") if first_c else "",
             "chunk_count": len(c_list),
             "file_path": rel_file_path,
             "file_sha256": file_sha,
-            "target_tokens": target_tokens,
-            "overlap_tokens": overlap_tokens,
+            "target_tokens": first_c.metadata.get("target_tokens") if first_c else None,
+            "overlap_tokens": first_c.metadata.get("overlap_tokens") if first_c else None,
+            "encoder_window_tokens": first_c.metadata.get("encoder_window_tokens") if first_c else None,
+            "encoder_overlap_tokens": first_c.metadata.get("encoder_overlap_tokens") if first_c else None,
+            "is_diagnostic": "full-thread" in variant_id,
         }
-        print(f"  {rule_name}: {len(c_list)} chunks -> {jsonl_path} ({file_sha[:12]}...)")
+        print(f"  {variant_id}: {len(c_list)} chunks -> {jsonl_path} ({file_sha[:12]}...)")
 
     # 6. Generate gold_mapping.json
-    print("Generating gold mapping against all rules...")
+    print("Generating gold mapping against all 33 variants...")
     queries_data = json.loads((REPO_ROOT / "docs/search_eval_queries.json").read_bytes())
     queries = queries_data["queries"]
 
@@ -526,11 +580,10 @@ def execute_chunking_build(
                 "rules": {},
             }
 
-            # Map across each rule
-            for rule_name, c_list in chunks_by_rule.items():
-                # Check if rule matches source type
-                if (rule_name.startswith("R-") and q_src_type != "rawpedia") or (
-                    rule_name.startswith("G-") and q_src_type != "github"
+            # Map across each variant
+            for variant_id, c_list in chunks_by_variant.items():
+                if (variant_id.startswith("R-") and q_src_type != "rawpedia") or (
+                    variant_id.startswith("G-") and q_src_type != "github"
                 ):
                     continue
 
@@ -544,14 +597,13 @@ def execute_chunking_build(
                         })
 
                 union_cov = calculate_evidence_chunks_union_coverage(ev, c_list, ev_char_range)
-                ev_item["rules"][rule_name] = {
+                ev_item["rules"][variant_id] = {
                     "union_coverage": round(union_cov, 4),
                     "relevant_chunks": relevant_chunks,
                 }
-                # Sanity: union coverage must be 1.0 (all evidence covered)
                 if round(union_cov, 2) < 0.99:
                     print(
-                        f"WARNING: Incomplete union coverage {union_cov} for query {qid} under {rule_name}",
+                        f"WARNING: Incomplete union coverage {union_cov} for query {qid} under {variant_id}",
                         file=sys.stderr,
                     )
 
@@ -576,27 +628,41 @@ def execute_chunking_build(
 
 
 def cmd_build(args: argparse.Namespace) -> int:
-    """Build chunk datasets and gold mapping."""
+    """Build chunk datasets across the parameter grid and gold mapping."""
     manifest_path = Path(args.manifest).resolve()
     model_manifest_path = Path(args.model_manifest).resolve()
     target_dir = manifest_path.parent
+
+    target_tokens_grid = list(getattr(args, "target_tokens_grid", [128, 192, 224]))
+    overlap_tokens_grid = list(getattr(args, "overlap_tokens_grid", [0, 32, 64]))
+    thread_window_tokens_grid = list(getattr(args, "thread_window_tokens_grid", [128, 192, 224]))
 
     rule_manifest, _ = execute_chunking_build(
         manifest_path=manifest_path,
         model_manifest_path=model_manifest_path,
         rawpedia_rules=args.rawpedia_rules,
         github_rules=args.github_rules,
-        target_tokens=args.target_tokens,
-        overlap_tokens=args.overlap_tokens,
+        target_tokens_grid=target_tokens_grid,
+        overlap_tokens_grid=overlap_tokens_grid,
+        thread_window_tokens_grid=thread_window_tokens_grid,
         target_dir=target_dir,
     )
 
     # Update manifest.json
     manifest_data = json.loads(manifest_path.read_bytes())
     manifest_data["chunking_rules"] = rule_manifest
+    manifest_data["search_grid"] = {
+        "target_tokens_grid": target_tokens_grid,
+        "overlap_tokens_grid": overlap_tokens_grid,
+        "thread_window_tokens_grid": thread_window_tokens_grid,
+        "rawpedia_variants_count": len([k for k in rule_manifest if k.startswith("R-")]),
+        "github_formal_variants_count": len([k for k in rule_manifest if k.startswith("G-") and not rule_manifest[k]["is_diagnostic"]]),
+        "github_diagnostic_variants_count": len([k for k in rule_manifest if rule_manifest[k]["is_diagnostic"]]),
+        "total_variants_count": len(rule_manifest),
+    }
     manifest_data["built_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
     manifest_path.write_bytes(json.dumps(manifest_data, indent=2, ensure_ascii=False).encode("utf-8"))
-    print(f"SUCCESS: Updated chunk manifest at {manifest_path}")
+    print(f"SUCCESS: Updated chunk manifest with {len(rule_manifest)} variants at {manifest_path}")
     return 0
 
 
@@ -644,17 +710,25 @@ def cmd_check(args: argparse.Namespace) -> int:
     # 3. Optional regeneration verification
     if args.verify_regeneration:
         import tempfile
-        print("Verifying deterministic regeneration in temporary directory...")
+        print("Verifying deterministic regeneration across all 33 variants in temporary directory...")
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_target = Path(tmpdir)
-            model_manifest_path = REPO_ROOT / "data/embedding-benchmark/t08-2/run-001/environment.json"
+            grid_info = manifest_data.get("search_grid", {})
+            t_grid = grid_info.get("target_tokens_grid", [128, 192, 224])
+            o_grid = grid_info.get("overlap_tokens_grid", [0, 32, 64])
+            w_grid = grid_info.get("thread_window_tokens_grid", [128, 192, 224])
+            model_manifest_path = REPO_ROOT / "data/embedding-benchmark/t08-2/grid-001/environment.json"
+            if not model_manifest_path.is_file():
+                model_manifest_path = REPO_ROOT / "data/embedding-benchmark/t08-2/run-001/environment.json"
+
             regen_manifest, _ = execute_chunking_build(
                 manifest_path=manifest_path,
                 model_manifest_path=model_manifest_path,
                 rawpedia_rules=["R-A-heading", "R-B-window"],
                 github_rules=["G-A-full-thread", "G-A-curated-thread", "G-B-curated-unit"],
-                target_tokens=192,
-                overlap_tokens=32,
+                target_tokens_grid=t_grid,
+                overlap_tokens_grid=o_grid,
+                thread_window_tokens_grid=w_grid,
                 target_dir=tmp_target,
             )
             for r_name, r_info in rules_info.items():
@@ -683,23 +757,26 @@ def main() -> int:
     prep.add_argument("--github-dir", default="data/issues", help="Path to data/issues directory.")
     prep.add_argument("--source-manifest", default="docs/search_eval_source_manifest.json", help="Path to source manifest.")
     prep.add_argument("--queries", default="docs/search_eval_queries.json", help="Path to evaluation queries.")
-    prep.add_argument("--output-dir", default="data/chunks/t08-2", help="Output directory for chunks and manifest.")
+    prep.add_argument("--baseline-md", default="docs/chunking_embedding_benchmark.md", help="Path to baseline markdown.")
+    prep.add_argument("--baseline-json", default="docs/chunking_embedding_benchmark.json", help="Path to baseline json.")
+    prep.add_argument("--output-dir", default="data/chunks/t08-2-grid", help="Output directory for chunks and manifest.")
     prep.set_defaults(func=cmd_prepare)
 
     # build subcommand
-    bld = subparsers.add_parser("build", help="Build chunk candidates.")
+    bld = subparsers.add_parser("build", help="Build chunk candidates across grid.")
     bld.add_argument("--manifest", required=True, help="Path to chunk manifest.")
     bld.add_argument("--model-manifest", required=True, help="Path to environment.json.")
     bld.add_argument("--rawpedia-rules", nargs="+", default=["R-A-heading", "R-B-window"], help="RawPedia chunking rules.")
     bld.add_argument("--github-rules", nargs="+", default=["G-A-full-thread", "G-A-curated-thread", "G-B-curated-unit"], help="GitHub chunking rules.")
-    bld.add_argument("--target-tokens", type=int, default=192, help="Target reference tokens.")
-    bld.add_argument("--overlap-tokens", type=int, default=32, help="Overlap reference tokens.")
+    bld.add_argument("--target-tokens-grid", nargs="+", type=int, default=[128, 192, 224], help="Target reference tokens grid.")
+    bld.add_argument("--overlap-tokens-grid", nargs="+", type=int, default=[0, 32, 64], help="Overlap reference tokens grid.")
+    bld.add_argument("--thread-window-tokens-grid", nargs="+", type=int, default=[128, 192, 224], help="Thread window reference tokens grid.")
     bld.set_defaults(func=cmd_build)
 
     # check subcommand
     chk = subparsers.add_parser("check", help="Verify generated chunks and regeneration.")
     chk.add_argument("--manifest", required=True, help="Path to chunk manifest.")
-    chk.add_argument("--queries", required=True, help="Path to evaluation queries.")
+    chk.add_argument("--queries", default="docs/search_eval_queries.json", help="Path to evaluation queries.")
     chk.add_argument("--verify-regeneration", action="store_true", help="Verify byte-for-byte regeneration.")
     chk.set_defaults(func=cmd_check)
 

@@ -111,6 +111,138 @@ class SourceSegment:
 
 
 @dataclass
+class ChunkingVariant:
+    """Descriptor for a specific parameter instantiation of a chunking rule."""
+
+    rule_family: str
+    variant_id: str
+    target_tokens: Optional[int]
+    overlap_tokens: Optional[int]
+    encoder_window_tokens: Optional[int]
+    encoder_overlap_tokens: Optional[int]
+    fingerprint: str
+    source_type: str
+    is_diagnostic: bool = False
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "rule_family": self.rule_family,
+            "variant_id": self.variant_id,
+            "target_tokens": self.target_tokens,
+            "overlap_tokens": self.overlap_tokens,
+            "encoder_window_tokens": self.encoder_window_tokens,
+            "encoder_overlap_tokens": self.encoder_overlap_tokens,
+            "fingerprint": self.fingerprint,
+            "source_type": self.source_type,
+            "is_diagnostic": self.is_diagnostic,
+        }
+
+
+def enumerate_chunking_variants(
+    target_tokens_grid: Tuple[int, ...] = (128, 192, 224),
+    overlap_tokens_grid: Tuple[int, ...] = (0, 32, 64),
+    thread_window_tokens_grid: Tuple[int, ...] = (128, 192, 224),
+) -> List[ChunkingVariant]:
+    """Enumerate all 33 chunking variants (18 RawPedia + 12 formal GitHub + 3 diagnostic GitHub)."""
+    variants: List[ChunkingVariant] = []
+
+    # 1. RawPedia R-A-heading: 9 variants
+    for t in target_tokens_grid:
+        for o in overlap_tokens_grid:
+            vid = f"R-A-heading-t{t}-o{o}"
+            fp = f"{vid}:{BGE_REVISION}"
+            variants.append(
+                ChunkingVariant(
+                    rule_family="R-A-heading",
+                    variant_id=vid,
+                    target_tokens=t,
+                    overlap_tokens=o,
+                    encoder_window_tokens=None,
+                    encoder_overlap_tokens=None,
+                    fingerprint=fp,
+                    source_type="rawpedia",
+                    is_diagnostic=False,
+                )
+            )
+
+    # 2. RawPedia R-B-window: 9 variants
+    for t in target_tokens_grid:
+        for o in overlap_tokens_grid:
+            vid = f"R-B-window-t{t}-o{o}"
+            fp = f"{vid}:{BGE_REVISION}"
+            variants.append(
+                ChunkingVariant(
+                    rule_family="R-B-window",
+                    variant_id=vid,
+                    target_tokens=t,
+                    overlap_tokens=o,
+                    encoder_window_tokens=None,
+                    encoder_overlap_tokens=None,
+                    fingerprint=fp,
+                    source_type="rawpedia",
+                    is_diagnostic=False,
+                )
+            )
+
+    # 3. GitHub G-B-curated-unit: 9 variants
+    for t in target_tokens_grid:
+        for o in overlap_tokens_grid:
+            vid = f"G-B-curated-unit-t{t}-o{o}"
+            fp = f"{vid}:{BGE_REVISION}"
+            variants.append(
+                ChunkingVariant(
+                    rule_family="G-B-curated-unit",
+                    variant_id=vid,
+                    target_tokens=t,
+                    overlap_tokens=o,
+                    encoder_window_tokens=None,
+                    encoder_overlap_tokens=None,
+                    fingerprint=fp,
+                    source_type="github",
+                    is_diagnostic=False,
+                )
+            )
+
+    # 4. GitHub G-A-curated-thread: 3 variants
+    for w in thread_window_tokens_grid:
+        vid = f"G-A-curated-thread-w{w}-wo0"
+        fp = f"{vid}:{BGE_REVISION}"
+        variants.append(
+            ChunkingVariant(
+                rule_family="G-A-curated-thread",
+                variant_id=vid,
+                target_tokens=None,
+                overlap_tokens=None,
+                encoder_window_tokens=w,
+                encoder_overlap_tokens=0,
+                fingerprint=fp,
+                source_type="github",
+                is_diagnostic=False,
+            )
+        )
+
+    # 5. GitHub G-A-full-thread: 3 diagnostic variants
+    for w in thread_window_tokens_grid:
+        vid = f"G-A-full-thread-w{w}-wo0"
+        fp = f"{vid}:{BGE_REVISION}"
+        variants.append(
+            ChunkingVariant(
+                rule_family="G-A-full-thread",
+                variant_id=vid,
+                target_tokens=None,
+                overlap_tokens=None,
+                encoder_window_tokens=w,
+                encoder_overlap_tokens=0,
+                fingerprint=fp,
+                source_type="github",
+                is_diagnostic=True,
+            )
+        )
+
+    return variants
+
+
+@dataclass
 class Chunk:
     """Single retrieval chunk representation."""
 
@@ -559,6 +691,22 @@ def split_text_by_sentences(text: str) -> List[Tuple[int, int, str]]:
     return parts
 
 
+def compute_actual_overlap_tokens(
+    text: str,
+    prev_range: Optional[Tuple[int, int]],
+    curr_range: Tuple[int, int],
+    tokenizer_bundle: TokenizerBundle,
+) -> int:
+    """Compute number of reference tokens in overlap between previous and current chunk."""
+    if prev_range is None:
+        return 0
+    st = max(prev_range[0], curr_range[0])
+    ed = min(prev_range[1], curr_range[1])
+    if ed <= st:
+        return 0
+    return tokenizer_bundle.count_ref_tokens(text[st:ed])
+
+
 def chunk_rawpedia_heading_rule(
     file_path: str,
     raw_bytes: bytes,
@@ -568,12 +716,13 @@ def chunk_rawpedia_heading_rule(
     target_tokens: int = 192,
     overlap_tokens: int = 32,
 ) -> List[Chunk]:
-    """Generate chunks under rule R-A-heading."""
+    """Generate chunks under rule R-A-heading with (target_tokens, overlap_tokens) grid support."""
     text = raw_bytes.decode("utf-8")
     file_sha = sha256_bytes(raw_bytes)
     page_title, _, fm_end, sections = parse_rawpedia_markdown_sections(text)
-    rule_id = "R-A-heading"
-    rule_fingerprint = f"{rule_id}:t{target_tokens}:o{overlap_tokens}:{BGE_REVISION}"
+    rule_family = "R-A-heading"
+    rule_id = f"{rule_family}-t{target_tokens}-o{overlap_tokens}"
+    rule_fingerprint = f"{rule_id}:{BGE_REVISION}"
 
     chunks: List[Chunk] = []
 
@@ -582,6 +731,7 @@ def chunk_rawpedia_heading_rule(
         if not sec_text.strip():
             continue
         sec_tokens = tokenizer_bundle.count_ref_tokens(sec_text)
+        last_sec_range: Optional[Tuple[int, int]] = None
 
         if sec_tokens <= target_tokens:
             # Entire section fits in one chunk
@@ -589,6 +739,9 @@ def chunk_rawpedia_heading_rule(
             c_end = sec.char_end
             b_start = len(text[:c_start].encode("utf-8"))
             b_end = len(text[:c_end].encode("utf-8"))
+            actual_toks = sec_tokens
+            actual_overlap_toks = 0  # Section start: no overlap across section boundary
+
             seg = SourceSegment(
                 doc_id=doc_id,
                 source_path=file_path,
@@ -613,8 +766,15 @@ def chunk_rawpedia_heading_rule(
             )
             meta = {
                 "schema_version": 1,
+                "rule_family": rule_family,
                 "rule_id": rule_id,
                 "rule_fingerprint": rule_fingerprint,
+                "target_tokens": target_tokens,
+                "overlap_tokens": overlap_tokens,
+                "encoder_window_tokens": None,
+                "encoder_overlap_tokens": None,
+                "actual_tokens": actual_toks,
+                "actual_overlap_tokens": actual_overlap_toks,
                 "content_sha256": sha256_str(sec_text),
                 "source_group_id": doc_id,
                 "product_scope": "rawtherapee_reference",
@@ -681,6 +841,12 @@ def chunk_rawpedia_heading_rule(
                         c_end = sec.char_start + win_start_rel + sub_ed
                         b_start = len(text[:c_start].encode("utf-8"))
                         b_end = len(text[:c_end].encode("utf-8"))
+                        actual_toks = tokenizer_bundle.count_ref_tokens(sub_slice)
+                        actual_overlap_toks = compute_actual_overlap_tokens(
+                            text, last_sec_range, (c_start, c_end), tokenizer_bundle
+                        )
+                        last_sec_range = (c_start, c_end)
+
                         seg = SourceSegment(
                             doc_id=doc_id,
                             source_path=file_path,
@@ -705,8 +871,15 @@ def chunk_rawpedia_heading_rule(
                         )
                         meta = {
                             "schema_version": 1,
+                            "rule_family": rule_family,
                             "rule_id": rule_id,
                             "rule_fingerprint": rule_fingerprint,
+                            "target_tokens": target_tokens,
+                            "overlap_tokens": overlap_tokens,
+                            "encoder_window_tokens": None,
+                            "encoder_overlap_tokens": None,
+                            "actual_tokens": actual_toks,
+                            "actual_overlap_tokens": actual_overlap_toks,
                             "content_sha256": sha256_str(sub_slice),
                             "source_group_id": doc_id,
                             "product_scope": "rawtherapee_reference",
@@ -732,7 +905,10 @@ def chunk_rawpedia_heading_rule(
                         )
                         if t_end >= len(offsets):
                             break
-                        t_idx = max(t_idx + 1, t_end - overlap_tokens)
+                        if overlap_tokens == 0:
+                            t_idx = t_end
+                        else:
+                            t_idx = max(t_idx + 1, t_end - overlap_tokens)
                     sent_idx += 1
                     continue
 
@@ -740,6 +916,12 @@ def chunk_rawpedia_heading_rule(
                 c_end = sec.char_start + win_end_rel
                 b_start = len(text[:c_start].encode("utf-8"))
                 b_end = len(text[:c_end].encode("utf-8"))
+                actual_toks = tokenizer_bundle.count_ref_tokens(combined)
+                actual_overlap_toks = compute_actual_overlap_tokens(
+                    text, last_sec_range, (c_start, c_end), tokenizer_bundle
+                )
+                last_sec_range = (c_start, c_end)
+
                 seg = SourceSegment(
                     doc_id=doc_id,
                     source_path=file_path,
@@ -764,8 +946,15 @@ def chunk_rawpedia_heading_rule(
                 )
                 meta = {
                     "schema_version": 1,
+                    "rule_family": rule_family,
                     "rule_id": rule_id,
                     "rule_fingerprint": rule_fingerprint,
+                    "target_tokens": target_tokens,
+                    "overlap_tokens": overlap_tokens,
+                    "encoder_window_tokens": None,
+                    "encoder_overlap_tokens": None,
+                    "actual_tokens": actual_toks,
+                    "actual_overlap_tokens": actual_overlap_toks,
                     "content_sha256": sha256_str(combined),
                     "source_group_id": doc_id,
                     "product_scope": "rawtherapee_reference",
@@ -793,15 +982,21 @@ def chunk_rawpedia_heading_rule(
                 if idx >= num_sents:
                     break
                 # Overlap within section
-                overlap_accum = 0
-                back_idx = idx - 1
-                while back_idx > sent_idx:
-                    s_tok = tokenizer_bundle.count_ref_tokens(sec_sentences[back_idx][2])
-                    if overlap_accum + s_tok > overlap_tokens:
-                        break
-                    overlap_accum += s_tok
-                    back_idx -= 1
-                sent_idx = max(sent_idx + 1, back_idx + 1)
+                if overlap_tokens == 0:
+                    sent_idx = idx
+                else:
+                    overlap_accum = 0
+                    back_idx = idx - 1
+                    while back_idx > sent_idx:
+                        s_tok = tokenizer_bundle.count_ref_tokens(sec_sentences[back_idx][2])
+                        if overlap_accum + s_tok > overlap_tokens:
+                            break
+                        overlap_accum += s_tok
+                        back_idx -= 1
+                    if back_idx == idx - 1 and overlap_accum == 0 and (idx - 1 > sent_idx):
+                        sent_idx = idx - 1
+                    else:
+                        sent_idx = max(sent_idx + 1, back_idx + 1)
 
     return chunks
 
@@ -819,8 +1014,9 @@ def chunk_rawpedia_window_rule(
     text = raw_bytes.decode("utf-8")
     file_sha = sha256_bytes(raw_bytes)
     page_title, body_text, fm_end, sections = parse_rawpedia_markdown_sections(text)
-    rule_id = "R-B-window"
-    rule_fingerprint = f"{rule_id}:t{target_tokens}:o{overlap_tokens}:{BGE_REVISION}"
+    rule_family = "R-B-window"
+    rule_id = f"{rule_family}-t{target_tokens}-o{overlap_tokens}"
+    rule_fingerprint = f"{rule_id}:{BGE_REVISION}"
 
     sentences = split_text_by_sentences(body_text)
     if not sentences:
@@ -829,6 +1025,7 @@ def chunk_rawpedia_window_rule(
     chunks: List[Chunk] = []
     sent_idx = 0
     num_sents = len(sentences)
+    last_window_range: Optional[Tuple[int, int]] = None
 
     def find_section_title(char_pos: int) -> Tuple[str, List[str]]:
         for sec in sections:
@@ -856,10 +1053,101 @@ def chunk_rawpedia_window_rule(
         window_end_rel = cur_sents[-1][1]
         chunk_content = body_text[window_start_rel:window_end_rel]
 
+        # Check if single sentence exceeds target_tokens
+        if len(cur_sents) == 1 and token_count > target_tokens:
+            offsets = tokenizer_bundle.get_token_offsets(chunk_content)
+            t_idx = 0
+            while t_idx < len(offsets):
+                t_end = min(t_idx + target_tokens, len(offsets))
+                sub_st = offsets[t_idx][0]
+                sub_ed = offsets[t_end - 1][1]
+                sub_slice = chunk_content[sub_st:sub_ed]
+
+                c_start = fm_end + window_start_rel + sub_st
+                c_end = fm_end + window_start_rel + sub_ed
+                b_start = len(text[:c_start].encode("utf-8"))
+                b_end = len(text[:c_end].encode("utf-8"))
+                actual_toks = tokenizer_bundle.count_ref_tokens(sub_slice)
+                actual_overlap_toks = compute_actual_overlap_tokens(
+                    text, last_window_range, (c_start, c_end), tokenizer_bundle
+                )
+                last_window_range = (c_start, c_end)
+
+                sec_title, sec_path = find_section_title(c_start)
+                seg = SourceSegment(
+                    doc_id=doc_id,
+                    source_path=file_path,
+                    source_file_sha256=file_sha,
+                    json_pointer=None,
+                    char_start=c_start,
+                    char_end=c_end,
+                    byte_start=b_start,
+                    byte_end=b_end,
+                    content_char_start=0,
+                    content_char_end=len(sub_slice),
+                    target_url=target_url,
+                    segment_sha256=sha256_str(sub_slice),
+                )
+                cid = compute_chunk_id(
+                    CHUNK_SCHEMA_VERSION,
+                    rule_fingerprint,
+                    "rawpedia",
+                    doc_id,
+                    [seg],
+                    sha256_str(sub_slice),
+                )
+                meta = {
+                    "schema_version": 1,
+                    "rule_family": rule_family,
+                    "rule_id": rule_id,
+                    "rule_fingerprint": rule_fingerprint,
+                    "target_tokens": target_tokens,
+                    "overlap_tokens": overlap_tokens,
+                    "encoder_window_tokens": None,
+                    "encoder_overlap_tokens": None,
+                    "actual_tokens": actual_toks,
+                    "actual_overlap_tokens": actual_overlap_toks,
+                    "content_sha256": sha256_str(sub_slice),
+                    "source_group_id": doc_id,
+                    "product_scope": "rawtherapee_reference",
+                    "range_basis": "source_file",
+                    "section_kind": "window",
+                    "section_path": sec_path,
+                    "page_title": page_title,
+                    "target_url": target_url,
+                    "source_path": file_path,
+                    "source_file_sha256": file_sha,
+                    "source_segments": [seg.to_dict()],
+                }
+                chunks.append(
+                    Chunk(
+                        chunk_id=cid,
+                        source_type="rawpedia",
+                        doc_id=doc_id,
+                        section_title=sec_title,
+                        content=sub_slice,
+                        char_range=(c_start, c_end),
+                        metadata=meta,
+                    )
+                )
+                if t_end >= len(offsets):
+                    break
+                if overlap_tokens == 0:
+                    t_idx = t_end
+                else:
+                    t_idx = max(t_idx + 1, t_end - overlap_tokens)
+            sent_idx += 1
+            continue
+
         c_start = fm_end + window_start_rel
         c_end = fm_end + window_end_rel
         b_start = len(text[:c_start].encode("utf-8"))
         b_end = len(text[:c_end].encode("utf-8"))
+        actual_toks = tokenizer_bundle.count_ref_tokens(chunk_content)
+        actual_overlap_toks = compute_actual_overlap_tokens(
+            text, last_window_range, (c_start, c_end), tokenizer_bundle
+        )
+        last_window_range = (c_start, c_end)
 
         sec_title, sec_path = find_section_title(c_start)
 
@@ -888,8 +1176,15 @@ def chunk_rawpedia_window_rule(
         )
         meta = {
             "schema_version": 1,
+            "rule_family": rule_family,
             "rule_id": rule_id,
             "rule_fingerprint": rule_fingerprint,
+            "target_tokens": target_tokens,
+            "overlap_tokens": overlap_tokens,
+            "encoder_window_tokens": None,
+            "encoder_overlap_tokens": None,
+            "actual_tokens": actual_toks,
+            "actual_overlap_tokens": actual_overlap_toks,
             "content_sha256": sha256_str(chunk_content),
             "source_group_id": doc_id,
             "product_scope": "rawtherapee_reference",
@@ -916,20 +1211,24 @@ def chunk_rawpedia_window_rule(
         )
 
         # Advance sent_idx with overlap
-        # Calculate overlap sentence count from the end
         if curr_idx >= num_sents:
             break
-        overlap_accum = 0
-        back_idx = curr_idx - 1
-        while back_idx > sent_idx:
-            s_tok = tokenizer_bundle.count_ref_tokens(sentences[back_idx][2])
-            if overlap_accum + s_tok > overlap_tokens:
-                break
-            overlap_accum += s_tok
-            back_idx -= 1
+        if overlap_tokens == 0:
+            sent_idx = curr_idx
+        else:
+            overlap_accum = 0
+            back_idx = curr_idx - 1
+            while back_idx > sent_idx:
+                s_tok = tokenizer_bundle.count_ref_tokens(sentences[back_idx][2])
+                if overlap_accum + s_tok > overlap_tokens:
+                    break
+                overlap_accum += s_tok
+                back_idx -= 1
 
-        next_idx = max(sent_idx + 1, back_idx + 1)
-        sent_idx = next_idx
+            if back_idx == curr_idx - 1 and overlap_accum == 0 and (curr_idx - 1 > sent_idx):
+                sent_idx = curr_idx - 1
+            else:
+                sent_idx = max(sent_idx + 1, back_idx + 1)
 
     return chunks
 
@@ -945,9 +1244,10 @@ def chunk_github_curated_unit_rule(
     target_tokens: int = 192,
     overlap_tokens: int = 32,
 ) -> List[Chunk]:
-    """Generate chunks under rule G-B-curated-unit (each curated slice as independent chunk)."""
-    rule_id = "G-B-curated-unit"
-    rule_fingerprint = f"{rule_id}:t{target_tokens}:o{overlap_tokens}:{BGE_REVISION}"
+    """Generate chunks under rule G-B-curated-unit with (target_tokens, overlap_tokens) grid support."""
+    rule_family = "G-B-curated-unit"
+    rule_id = f"{rule_family}-t{target_tokens}-o{overlap_tokens}"
+    rule_fingerprint = f"{rule_id}:{BGE_REVISION}"
     candidate_id = candidate["candidate_id"]
     chunks: List[Chunk] = []
 
@@ -976,63 +1276,282 @@ def chunk_github_curated_unit_rule(
 
         b_start = len(body[:c_start].encode("utf-8"))
         b_end = len(body[:c_end].encode("utf-8"))
+        slice_tokens = tokenizer_bundle.count_ref_tokens(slice_text)
 
-        seg = SourceSegment(
-            doc_id=ref_id,
-            source_path=f"data/issues/{rel_snap}",
-            source_file_sha256=file_sha,
-            json_pointer="/body",
-            char_start=c_start,
-            char_end=c_end,
-            byte_start=b_start,
-            byte_end=b_end,
-            content_char_start=0,
-            content_char_end=len(slice_text),
-            target_url=loc.get("url", candidate["url"]),
-            segment_sha256=sha256_str(slice_text),
-            ref_id=ref_id,
-            body_sha256=body_sha,
-            curated_content_index=idx,
-            source_role=c_slice.get("source_role", loc.get("source_kind")),
-            curated=True,
-        )
+        if slice_tokens <= target_tokens:
+            actual_toks = slice_tokens
+            actual_overlap_toks = 0
 
-        cid = compute_chunk_id(
-            CHUNK_SCHEMA_VERSION,
-            rule_fingerprint,
-            "github",
-            ref_id,
-            [seg],
-            sha256_str(slice_text),
-        )
-        meta = {
-            "schema_version": 1,
-            "rule_id": rule_id,
-            "rule_fingerprint": rule_fingerprint,
-            "content_sha256": sha256_str(slice_text),
-            "source_group_id": candidate_id,
-            "candidate_id": candidate_id,
-            "source_kind": loc.get("source_kind"),
-            "product_scope": "art_snapshot",
-            "range_basis": "json_body",
-            "section_kind": "json_pointer",
-            "section_path": ["body"],
-            "title": candidate.get("title", ""),
-            "target_url": loc.get("url", candidate["url"]),
-            "source_segments": [seg.to_dict()],
-        }
-
-        chunks.append(
-            Chunk(
-                chunk_id=cid,
-                source_type="github",
+            seg = SourceSegment(
                 doc_id=ref_id,
-                section_title="/body",
-                content=slice_text,
-                char_range=(c_start, c_end),
-                metadata=meta,
+                source_path=f"data/issues/{rel_snap}",
+                source_file_sha256=file_sha,
+                json_pointer="/body",
+                char_start=c_start,
+                char_end=c_end,
+                byte_start=b_start,
+                byte_end=b_end,
+                content_char_start=0,
+                content_char_end=len(slice_text),
+                target_url=loc.get("url", candidate["url"]),
+                segment_sha256=sha256_str(slice_text),
+                ref_id=ref_id,
+                body_sha256=body_sha,
+                curated_content_index=idx,
+                source_role=c_slice.get("source_role", loc.get("source_kind")),
+                curated=True,
             )
-        )
+
+            cid = compute_chunk_id(
+                CHUNK_SCHEMA_VERSION,
+                rule_fingerprint,
+                "github",
+                ref_id,
+                [seg],
+                sha256_str(slice_text),
+            )
+            meta = {
+                "schema_version": 1,
+                "rule_family": rule_family,
+                "rule_id": rule_id,
+                "rule_fingerprint": rule_fingerprint,
+                "target_tokens": target_tokens,
+                "overlap_tokens": overlap_tokens,
+                "encoder_window_tokens": None,
+                "encoder_overlap_tokens": None,
+                "actual_tokens": actual_toks,
+                "actual_overlap_tokens": actual_overlap_toks,
+                "content_sha256": sha256_str(slice_text),
+                "source_group_id": candidate_id,
+                "candidate_id": candidate_id,
+                "source_kind": loc.get("source_kind"),
+                "product_scope": "art_snapshot",
+                "range_basis": "json_body",
+                "section_kind": "json_pointer",
+                "section_path": ["body"],
+                "title": candidate.get("title", ""),
+                "target_url": loc.get("url", candidate["url"]),
+                "source_segments": [seg.to_dict()],
+            }
+
+            chunks.append(
+                Chunk(
+                    chunk_id=cid,
+                    source_type="github",
+                    doc_id=ref_id,
+                    section_title="/body",
+                    content=slice_text,
+                    char_range=(c_start, c_end),
+                    metadata=meta,
+                )
+            )
+        else:
+            s_sents = split_text_by_sentences(slice_text)
+            if not s_sents:
+                s_sents = [(0, len(slice_text), slice_text)]
+            s_idx = 0
+            n_s = len(s_sents)
+            last_slice_range: Optional[Tuple[int, int]] = None
+
+            while s_idx < n_s:
+                cur_pieces = []
+                cur_toks = 0
+                w_start_rel = s_sents[s_idx][0]
+                j = s_idx
+
+                while j < n_s:
+                    st_p, ed_p, tx_p = s_sents[j]
+                    p_tok = tokenizer_bundle.count_ref_tokens(tx_p)
+                    if cur_pieces and (cur_toks + p_tok > target_tokens):
+                        break
+                    cur_pieces.append(s_sents[j])
+                    cur_toks += p_tok
+                    j += 1
+                    if cur_toks >= target_tokens:
+                        break
+
+                w_end_rel = cur_pieces[-1][1]
+                sub_text = slice_text[w_start_rel:w_end_rel]
+
+                # Check single long sentence
+                if len(cur_pieces) == 1 and cur_toks > target_tokens:
+                    offsets = tokenizer_bundle.get_token_offsets(sub_text)
+                    t_i = 0
+                    while t_i < len(offsets):
+                        t_e = min(t_i + target_tokens, len(offsets))
+                        sub_st = offsets[t_i][0]
+                        sub_ed = offsets[t_e - 1][1]
+                        piece = sub_text[sub_st:sub_ed]
+
+                        sub_c_start = c_start + w_start_rel + sub_st
+                        sub_c_end = c_start + w_start_rel + sub_ed
+                        sub_b_start = len(body[:sub_c_start].encode("utf-8"))
+                        sub_b_end = len(body[:sub_c_end].encode("utf-8"))
+                        actual_toks = tokenizer_bundle.count_ref_tokens(piece)
+                        actual_overlap_toks = compute_actual_overlap_tokens(
+                            body, last_slice_range, (sub_c_start, sub_c_end), tokenizer_bundle
+                        )
+                        last_slice_range = (sub_c_start, sub_c_end)
+
+                        seg = SourceSegment(
+                            doc_id=ref_id,
+                            source_path=f"data/issues/{rel_snap}",
+                            source_file_sha256=file_sha,
+                            json_pointer="/body",
+                            char_start=sub_c_start,
+                            char_end=sub_c_end,
+                            byte_start=sub_b_start,
+                            byte_end=sub_b_end,
+                            content_char_start=0,
+                            content_char_end=len(piece),
+                            target_url=loc.get("url", candidate["url"]),
+                            segment_sha256=sha256_str(piece),
+                            ref_id=ref_id,
+                            body_sha256=body_sha,
+                            curated_content_index=idx,
+                            source_role=c_slice.get("source_role", loc.get("source_kind")),
+                            curated=True,
+                        )
+                        cid = compute_chunk_id(
+                            CHUNK_SCHEMA_VERSION,
+                            rule_fingerprint,
+                            "github",
+                            ref_id,
+                            [seg],
+                            sha256_str(piece),
+                        )
+                        meta = {
+                            "schema_version": 1,
+                            "rule_family": rule_family,
+                            "rule_id": rule_id,
+                            "rule_fingerprint": rule_fingerprint,
+                            "target_tokens": target_tokens,
+                            "overlap_tokens": overlap_tokens,
+                            "encoder_window_tokens": None,
+                            "encoder_overlap_tokens": None,
+                            "actual_tokens": actual_toks,
+                            "actual_overlap_tokens": actual_overlap_toks,
+                            "content_sha256": sha256_str(piece),
+                            "source_group_id": candidate_id,
+                            "candidate_id": candidate_id,
+                            "source_kind": loc.get("source_kind"),
+                            "product_scope": "art_snapshot",
+                            "range_basis": "json_body",
+                            "section_kind": "json_pointer",
+                            "section_path": ["body"],
+                            "title": candidate.get("title", ""),
+                            "target_url": loc.get("url", candidate["url"]),
+                            "source_segments": [seg.to_dict()],
+                        }
+                        chunks.append(
+                            Chunk(
+                                chunk_id=cid,
+                                source_type="github",
+                                doc_id=ref_id,
+                                section_title="/body",
+                                content=piece,
+                                char_range=(sub_c_start, sub_c_end),
+                                metadata=meta,
+                            )
+                        )
+                        if t_e >= len(offsets):
+                            break
+                        if overlap_tokens == 0:
+                            t_i = t_e
+                        else:
+                            t_i = max(t_i + 1, t_e - overlap_tokens)
+                    s_idx += 1
+                    continue
+
+                sub_c_start = c_start + w_start_rel
+                sub_c_end = c_start + w_end_rel
+                sub_b_start = len(body[:sub_c_start].encode("utf-8"))
+                sub_b_end = len(body[:sub_c_end].encode("utf-8"))
+                actual_toks = tokenizer_bundle.count_ref_tokens(sub_text)
+                actual_overlap_toks = compute_actual_overlap_tokens(
+                    body, last_slice_range, (sub_c_start, sub_c_end), tokenizer_bundle
+                )
+                last_slice_range = (sub_c_start, sub_c_end)
+
+                seg = SourceSegment(
+                    doc_id=ref_id,
+                    source_path=f"data/issues/{rel_snap}",
+                    source_file_sha256=file_sha,
+                    json_pointer="/body",
+                    char_start=sub_c_start,
+                    char_end=sub_c_end,
+                    byte_start=sub_b_start,
+                    byte_end=sub_b_end,
+                    content_char_start=0,
+                    content_char_end=len(sub_text),
+                    target_url=loc.get("url", candidate["url"]),
+                    segment_sha256=sha256_str(sub_text),
+                    ref_id=ref_id,
+                    body_sha256=body_sha,
+                    curated_content_index=idx,
+                    source_role=c_slice.get("source_role", loc.get("source_kind")),
+                    curated=True,
+                )
+                cid = compute_chunk_id(
+                    CHUNK_SCHEMA_VERSION,
+                    rule_fingerprint,
+                    "github",
+                    ref_id,
+                    [seg],
+                    sha256_str(sub_text),
+                )
+                meta = {
+                    "schema_version": 1,
+                    "rule_family": rule_family,
+                    "rule_id": rule_id,
+                    "rule_fingerprint": rule_fingerprint,
+                    "target_tokens": target_tokens,
+                    "overlap_tokens": overlap_tokens,
+                    "encoder_window_tokens": None,
+                    "encoder_overlap_tokens": None,
+                    "actual_tokens": actual_toks,
+                    "actual_overlap_tokens": actual_overlap_toks,
+                    "content_sha256": sha256_str(sub_text),
+                    "source_group_id": candidate_id,
+                    "candidate_id": candidate_id,
+                    "source_kind": loc.get("source_kind"),
+                    "product_scope": "art_snapshot",
+                    "range_basis": "json_body",
+                    "section_kind": "json_pointer",
+                    "section_path": ["body"],
+                    "title": candidate.get("title", ""),
+                    "target_url": loc.get("url", candidate["url"]),
+                    "source_segments": [seg.to_dict()],
+                }
+                chunks.append(
+                    Chunk(
+                        chunk_id=cid,
+                        source_type="github",
+                        doc_id=ref_id,
+                        section_title="/body",
+                        content=sub_text,
+                        char_range=(sub_c_start, sub_c_end),
+                        metadata=meta,
+                    )
+                )
+
+                if j >= n_s:
+                    break
+                if overlap_tokens == 0:
+                    s_idx = j
+                else:
+                    overlap_accum = 0
+                    back_idx = j - 1
+                    while back_idx > s_idx:
+                        s_tok = tokenizer_bundle.count_ref_tokens(s_sents[back_idx][2])
+                        if overlap_accum + s_tok > overlap_tokens:
+                            break
+                        overlap_accum += s_tok
+                        back_idx -= 1
+                    if back_idx == j - 1 and overlap_accum == 0 and (j - 1 > s_idx):
+                        s_idx = j - 1
+                    else:
+                        s_idx = max(s_idx + 1, back_idx + 1)
 
     return chunks
 
@@ -1046,8 +1565,9 @@ def chunk_github_thread_rule(
     target_tokens: int = 192,
 ) -> Chunk:
     """Generate thread chunk under rule G-A-curated-thread or G-A-full-thread."""
-    rule_id = "G-A-curated-thread" if curated_only else "G-A-full-thread"
-    rule_fingerprint = f"{rule_id}:t{target_tokens}:{BGE_REVISION}"
+    rule_family = "G-A-curated-thread" if curated_only else "G-A-full-thread"
+    rule_id = f"{rule_family}-w{target_tokens}-wo0"
+    rule_fingerprint = f"{rule_id}:{BGE_REVISION}"
     candidate_id = candidate["candidate_id"]
 
     segments: List[SourceSegment] = []
@@ -1209,8 +1729,15 @@ def chunk_github_thread_rule(
 
     meta = {
         "schema_version": 1,
+        "rule_family": rule_family,
         "rule_id": rule_id,
         "rule_fingerprint": rule_fingerprint,
+        "target_tokens": None,
+        "overlap_tokens": None,
+        "encoder_window_tokens": target_tokens,
+        "encoder_overlap_tokens": 0,
+        "actual_tokens": tokenizer_bundle.count_ref_tokens(full_content),
+        "actual_overlap_tokens": 0,
         "content_sha256": sha256_str(full_content),
         "source_group_id": candidate_id,
         "candidate_id": candidate_id,
