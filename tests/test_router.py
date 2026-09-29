@@ -17,10 +17,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from artagent.graph import (
     AgentState,
     AssetRef,
+    Clarification,
     ErrorInfo,
     OutputSpec,
     Path as AgentPath,
     PlanStep,
+    ProfileData,
     RequestContext,
     RequestInput,
     ResponseStatus,
@@ -28,6 +30,8 @@ from artagent.graph import (
     RouteDecision,
     RuntimeCapabilities,
     StepResult,
+    ValidationIssue,
+    ValidationResult,
     analyze_signals,
     create_router_graph,
     route_request,
@@ -617,3 +621,162 @@ def test_invalid_input_rejection(router_graph):
     assert "FALLBACK" in res["trace"]
     assert res["response"].status == ResponseStatus.FAILED.value
     assert res["response"].error.code == "INVALID_INPUT"
+
+
+def test_validation_issue_instance():
+    """1. VALIDATION_ISSUE_INSTANCE: Verify issues are ValidationIssue instances, not raw dicts."""
+    from artagent.graph.nodes import validate_profile_node
+
+    invalid_profile = ProfileData(
+        ppversion=999,  # Mismatch with capabilities ppversion 1045
+        groups={"Exposure": {"Compensation": 0.0}},
+        changed_keys=["Exposure.Compensation"],
+    )
+    state: AgentState = {
+        "profile": invalid_profile,
+        "capabilities": RuntimeCapabilities(ppversion=1045),
+    }
+    res = validate_profile_node(state)
+    validation = res["validation"]
+
+    assert validation.status == "INVALID"
+    assert len(validation.issues) > 0
+    for issue in validation.issues:
+        assert isinstance(issue, ValidationIssue), f"Issue {issue} is not an instance of ValidationIssue"
+        assert hasattr(issue, "field") and isinstance(issue.field, str)
+        assert hasattr(issue, "code") and isinstance(issue.code, str)
+        assert hasattr(issue, "message") and isinstance(issue.message, str)
+
+
+def test_invalid_profile_strict_rejection():
+    """2. INVALID_PROFILE_ACCEPTED: Verify invalid profile payloads are strictly rejected with INVALID status."""
+    from artagent.graph.nodes import validate_profile_node
+
+    caps = RuntimeCapabilities(ppversion=1045)
+
+    # Missing profile
+    r_none = validate_profile_node({"profile": None, "capabilities": caps})
+    assert r_none["validation"].status == "INVALID"
+    assert any(iss.code == "MISSING_PROFILE" for iss in r_none["validation"].issues)
+
+    # Empty groups
+    r_empty_grp = validate_profile_node({
+        "profile": ProfileData(ppversion=1045, groups={}, changed_keys=[]),
+        "capabilities": caps,
+    })
+    assert r_empty_grp["validation"].status == "INVALID"
+    assert any(iss.code == "EMPTY_GROUPS" for iss in r_empty_grp["validation"].issues)
+
+    # None profile value
+    r_null = validate_profile_node({
+        "profile": ProfileData(ppversion=1045, groups={"Exposure": {"Compensation": None}}, changed_keys=["Exposure.Compensation"]),
+        "capabilities": caps,
+    })
+    assert r_null["validation"].status == "INVALID"
+    assert any(iss.code == "NULL_VALUE" for iss in r_null["validation"].issues)
+
+    # Non-finite float value
+    r_nan = validate_profile_node({
+        "profile": ProfileData(ppversion=1045, groups={"Exposure": {"Compensation": float("nan")}}, changed_keys=["Exposure.Compensation"]),
+        "capabilities": caps,
+    })
+    assert r_nan["validation"].status == "INVALID"
+    assert any(iss.code == "NON_FINITE_FLOAT" for iss in r_nan["validation"].issues)
+
+    # Changed key not in groups
+    r_missing_key = validate_profile_node({
+        "profile": ProfileData(ppversion=1045, groups={"Exposure": {"Compensation": 0.0}}, changed_keys=["Exposure.NonExistentKey"]),
+        "capabilities": caps,
+    })
+    assert r_missing_key["validation"].status == "INVALID"
+    assert any(iss.code == "KEY_NOT_FOUND" for iss in r_missing_key["validation"].issues)
+
+
+def test_completed_part_plus_terminal_error_status_partial():
+    """3. COMPLETED_PART_PLUS_TERMINAL_ERROR: Verify PARTIAL status when error occurs after step 1 succeeds."""
+    from artagent.graph.nodes import respond_node
+
+    req = RequestInput(request_id="test_partial", text="composite query")
+    step1 = StepResult(step_id="step_1", path=AgentPath.DOC_QA, status="SUCCEEDED")
+    terminal_error = ErrorInfo(
+        code="PROFILE_INVALID",
+        message="Non-recoverable profile error",
+        node="VALIDATE_PROFILE",
+        recoverable=False,
+    )
+
+    state: AgentState = {
+        "request": req,
+        "step_results": {"step_1": step1},
+        "error": terminal_error,
+        "decision": RouteDecision(primary_path=AgentPath.EXECUTE, plan=[
+            PlanStep("step_1", AgentPath.DOC_QA, "query 1", []),
+            PlanStep("step_2", AgentPath.EXECUTE, "query 2", []),
+        ]),
+    }
+    res = respond_node(state)
+    assert res["response"].status == ResponseStatus.PARTIAL.value
+    assert len(res["response"].completed_steps) == 1
+    assert res["response"].completed_steps[0].status == "SUCCEEDED"
+
+
+def test_clarification_resume_validation_and_retry_count(router_graph):
+    """4. 대화형 명확화(Clarification) 재개 상태: Reject mismatched IDs and preserve retry count."""
+    from artagent.graph.nodes import clarify_node
+
+    req = RequestInput(request_id="req_clar", text="사진이 너무 노래요. 좀 봐주세요.")
+    clar = Clarification(
+        id="clar_req_clar",
+        question="조절 방법 안내를 원하시나요, 이 사진의 보정 결과 생성을 원하시나요?",
+        missing_fields=["confirmed_goal"],
+        candidate_paths=[AgentPath.DOC_QA, AgentPath.EXECUTE],
+        origin="ROUTE",
+    )
+
+    # Case A: Resume with mismatched clarification_id
+    bad_id_resume = ResumeInput(
+        request_id="req_clar",
+        clarification_id="WRONG_CLAR_ID",
+        reply_text="설명만 해줘",
+        assets=[],
+    )
+    res_bad_id = clarify_node({
+        "request": req,
+        "clarification": clar,
+        "clarification_count": 1,
+        "resume": bad_id_resume,
+    })
+    assert res_bad_id.get("error") is not None
+    assert res_bad_id["error"].code == "INVALID_INPUT"
+
+    # Case B: Resume when no active clarification exists
+    res_no_clar = clarify_node({
+        "request": req,
+        "clarification": None,
+        "clarification_count": 0,
+        "resume": ResumeInput(request_id="req_clar", clarification_id="clar_req_clar", reply_text="답변", assets=[]),
+    })
+    assert res_no_clar.get("error") is not None
+    assert res_no_clar["error"].code == "INVALID_INPUT"
+
+    # Case C: Empty reply on attempt 1 -> Preserves clarification and increments to attempt 2
+    res_empty_1 = clarify_node({
+        "request": req,
+        "clarification": clar,
+        "clarification_count": 1,
+        "resume": ResumeInput(request_id="req_clar", clarification_id="clar_req_clar", reply_text="", assets=[]),
+    })
+    assert res_empty_1.get("error") is None
+    assert res_empty_1.get("clarification_count") == 2
+    assert res_empty_1["response"].status == ResponseStatus.WAITING_CLARIFICATION.value
+
+    # Case D: Empty reply on attempt 2 -> Terminates with CLARIFICATION_UNRESOLVED
+    res_empty_2 = clarify_node({
+        "request": req,
+        "clarification": clar,
+        "clarification_count": 2,
+        "resume": ResumeInput(request_id="req_clar", clarification_id="clar_req_clar", reply_text="", assets=[]),
+    })
+    assert res_empty_2.get("error") is not None
+    assert res_empty_2["error"].code == "CLARIFICATION_UNRESOLVED"
+

@@ -5,6 +5,7 @@ Adheres to Section 5.2 of docs/langgraph_router_design.md.
 
 from __future__ import annotations
 
+import math
 import re
 from typing import Any
 
@@ -28,6 +29,7 @@ from .state import (
     RetrievalBundle,
     RuntimeCapabilities,
     StepResult,
+    ValidationIssue,
     ValidationResult,
     RenderResult,
 )
@@ -82,6 +84,14 @@ def route_node(state: AgentState) -> dict[str, Any]:
 
     if clarification:
         count = state.get("clarification_count", 0) + 1
+        if count > 2:
+            error = ErrorInfo(
+                code="CLARIFICATION_UNRESOLVED",
+                message="Clarification remained unresolved after maximum attempts",
+                node="ROUTE",
+                recoverable=False,
+            )
+            return {"error": error, "clarification": None, "trace": trace}
         return {
             "signals": signals,
             "decision": decision,
@@ -94,6 +104,7 @@ def route_node(state: AgentState) -> dict[str, Any]:
         "signals": signals,
         "decision": decision,
         "clarification": None,
+        "clarification_count": 0,
         "cursor": 0,
         "trace": trace,
     }
@@ -107,9 +118,36 @@ def clarify_node(state: AgentState) -> dict[str, Any]:
     resume = state.get("resume")
     clarification = state.get("clarification")
     clarification_count = state.get("clarification_count", 1)
+    req = state.get("request")
 
     if resume:
-        # Check user cancellation
+        # 1. Validate clarification presence and ID match
+        if not clarification:
+            error = ErrorInfo(
+                code="INVALID_INPUT",
+                message="No active clarification to resume",
+                node="CLARIFY",
+                recoverable=False,
+            )
+            return {"error": error, "trace": trace}
+
+        if (
+            resume.clarification_id != clarification.id
+            or (req and resume.request_id != req.request_id)
+        ):
+            error = ErrorInfo(
+                code="INVALID_INPUT",
+                message=(
+                    f"Clarification ID or Request ID mismatch: expected "
+                    f"({clarification.id}, {req.request_id if req else ''}), "
+                    f"got ({resume.clarification_id}, {resume.request_id})"
+                ),
+                node="CLARIFY",
+                recoverable=False,
+            )
+            return {"error": error, "trace": trace}
+
+        # 2. Check user cancellation
         reply_lower = resume.reply_text.strip().lower()
         if re.search(r"(?:취소|그만|cancel|stop)", reply_lower):
             error = ErrorInfo(
@@ -120,31 +158,48 @@ def clarify_node(state: AgentState) -> dict[str, Any]:
             )
             return {"error": error, "clarification": None, "trace": trace}
 
-        # Check if unresolved after 2 attempts
-        if clarification_count >= 2 and not resume.reply_text.strip():
-            error = ErrorInfo(
-                code="CLARIFICATION_UNRESOLVED",
-                message="Clarification remained unresolved after maximum attempts",
-                node="CLARIFY",
-                recoverable=False,
-            )
-            return {"error": error, "trace": trace}
+        # 3. Check if empty reply provided
+        is_empty_reply = not resume.reply_text.strip() and not resume.assets
+        if is_empty_reply:
+            if clarification_count >= 2:
+                error = ErrorInfo(
+                    code="CLARIFICATION_UNRESOLVED",
+                    message="Clarification remained unresolved after maximum attempts",
+                    node="CLARIFY",
+                    recoverable=False,
+                )
+                return {"error": error, "clarification": None, "trace": trace}
+            else:
+                return {
+                    "clarification_count": clarification_count + 1,
+                    "resume": None,
+                    "response": ResponseOutput(
+                        request_id=req.request_id if req else "",
+                        status=ResponseStatus.WAITING_CLARIFICATION.value,
+                        primary_path=state.get("decision").primary_path if state.get("decision") else None,
+                        planned_paths=[s.path for s in state["decision"].plan] if state.get("decision") else [],
+                        completed_steps=list(state.get("step_results", {}).values()),
+                        message=clarification.question,
+                        clarification=clarification,
+                    ),
+                    "trace": trace,
+                }
 
-        # User provided resolution: update request text and assets
-        req = state["request"]
-        updated_text = f"{req.text} {resume.reply_text}".strip()
-        merged_assets = list(req.assets)
+        # 4. User provided reply text/assets: update request, preserve clarification_count
+        updated_text = f"{req.text} {resume.reply_text}".strip() if req else resume.reply_text.strip()
+        merged_assets = list(req.assets) if req else []
         for a in resume.assets:
             if not any(existing.asset_id == a.asset_id for existing in merged_assets):
                 merged_assets.append(a)
 
-        req.text = updated_text
-        req.assets = merged_assets
+        if req:
+            req.text = updated_text
+            req.assets = merged_assets
 
         return {
             "request": req,
             "clarification": None,
-            "clarification_count": 0,
+            "clarification_count": clarification_count,
             "resume": None,
             "trace": trace,
         }
@@ -359,6 +414,14 @@ def check_exec_node(state: AgentState) -> dict[str, Any]:
     if not raw_asset:
         # RAW missing -> Clarification needed
         count = state.get("clarification_count", 0) + 1
+        if count > 2:
+            error = ErrorInfo(
+                code="CLARIFICATION_UNRESOLVED",
+                message="Execution input clarification unresolved after maximum attempts",
+                node="CHECK_EXEC",
+                recoverable=False,
+            )
+            return {"error": error, "clarification": None, "trace": trace}
         clarification = Clarification(
             id=f"clarify_raw_{request.request_id}",
             question="어떤 RAW 파일에 적용할까요?",
@@ -381,7 +444,7 @@ def check_exec_node(state: AgentState) -> dict[str, Any]:
     goal = (
         request.context.confirmed_goal
         if (request.context and request.context.confirmed_goal)
-        else state.get("signals").goal or "기본 보정 적용"
+        else (state.get("signals").goal if state.get("signals") else None) or "기본 보정 적용"
     )
 
     execution = ExecutionInput(
@@ -389,7 +452,12 @@ def check_exec_node(state: AgentState) -> dict[str, Any]:
         goal=goal,
         output=output_spec,
     )
-    return {"execution": execution, "trace": trace}
+    return {
+        "execution": execution,
+        "clarification": None,
+        "clarification_count": 0,
+        "trace": trace,
+    }
 
 
 def features_node(state: AgentState) -> dict[str, Any]:
@@ -431,20 +499,172 @@ def validate_profile_node(state: AgentState) -> dict[str, Any]:
     trace = list(state.get("trace", []))
     trace.append("VALIDATE_PROFILE")
 
-    profile = state["profile"]
+    profile = state.get("profile")
     capabilities = state.get("capabilities", RuntimeCapabilities())
+    issues: list[ValidationIssue] = []
 
-    if profile.ppversion != capabilities.ppversion:
+    # 1. Profile existence check
+    if profile is None:
+        issues.append(
+            ValidationIssue(
+                field="profile",
+                code="MISSING_PROFILE",
+                message="Profile data is missing",
+            )
+        )
         error = ErrorInfo(
             code="PROFILE_INVALID",
-            message=f"PPVERSION mismatch: expected {capabilities.ppversion}, got {profile.ppversion}",
+            message="Profile data is missing",
             node="VALIDATE_PROFILE",
             recoverable=False,
         )
-        validation = ValidationResult(
-            status="INVALID",
-            issues=[{"field": "ppversion", "code": "VERSION_MISMATCH", "message": error.message}],
+        validation = ValidationResult(status="INVALID", issues=issues)
+        return {"validation": validation, "error": error, "trace": trace}
+
+    # 2. PPVERSION check
+    if not isinstance(profile.ppversion, int) or profile.ppversion != capabilities.ppversion:
+        issues.append(
+            ValidationIssue(
+                field="ppversion",
+                code="VERSION_MISMATCH",
+                message=f"PPVERSION mismatch: expected {capabilities.ppversion}, got {profile.ppversion}",
+            )
         )
+
+    # 3. Groups dictionary check
+    if not isinstance(profile.groups, dict) or len(profile.groups) == 0:
+        issues.append(
+            ValidationIssue(
+                field="groups",
+                code="EMPTY_GROUPS",
+                message="Profile groups must be a non-empty dictionary",
+            )
+        )
+    else:
+        for group_name, group_data in profile.groups.items():
+            if not isinstance(group_name, str) or not group_name.strip():
+                issues.append(
+                    ValidationIssue(
+                        field="groups",
+                        code="INVALID_GROUP_NAME",
+                        message="Group name must be a non-empty string",
+                    )
+                )
+            if not isinstance(group_data, dict):
+                issues.append(
+                    ValidationIssue(
+                        field=f"groups.{group_name}",
+                        code="INVALID_GROUP_DATA",
+                        message=f"Group '{group_name}' must be a dictionary",
+                    )
+                )
+            else:
+                for key, val in group_data.items():
+                    if not isinstance(key, str) or not key.strip():
+                        issues.append(
+                            ValidationIssue(
+                                field=f"{group_name}.{key}",
+                                code="INVALID_KEY_NAME",
+                                message="Key name must be a non-empty string",
+                            )
+                        )
+                    if val is None:
+                        issues.append(
+                            ValidationIssue(
+                                field=f"{group_name}.{key}",
+                                code="NULL_VALUE",
+                                message="Profile value cannot be None",
+                            )
+                        )
+                    elif isinstance(val, float):
+                        if math.isnan(val) or math.isinf(val):
+                            issues.append(
+                                ValidationIssue(
+                                    field=f"{group_name}.{key}",
+                                    code="NON_FINITE_FLOAT",
+                                    message="Profile float value must be finite",
+                                )
+                            )
+                    elif isinstance(val, list):
+                        for idx, item in enumerate(val):
+                            if item is None:
+                                issues.append(
+                                    ValidationIssue(
+                                        field=f"{group_name}.{key}[{idx}]",
+                                        code="NULL_VALUE",
+                                        message="List item cannot be None",
+                                    )
+                                )
+                            elif isinstance(item, float):
+                                if math.isnan(item) or math.isinf(item):
+                                    issues.append(
+                                        ValidationIssue(
+                                            field=f"{group_name}.{key}[{idx}]",
+                                            code="NON_FINITE_FLOAT",
+                                            message="List float item must be finite",
+                                        )
+                                    )
+                            elif not isinstance(item, (bool, int, str)):
+                                issues.append(
+                                    ValidationIssue(
+                                        field=f"{group_name}.{key}[{idx}]",
+                                        code="INVALID_TYPE",
+                                        message=f"Unsupported list item type: {type(item).__name__}",
+                                    )
+                                )
+                    elif not isinstance(val, (bool, int, str)):
+                        issues.append(
+                            ValidationIssue(
+                                field=f"{group_name}.{key}",
+                                code="INVALID_TYPE",
+                                message=f"Unsupported value type: {type(val).__name__}",
+                            )
+                        )
+
+    # 4. Changed keys check
+    if not isinstance(profile.changed_keys, list) or len(profile.changed_keys) == 0:
+        issues.append(
+            ValidationIssue(
+                field="changed_keys",
+                code="EMPTY_CHANGED_KEYS",
+                message="changed_keys must be a non-empty list",
+            )
+        )
+    else:
+        for k in profile.changed_keys:
+            if not isinstance(k, str) or "." not in k:
+                issues.append(
+                    ValidationIssue(
+                        field="changed_keys",
+                        code="INVALID_KEY_FORMAT",
+                        message=f"changed_key '{k}' must follow 'Group.Key' format",
+                    )
+                )
+            else:
+                grp, subk = k.split(".", 1)
+                if (
+                    not isinstance(profile.groups, dict)
+                    or grp not in profile.groups
+                    or not isinstance(profile.groups[grp], dict)
+                    or subk not in profile.groups[grp]
+                ):
+                    issues.append(
+                        ValidationIssue(
+                            field="changed_keys",
+                            code="KEY_NOT_FOUND",
+                            message=f"Changed key '{k}' not found in groups",
+                        )
+                    )
+
+    if issues:
+        is_recoverable = all(iss.code not in ("VERSION_MISMATCH", "MISSING_PROFILE") for iss in issues)
+        error = ErrorInfo(
+            code="PROFILE_INVALID",
+            message="; ".join(iss.message for iss in issues[:3]),
+            node="VALIDATE_PROFILE",
+            recoverable=is_recoverable,
+        )
+        validation = ValidationResult(status="INVALID", issues=issues)
         return {"validation": validation, "error": error, "trace": trace}
 
     validation = ValidationResult(
@@ -452,7 +672,7 @@ def validate_profile_node(state: AgentState) -> dict[str, Any]:
         issues=[],
         profile_ref="/tmp/validated_profile.arp",
     )
-    return {"validation": validation, "trace": trace}
+    return {"validation": validation, "error": None, "trace": trace}
 
 
 def render_node(state: AgentState) -> dict[str, Any]:
@@ -575,40 +795,43 @@ def respond_node(state: AgentState) -> dict[str, Any]:
         all_artifacts.extend(r.artifacts)
 
     # Determine overall status
-    if error:
-        if error.code == "INVALID_INPUT":
-            status = ResponseStatus.FAILED.value
-        elif error.code == "OUT_OF_SCOPE":
+    succeeded = [r for r in step_results if r.status == "SUCCEEDED"]
+    failed = [r for r in step_results if r.status in ("FAILED", "BLOCKED", "UNSUPPORTED", "INSUFFICIENT_EVIDENCE")]
+    has_failure = bool(error) or len(failed) > 0
+
+    if state.get("clarification"):
+        status = ResponseStatus.WAITING_CLARIFICATION.value
+        msg = state["clarification"].question
+    elif len(succeeded) > 0 and has_failure:
+        status = ResponseStatus.PARTIAL.value
+        msg = f"일부 단계만 완료되었습니다. ({error.message if error else '후속 단계 실패'})"
+    elif len(succeeded) == len(step_results) and not error and step_results:
+        status = ResponseStatus.COMPLETED.value
+        msg = "요청된 모든 단계가 성공적으로 완료되었습니다."
+    elif error:
+        if error.code == "OUT_OF_SCOPE":
             status = ResponseStatus.OUT_OF_SCOPE.value
         elif error.code == "CANCELLED":
             status = ResponseStatus.CANCELLED.value
+        elif error.code == "UNSUPPORTED":
+            status = ResponseStatus.UNSUPPORTED.value
+        elif error.code == "INSUFFICIENT_EVIDENCE":
+            status = ResponseStatus.INSUFFICIENT_EVIDENCE.value
         else:
             status = ResponseStatus.FAILED.value
         msg = error.message
-    elif state.get("clarification"):
-        status = ResponseStatus.WAITING_CLARIFICATION.value
-        msg = state["clarification"].question
+    elif any(r.status == "UNSUPPORTED" for r in step_results):
+        status = ResponseStatus.UNSUPPORTED.value
+        msg = "지원되지 않는 요청입니다."
+    elif any(r.status == "INSUFFICIENT_EVIDENCE" for r in step_results):
+        status = ResponseStatus.INSUFFICIENT_EVIDENCE.value
+        msg = "근거가 부족하여 답변할 수 없습니다."
     elif not step_results:
         status = ResponseStatus.COMPLETED.value
         msg = "완료되었습니다."
     else:
-        succeeded = [r for r in step_results if r.status == "SUCCEEDED"]
-        failed = [r for r in step_results if r.status in ("FAILED", "BLOCKED", "UNSUPPORTED")]
-        if len(succeeded) == len(step_results):
-            status = ResponseStatus.COMPLETED.value
-            msg = "요청된 모든 단계가 성공적으로 완료되었습니다."
-        elif len(succeeded) > 0:
-            status = ResponseStatus.PARTIAL.value
-            msg = "일부 단계만 완료되었습니다."
-        elif any(r.status == "UNSUPPORTED" for r in step_results):
-            status = ResponseStatus.UNSUPPORTED.value
-            msg = "지원되지 않는 요청입니다."
-        elif any(r.status == "INSUFFICIENT_EVIDENCE" for r in step_results):
-            status = ResponseStatus.INSUFFICIENT_EVIDENCE.value
-            msg = "근거가 부족하여 답변할 수 없습니다."
-        else:
-            status = ResponseStatus.FAILED.value
-            msg = "실행에 실패했습니다."
+        status = ResponseStatus.FAILED.value
+        msg = "실행에 실패했습니다."
 
     response = ResponseOutput(
         request_id=request.request_id,
