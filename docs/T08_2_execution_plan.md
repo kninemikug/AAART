@@ -1,12 +1,12 @@
 # Task 8-2 문서 청킹 및 임베딩 벤치마크 실행 플랜
 
-작성일: 2026-09-28 · 개정일: 2026-09-29 · 담당: 김대성 레인 · 구현 실행자: Antigravity(Gemini 3.8 Flash)
+작성일: 2026-09-28 · 개정일: 2026-09-30 · 담당: 김대성 레인 · 구현 실행자: Antigravity(Gemini 3.8 Flash)
 
-이 문서는 WBS Phase A의 **A-08 2/3·3/3, A-10 3/4**를 실행하기 위한 구현 계약이다. 목표는 두 출처의 후보 청크를 실제로 생성하고, 고정 100개 질문으로 **같은 임시 Chroma의 독립 컬렉션**에서 비교하여 **RawPedia 방식·크기·오버랩 + GitHub 방식·크기·오버랩 또는 내부 윈도우 크기 + 공통 임베딩 모델**을 함께 선정하는 것이다. **이번 개정의 실행 대상은 §15의 guard·검색 재현성 보정과 현행 정책 전체 조합 재측정**이다. §1~14의 이전 계약과 실행 결과는 이력으로 보존하며, 최신 180행으로 과거 전체 탐색을 대체하지 않는다. 새 플랜 작성은 추가 실험의 완료를 뜻하지 않는다.
+이 문서는 WBS Phase A의 **A-08 2/3·3/3, A-10 3/4**를 실행하기 위한 구현 계약이다. 목표는 두 출처의 후보 청크를 실제로 생성하고, 고정 100개 질문으로 **같은 임시 Chroma의 독립 컬렉션**에서 비교하여 **RawPedia 방식·크기·오버랩 + GitHub 방식·크기·오버랩 또는 내부 윈도우 크기 + 공통 임베딩 모델**을 함께 선정하는 것이다. **이번 개정의 실행 순서는 §15의 현행 5502행 검증, 이어서 §16의 R-C/G-C 추가 규칙 전체 교차 비교**다. §1~14의 이전 계약과 실행 결과는 이력으로 보존한다. 플랜 작성은 추가 실험의 완료를 뜻하지 않는다.
 
 권위 문서는 [WBS §5](ART_agentic_wbs.md), [Task 8-2 및 T9 상세 카드](../tasks/todo.md), [T8-1 전달 계약 §8](T08_1_execution_plan.md), [GitHub 정제 규칙](issue_filter_rules.md)다. WBS의 9/5~9/11 계획 일정은 보존하고, 실행 기록에는 실제 날짜를 쓴다.
 
-**현재 상태:** 조사 HEAD `8b5719589`의 [현재 리포트](chunking_embedding_benchmark.md)와 JSON은 **180조합(Q-N=108/Q-P=72)** 및 잠정 선정 MRR@5=`0.7730`을 기록한다. 그러나 Q-N 생성에 4모델 공통 manifest를 사용하여 MiniLM의 256 입력 제한이 BGE/E5의 512 그룹에도 적용됐다. E5 448/O=32의 본문 실측 중앙값은 과거 423에서 이번 241 reference tokens로 줄었고, 현재 `check`에서 해당 행의 기록값 `0.7426`과 재계산값 `0.7259`가 달라 재현 검증도 실패했다. **최종 선정·T9 인계는 §15 완료 전까지 잠정 상태**다. 과거 4290조합과 E5/native 448/O=32의 MRR@5=`0.8032`는 보존된 이전 정책의 기준선이며, 이전 코드·청크로 임베딩 및 색인을 재생성한 독립 재현에서 `0.8032`를 확인했다. 새 정책으로 이 기준선과 나머지 과거 후보를 모두 다시 비교한다. 아래 과거 점수는 실행 이력이며 §15의 완료 증거로 사용하지 않는다.
+**현재 상태:** [현재 리포트](chunking_embedding_benchmark.md)와 JSON은 현행 정책의 **5502조합(정식4716/진단786)**을 기록하고 MiniLM·R-B8192/O0·G-curated W224의 Macro MRR@5=`0.8035`를 잠정 선정으로 표시한다. 같은 고정 조건의 R-B8192/O128은 `0.8095`이며 탐색 상한에 있다. 그러나 query/repeat 원시 로그와 독립 재현 검사가 아직 완결되지 않아 §15.8의 검증이 필요하다. `0.8032`와 180행의 `0.7730`은 이전 정책의 이력으로만 보존한다. **§15 검증과 §16 동등 비교가 모두 끝나기 전에는 최종 선정·T9 인계를 확정하지 않는다.**
 
 ## 1. 완료 조건과 범위
 
@@ -20,7 +20,7 @@
 - 질문 생성, 질의 번역·재작성, 답변 생성, 리랭커, k 튜닝, RAGAS, 증분 갱신 구현은 각각 기존 담당 태스크에 남긴다. 질문과 참고 스팬을 검색 문서에 추가하지 않는다.
 - Chroma는 고정이다. NumPy 전수 코사인 검색은 구현 오류·ANN 누락을 확인하는 대조군으로 사용하고, Chroma 실험을 대체하지 않는다.
 - Python은 기존 root venv 3.14를 재사용한다. `requirements.txt`, 범용 설정 로더, ART 코어 변경은 추가하지 않는다. CLI는 argparse, docstring, `main()` guard를 갖춘다.
-- 최초 grid의 최소 완료 조건은 **실행 가능한 모델 2개 이상, 그중 한국어–영어 검색 후보 1개 이상**, 선택 가능한 방식 출처별 2개 이상과 §6.1 전체 행렬의 성공한 실행이다. 최초 grid와 N/P는 과거 정책의 실행 이력으로 보존한다. **이번 재측정의 완료 조건은 §15이며, 겹치는 실행·선정 조항은 §15를 적용**한다. 이전 실행 행을 현행 정책의 완료 증거로 대신하지 않는다. 실패 모델도 리포트의 실패 행으로 남기고 성능이 낮다는 이유로 대상을 빼지 않는다.
+- 최초 grid의 최소 완료 조건은 **실행 가능한 모델 2개 이상, 그중 한국어–영어 검색 후보 1개 이상**, 선택 가능한 방식 출처별 2개 이상과 §6.1 전체 행렬의 성공한 실행이다. 최초 grid와 N/P는 과거 정책의 실행 이력으로 보존한다. **이번 검증과 최종 선정의 완료 조건은 §15~16이며, 겹치는 실행·선정 조항은 이 두 절을 적용**한다. 이전 실행 행을 현행 정책의 완료 증거로 대신하지 않는다. 실패 모델도 리포트의 실패 행으로 남기고 성능이 낮다는 이유로 대상을 빼지 않는다.
 
 ## 2. 실제 입력 조사와 고정 방법
 
@@ -1128,7 +1128,7 @@ native 그룹의 R/G-B는 `direct_native_v3`, pooled 그룹의 R/G-B는 `chunk_w
 - 전체 실행이 끝난 뒤 정식 선두·선정 후보·runner-up·현행448/32 기준점·Q091 실패 사례를 독립적으로 재인코딩·재적재·검색한다. query별 RR와 top5/동점 집합 차이를 설명하고 §7의 ANN 검사를 통과한다. 일부 선두만 재현됐다는 이유로 실패한 기준점을 무시하지 않는다.
 - 현행 정책5478행과 정책별 크기/O/W 곡선으로 §8의 선정 순서를 다시 적용한다. 작은 크기, GitHub 개별/스레드 후보, 네 모델을 모두 포함한다. 과거 `.8032`, 현재 잠정 `.7730`, 새 선정값은 서로의 protocol을 붙여 구분한다. 최종 표현은 **이번 질문셋·선언 조합 범위 내 최선**이며 전역 최적값을 주장하지 않는다.
 
-검증 완료 후 `docs/chunking_embedding_benchmark.md/.json`을 갱신하고 T9에 선정 R/G JSONL 및 manifest SHA, 모델·guard·window/prefix/정규화·검색 설정, 전수 coverage와 재현 기록을 인계한다. 완료 체크는 실행 근거를 확인한 뒤 변경한다.
+§15 검증 완료 후 5502행 결과를 검증된 기준선으로 고정한다. §16의 추가 규칙과 전체 교차 비교가 끝난 뒤 `docs/chunking_embedding_benchmark.md/.json`의 최종 선정 및 T9 입력을 갱신한다. 완료 체크는 두 단계의 실행 근거를 확인한 뒤 변경한다.
 
 ### 15.6 6144·8192 후속 실험의 등록
 
@@ -1143,6 +1143,78 @@ native 그룹의 R/G-B는 `direct_native_v3`, pooled 그룹의 R/G-B는 `chunk_w
 - [ ] **Step 3 — 수직 검증·전체 생성:** C0/C1/C2로 원문→청크→실제 encoder 입력→색인→검색→스팬을 검증하고 모든 현행 variant를 생성한다. 의존: Step2. checkpoint: 전수 누락0·truncation0·SHA/guard 일치·독립 재생성 일치.
 - [ ] **Step 4 — 전체 재측정:** common/N/P/Q 합집합5478행을 실행하고 row/query/repeat 로그·실제 latency를 저장한다. 의존: Step3. checkpoint: 정식4692/진단786 성공·1,643,400 관측·전수 재집계 일치.
 - [ ] **Step 5 — 추가 상한 측정:** 6144/8192의24행을 같은 protocol로 실행하고 대응 크기 곡선·예산/비용을 평가한다. 의존: Step4. checkpoint: 추가24 성공·7200 관측·정책/출처/G 고정 비교.
-- [ ] **Step 6 — 재선정·인계:** 선두/runner-up/기준점의 독립 재현, 전체 coverage·입력/hash 및 로그 검사를 통과한 뒤 report·T9 입력과 Task8-2 완료 체크를 갱신한다. 의존: Step4/5. checkpoint: 현행 성공5502·과거 행/대조군 혼입0·최종 선정과 JSON/MD 일치.
+- [ ] **Step 6 — 기존 후보 검증 기준선:** 선두/runner-up/기준점의 독립 재현, 전체 coverage·입력/hash 및 로그 검사를 통과한 뒤 5502행을 검증된 기준선으로 보존한다. §16 완료 전에는 T9 최종 선정과 Task8-2 완료 체크를 갱신하지 않는다. 의존: Step4/5. checkpoint: 현행 성공5502·과거 행/대조군 혼입0·기준선 JSON/MD 일치.
 
 이 절은 후속 구현·실행 플랜이다. 계획 작성·행렬 수 검산·과거 `.8032`의 개별 재현을 전체 재측정 완료로 보고하지 않는다.
+
+
+### 15.8 검증 누락 보완 실행 경로
+
+2026-09-29 검토에서 5502행의 집계와 latency 배열은 확인했으나, query/repeat 로그·encoder window trace·실제 code/protocol SHA가 없고 재현 검사의 허용오차가 0.01이었다. 이를 완료 증거로 사용하지 않는다. 집계는 반올림 전 실제 출처별 분모로 계산하고, 근접 후보의 근거 보존 조건은 **complex 질문의 Macro FullEvidence@5**로 적용한다.
+
+Antigravity는 기존 `run/check/combine/report` 경로에 로그·지문·재집계·재현 게이트를 구현한다. 필요하면 `scripts/verify_embedding_benchmark.py`와 `scripts/complete_embedding_validation.py`로 검증·전체 실행을 분리할 수 있으나 **별도 스크립트 생성 자체는 완료 조건이 아니다.** 아래 명령은 해당 스크립트를 구현하기로 선택했을 때의 실행 예시다. 같은 명령의 재실행은 같은 지문에서 검증된 행 checkpoint만 이어서 사용한다. 기존 `remeasurement-001` 결과·벡터는 보존하며 로그가 없는 과거 행을 새 완료 수에 넣지 않는다.
+
+```bash
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PYTHONDONTWRITEBYTECODE=1 \
+  /Users/user/Workspace/Programming/Projects/AAART/venv/bin/python3 \
+  scripts/complete_embedding_validation.py \
+  --work-dir data/embedding-benchmark/t08-2/validation-002
+```
+
+구현한 실행 경로는 307 variant의 원문/좌표 및 독립 재생성, C0-legacy/C0/C1/C2, 등록 합집합5502행(정식4716/진단786), 1,650,600개의 실제 query/repeat 관측, 전수 로그 재집계, 독립 문서·질의 재인코딩과 새 색인 재현을 수행해야 한다. C0-legacy의 질의 벡터는 실제 이전 구현의 batch32 경로를 유지하며, 이 진단군의 latency를 현행 batch1 비용과 비교하지 않는다. 현행 모든 행은 batch1 질의 encode→Chroma→source segments를 포함한 전체 top5 구성의 단일 타이머로 계측한다. HNSW의 실제 적용값도 검사하며 `num_threads=1`을 명시한다. 새 공통 지문에서 전체 행렬을 다시 실행하므로 이 설정의 과거 결과와 점수를 혼합하지 않는다.
+
+원시 로그는 행별 `runs/<experiment_id>.jsonl.gz`, 전체 encoder 입력·본문 가중치는 `vectors/<full-input-fingerprint>.jsonl.gz`, 실측 질의 벡터는 `query_vectors/<experiment_id>.npy`, 행 checkpoint는 `rows/<experiment_id>.json`에 저장한다. 결과의 경로·SHA와 원문·모델·guard·코드·평가 지문을 연결한다. 재현은 query별 순위/RR/coverage/packing, 지표1e-9·distance1e-5·vector `atol=1e-6, rtol=1e-5`로 검사한다. 재현 실패·미완주·대조군 실패는 최종 report 갱신을 막는다. 검증 진행 및 결과는 `docs/T08_2_validation_notes.md`에 기록한다.
+
+## 16. 추가 청킹 규칙의 동등 비교: R-C와 G-C
+
+§15.8의 현행5502행 검증을 먼저 완료하고 입력 원문·질문셋·모델 revision·검색 protocol과 기준선 결과/SHA를 고정한다. 그 뒤 아래 두 규칙을 추가한다. **4096/8192 등 일부 조건만 시험한 결과로 새 규칙을 기존 규칙보다 우수하다고 선정하지 않는다.** §16의 정식 비교는 R-A/R-B/R-C와 G-A-curated/G-B/G-C의 공통 전체 교차 행렬이다. 기존 G-A-full은 미선별 댓글을 포함하므로 계속 진단 행으로만 둔다. 기존5502행을 완료 처리한 기록과 §16의 새 실행은 각자의 실행 ID·manifest·로그로 구분하며, 최종 선정에는 아래 새 공통 행렬의 검증된 행만 사용한다.
+
+### 16.1 추가 근거와 검증할 가설
+
+현재 리포트에서 MiniLM·pooled·G-A-curated W224·O0를 고정하면 RawPedia L8192의 출처별 MRR@5는 R-A=`0.6108`, R-B=`0.8248`이다. 반대로 같은 두 행의 RawPedia 2048토큰 문맥 예산 FullEvidence@5는 R-A=`0.7250`, R-B=`0.5250`이다. 따라서 R-C의 가설은 **긴 연속 문맥의 검색 이점을 유지하면서 헤딩에 가까운 경계를 택하면 예산 내 근거 보존이 나아지는가**다. 기존 R-B의 상한8192/O128도 더 높은 Macro MRR@5=`0.8095`였으므로 작은 L이나 O0만 골라 비교하지 않는다.
+
+GitHub의 정식 두 방식은 정제 35조각 전체를 후보당 하나로 묶거나 각 조각을 독립적으로 나누는 양끝이다. 같은 R/모델 조건에서 curated W224는 unit L224/O0보다 GitHub MRR@5가 native162쌍 모두, pooled120쌍 중119쌍에서 높았다. 한편 full-thread 진단은 curated보다 786쌍 중571쌍에서 높았지만 **미선별 댓글 추가와 청킹 방식이 동시에 달라진 결과**다. G-C의 가설은 **같은 35조각만 쓰면서 여러 인접 조각을 중간 크기로 묶으면 개별 조각보다 문맥을 보존하는가**다. 이 수치는 검증 전 리포트의 반복 행 비교이고 독립 질문 수는 GitHub 양성15개이므로 유의성이나 일반화 증거로 쓰지 않는다.
+
+### 16.2 새 규칙의 생성·원문 추적 계약
+
+| 규칙 | 결정적인 청크 생성 방식 | 기존 규칙과 달라지는 지점 |
+|---|---|---|
+| `R-C-heading-window-t{L}-o{O}` | frontmatter 이후 RawPedia 페이지 전체에서 R-B와 같은 문장 우선 윈도우와 같은 target/guard/실측 overlap을 사용한다. 명목 종료 위치를 정한 뒤, 현재 시작점에서 센 reference tokens 기준 `[0.8L, L]` 안이면서 명목 종료 이전인 H2/H3 시작점이 있으면 가장 뒤의 해당 헤딩 **직전**에서 끝낸다. 없으면 R-B의 종료 위치를 쓴다. 다음 시작은 R-B와 같은 O-token overlap 규칙을 적용한다. | R-A처럼 모든 헤딩에서 강제로 자르지 않고, R-B처럼 헤딩 위치를 완전히 무시하지도 않는다. 제목은 청크 시작점의 heading path를 사용한다. |
+| `G-C-curated-group-t{L}-o{O}` | 후보별 `curated_content`만 G-A-curated와 동일한 부모/시간순으로 직렬화한다. 문장 우선으로 최대 L reference tokens의 **여러 원문 조각을 허용하는 물리 청크**를 만든다. O-token overlap은 같은 후보 안의 연속 청크에만 적용한다. 한 조각이 L을 넘으면 그 조각 내부를 G-B와 같은 문장/토큰 규칙으로 나누고 다음 조각까지 연속 진행한다. | G-B는 서로 다른 curated 조각을 합치지 않고, G-A-curated는 후보 전체가 검색 청크 하나다. G-C는 그 중간 단위다. 댓글 간 실제 reply/Q&A 관계를 추정하지 않는다. |
+
+두 규칙의 L/O는 기존 reference tokenizer와 같은 의미이며 O<L을 강제한다. 코드 fence 안의 `##`는 R-C 헤딩이 아니다. R-C의 heading snap이 없는 청크나 G-C에서 단일 조각만 담긴 청크도 실패로 숨기지 않고 `geometry_equivalent`와 해당 기존 규칙/청크 hash를 기록한다. 목표 L은 입력 상한의 보증이 아니므로 native는 정확한 guard의 `direct_native_v3`, pooled는 내부 W/O=224/0의 `chunk_window_mean_v2`를 사용한다. guard로 본문을 줄였으면 다음 청크가 잘린 tail부터 계속 덮어야 하며 원문 비공백 누락0·무의도 truncation0을 검사한다.
+
+두 규칙 모두 기존 `chunk_id/source_type/doc_id/section_title/content/char_range/metadata` 스키마를 사용한다. R-C의 `char_range`는 RawPedia 원본 파일 기준이다. G-C의 `doc_id`와 `source_group_id`는 후보 ID, `char_range`는 직렬화한 청크 본문 기준이며, 각 원문 조각의 `source_segments`에 snapshot 경로·`/body` pointer·원문 char/byte range·body/file SHA·직렬화 본문 내 range·URL·원문 role·curated index를 각각 보존한다. 구간 사이의 표식/구분자는 원문 증거가 아니므로 segment range에 넣지 않는다. 중복 구간과 overlap도 원문 range로 재검증한다. rule fingerprint에는 규칙 버전, L/O, guard 집합, 정책, 원문/직렬화 방식을 포함해 기존 cache/ID와 충돌하지 않게 한다. 전체 스레드39댓글을 G-C에 끌어오지 않는다.
+
+### 16.3 축소 없이 비교할 전체 교차 행렬
+
+각 모델/guard 그룹에서 R 방식 **3개**의 해당 L/O와 G 정식 방식 **3개**의 해당 L/O 또는 W를 독립적으로 결합한다. G-C의 L/O 목록은 같은 그룹 G-B와 정확히 같다. §15의 Q-N/Q-P·6144/8192는 원래 G-curated 고정의 부분 행렬이었으므로, **새 규칙만 그 고정점에 붙이지 않고 기존 G-B 및 모든 기존 G-A W도 함께 확장**한다. 아래는 stage 간 중복을 제거한 서로 다른 요청 조합 수다.
+
+| 공통 비교 블록 | 모델 수 | 모델당 R의 L/O 수 | G 정식 variant 수 | G-full 진단 수 | 정식 행 | 진단 행 |
+|---|---:|---:|---:|---:|---:|---:|
+| `native-common-256`: R L=128/192/224×O=0/32/64 | 4 | 9 | G-B 9 + G-C 9 + curated W128/192/224 3 = 21 | 3 | 2268 | 324 |
+| `bge-512`·`e5-512`: R L=224/256/320/384/448/464/480/496/512×O=0/32/64 | 3 | 27 | G-B 15 + G-C 15 + curated W224/256/320/384/448 5 = 35 | 5 | 8505 | 1215 |
+| `pooled-common-256` 기본: R L=224/448/512/768/1024×O=0/64/128 | 4 | 15 | G-B 15 + G-C 15 + curated W224 1 = 31 | 1 | 5580 | 180 |
+| `pooled-common-256` 확장: MiniLM/E5의 R L=1536/2048/4096/6144/8192×O=0/64/128 | 2 | 15 | 위와 같은 31 | 1 | 2790 | 90 |
+| **합계** | | | | | **19143** | **1809** |
+
+전체는 **20952행**이며 기존5502행은 같은 조합의 부분집합이다. 추가 행은15450개다. 각 행에서100문항×3회 실제 질의 encode·Chroma 검색·결과 구성·지연 관측을 수행하므로 성공 기대 관측은 **6,285,600개**다. 디버그 재시도나 C0/C1/C2 대조군은 행 수에 넣지 않는다. matrix 생성기가 요청 조합 키의 유일성, 그룹별 모델/guard 제한, R/G 규칙별 행 수, 전체19143/1809과 기존5502행의 일대일 포함 관계를 검사한다. G-C를 큰 R에서만, R-C를 선정 모델에서만 실행한 부분 행렬은 정식 선정 자료로 인정하지 않는다.
+
+### 16.4 실행·비교·선정 게이트
+
+새 작업 경로는 `data/chunks/t08-2-rule-expansion/`, `data/embedding-benchmark/t08-2/rule-expansion-001/`을 사용한다. §15의 기준선과 현재 리포트는 덮어쓰지 않는다. `scripts/chunk_corpus.py`에 두 rule dispatch/manifest·재생성을 추가하고 `src/artagent/chunking.py`에 결정적 생성 함수를 둔다. `scripts/benchmark_embeddings.py`의 matrix/검증기는 세 R·세 정식 G·한 진단 G를 허용하되 §15의 모델 revision, policy, query/document prefix, Chroma/HNSW·tie-break, 95양성+5부정 분모 및100문항을 그대로 사용한다. `tests/test_chunking.py`에 heading snap·code fence·짧은/긴 원문·경계 overlap·다중 snapshot segment·guard tail·재생성·coverage 회귀를 추가한다.
+
+새 코드에서 과거5502행의 JSONL, encoder 입력, query별 top5/RR가 그대로 재현되는지 선두·작은 청크·native/pooled·GitHub 개별/스레드 기준점을 먼저 검사한다. §16의 **전체20952행은 하나의 고정 code/protocol revision에서 새로 검색·계측**한다. 정확히 동일한 문서 입력 fingerprint의 벡터 재사용은 허용하지만, 이전 실행의 검색 점수·latency·원시 로그를 새 행의 실제 관측으로 복사하지 않는다. 검증된 §15 결과와 §16 결과의 비교표에는 각각의 실행 지문을 표시한다. 공통 검색·평가 의미가 변경되면 기준선도 변경된 protocol에서 다시 측정하고 이전 점수를 새 행과 이어 붙이지 않는다. 실행 전 작은 수직 표본으로 시간·디스크를 실측해 자원 예산과 checkpoint 간격을 기록하되, 그 표본 점수로 행렬을 축소하거나 선정하지 않는다.
+
+모든 정식 행에서 기존 Hit@1/3/5·MRR@5, 출처별 값, complex FullEvidence@5, 예산2048/4096 Hit·FullEvidence, p95 latency, vector bytes, 청크 수와 실측 길이를 함께 저장한다. **R 규칙 효과**는 같은 모델/guard/G/L/O끼리, **G 규칙 효과**는 같은 모델/guard/R과 대응 G 파라미터끼리 쌍으로 비교한다. G-A의 내부 W와 G-B/G-C의 물리 L은 같은 양이 아니므로 임의로 같은 숫자라며 청킹 효과로 해석하지 않고, 동일 R/모델에서 검색 품질·비용의 후보 비교로 제시한다. R×G 상호작용도 출처별 query ID와 실패·개선 근거를 보고한다. 같은100문항 반복 행을 독립 질문 수로 세지 않는다. G-full 결과는 미선별 댓글의 추가 효과를 분리한 진단 표로 두고 §8.1 선정 대상에 넣지 않는다.
+
+원문 누락0, source segment/hash 오류0, 입력 truncation0, 전체 정식19143/진단1809 성공, 실제 지연 관측6,285,600개, query별 로그 재집계, ANN/동점 검사 및 선두·선정·차순위·기존 기준점의 독립 재인코딩/새 색인 재현을 모두 통과해야 최종 선정한다. §8.1의 사전 선정 순서를 **완료된 §16 정식 행 전체**에 적용하고, 8192와 O128 등 실제 탐색 경계와 문맥 예산의 손실을 같이 명시한다. 표현은 이번 고정 질문셋과 선언한 후보·파라미터 범위 안의 최선이며 전역 최적점이나 독립 hold-out 성능을 주장하지 않는다. 이후에야 `docs/chunking_embedding_benchmark.md/.json`, T9 인계 manifest 및 Task8-2 완료 체크를 갱신한다.
+
+### 16.5 Antigravity 실행 체크리스트
+
+- [ ] **Step 1 — 기준선 게이트:** §15.8의5502행·원시 로그·독립 재현을 완료하고 manifest/SHA와 미해결 실패0을 고정한다. 실패하면 §16 점수 선정으로 넘어가지 않는다.
+- [ ] **Step 2 — 규칙 계약·fixture:** R-C의 heading snap 및 G-C의 curated 직렬화/다중 source segment를 고정하고 원문116개·정제35조각의 hash·순서·range와 작은 회귀 fixture를 작성한다. Q/A 관계는 추정하지 않는다.
+- [ ] **Step 3 — 생성기·재생성:** 두 rule family, rule ID, guard/정책 fingerprint, JSONL, gold span mapping, 전수 비공백 coverage·truncation 검사와 독립 재생성을 구현·통과시킨다.
+- [ ] **Step 4 — 동등 행렬:** 위 네 블록을 기계적으로 생성하고 정식19143/진단1809, 기존5502 포함, 중복·누락0을 확인한다. 새 규칙의 모델/G 또는 R 교차 조합을 고정 후보로 축소하지 않는다.
+- [ ] **Step 5 — 전체 검색·대조:** 고정 code/protocol에서20952행×100문항×3회 검색하고 행별 원시 로그·지연·예산 packing을 전수 재집계한다. R/G 쌍별 곡선, GitHub 정제 범위와 full-thread 진단 차이, geometry 동률을 기록한다.
+- [ ] **Step 6 — 재현·선정·인계:** 선두/선정/차순위/기준점을 새 색인에서 재현하고 §8.1로 정식 행만 선정한다. 최종 JSON/MD·T9 입력·Task8-2 체크를 결과와 일치시킨다.
