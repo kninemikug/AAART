@@ -14,6 +14,7 @@
 | requests | 2.34.2 | Already installed | RawPedia collection |
 | beautifulsoup4 | 4.15.0 | Already installed | RawPedia collection |
 | markdownify | 1.2.3 | Already installed | RawPedia collection |
+| langgraph | 1.2.12 | Installed 2026-09-29 | LangGraph router graph skeleton (Task 13-2) |
 
 Add a dependency here when its consuming task installs it. Packaging metadata
 will be considered only when the installed set requires a maintained list.
