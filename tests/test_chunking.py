@@ -9,12 +9,14 @@ import pytest
 
 from src.artagent.chunking import (
     CHUNK_SCHEMA_VERSION,
+    GUARD_GROUP_CONTRACTS,
     Chunk,
     SourceSegment,
     calculate_evidence_chunk_coverage,
     calculate_evidence_chunks_union_coverage,
     compute_chunk_id,
     get_evidence_char_range,
+    resolve_guard_models,
     sha256_bytes,
     sha256_str,
     validate_chunk_provenance,
@@ -303,3 +305,55 @@ def test_crlf_and_korean_unicode():
 
     cov = calculate_evidence_chunk_coverage(ev, chunk)
     assert cov == pytest.approx(1.0)
+
+
+def test_guard_group_contracts_and_model_resolution():
+    """Verify strict guard model manifests according to guard group contracts."""
+    sample_models = {
+        "BAAI/bge-small-en-v1.5": {"revision": "5c38e", "max_seq_length": 512, "doc_prefix": ""},
+        "BAAI/bge-base-en-v1.5": {"revision": "a5beb", "max_seq_length": 512, "doc_prefix": ""},
+        "sentence-transformers/all-MiniLM-L6-v2": {"revision": "fa97f", "max_seq_length": 256, "doc_prefix": ""},
+        "intfloat/multilingual-e5-small": {"revision": "61424", "max_seq_length": 512, "doc_prefix": "passage: "},
+    }
+
+    # 1. native-common-256 requires all 4 models
+    res_native = resolve_guard_models("native-common-256", sample_models)
+    assert len(res_native) == 4
+    assert set(res_native.keys()) == set(sample_models.keys())
+
+    # 2. bge-512 allows ONLY bge-small and bge-base
+    res_bge = resolve_guard_models("bge-512", sample_models)
+    assert len(res_bge) == 2
+    assert "BAAI/bge-small-en-v1.5" in res_bge
+    assert "BAAI/bge-base-en-v1.5" in res_bge
+    assert "sentence-transformers/all-MiniLM-L6-v2" not in res_bge
+    assert "intfloat/multilingual-e5-small" not in res_bge
+
+    # 3. e5-512 allows ONLY multilingual-e5-small
+    res_e5 = resolve_guard_models("e5-512", sample_models)
+    assert len(res_e5) == 1
+    assert "intfloat/multilingual-e5-small" in res_e5
+    assert "sentence-transformers/all-MiniLM-L6-v2" not in res_e5
+
+    # 4. pooled-common-256 requires all 4 models
+    res_pooled = resolve_guard_models("pooled-common-256", sample_models)
+    assert len(res_pooled) == 4
+
+    # 5. Missing required models raises ValueError
+    incomplete_models = {
+        "BAAI/bge-small-en-v1.5": {"revision": "5c38e", "max_seq_length": 512},
+    }
+    with pytest.raises(ValueError, match="missing required models"):
+        resolve_guard_models("bge-512", incomplete_models)
+
+    # 6. Mismatched length limit raises ValueError
+    bad_limit_models = {
+        "intfloat/multilingual-e5-small": {"revision": "61424", "max_seq_length": 256, "doc_prefix": "passage: "},
+    }
+    with pytest.raises(ValueError, match="max_seq_length=256, expected 512"):
+        resolve_guard_models("e5-512", bad_limit_models)
+
+    # 7. Unknown guard group raises ValueError
+    with pytest.raises(ValueError, match="Unknown guard_group"):
+        resolve_guard_models("invalid-guard", sample_models)
+

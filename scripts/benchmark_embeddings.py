@@ -28,6 +28,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from src.artagent.chunking import (
     BGE_REVISION,
+    GUARD_GROUP_CONTRACTS,
     Chunk,
     SourceSegment,
     calculate_evidence_chunk_coverage,
@@ -256,13 +257,35 @@ def cmd_matrix(args: argparse.Namespace) -> int:
     models = list(model_manifest["models"].keys())
     models.sort()
 
+    if getattr(args, "rawpedia_variant_ids", None):
+        if len(args.rawpedia_variant_ids) != len(set(args.rawpedia_variant_ids)):
+            raise ValueError(f"Duplicate rawpedia variant IDs in filter: {args.rawpedia_variant_ids}")
+        selected_rp = set(args.rawpedia_variant_ids)
+        rawpedia_variants = [v for v in rawpedia_variants if v["rule_id"] in selected_rp]
+        if not rawpedia_variants:
+            raise ValueError(f"No rawpedia variants match --rawpedia-variant-ids: {args.rawpedia_variant_ids}")
+
     if getattr(args, "model_ids", None):
+        if len(args.model_ids) != len(set(args.model_ids)):
+            raise ValueError(f"Duplicate model IDs in filter: {args.model_ids}")
         selected_m = set(args.model_ids)
         models = [m for m in models if m in selected_m]
         if not models:
             raise ValueError(f"No models match --model-ids: {args.model_ids}")
 
+    # Guard group compatibility check
+    guard_group = getattr(args, "guard_group", None) or chunk_manifest.get("guard_group")
+    if guard_group and guard_group in GUARD_GROUP_CONTRACTS:
+        allowed_models = GUARD_GROUP_CONTRACTS[guard_group]["allowed_models"]
+        for m_id in models:
+            if m_id not in allowed_models:
+                raise ValueError(
+                    f"Model '{m_id}' is not allowed for guard group '{guard_group}' (allowed: {allowed_models})"
+                )
+
     if getattr(args, "github_variant_ids", None):
+        if len(args.github_variant_ids) != len(set(args.github_variant_ids)):
+            raise ValueError(f"Duplicate github variant IDs in filter: {args.github_variant_ids}")
         selected_gh = set(args.github_variant_ids)
         all_github_variants = [v for v in all_github_variants if v["rule_id"] in selected_gh]
         github_formal_variants = [v for v in github_formal_variants if v["rule_id"] in selected_gh]
@@ -285,8 +308,8 @@ def cmd_matrix(args: argparse.Namespace) -> int:
                 r_policy = r_var.get("embedding_policy", "direct")
                 g_policy = g_var.get("embedding_policy", "direct")
                 stage_id = "boundary-native" if r_policy == "direct_native_v3" else ("boundary-pooled" if r_policy == "chunk_window_mean_v2" else "stage-n")
-                guard_group = chunk_manifest.get("guard_group", "bge-512" if "bge" in m_id else ("e5-512" if "e5" in m_id else "pooled-common-256"))
-                exp_slug = f"{r_id}__{g_id}__{m_id}__{rev[:8]}__{r_policy}__{g_policy}__{args.device}"
+                guard_group = getattr(args, "guard_group", None) or chunk_manifest.get("guard_group", "bge-512" if "bge" in m_id else ("e5-512" if "e5" in m_id else "pooled-common-256"))
+                exp_slug = f"{r_id}__{g_id}__{m_id}__{rev[:8]}__{r_policy}__{g_policy}__{guard_group}__{args.device}"
                 exp_id = f"exp_{sha256_str(exp_slug)[:12]}"
 
                 exp_entry = {
@@ -379,8 +402,103 @@ def encode_chunk_list(
             if len(offsets_h) > 32:
                 header = header[:offsets_h[31][1]].strip()
 
-        if policy in ("thread_window_mean_v1", "thread_window_mean_v2", "thread_window_mean_v3"):
-            # Thread chunks encode using internal window splitting across segments
+        if policy in ("thread_window_mean_v1", "thread_window_mean_v2"):
+            # Isolated legacy implementation from 7b4dbe8f7
+            segments = c.metadata.get("source_segments", [])
+            w_val = c.metadata.get("encoder_window_tokens") or 224
+            window_texts = []
+            window_weights = []
+
+            for s in segments:
+                c_st = s.get("content_char_start", 0)
+                c_ed = s.get("content_char_end", len(c.content))
+                seg_slice = c.content[c_st:c_ed]
+                if not seg_slice.strip():
+                    continue
+
+                if ref_tokenizer is not None:
+                    enc = ref_tokenizer(seg_slice, return_offsets_mapping=True, add_special_tokens=False)
+                    offsets = enc["offset_mapping"]
+                    n_tok = len(offsets)
+                    if n_tok == 0:
+                        continue
+                    if n_tok <= w_val:
+                        txt = f"{header}\n{seg_slice}".strip() if header else seg_slice
+                        window_texts.append(f"{doc_prefix}{txt}")
+                        window_weights.append(n_tok)
+                    else:
+                        for i in range(0, n_tok, w_val):
+                            sub_offsets = offsets[i : i + w_val]
+                            sub_st = sub_offsets[0][0]
+                            sub_ed = sub_offsets[-1][1]
+                            sub_txt = seg_slice[sub_st:sub_ed]
+                            if sub_txt.strip():
+                                txt = f"{header}\n{sub_txt}".strip() if header else sub_txt
+                                window_texts.append(f"{doc_prefix}{txt}")
+                                window_weights.append(len(sub_offsets))
+                else:
+                    txt = f"{header}\n{seg_slice}".strip() if header else seg_slice
+                    window_texts.append(f"{doc_prefix}{txt}")
+                    window_weights.append(max(1, len(re.sub(r"\s", "", seg_slice))))
+
+            if not window_texts:
+                txt = f"{header}\n{c.content}".strip() if header else c.content
+                window_texts = [f"{doc_prefix}{txt}"]
+                window_weights = [1]
+
+            # Enforce length guard for each window, sub-splitting if necessary
+            final_window_texts = []
+            final_window_weights = []
+            for w_t, w_w in zip(window_texts, window_weights):
+                tok_len = len(encoder.tokenizer.encode(w_t, add_special_tokens=True))
+                if tok_len <= max_len:
+                    final_window_texts.append(w_t)
+                    final_window_weights.append(w_w)
+                else:
+                    core_t = w_t[len(doc_prefix):] if doc_prefix and w_t.startswith(doc_prefix) else w_t
+                    if ref_tokenizer is not None:
+                        core_enc = ref_tokenizer(core_t, return_offsets_mapping=True, add_special_tokens=False)
+                        core_offsets = core_enc["offset_mapping"]
+                        sub_step = 160
+                        for si in range(0, len(core_offsets), sub_step):
+                            so = core_offsets[si : si + sub_step]
+                            sub_txt = core_t[so[0][0] : so[-1][1]]
+                            if sub_txt.strip():
+                                final_window_texts.append(f"{doc_prefix}{sub_txt}")
+                                final_window_weights.append(len(so))
+                    else:
+                        mid = len(core_t) // 2
+                        p1, p2 = core_t[:mid], core_t[mid:]
+                        final_window_texts.append(f"{doc_prefix}{p1}")
+                        final_window_weights.append(max(1, w_w // 2))
+                        final_window_texts.append(f"{doc_prefix}{p2}")
+                        final_window_weights.append(max(1, w_w - (w_w // 2)))
+
+            window_texts = final_window_texts
+            window_weights = final_window_weights
+
+            for w_t in window_texts:
+                tok_len = len(encoder.tokenizer.encode(w_t, add_special_tokens=True))
+                if tok_len > max_len:
+                    raise ValueError(f"Thread window exceeds max_seq_length ({tok_len} > {max_len}) for model {model_id}")
+
+            win_vecs = encoder.encode(
+                window_texts,
+                batch_size=batch_size,
+                show_progress_bar=False,
+                normalize_embeddings=True,
+                convert_to_numpy=True,
+            )
+            weights_arr = np.array(window_weights, dtype=np.float32)[:, None]
+            weighted_mean = (win_vecs * weights_arr).sum(axis=0) / weights_arr.sum()
+            norm = np.linalg.norm(weighted_mean)
+            if norm > 1e-6:
+                weighted_mean /= norm
+            assert not np.isnan(weighted_mean).any(), f"NaN vector in chunk {c.chunk_id}"
+            vectors[idx] = weighted_mean
+
+        elif policy == "thread_window_mean_v3":
+            # Thread chunks encode using internal window splitting across segments with zero header weight
             segments = c.metadata.get("source_segments", [])
             w_val = c.metadata.get("encoder_window_tokens") or 224
             window_texts = []
@@ -431,14 +549,28 @@ def encode_chunk_list(
                     if ref_tokenizer is not None:
                         core_enc = ref_tokenizer(body_slice, return_offsets_mapping=True, add_special_tokens=False)
                         core_offsets = core_enc["offset_mapping"]
-                        sub_step = 160
-                        for si in range(0, len(core_offsets), sub_step):
-                            so = core_offsets[si : si + sub_step]
+                        header_txt = f"{doc_prefix}{header}\n" if header else f"{doc_prefix}"
+                        header_tok_len = len(encoder.tokenizer.encode(header_txt, add_special_tokens=True))
+                        avail_tokens = max(16, max_len - header_tok_len - 5)
+                        sub_step = min(160, avail_tokens)
+                        st = 0
+                        while st < len(core_offsets):
+                            step = sub_step
+                            while step > 1:
+                                so = core_offsets[st : st + step]
+                                sub_txt = body_slice[so[0][0] : so[-1][1]]
+                                txt = f"{header}\n{sub_txt}".strip() if header else sub_txt
+                                cand_w_t = f"{doc_prefix}{txt}"
+                                if len(encoder.tokenizer.encode(cand_w_t, add_special_tokens=True)) <= max_len:
+                                    break
+                                step = max(1, step // 2)
+                            so = core_offsets[st : st + step]
                             sub_txt = body_slice[so[0][0] : so[-1][1]]
                             if sub_txt.strip():
                                 txt = f"{header}\n{sub_txt}".strip() if header else sub_txt
                                 final_window_texts.append(f"{doc_prefix}{txt}")
                                 final_window_weights.append(len(so))
+                            st += step
                     else:
                         mid = len(body_slice) // 2
                         p1, p2 = body_slice[:mid], body_slice[mid:]
@@ -516,14 +648,28 @@ def encode_chunk_list(
                     if ref_tokenizer is not None:
                         core_enc = ref_tokenizer(body_slice, return_offsets_mapping=True, add_special_tokens=False)
                         core_offsets = core_enc["offset_mapping"]
-                        sub_step = max(50, w_val // 2)
-                        for si in range(0, len(core_offsets), sub_step):
-                            so = core_offsets[si : si + sub_step]
+                        header_txt = f"{doc_prefix}{header}\n" if header else f"{doc_prefix}"
+                        header_tok_len = len(encoder.tokenizer.encode(header_txt, add_special_tokens=True))
+                        avail_tokens = max(16, max_len - header_tok_len - 5)
+                        sub_step = min(max(50, w_val // 2), avail_tokens)
+                        st = 0
+                        while st < len(core_offsets):
+                            step = sub_step
+                            while step > 1:
+                                so = core_offsets[st : st + step]
+                                sub_txt = body_slice[so[0][0] : so[-1][1]]
+                                txt = f"{header}\n{sub_txt}".strip() if header else sub_txt
+                                cand_w_t = f"{doc_prefix}{txt}"
+                                if len(encoder.tokenizer.encode(cand_w_t, add_special_tokens=True)) <= max_len:
+                                    break
+                                step = max(1, step // 2)
+                            so = core_offsets[st : st + step]
                             sub_txt = body_slice[so[0][0] : so[-1][1]]
                             if sub_txt.strip():
                                 txt = f"{header}\n{sub_txt}".strip() if header else sub_txt
                                 final_window_texts.append(f"{doc_prefix}{txt}")
                                 final_window_weights.append(len(so))
+                            st += step
                     else:
                         mid = len(body_slice) // 2
                         p1, p2 = body_slice[:mid], body_slice[mid:]
@@ -622,6 +768,73 @@ def get_cached_rule_vectors(
     np.save(npy_path, vecs)
     print(f"  Done in {dur:.2f}s ({len(chunks)/(dur or 1e-4):.1f} chunks/sec). Saved to {npy_path.name}")
     return vecs
+
+
+def query_collection_deterministic(
+    col: Any,
+    encoder: Any,
+    query_texts: List[str],
+    n_results: int = 10,
+    k: int = 5,
+    measure_latency: bool = False,
+) -> Tuple[List[List[str]], List[List[float]], List[float], List[Dict[str, Any]]]:
+    """Execute queries against Chroma collection with deterministic tie-breaking.
+
+    Tie-breaking rule: candidates are sorted by (round(distance, 6), chunk_id).
+    Returns:
+        top_k_ids: List of top-k chunk IDs for each query
+        top_k_distances: List of top-k cosine distances for each query
+        latencies: List of measured latency in seconds (if measure_latency=True)
+        diagnostics: List of diagnostic dicts for each query (candidates near rank k, tie flags)
+    """
+    top_k_ids: List[List[str]] = []
+    top_k_distances: List[List[float]] = []
+    latencies: List[float] = []
+    diagnostics: List[Dict[str, Any]] = []
+
+    for q_text in query_texts:
+        t0 = time.perf_counter()
+        q_emb = encoder.encode([q_text], normalize_embeddings=True, show_progress_bar=False)[0]
+        res = col.query(
+            query_embeddings=[q_emb.tolist()],
+            n_results=n_results,
+            include=["documents", "metadatas", "distances"],
+        )
+        raw_ids = res["ids"][0]
+        raw_dists = res["distances"][0]
+        raw_docs = res["documents"][0]
+        raw_metas = res["metadatas"][0]
+
+        # Deterministic sorting by (round(distance, 6), chunk_id)
+        candidates = sorted(
+            zip(raw_ids, raw_dists, raw_docs, raw_metas),
+            key=lambda c: (round(float(c[1]), 6), str(c[0])),
+        )
+        top_cand = candidates[:k]
+        t1 = time.perf_counter()
+        if measure_latency:
+            latencies.append(t1 - t0)
+
+        c_ids = [c[0] for c in top_cand]
+        c_dists = [float(c[1]) for c in top_cand]
+        top_k_ids.append(c_ids)
+        top_k_distances.append(c_dists)
+
+        # Record diagnostics around rank k boundary
+        k_dist = c_dists[-1] if c_dists else 0.0
+        near_boundary = [
+            {"chunk_id": c[0], "distance": float(c[1])}
+            for c in candidates
+            if abs(float(c[1]) - k_dist) < 1e-4
+        ]
+        diagnostics.append({
+            "top5_ids": c_ids,
+            "top5_distances": c_dists,
+            "near_boundary_candidates": near_boundary,
+            "tie_at_boundary": len(near_boundary) > 1,
+        })
+
+    return top_k_ids, top_k_distances, latencies, diagnostics
 
 
 # =========================================================================
@@ -987,28 +1200,28 @@ def cmd_run(args: argparse.Namespace) -> int:
 
             # Warmup
             for w_i in range(min(args.warmup_queries, len(query_texts))):
-                w_emb = encoder.encode([query_texts[w_i]], normalize_embeddings=True)[0]
-                col.query(query_embeddings=[w_emb.tolist()], n_results=5)
+                w_emb = encoder.encode([query_texts[w_i]], normalize_embeddings=True, show_progress_bar=False)[0]
+                col.query(query_embeddings=[w_emb.tolist()], n_results=10)
 
             latencies = []
             top5_ids_per_query = []
+            top5_dists_per_query = []
+            search_diagnostics = []
 
             for rep in range(args.query_repeat):
-                for q_i, q_text in enumerate(query_texts):
-                    t_e2e_0 = time.perf_counter()
-                    q_emb = encoder.encode([q_text], normalize_embeddings=True)[0]
-                    res = col.query(
-                        query_embeddings=[q_emb.tolist()],
-                        n_results=5,
-                        include=["documents", "metadatas", "distances"],
-                    )
-                    ret_ids = res["ids"][0]
-                    ret_docs = res["documents"][0]
-                    ret_metas = res["metadatas"][0]
-                    t_e2e_1 = time.perf_counter()
-                    latencies.append(t_e2e_1 - t_e2e_0)
-                    if rep == 0:
-                        top5_ids_per_query.append(ret_ids)
+                t_ids, t_dists, rep_lats, rep_diags = query_collection_deterministic(
+                    col=col,
+                    encoder=encoder,
+                    query_texts=query_texts,
+                    n_results=10,
+                    k=5,
+                    measure_latency=True,
+                )
+                latencies.extend(rep_lats)
+                if rep == 0:
+                    top5_ids_per_query = t_ids
+                    top5_dists_per_query = t_dists
+                    search_diagnostics = rep_diags
 
             # Clean up collection to prevent disk bloat
             chroma_client.delete_collection(col_name)
@@ -1074,6 +1287,18 @@ def cmd_run(args: argparse.Namespace) -> int:
             }
 
             completed_experiments.append(exp_record)
+            if len(completed_experiments) % 25 == 0 or idx == len(m_exps):
+                ckpt_tmp = output_json_path.with_suffix(".tmp.json")
+                ckpt_summary = {
+                    "schema_version": 1,
+                    "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                    "total_experiments_count": len(completed_experiments),
+                    "target_matrix_count": total_matrix_count,
+                    "experiments": completed_experiments,
+                }
+                ckpt_tmp.write_text(json.dumps(ckpt_summary, ensure_ascii=False), encoding="utf-8")
+                ckpt_tmp.replace(output_json_path)
+
             if idx % 50 == 0 or idx == len(m_exps):
                 print(
                     f"[{len(completed_experiments)}/{total_matrix_count}] {r_vid} + {g_vid} | {model_id} -> "
@@ -1293,21 +1518,37 @@ def cmd_check_benchmark(args: argparse.Namespace) -> int:
                 return gold_mapping_cache[p]
         raise FileNotFoundError("Cannot locate gold_mapping.json")
 
-    def find_chunk_file(rule_name: str, source_type: str, hint_path: Optional[str] = None) -> Path:
+    def find_chunk_file(
+        rule_name: str,
+        source_type: str,
+        hint_path: Optional[str] = None,
+        guard_group: Optional[str] = None,
+    ) -> Path:
         if hint_path:
             p = REPO_ROOT / hint_path
             if p.is_file():
                 return p
-        candidates = [
-            REPO_ROOT / f"data/chunks/t08-2-large-native/bge-512/{source_type}/{rule_name}.jsonl",
+        candidates = []
+        if guard_group:
+            candidates.extend([
+                REPO_ROOT / f"data/chunks/t08-2-remeasurement/{guard_group}/{source_type}/{rule_name}.jsonl",
+                REPO_ROOT / f"data/chunks/t08-2-boundary-native/{guard_group}/{source_type}/{rule_name}.jsonl",
+                REPO_ROOT / f"data/chunks/t08-2-large-native/{guard_group}/{source_type}/{rule_name}.jsonl",
+            ])
+        candidates.extend([
+            REPO_ROOT / f"data/chunks/t08-2-remeasurement/{source_type}/{rule_name}.jsonl",
+            REPO_ROOT / f"data/chunks/t08-2-boundary-native/e5-512/{source_type}/{rule_name}.jsonl",
+            REPO_ROOT / f"data/chunks/t08-2-boundary-native/bge-512/{source_type}/{rule_name}.jsonl",
+            REPO_ROOT / f"data/chunks/t08-2-boundary-pooled/{source_type}/{rule_name}.jsonl",
             REPO_ROOT / f"data/chunks/t08-2-large-native/e5-512/{source_type}/{rule_name}.jsonl",
+            REPO_ROOT / f"data/chunks/t08-2-large-native/bge-512/{source_type}/{rule_name}.jsonl",
             REPO_ROOT / f"data/chunks/t08-2-large-pooled/{source_type}/{rule_name}.jsonl",
             REPO_ROOT / f"data/chunks/t08-2-grid/{source_type}/{rule_name}.jsonl",
-        ]
+        ])
         for c in candidates:
             if c.is_file():
                 return c
-        raise FileNotFoundError(f"Cannot find chunk file for {rule_name} in candidate directories")
+        raise FileNotFoundError(f"Cannot find chunk file for {rule_name} (guard={guard_group}) in candidate directories")
 
     # Source text caching
     source_cache: Dict[str, Tuple[str, str]] = {}
@@ -1350,8 +1591,8 @@ def cmd_check_benchmark(args: argparse.Namespace) -> int:
         ).astype(np.float32)
 
         # Load chunks dynamically
-        r_fpath = find_chunk_file(exp["rawpedia_rule"], "rawpedia", exp.get("rawpedia_file_path"))
-        g_fpath = find_chunk_file(exp["github_rule"], "github", exp.get("github_file_path"))
+        r_fpath = find_chunk_file(exp["rawpedia_rule"], "rawpedia", exp.get("rawpedia_file_path"), exp.get("guard_group"))
+        g_fpath = find_chunk_file(exp["github_rule"], "github", exp.get("github_file_path"), exp.get("guard_group"))
         r_chunks = [Chunk.from_dict(json.loads(l)) for l in r_fpath.read_text(encoding="utf-8").splitlines() if l.strip()]
         g_chunks = [Chunk.from_dict(json.loads(l)) for l in g_fpath.read_text(encoding="utf-8").splitlines() if l.strip()]
 
@@ -1381,17 +1622,30 @@ def cmd_check_benchmark(args: argparse.Namespace) -> int:
             b_chunks = sorted_chunks[b_i : b_i + add_batch]
             b_vecs = sorted_vecs[b_i : b_i + add_batch].tolist()
             b_ids = [c.chunk_id for c in b_chunks]
-            b_metas = [{"doc_id": c.doc_id} for c in b_chunks]
+            b_metas = [
+                {
+                    "source_type": c.source_type,
+                    "doc_id": c.doc_id,
+                    "section_title": c.section_title[:100],
+                    "rule_id": c.metadata.get("rule_id", ""),
+                }
+                for c in b_chunks
+            ]
             b_docs = [c.content for c in b_chunks]
             col.add(ids=b_ids, embeddings=b_vecs, metadatas=b_metas, documents=b_docs)
 
-        for w_i in range(min(10, len(query_vectors))):
-            col.query(query_embeddings=[query_vectors[w_i].tolist()], n_results=5)
+        for w_i in range(min(10, len(query_texts))):
+            w_emb = encoder.encode([query_texts[w_i]], normalize_embeddings=True, show_progress_bar=False)[0]
+            col.query(query_embeddings=[w_emb.tolist()], n_results=10)
 
-        top5_ids = []
-        for q_v in query_vectors:
-            res = col.query(query_embeddings=[q_v.tolist()], n_results=5)
-            top5_ids.append(res["ids"][0])
+        top5_ids, _, _, _ = query_collection_deterministic(
+            col=col,
+            encoder=encoder,
+            query_texts=query_texts,
+            n_results=10,
+            k=5,
+            measure_latency=False,
+        )
 
         chroma_client.delete_collection(col_name)
 
@@ -1768,7 +2022,9 @@ def cmd_combine(args: argparse.Namespace) -> int:
 
     # Baseline lookup if available
     baseline_record = None
-    baseline_path = REPO_ROOT / "docs/chunking_embedding_baseline_large_448_1024.json"
+    baseline_path = REPO_ROOT / "docs/chunking_embedding_baseline_boundary_4096.json"
+    if not baseline_path.is_file():
+        baseline_path = REPO_ROOT / "docs/chunking_embedding_baseline_large_448_1024.json"
     if not baseline_path.is_file():
         baseline_path = REPO_ROOT / "docs/chunking_embedding_baseline_grid_128_224.json"
     if not baseline_path.is_file():
@@ -1910,13 +2166,25 @@ def cmd_report_markdown(args: argparse.Namespace) -> int:
     g_l_match = re.search(r"-[tw](\d+)-", g_sel_rule)
     g_l = int(g_l_match.group(1)) if g_l_match else 224
 
-    if r_l == 448 or ("curated-unit" in g_sel_rule and g_l == 448):
+    # Collect all available L and O values dynamically from formal experiments
+    parsed_l = set()
+    parsed_o = set()
+    for e in formal_exps:
+        m_l = re.search(r"-t(\d+)-", e.get("rawpedia_rule", ""))
+        m_o = re.search(r"-o(\d+)", e.get("rawpedia_rule", ""))
+        if m_l:
+            parsed_l.add(int(m_l.group(1)))
+        if m_o:
+            parsed_o.add(int(m_o.group(1)))
+
+    max_l = max(parsed_l) if parsed_l else 448
+    if r_l == max_l or ("curated-unit" in g_sel_rule and g_l == max_l):
         boundary_status = "upper_boundary"
-        boundary_desc = "물리 청크 크기가 Stage N의 상한선(448 토큰)에 도달하였음."
+        boundary_desc = f"청크 크기가 탐색 그리드의 실제 탐색 상한선({max_l} 토큰)에 위치하며 상한선에서 최적 성능 달성."
     elif "thread" in g_sel_rule and g_l == 448 and r_l < 448:
         boundary_status = "encoder_limited"
         boundary_desc = "GitHub 스레드의 내부 인코더 윈도우(W=448)가 인코더 문맥 한도에 도달하였으나 RawPedia 물리 청크는 내부 피크에 머무름."
-    elif r_l < 448 and g_l < 448:
+    elif r_l < max_l and g_l < max_l:
         boundary_status = "interior_peak"
         boundary_desc = f"탐색 공간 내부({r_l} 토큰)에서 최적점을 형성하여 상한선 미만에서 성능 피크 도달."
     else:
@@ -1930,20 +2198,7 @@ def cmd_report_markdown(args: argparse.Namespace) -> int:
         "",
         f"선정 모델(`{sel_m_id}`) 및 선정 GitHub 규칙 고정 조건 하에서 RawPedia $L \\times O$ 그리드별 검색 품질(Macro MRR@5) 변화:",
         "",
-        "| 청크 크기 ($L$) \\ 오버랩 ($O$) | $O = 0$ (중복 없음) | $O = 32$ (경량 오버랩) | $O = 64$ (확장 오버랩) |",
-        "|---|---|---|---|",
     ])
-
-    # Collect all available L and O values dynamically from formal experiments
-    parsed_l = set()
-    parsed_o = set()
-    for e in formal_exps:
-        m_l = re.search(r"-t(\d+)-", e.get("rawpedia_rule", ""))
-        m_o = re.search(r"-o(\d+)", e.get("rawpedia_rule", ""))
-        if m_l:
-            parsed_l.add(int(m_l.group(1)))
-        if m_o:
-            parsed_o.add(int(m_o.group(1)))
 
     l_candidates = sorted(list(parsed_l)) if parsed_l else ([224, 256, 320, 384, 448] if is_large_chunk else [128, 192, 224])
     o_candidates = sorted(list(parsed_o)) if parsed_o else [0, 32, 64]
@@ -2056,7 +2311,14 @@ def main() -> int:
     mx.add_argument("--model-manifest", required=True)
     mx.add_argument("--queries", required=True)
     mx.add_argument("--model-ids", nargs="*", help="Filter model IDs to evaluate")
+    mx.add_argument("--rawpedia-variant-ids", nargs="*", help="Filter RawPedia variant IDs to evaluate")
     mx.add_argument("--github-variant-ids", nargs="*", help="Filter GitHub variant IDs to evaluate")
+    mx.add_argument(
+        "--guard-group",
+        choices=["native-common-256", "bge-512", "e5-512", "pooled-common-256"],
+        default=None,
+        help="Guard group for matrix generation.",
+    )
     mx.add_argument("--ks", nargs="+", type=int, default=[1, 3, 5])
     mx.add_argument("--device", default="cpu")
     mx.add_argument("--output-json", required=True)
@@ -2068,6 +2330,12 @@ def main() -> int:
     rn.add_argument("--chunk-manifest", required=True)
     rn.add_argument("--model-manifest", required=True)
     rn.add_argument("--queries", required=True)
+    rn.add_argument(
+        "--guard-group",
+        choices=["native-common-256", "bge-512", "e5-512", "pooled-common-256"],
+        default=None,
+        help="Guard group for benchmark run.",
+    )
     rn.add_argument("--context-budgets", nargs="*", type=int, default=[2048, 4096])
     rn.add_argument("--ks", nargs="+", type=int, default=[1, 3, 5])
     rn.add_argument("--device", default="cpu")

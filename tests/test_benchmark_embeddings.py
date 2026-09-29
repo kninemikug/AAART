@@ -466,3 +466,117 @@ def test_cmd_decide_extension_boundary_pooled(tmp_path: Path):
     assert d["per_model_evaluation"]["sentence-transformers/all-MiniLM-L6-v2"]["is_2048"] is True
 
 
+def test_query_collection_deterministic_tie_breaking():
+    """Verify deterministic tie-breaking on distance and chunk_id."""
+    from scripts.benchmark_embeddings import query_collection_deterministic
+    import chromadb
+
+    client = chromadb.Client()
+    col = client.create_collection("test_tie_break", metadata={"hnsw:space": "cosine"})
+
+    # Insert two chunks with identical vectors (distance will be equal)
+    vec = [1.0, 0.0, 0.0, 0.0]
+    col.add(
+        ids=["chunk_z", "chunk_a"],
+        embeddings=[vec, vec],
+        documents=["text z", "text a"],
+        metadatas=[{"doc_id": "z"}, {"doc_id": "a"}],
+    )
+
+    class MockEncoder:
+        def encode(self, texts, **kwargs):
+            return np.array([[1.0, 0.0, 0.0, 0.0]], dtype=np.float32)
+
+    encoder = MockEncoder()
+    top_ids, top_dists, _, diags = query_collection_deterministic(
+        col=col,
+        encoder=encoder,
+        query_texts=["sample query"],
+        n_results=5,
+        k=2,
+    )
+    # chunk_a should precede chunk_z alphabetically due to deterministic tie-breaking
+    assert top_ids[0] == ["chunk_a", "chunk_z"]
+    assert diags[0]["tie_at_boundary"] is True
+
+
+def test_matrix_filters_and_guard_compatibility(tmp_path):
+    """Verify matrix filters and strict guard group model compatibility."""
+    import argparse
+    import json
+    from scripts.benchmark_embeddings import cmd_matrix
+
+    chunk_manifest = {
+        "guard_group": "e5-512",
+        "chunking_rules": {
+            "R-A-heading-t448-o32": {"rule_id": "R-A-heading-t448-o32", "is_diagnostic": False},
+            "R-B-window-t448-o32": {"rule_id": "R-B-window-t448-o32", "is_diagnostic": False},
+            "G-A-curated-thread-w224-wo0": {"rule_id": "G-A-curated-thread-w224-wo0", "is_diagnostic": False},
+        },
+    }
+    model_manifest = {
+        "models": {
+            "intfloat/multilingual-e5-small": {"revision": "rev_e5", "hidden_size": 384},
+            "BAAI/bge-small-en-v1.5": {"revision": "rev_bge", "hidden_size": 384},
+        }
+    }
+    cm_path = tmp_path / "chunk_manifest.json"
+    mm_path = tmp_path / "model_manifest.json"
+    q_path = tmp_path / "queries.json"
+    out_path = tmp_path / "matrix.json"
+
+    cm_path.write_text(json.dumps(chunk_manifest))
+    mm_path.write_text(json.dumps(model_manifest))
+    q_path.write_text(json.dumps({"queries": []}))
+
+    # 1. Incompatible model for e5-512 must raise ValueError
+    args_bad = argparse.Namespace(
+        chunk_manifest=str(cm_path),
+        model_manifest=str(mm_path),
+        queries=str(q_path),
+        output_json=str(out_path),
+        model_ids=["BAAI/bge-small-en-v1.5"],
+        rawpedia_variant_ids=None,
+        github_variant_ids=None,
+        guard_group=None,
+        ks=[1, 3, 5],
+        device="cpu",
+    )
+    with pytest.raises(ValueError, match="not allowed for guard group 'e5-512'"):
+        cmd_matrix(args_bad)
+
+    # 2. Duplicate filter IDs must raise ValueError
+    args_dup = argparse.Namespace(
+        chunk_manifest=str(cm_path),
+        model_manifest=str(mm_path),
+        queries=str(q_path),
+        output_json=str(out_path),
+        model_ids=["intfloat/multilingual-e5-small", "intfloat/multilingual-e5-small"],
+        rawpedia_variant_ids=None,
+        github_variant_ids=None,
+        guard_group=None,
+        ks=[1, 3, 5],
+        device="cpu",
+    )
+    with pytest.raises(ValueError, match="Duplicate model IDs"):
+        cmd_matrix(args_dup)
+
+    # 3. Valid filtered matrix generation succeeds
+    args_valid = argparse.Namespace(
+        chunk_manifest=str(cm_path),
+        model_manifest=str(mm_path),
+        queries=str(q_path),
+        output_json=str(out_path),
+        model_ids=["intfloat/multilingual-e5-small"],
+        rawpedia_variant_ids=["R-B-window-t448-o32"],
+        github_variant_ids=["G-A-curated-thread-w224-wo0"],
+        guard_group=None,
+        ks=[1, 3, 5],
+        device="cpu",
+    )
+    assert cmd_matrix(args_valid) == 0
+    matrix_data = json.loads(out_path.read_bytes())
+    assert matrix_data["total_experiments_count"] == 1
+
+
+

@@ -24,12 +24,14 @@ if str(REPO_ROOT) not in sys.path:
 from src.artagent.chunking import (
     BGE_REVISION,
     CHUNK_SCHEMA_VERSION,
+    GUARD_GROUP_CONTRACTS,
     Chunk,
     SourceSegment,
     calculate_evidence_chunk_coverage,
     calculate_evidence_chunks_union_coverage,
     canonical_json_bytes,
     compute_chunk_id,
+    resolve_guard_models,
     sha256_bytes,
     sha256_str,
     validate_chunk_provenance,
@@ -389,26 +391,37 @@ def execute_chunking_build(
     """Core logic to build chunks and compute gold mapping across the full parameter grid."""
     from transformers import AutoTokenizer
     from src.artagent.chunking import (
+        GUARD_GROUP_CONTRACTS,
         TokenizerBundle,
         chunk_rawpedia_heading_rule,
         chunk_rawpedia_window_rule,
         chunk_github_curated_unit_rule,
         chunk_github_thread_rule,
         get_evidence_char_range,
+        resolve_guard_models,
         verify_raw_text_coverage,
     )
 
     manifest_data = json.loads(manifest_path.read_bytes())
     model_data = json.loads(model_manifest_path.read_bytes())
 
-    # 1. Initialize TokenizerBundle
-    print("Loading tokenizers for chunking build...")
+    # Resolve strict guard models according to guard group contract
+    all_models = model_data.get("models", {})
+    guard_models = resolve_guard_models(guard_group, all_models)
+    if guard_group:
+        contract = GUARD_GROUP_CONTRACTS[guard_group]
+        if physical_embedding_policy and physical_embedding_policy not in contract["allowed_physical_policies"]:
+            raise ValueError(
+                f"Physical embedding policy '{physical_embedding_policy}' is not allowed for guard group '{guard_group}' (allowed: {contract['allowed_physical_policies']})"
+            )
+
+    # 1. Initialize TokenizerBundle with ONLY the guard tokenizers
+    print(f"Loading tokenizers for chunking build (guard_group={guard_group}, models={list(guard_models.keys())})...")
     bge_tok = AutoTokenizer.from_pretrained("BAAI/bge-small-en-v1.5", revision=BGE_REVISION)
     candidate_toks = {}
-    for m_id, m_info in model_data.get("models", {}).items():
+    for m_id, m_info in guard_models.items():
         candidate_toks[m_id] = AutoTokenizer.from_pretrained(m_id, revision=m_info["revision"])
     tokenizer_bundle = TokenizerBundle(bge_tok, candidate_toks)
-    guard_models = model_data.get("models", {})
 
     # 2. Source getter for validation
     source_cache: Dict[str, Tuple[str, str]] = {}
@@ -752,6 +765,10 @@ def cmd_build(args: argparse.Namespace) -> int:
     manifest_data = json.loads(manifest_path.read_bytes())
     manifest_data["chunking_rules"] = rule_manifest
     manifest_data["guard_group"] = getattr(args, "guard_group", None)
+    model_data = json.loads(model_manifest_path.read_bytes())
+    resolved_guards = resolve_guard_models(getattr(args, "guard_group", None), model_data.get("models", {}))
+    manifest_data["guard_models"] = resolved_guards
+    manifest_data["guard_models_hash"] = sha256_str(json.dumps(resolved_guards, sort_keys=True))
     manifest_data["physical_embedding_policy"] = getattr(args, "physical_embedding_policy", None)
     manifest_data["thread_embedding_policy"] = getattr(args, "thread_embedding_policy", None)
     manifest_data["encoder_window_tokens"] = getattr(args, "encoder_window_tokens", None)
@@ -802,6 +819,16 @@ def cmd_check(args: argparse.Namespace) -> int:
         if len(lines) != r_info["chunk_count"]:
             print(f"ERROR: Chunk count mismatch in {r_name}: expected {r_info['chunk_count']}, got {len(lines)}", file=sys.stderr)
             return 1
+
+        expected_guard = manifest_data.get("guard_group")
+        if expected_guard:
+            for line in lines:
+                c_dict = json.loads(line)
+                c_meta = c_dict.get("metadata", {})
+                c_guard = c_meta.get("guard_group")
+                if c_guard != expected_guard:
+                    print(f"ERROR: Chunk {c_dict.get('chunk_id')} in {r_name} has guard_group '{c_guard}', expected '{expected_guard}'", file=sys.stderr)
+                    return 1
 
     # 2. Check gold mapping
     gold_map_file = chunks_dir / "gold_mapping.json"
@@ -895,7 +922,12 @@ def main() -> int:
     bld.add_argument("--target-tokens-grid", nargs="+", type=int, default=[128, 192, 224], help="Target reference tokens grid.")
     bld.add_argument("--overlap-tokens-grid", nargs="+", type=int, default=[0, 32, 64], help="Overlap reference tokens grid.")
     bld.add_argument("--thread-window-tokens-grid", nargs="+", type=int, default=[128, 192, 224], help="Thread window reference tokens grid.")
-    bld.add_argument("--guard-group", choices=["bge-512", "e5-512", "pooled-common-256"], default=None, help="Guard group for large chunks.")
+    bld.add_argument(
+        "--guard-group",
+        choices=["native-common-256", "bge-512", "e5-512", "pooled-common-256"],
+        default=None,
+        help="Guard group for chunking build.",
+    )
     bld.add_argument("--physical-embedding-policy", choices=["direct_native_v1", "direct_native_v2", "direct_native_v3", "chunk_window_mean_v1", "chunk_window_mean_v2"], default=None, help="Physical embedding policy.")
     bld.add_argument("--thread-embedding-policy", choices=["thread_window_mean_v1", "thread_window_mean_v2", "thread_window_mean_v3"], default=None, help="Thread embedding policy.")
     bld.add_argument("--encoder-window-tokens", type=int, default=None, help="Encoder window tokens.")

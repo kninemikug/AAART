@@ -19,6 +19,112 @@ SCHEMA_VERSION = 1
 CHUNK_SCHEMA_VERSION = "t08c:v1"
 BGE_REVISION = "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a"
 
+GUARD_GROUP_CONTRACTS: Dict[str, Dict[str, Any]] = {
+    "native-common-256": {
+        "allowed_models": {
+            "BAAI/bge-small-en-v1.5",
+            "BAAI/bge-base-en-v1.5",
+            "sentence-transformers/all-MiniLM-L6-v2",
+            "intfloat/multilingual-e5-small",
+        },
+        "exact_models": {
+            "BAAI/bge-small-en-v1.5",
+            "BAAI/bge-base-en-v1.5",
+            "sentence-transformers/all-MiniLM-L6-v2",
+            "intfloat/multilingual-e5-small",
+        },
+        "expected_limits": {
+            "BAAI/bge-small-en-v1.5": 512,
+            "BAAI/bge-base-en-v1.5": 512,
+            "sentence-transformers/all-MiniLM-L6-v2": 256,
+            "intfloat/multilingual-e5-small": 512,
+        },
+        "allowed_physical_policies": {"direct_native_v1", "direct_native_v2", "direct_native_v3"},
+    },
+    "bge-512": {
+        "allowed_models": {
+            "BAAI/bge-small-en-v1.5",
+            "BAAI/bge-base-en-v1.5",
+        },
+        "exact_models": {
+            "BAAI/bge-small-en-v1.5",
+            "BAAI/bge-base-en-v1.5",
+        },
+        "expected_limits": {
+            "BAAI/bge-small-en-v1.5": 512,
+            "BAAI/bge-base-en-v1.5": 512,
+        },
+        "allowed_physical_policies": {"direct_native_v1", "direct_native_v2", "direct_native_v3"},
+    },
+    "e5-512": {
+        "allowed_models": {
+            "intfloat/multilingual-e5-small",
+        },
+        "exact_models": {
+            "intfloat/multilingual-e5-small",
+        },
+        "expected_limits": {
+            "intfloat/multilingual-e5-small": 512,
+        },
+        "allowed_physical_policies": {"direct_native_v1", "direct_native_v2", "direct_native_v3"},
+    },
+    "pooled-common-256": {
+        "allowed_models": {
+            "BAAI/bge-small-en-v1.5",
+            "BAAI/bge-base-en-v1.5",
+            "sentence-transformers/all-MiniLM-L6-v2",
+            "intfloat/multilingual-e5-small",
+        },
+        "exact_models": {
+            "BAAI/bge-small-en-v1.5",
+            "BAAI/bge-base-en-v1.5",
+            "sentence-transformers/all-MiniLM-L6-v2",
+            "intfloat/multilingual-e5-small",
+        },
+        "expected_limits": {
+            "BAAI/bge-small-en-v1.5": 512,
+            "BAAI/bge-base-en-v1.5": 512,
+            "sentence-transformers/all-MiniLM-L6-v2": 256,
+            "intfloat/multilingual-e5-small": 512,
+        },
+        "allowed_physical_policies": {"chunk_window_mean_v1", "chunk_window_mean_v2"},
+    },
+}
+
+
+def resolve_guard_models(
+    guard_group: Optional[str],
+    all_models: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Resolve and validate strict guard model manifest according to guard group contract."""
+    if not guard_group:
+        return all_models
+    if guard_group not in GUARD_GROUP_CONTRACTS:
+        raise ValueError(
+            f"Unknown guard_group: '{guard_group}'. Must be one of {list(GUARD_GROUP_CONTRACTS.keys())}"
+        )
+    contract = GUARD_GROUP_CONTRACTS[guard_group]
+
+    filtered = {m: dict(cfg) for m, cfg in all_models.items() if m in contract["allowed_models"]}
+    missing = contract["exact_models"] - set(filtered.keys())
+    if missing:
+        raise ValueError(f"Guard group '{guard_group}' missing required models: {missing}")
+
+    for m_id, expected_len in contract["expected_limits"].items():
+        actual_len = filtered[m_id].get("max_seq_length", 512)
+        if actual_len != expected_len:
+            raise ValueError(
+                f"Model {m_id} in guard group '{guard_group}' has max_seq_length={actual_len}, expected {expected_len}"
+            )
+
+    # Negative validation: bge-512 and e5-512 must NEVER contain MiniLM
+    if guard_group in ("bge-512", "e5-512"):
+        if "sentence-transformers/all-MiniLM-L6-v2" in filtered:
+            raise ValueError(f"MiniLM (256 limit) must not be in guard group '{guard_group}'")
+
+    return filtered
+
+
 
 def sha256_bytes(data: bytes) -> str:
     """Compute lowercase hex SHA-256 digest of bytes."""
