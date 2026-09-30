@@ -248,8 +248,13 @@ def enumerate_chunking_variants(
     target_tokens_grid: Tuple[int, ...] = (128, 192, 224),
     overlap_tokens_grid: Tuple[int, ...] = (0, 32, 64),
     thread_window_tokens_grid: Tuple[int, ...] = (128, 192, 224),
+    include_expanded_rules: bool = False,
 ) -> List[ChunkingVariant]:
-    """Enumerate all 33 chunking variants (18 RawPedia + 12 formal GitHub + 3 diagnostic GitHub)."""
+    """Enumerate chunking variants across the parameter grid.
+
+    By default returns the baseline 33 variants (18 RawPedia + 12 formal GitHub + 3 diagnostic GitHub).
+    When include_expanded_rules is True, includes R-C-heading-window and G-C-curated-group (51 variants).
+    """
     variants: List[ChunkingVariant] = []
 
     # 1. RawPedia R-A-heading: 9 variants
@@ -290,7 +295,27 @@ def enumerate_chunking_variants(
                 )
             )
 
-    # 3. GitHub G-B-curated-unit: 9 variants
+    # 3. RawPedia R-C-heading-window (expanded): 9 variants
+    if include_expanded_rules:
+        for t in target_tokens_grid:
+            for o in overlap_tokens_grid:
+                vid = f"R-C-heading-window-t{t}-o{o}"
+                fp = f"{vid}:{BGE_REVISION}"
+                variants.append(
+                    ChunkingVariant(
+                        rule_family="R-C-heading-window",
+                        variant_id=vid,
+                        target_tokens=t,
+                        overlap_tokens=o,
+                        encoder_window_tokens=None,
+                        encoder_overlap_tokens=None,
+                        fingerprint=fp,
+                        source_type="rawpedia",
+                        is_diagnostic=False,
+                    )
+                )
+
+    # 4. GitHub G-B-curated-unit: 9 variants
     for t in target_tokens_grid:
         for o in overlap_tokens_grid:
             vid = f"G-B-curated-unit-t{t}-o{o}"
@@ -309,7 +334,27 @@ def enumerate_chunking_variants(
                 )
             )
 
-    # 4. GitHub G-A-curated-thread: 3 variants
+    # 5. GitHub G-C-curated-group (expanded): 9 variants
+    if include_expanded_rules:
+        for t in target_tokens_grid:
+            for o in overlap_tokens_grid:
+                vid = f"G-C-curated-group-t{t}-o{o}"
+                fp = f"{vid}:{BGE_REVISION}"
+                variants.append(
+                    ChunkingVariant(
+                        rule_family="G-C-curated-group",
+                        variant_id=vid,
+                        target_tokens=t,
+                        overlap_tokens=o,
+                        encoder_window_tokens=None,
+                        encoder_overlap_tokens=None,
+                        fingerprint=fp,
+                        source_type="github",
+                        is_diagnostic=False,
+                    )
+                )
+
+    # 6. GitHub G-A-curated-thread: 3 variants
     for w in thread_window_tokens_grid:
         vid = f"G-A-curated-thread-w{w}-wo0"
         fp = f"{vid}:{BGE_REVISION}"
@@ -327,7 +372,7 @@ def enumerate_chunking_variants(
             )
         )
 
-    # 5. GitHub G-A-full-thread: 3 diagnostic variants
+    # 7. GitHub G-A-full-thread: 3 diagnostic variants
     for w in thread_window_tokens_grid:
         vid = f"G-A-full-thread-w{w}-wo0"
         fp = f"{vid}:{BGE_REVISION}"
@@ -1201,6 +1246,196 @@ def chunk_rawpedia_window_rule(
     return chunks
 
 
+def chunk_rawpedia_heading_window_rule(
+    file_path: str,
+    raw_bytes: bytes,
+    doc_id: str,
+    target_url: str,
+    tokenizer_bundle: TokenizerBundle,
+    target_tokens: int = 192,
+    overlap_tokens: int = 32,
+    guard_group: Optional[str] = None,
+    physical_embedding_policy: Optional[str] = None,
+    guard_models: Optional[Dict[str, Any]] = None,
+    encoder_window_tokens: Optional[int] = None,
+    encoder_overlap_tokens: Optional[int] = None,
+) -> List[Chunk]:
+    """Generate chunks under rule R-C-heading-window (sentence-first sliding window with heading snap)."""
+    text = raw_bytes.decode("utf-8")
+    file_sha = sha256_bytes(raw_bytes)
+    page_title, body_text, fm_end, sections = parse_rawpedia_markdown_sections(text)
+    rule_family = "R-C-heading-window"
+    rule_id = f"{rule_family}-t{target_tokens}-o{overlap_tokens}"
+    pol = physical_embedding_policy or ("direct_native_v3" if guard_group else "direct_native_v1")
+    rule_fingerprint = f"{rule_id}:{guard_group}:{pol}:{BGE_REVISION}" if guard_group else f"{rule_id}:{BGE_REVISION}"
+
+    chunks: List[Chunk] = []
+    last_window_range: Optional[Tuple[int, int]] = None
+
+    def find_section_title(char_pos: int) -> Tuple[str, List[str]]:
+        for sec in sections:
+            if sec.char_start <= char_pos < sec.char_end:
+                return sec.heading_title, sec.section_path
+        return page_title or "Overview", [page_title or "Overview"]
+
+    cur_pos = 0
+    while cur_pos < len(body_text):
+        if not body_text[cur_pos:].strip():
+            break
+        remaining = body_text[cur_pos:]
+        sents = split_text_by_sentences(remaining)
+        if not sents:
+            sents = [(0, len(remaining), remaining)]
+
+        cur_toks = 0
+        nominal_end_rel = 0
+        for s_st, s_ed, s_tx in sents:
+            s_tok = tokenizer_bundle.count_ref_tokens(s_tx)
+            if nominal_end_rel > 0 and (cur_toks + s_tok > target_tokens):
+                break
+            nominal_end_rel = s_ed
+            cur_toks += s_tok
+            if cur_toks >= target_tokens:
+                break
+
+        if cur_toks > target_tokens and nominal_end_rel == sents[0][1]:
+            offsets = tokenizer_bundle.get_token_offsets(sents[0][2])
+            t_cut = min(target_tokens, len(offsets))
+            nominal_end_rel = sents[0][0] + offsets[t_cut - 1][1]
+
+        # Heading snap: check H2/H3 headings strictly after cur_pos and strictly before cur_pos + nominal_end_rel
+        heading_candidates: List[int] = []
+        for sec in sections:
+            if sec.level in (2, 3) and sec.char_start >= fm_end:
+                h_rel = sec.char_start - fm_end
+                if cur_pos < h_rel < cur_pos + nominal_end_rel:
+                    toks_to_h = tokenizer_bundle.count_ref_tokens(body_text[cur_pos:h_rel])
+                    if 0.8 * target_tokens <= toks_to_h <= target_tokens:
+                        heading_candidates.append(h_rel)
+
+        if heading_candidates:
+            h_best = max(heading_candidates)
+            cand_end_rel = h_best - cur_pos
+            heading_snapped = True
+            geometry_equivalent = None
+        else:
+            cand_end_rel = nominal_end_rel
+            heading_snapped = False
+            geometry_equivalent = f"R-B-window-t{target_tokens}-o{overlap_tokens}"
+
+        cand_text = body_text[cur_pos : cur_pos + cand_end_rel]
+        c_start = fm_end + cur_pos
+        sec_title, sec_path = find_section_title(c_start)
+        header = build_chunk_header(page_title, sec_title, tokenizer_bundle)
+
+        if guard_models and pol in ("direct_native_v2", "direct_native_v3"):
+            actual_text, _ = tokenizer_bundle.truncate_text_to_guard(cand_text, header, guard_models)
+        else:
+            actual_text = cand_text
+        if not actual_text.strip():
+            actual_text = cand_text[:max(1, len(cand_text))]
+
+        c_end = c_start + len(actual_text)
+        b_start = len(text[:c_start].encode("utf-8"))
+        b_end = len(text[:c_end].encode("utf-8"))
+        actual_toks = tokenizer_bundle.count_ref_tokens(actual_text)
+        actual_overlap_toks = compute_actual_overlap_tokens(
+            text, last_window_range, (c_start, c_end), tokenizer_bundle
+        )
+        last_window_range = (c_start, c_end)
+
+        seg = SourceSegment(
+            doc_id=doc_id,
+            source_path=file_path,
+            source_file_sha256=file_sha,
+            json_pointer=None,
+            char_start=c_start,
+            char_end=c_end,
+            byte_start=b_start,
+            byte_end=b_end,
+            content_char_start=0,
+            content_char_end=len(actual_text),
+            target_url=target_url,
+            segment_sha256=sha256_str(actual_text),
+        )
+        cid = compute_chunk_id(
+            CHUNK_SCHEMA_VERSION,
+            rule_fingerprint,
+            "rawpedia",
+            doc_id,
+            [seg],
+            sha256_str(actual_text),
+        )
+        meta = {
+            "schema_version": 1,
+            "rule_family": rule_family,
+            "rule_id": rule_id,
+            "rule_fingerprint": rule_fingerprint,
+            "target_tokens": target_tokens,
+            "overlap_tokens": overlap_tokens,
+            "encoder_window_tokens": encoder_window_tokens,
+            "encoder_overlap_tokens": encoder_overlap_tokens,
+            "actual_tokens": actual_toks,
+            "actual_overlap_tokens": actual_overlap_toks,
+            "content_sha256": sha256_str(actual_text),
+            "source_group_id": doc_id,
+            "product_scope": "rawtherapee_reference",
+            "range_basis": "source_file",
+            "section_kind": "heading_window",
+            "section_path": sec_path,
+            "page_title": page_title,
+            "target_url": target_url,
+            "source_path": file_path,
+            "source_file_sha256": file_sha,
+            "embedding_policy": pol,
+            "guard_group": guard_group,
+            "source_segments": [seg.to_dict()],
+            "heading_snapped": heading_snapped,
+            "geometry_equivalent": geometry_equivalent,
+        }
+        chunks.append(
+            Chunk(
+                chunk_id=cid,
+                source_type="rawpedia",
+                doc_id=doc_id,
+                section_title=sec_title,
+                content=actual_text,
+                char_range=(c_start, c_end),
+                metadata=meta,
+            )
+        )
+
+        actual_end_pos = cur_pos + len(actual_text)
+        if actual_end_pos >= len(body_text):
+            break
+
+        eff_overlap = min(overlap_tokens, max(0, actual_toks - 16))
+        if eff_overlap == 0:
+            next_pos = actual_end_pos
+        else:
+            best_p = None
+            for s_st, s_ed, _ in sents:
+                abs_p = cur_pos + s_st
+                if cur_pos < abs_p < actual_end_pos:
+                    if tokenizer_bundle.count_ref_tokens(body_text[abs_p : actual_end_pos]) <= eff_overlap:
+                        best_p = abs_p
+                        break
+            if best_p is not None:
+                next_pos = best_p
+            else:
+                tok_offsets = tokenizer_bundle.get_token_offsets(actual_text)
+                if len(tok_offsets) > eff_overlap:
+                    next_pos = cur_pos + tok_offsets[-eff_overlap][0]
+                else:
+                    next_pos = actual_end_pos
+
+        if next_pos <= cur_pos:
+            next_pos = actual_end_pos
+        cur_pos = next_pos
+
+    return chunks
+
+
 # =========================================================================
 # GitHub Chunking
 # =========================================================================
@@ -1387,6 +1622,273 @@ def chunk_github_curated_unit_rule(
             if next_pos <= cur_pos:
                 next_pos = actual_end_pos
             cur_pos = next_pos
+
+    return chunks
+
+
+def chunk_github_curated_group_rule(
+    candidate: Dict[str, Any],
+    github_dir: Path,
+    tokenizer_bundle: TokenizerBundle,
+    target_tokens: int = 192,
+    overlap_tokens: int = 32,
+    guard_group: Optional[str] = None,
+    physical_embedding_policy: Optional[str] = None,
+    guard_models: Optional[Dict[str, Any]] = None,
+    encoder_window_tokens: Optional[int] = None,
+    encoder_overlap_tokens: Optional[int] = None,
+) -> List[Chunk]:
+    """Generate chunks under rule G-C-curated-group (intermediate grouped curated slices)."""
+    rule_family = "G-C-curated-group"
+    rule_id = f"{rule_family}-t{target_tokens}-o{overlap_tokens}"
+    pol = physical_embedding_policy or ("direct_native_v3" if guard_group else "direct_native_v1")
+    rule_fingerprint = f"{rule_id}:{guard_group}:{pol}:{BGE_REVISION}" if guard_group else f"{rule_id}:{BGE_REVISION}"
+    candidate_id = candidate["candidate_id"]
+    chunks: List[Chunk] = []
+
+    curated_content = candidate.get("curated_content", [])
+    source_locations = candidate.get("source_locations", [])
+    loc_by_ref = {loc["ref_id"]: loc for loc in source_locations}
+
+    slices_data: List[Dict[str, Any]] = []
+    for idx, c_slice in enumerate(curated_content):
+        ref_id = c_slice["ref_id"]
+        loc = loc_by_ref.get(ref_id)
+        if not loc:
+            continue
+        rel_snap = loc["snapshot_path"]
+        snap_path = github_dir / rel_snap
+        snap_bytes = snap_path.read_bytes()
+        file_sha = sha256_bytes(snap_bytes)
+        body = json.loads(snap_bytes).get("body", "")
+        body_sha = sha256_str(body)
+
+        c_start = c_slice["char_start"]
+        c_end = c_slice["char_end"]
+        slice_text = body[c_start:c_end]
+        if not slice_text.strip():
+            continue
+        slices_data.append({
+            "curated_idx": idx,
+            "ref_id": ref_id,
+            "loc": loc,
+            "rel_snap": rel_snap,
+            "file_sha": file_sha,
+            "body": body,
+            "body_sha": body_sha,
+            "c_start": c_start,
+            "c_end": c_end,
+            "slice_text": slice_text,
+            "source_role": c_slice.get("source_role", loc.get("source_kind")),
+            "target_url": loc.get("url", candidate["url"]),
+        })
+
+    if not slices_data:
+        return []
+
+    # Stream of sentences across slices:
+    # Each item: (slice_idx, sent_st, sent_ed, sent_text, sent_toks)
+    items: List[Tuple[int, int, int, str, int]] = []
+    for s_idx, s_info in enumerate(slices_data):
+        slice_text = s_info["slice_text"]
+        sents = split_text_by_sentences(slice_text)
+        if not sents:
+            sents = [(0, len(slice_text), slice_text)]
+        for s_st, s_ed, s_tx in sents:
+            s_tok = tokenizer_bundle.count_ref_tokens(s_tx)
+            if s_tok > target_tokens:
+                offsets = tokenizer_bundle.get_token_offsets(s_tx)
+                cur_off = 0
+                while cur_off < len(offsets):
+                    sub_cut = min(len(offsets), cur_off + target_tokens)
+                    c_sub_st = s_st + offsets[cur_off][0]
+                    c_sub_ed = s_st + offsets[sub_cut - 1][1]
+                    sub_tx = slice_text[c_sub_st:c_sub_ed]
+                    sub_tok = tokenizer_bundle.count_ref_tokens(sub_tx)
+                    items.append((s_idx, c_sub_st, c_sub_ed, sub_tx, sub_tok))
+                    cur_off = sub_cut
+            else:
+                items.append((s_idx, s_st, s_ed, s_tx, s_tok))
+
+    cur_item = 0
+    last_window_range: Optional[Tuple[int, int]] = None
+
+    while cur_item < len(items):
+        chunk_items = [items[cur_item]]
+        cur_toks = items[cur_item][4]
+        next_cand = cur_item + 1
+
+        while next_cand < len(items):
+            cand_item = items[next_cand]
+            prev_item = chunk_items[-1]
+            sep = f"\n\n[{slices_data[cand_item[0]]['loc']['source_kind']} {slices_data[cand_item[0]]['ref_id']}]\n" if cand_item[0] != prev_item[0] else ""
+            sep_toks = tokenizer_bundle.count_ref_tokens(sep) if sep else 0
+            if cur_toks + sep_toks + cand_item[4] > target_tokens:
+                break
+            chunk_items.append(cand_item)
+            cur_toks += sep_toks + cand_item[4]
+            next_cand += 1
+
+        # Group adjacent chunk_items of same slice together
+        slice_groups: List[Dict[str, Any]] = []
+        for it in chunk_items:
+            if not slice_groups or slice_groups[-1]["slice_idx"] != it[0]:
+                slice_groups.append({
+                    "slice_idx": it[0],
+                    "items": [it],
+                    "char_start": it[1],
+                    "char_end": it[2],
+                })
+            else:
+                slice_groups[-1]["items"].append(it)
+                slice_groups[-1]["char_end"] = it[2]
+
+        content_pieces: List[str] = []
+        cur_content_pos = 0
+        segs: List[SourceSegment] = []
+
+        for g_i, grp in enumerate(slice_groups):
+            s_info = slices_data[grp["slice_idx"]]
+            sep = f"\n\n[{s_info['loc']['source_kind']} {s_info['ref_id']}]\n" if g_i > 0 else ""
+            if sep:
+                content_pieces.append(sep)
+                cur_content_pos += len(sep)
+
+            part_text = s_info["slice_text"][grp["char_start"]:grp["char_end"]]
+            c_st = cur_content_pos
+            content_pieces.append(part_text)
+            cur_content_pos += len(part_text)
+            c_ed = cur_content_pos
+
+            sub_b_st = s_info["c_start"] + grp["char_start"]
+            sub_b_ed = s_info["c_start"] + grp["char_end"]
+            b_st = len(s_info["body"][:sub_b_st].encode("utf-8"))
+            b_ed = len(s_info["body"][:sub_b_ed].encode("utf-8"))
+
+            seg = SourceSegment(
+                doc_id=s_info["ref_id"],
+                source_path=f"data/issues/{s_info['rel_snap']}",
+                source_file_sha256=s_info["file_sha"],
+                json_pointer="/body",
+                char_start=sub_b_st,
+                char_end=sub_b_ed,
+                byte_start=b_st,
+                byte_end=b_ed,
+                content_char_start=c_st,
+                content_char_end=c_ed,
+                target_url=s_info["target_url"],
+                segment_sha256=sha256_str(part_text),
+                ref_id=s_info["ref_id"],
+                body_sha256=s_info["body_sha"],
+                curated_content_index=s_info["curated_idx"],
+                source_role=s_info["source_role"],
+                curated=True,
+            )
+            segs.append(seg)
+
+        cand_content = "".join(content_pieces)
+        header = candidate.get("title", "")
+        header = build_chunk_header("", header, tokenizer_bundle)
+
+        if guard_models and pol in ("direct_native_v2", "direct_native_v3"):
+            actual_text, _ = tokenizer_bundle.truncate_text_to_guard(cand_content, header, guard_models)
+        else:
+            actual_text = cand_content
+        if not actual_text.strip():
+            actual_text = cand_content[:max(1, len(cand_content))]
+
+        # If guard truncated, adjust segments to not exceed actual_text
+        if len(actual_text) < len(cand_content):
+            trimmed_segs = []
+            for s in segs:
+                if s.content_char_start >= len(actual_text):
+                    continue
+                if s.content_char_end > len(actual_text):
+                    cut = len(actual_text) - s.content_char_start
+                    s.content_char_end = len(actual_text)
+                    s.char_end = s.char_start + cut
+                    orig_body = slices_data[s.curated_content_index]["body"]
+                    s.byte_end = len(orig_body[:s.char_end].encode("utf-8"))
+                    s.segment_sha256 = sha256_str(actual_text[s.content_char_start:s.content_char_end])
+                trimmed_segs.append(s)
+            segs = trimmed_segs
+
+        distinct_slices = len(set(s.curated_content_index for s in segs))
+        is_single = (distinct_slices == 1 and len(chunk_items) == 1 and chunk_items[0][1] == 0 and chunk_items[0][2] == len(slices_data[chunk_items[0][0]]["slice_text"]))
+        geom_eq = f"G-B-curated-unit-t{target_tokens}-o{overlap_tokens}" if is_single else None
+
+        actual_toks = tokenizer_bundle.count_ref_tokens(actual_text)
+        actual_overlap_toks = compute_actual_overlap_tokens(cand_content, last_window_range, (0, len(actual_text)), tokenizer_bundle)
+        last_window_range = (0, len(actual_text))
+
+        cid = compute_chunk_id(
+            CHUNK_SCHEMA_VERSION,
+            rule_fingerprint,
+            "github",
+            candidate_id,
+            segs,
+            sha256_str(actual_text),
+        )
+        meta = {
+            "schema_version": 1,
+            "rule_family": rule_family,
+            "rule_id": rule_id,
+            "rule_fingerprint": rule_fingerprint,
+            "target_tokens": target_tokens,
+            "overlap_tokens": overlap_tokens,
+            "encoder_window_tokens": encoder_window_tokens,
+            "encoder_overlap_tokens": encoder_overlap_tokens,
+            "actual_tokens": actual_toks,
+            "actual_overlap_tokens": actual_overlap_toks,
+            "content_sha256": sha256_str(actual_text),
+            "source_group_id": candidate_id,
+            "candidate_id": candidate_id,
+            "source_kind": candidate.get("source_type"),
+            "product_scope": "art_snapshot",
+            "range_basis": "serialized_content",
+            "section_kind": "curated_group",
+            "section_path": [candidate.get("title", "")],
+            "title": candidate.get("title", ""),
+            "target_url": candidate.get("url", ""),
+            "embedding_policy": pol,
+            "guard_group": guard_group,
+            "source_segments": [s.to_dict() for s in segs],
+            "geometry_equivalent": geom_eq,
+            "distinct_curated_count": distinct_slices,
+        }
+        chunks.append(
+            Chunk(
+                chunk_id=cid,
+                source_type="github",
+                doc_id=candidate_id,
+                section_title=candidate.get("title", ""),
+                content=actual_text,
+                char_range=(0, len(actual_text)),
+                metadata=meta,
+            )
+        )
+
+        if next_cand >= len(items):
+            break
+
+        eff_overlap = min(overlap_tokens, max(0, actual_toks - 16))
+        if eff_overlap == 0:
+            next_pos_item = next_cand
+        else:
+            best_i = None
+            for i_idx in range(len(chunk_items)):
+                tail_toks = sum(it[4] for it in chunk_items[i_idx:])
+                if tail_toks <= eff_overlap:
+                    best_i = cur_item + i_idx
+                    break
+            if best_i is not None and best_i > cur_item:
+                next_pos_item = best_i
+            else:
+                next_pos_item = next_cand
+
+        if next_pos_item <= cur_item:
+            next_pos_item = cur_item + 1
+        cur_item = next_pos_item
 
     return chunks
 

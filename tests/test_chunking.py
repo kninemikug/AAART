@@ -357,3 +357,122 @@ def test_guard_group_contracts_and_model_resolution():
     with pytest.raises(ValueError, match="Unknown guard_group"):
         resolve_guard_models("invalid-guard", sample_models)
 
+
+def test_enumerate_chunking_variants_with_expanded_rules():
+    """Verify enumerate_chunking_variants supports include_expanded_rules."""
+    from src.artagent.chunking import enumerate_chunking_variants
+
+    variants_default = enumerate_chunking_variants()
+    assert len(variants_default) == 33
+
+    variants_expanded = enumerate_chunking_variants(include_expanded_rules=True)
+    assert len(variants_expanded) == 51
+
+    rc_variants = [v for v in variants_expanded if v.rule_family == "R-C-heading-window"]
+    gc_variants = [v for v in variants_expanded if v.rule_family == "G-C-curated-group"]
+    assert len(rc_variants) == 9
+    assert len(gc_variants) == 9
+
+
+def test_rawpedia_heading_window_rule_and_code_fence():
+    """Verify R-C heading snap, code fence immunity, and zero omissions."""
+    from transformers import AutoTokenizer
+    from src.artagent.chunking import (
+        BGE_REVISION,
+        TokenizerBundle,
+        chunk_rawpedia_heading_window_rule,
+    )
+
+    bge_tok = AutoTokenizer.from_pretrained("BAAI/bge-small-en-v1.5", revision=BGE_REVISION)
+    tb = TokenizerBundle(bge_tok, {"BAAI/bge-small-en-v1.5": bge_tok})
+
+    md_content = """---
+title: "Test Page"
+---
+This is the introductory text. It explains the overview of ART processing in detail.
+We add several sentences to build up token length. ART is an advanced raw image editor.
+It provides demosaicing, tone curves, color balance, and noise reduction features.
+```python
+# Code block: this heading must be ignored!
+## Fake Heading Inside Code
+def process():
+    pass
+```
+More text following the code fence. This continues the introduction section with further explanation.
+The algorithm performs accurate calculations without unnecessary artifacts or loss of precision.
+
+## Important Features
+
+This is section two under the real H2 heading.
+It describes high quality interpolation and color management.
+We continue adding text to observe chunk boundary behavior and heading snap.
+
+### Sub-feature Detail
+
+This is section three under H3 heading.
+All details are thoroughly documented and tested.
+"""
+    raw_bytes = md_content.encode("utf-8")
+    chunks = chunk_rawpedia_heading_window_rule(
+        file_path="data/rawpedia/Test.md",
+        raw_bytes=raw_bytes,
+        doc_id="rawpedia:Test",
+        target_url="https://example.com/test",
+        tokenizer_bundle=tb,
+        target_tokens=64,
+        overlap_tokens=16,
+    )
+
+    assert len(chunks) >= 2
+    # Verify provenance for each chunk
+    for c in chunks:
+        assert c.source_type == "rawpedia"
+        assert c.doc_id == "rawpedia:Test"
+        assert c.content == md_content[c.char_range[0] : c.char_range[1]]
+        # Fake heading in code must not be treated as section title
+        assert "Fake Heading Inside Code" not in c.section_title
+
+
+def test_github_curated_group_rule_multi_segment_provenance():
+    """Verify G-C multi-segment serialization and provenance validation."""
+    from transformers import AutoTokenizer
+    from src.artagent.chunking import (
+        BGE_REVISION,
+        TokenizerBundle,
+        chunk_github_curated_group_rule,
+    )
+
+    bge_tok = AutoTokenizer.from_pretrained("BAAI/bge-small-en-v1.5", revision=BGE_REVISION)
+    tb = TokenizerBundle(bge_tok, {"BAAI/bge-small-en-v1.5": bge_tok})
+
+    cand_path = Path("data/issues/search-candidates.json")
+    github_dir = Path("data/issues")
+    if not cand_path.is_file():
+        pytest.skip("Search candidates file not found")
+
+    cands = json.loads(cand_path.read_bytes())["candidates"]
+    multi_cand = next(c for c in cands if len(c.get("curated_content", [])) >= 2)
+
+    chunks = chunk_github_curated_group_rule(
+        candidate=multi_cand,
+        github_dir=github_dir,
+        tokenizer_bundle=tb,
+        target_tokens=224,
+        overlap_tokens=0,
+    )
+
+    assert len(chunks) >= 1
+
+    def source_text_getter(seg):
+        p = Path(seg.source_path)
+        b = p.read_bytes()
+        f_sha = sha256_bytes(b)
+        return json.loads(b).get("body", ""), f_sha
+
+    for c in chunks:
+        validate_chunk_provenance(c, source_text_getter)
+        assert c.source_type == "github"
+        assert c.metadata["range_basis"] == "serialized_content"
+        assert len(c.metadata["source_segments"]) >= 1
+
+

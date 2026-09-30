@@ -580,3 +580,45 @@ def test_matrix_filters_and_guard_compatibility(tmp_path):
 
 
 
+
+
+def test_actual_evaluator_preserves_precision_and_negative_counter_diagnostics(monkeypatch):
+    """Exercise the production evaluator, rather than a duplicate metric implementation."""
+    from scripts import benchmark_embeddings as runner
+
+    monkeypatch.setattr(runner, "calculate_evidence_chunk_coverage",
+                        lambda ev, chunk, coordinates: float(chunk.chunk_id == ev["target"]))
+    monkeypatch.setattr(runner, "calculate_evidence_chunks_union_coverage",
+                        lambda ev, chunks, coordinates: float(any(c.chunk_id == ev["target"] for c in chunks)))
+    chunks = {str(i): Chunk(str(i), "rawpedia", "doc", "title", "body", (0, 4), {}) for i in range(1, 6)}
+    queries, returned = [], []
+    for qid, source, target, negative in (("R1", "rawpedia", "3", False), ("R2", "rawpedia", "missing", False),
+                                         ("R3", "rawpedia", "missing", False), ("G1", "github", "1", False),
+                                         ("N1", "github", "missing", True)):
+        queries.append({"query_id": qid, "source_type": source, "difficulty": "negative" if negative else "complex",
+            "evidence": [{"target": target, "source_path": "test", "role": "counter" if negative else "support"}]})
+        returned.append(list(chunks))
+    metrics = runner.evaluate_retrieval(queries, returned, chunks, {}, "raw", "github")
+    assert metrics["rawpedia"]["mrr@5"] == pytest.approx(1 / 9, abs=1e-14)
+    assert metrics["macro"]["mrr@5"] == pytest.approx((1 / 9 + 1) / 2, abs=1e-14)
+    assert metrics["micro"]["mrr@5"] == pytest.approx(1 / 3, abs=1e-14)
+    negative = next(r for r in metrics["query_results"] if r["query_id"] == "N1")
+    assert negative["full_evidence"][5] == 0.0
+    assert negative["evidence_coverage"][0]["role"] == "counter"
+
+
+def test_document_cache_fingerprint_changes_when_content_tail_changes(tmp_path, monkeypatch):
+    """The old content[:40] cache key silently reused changed document vectors."""
+    import numpy as np
+    from scripts import benchmark_embeddings as runner
+    calls = []
+    def encode(chunks, **kwargs):
+        calls.append(chunks[0].content)
+        return np.ones((1, 2), dtype=np.float32)
+    monkeypatch.setattr(runner, "encode_chunk_list", encode)
+    chunk = Chunk("same-id", "rawpedia", "doc", "section", "x" * 40 + "old tail", (0, 48), {})
+    info = {"revision": "fixed-revision", "hidden_size": 2}
+    runner.get_cached_rule_vectors("rule", [chunk], None, "model", info, tmp_path)
+    chunk.content = "x" * 40 + "new tail"
+    runner.get_cached_rule_vectors("rule", [chunk], None, "model", info, tmp_path)
+    assert len(calls) == 2

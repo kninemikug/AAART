@@ -395,7 +395,9 @@ def execute_chunking_build(
         TokenizerBundle,
         chunk_rawpedia_heading_rule,
         chunk_rawpedia_window_rule,
+        chunk_rawpedia_heading_window_rule,
         chunk_github_curated_unit_rule,
+        chunk_github_curated_group_rule,
         chunk_github_thread_rule,
         get_evidence_char_range,
         resolve_guard_models,
@@ -499,6 +501,21 @@ def execute_chunking_build(
                             encoder_window_tokens=encoder_window_tokens,
                             encoder_overlap_tokens=encoder_overlap_tokens,
                         )
+                    elif r_rule == "R-C-heading-window":
+                        c_list = chunk_rawpedia_heading_window_rule(
+                            rel_p,
+                            b,
+                            doc_id,
+                            page_url,
+                            tokenizer_bundle,
+                            l_val,
+                            o_val,
+                            guard_group=guard_group,
+                            physical_embedding_policy=physical_embedding_policy,
+                            guard_models=guard_models,
+                            encoder_window_tokens=encoder_window_tokens,
+                            encoder_overlap_tokens=encoder_overlap_tokens,
+                        )
                     else:
                         raise ValueError(f"Unknown RawPedia rule {r_rule}")
 
@@ -518,6 +535,31 @@ def execute_chunking_build(
                 rule_chunks = []
                 for cand in candidates:
                     c_list = chunk_github_curated_unit_rule(
+                        cand,
+                        github_dir,
+                        tokenizer_bundle,
+                        l_val,
+                        o_val,
+                        guard_group=guard_group,
+                        physical_embedding_policy=physical_embedding_policy,
+                        guard_models=guard_models,
+                        encoder_window_tokens=encoder_window_tokens,
+                        encoder_overlap_tokens=encoder_overlap_tokens,
+                    )
+                    for c in c_list:
+                        validate_chunk_provenance(c, get_source_text)
+                    rule_chunks.extend(c_list)
+                chunks_by_variant[variant_id] = rule_chunks
+
+    # G-C-curated-group across (L, O) grid
+    if "G-C-curated-group" in github_rules:
+        for l_val in target_tokens_grid:
+            for o_val in overlap_tokens_grid:
+                variant_id = f"G-C-curated-group-t{l_val}-o{o_val}"
+                print(f"Building chunks for {variant_id}...")
+                rule_chunks = []
+                for cand in candidates:
+                    c_list = chunk_github_curated_group_rule(
                         cand,
                         github_dir,
                         tokenizer_bundle,
@@ -865,12 +907,18 @@ def cmd_check(args: argparse.Namespace) -> int:
                 model_manifest_path = REPO_ROOT / "data/embedding-benchmark/t08-2/grid-001/environment.json"
             else:
                 model_manifest_path = REPO_ROOT / "data/embedding-benchmark/t08-2/run-001/environment.json"
+            r_rules = list(dict.fromkeys(r.get("rule_family") for r in rules_info.values() if r["rule_id"].startswith("R-")))
+            g_rules = list(dict.fromkeys(r.get("rule_family") for r in rules_info.values() if r["rule_id"].startswith("G-")))
+            if not r_rules:
+                r_rules = ["R-A-heading", "R-B-window"]
+            if not g_rules:
+                g_rules = ["G-A-full-thread", "G-A-curated-thread", "G-B-curated-unit"]
 
             regen_manifest, _ = execute_chunking_build(
                 manifest_path=manifest_path,
                 model_manifest_path=model_manifest_path,
-                rawpedia_rules=["R-A-heading", "R-B-window"],
-                github_rules=["G-A-full-thread", "G-A-curated-thread", "G-B-curated-unit"],
+                rawpedia_rules=r_rules,
+                github_rules=g_rules,
                 target_tokens_grid=t_grid,
                 overlap_tokens_grid=o_grid,
                 thread_window_tokens_grid=w_grid,
