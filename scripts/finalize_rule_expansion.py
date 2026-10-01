@@ -35,6 +35,11 @@ BATCH_DEFS = [
 ]
 TOTAL_EXPERIMENTS = 20952
 TOTAL_OBSERVATIONS = 20952 * 100 * 3  # 6,285,600
+T9_REPRO_COMMAND = (
+    "python3 scripts/reproduce_t08_2_selected.py "
+    "--reference docs/T08_2_t9_handoff_reference.json "
+    "--work-dir data/embedding-benchmark/t08-2/t9-handoff-repro"
+)
 
 
 def row_key(row):
@@ -364,6 +369,8 @@ def generate_benchmark_markdown_and_json(data: dict, out_json_path: Path, out_md
         "",
         "## 7. 결론 및 T9 인계 명세",
         "",
+        "이 선정은 고정 100문항의 검색 지표로 정한 T9 초기 기준점이다. 실제 답변·인용 품질을 포함한 최종 스택은 T11·T15·T17 이후 별도 게이트에서 비교한다. [재현 인계](T08_2_t9_handoff.md)의 명령으로 Git 관리 입력에서 선정 조합을 재생성할 수 있다.",
+        "",
         "1. **최종 선정 스택**:",
         f"   - **임베딩 모델**: `{selected.get('model_id')}` (commit revision: `{selected.get('model_revision')}`)",
         f"   - **차원 및 Prefix**: {sel_dim} 차원 / Query: `{sel_q_pref}` / Document: `{sel_d_pref}`",
@@ -375,6 +382,7 @@ def generate_benchmark_markdown_and_json(data: dict, out_json_path: Path, out_md
         f"   - **독립 재현 기록**: `{data['validation']['independent_reproduction']['path']}` (Diff 0.000000 완벽 통과)",
         f"   - **정책 대조군 기록**: `{data['validation']['policy_controls']['path']}`",
         "   - R/G JSONL·guard·전체 encoder/window·가중치·vector·코드·패키지 지문과 원시 로그 SHA는 JSON의 source_binding/document_inputs/protocol/validation을 함께 전달한다.",
+        f"   - **다른 작업 위치 재현 명령**: `{T9_REPRO_COMMAND}`. [실행 절차](T08_2_t9_handoff.md)와 추적 가능한 기대값을 함께 사용한다.",
         "",
         "2. **인계 주의 사항**:",
         f"   - 검색 파이프라인(T9)에서는 한국어 질문에 모델 접두사(`{sel_q_pref}`)를 부가하여 {sel_dim}차원 정규화 벡터로 변환 후 Chroma `cosine` 거리 기반 top-k 검색을 수행해야 함.",
@@ -385,6 +393,10 @@ def generate_benchmark_markdown_and_json(data: dict, out_json_path: Path, out_md
     out_md_path.parent.mkdir(parents=True, exist_ok=True)
     out_md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"SUCCESS: Benchmark markdown report saved to {out_md_path}", flush=True)
+
+    # Publish a portable selected-stack command without changing the frozen benchmark protocol.
+    for key in ("selected_stack", "selected"):
+        data[key]["t9_reproduction_command"] = T9_REPRO_COMMAND
 
     # Also update json
     data["rule_expansion_analysis"] = {

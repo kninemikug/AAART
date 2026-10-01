@@ -160,6 +160,8 @@
 
 ## 7. 결론 및 T9 인계 명세
 
+이 선정은 고정 100문항의 검색 지표로 정한 T9 초기 기준점이다. 실제 답변·인용 품질을 포함한 최종 스택은 T11·T15·T17 이후 별도 게이트에서 비교한다. [재현 인계](T08_2_t9_handoff.md)의 명령으로 Git 관리 입력에서 선정 조합을 재생성할 수 있다.
+
 1. **최종 선정 스택**:
    - **임베딩 모델**: `sentence-transformers/all-MiniLM-L6-v2` (commit revision: `1110a243fdf4706b3f48f1d95db1a4f5529b4d41`)
    - **차원 및 Prefix**: 384 차원 / Query: `` / Document: ``
@@ -171,8 +173,8 @@
    - **독립 재현 기록**: `data/embedding-benchmark/t08-2/rule-expansion-001/recheck/reproduction.json` (Diff 0.000000 완벽 통과)
    - **정책 대조군 기록**: `data/embedding-benchmark/t08-2/rule-expansion-001/controls/policy_controls.json`
    - R/G JSONL·guard·전체 encoder/window·가중치·vector·코드·패키지 지문과 원시 로그 SHA는 JSON의 source_binding/document_inputs/protocol/validation을 함께 전달한다.
+   - **다른 작업 위치 재현 명령**: `python3 scripts/reproduce_t08_2_selected.py --reference docs/T08_2_t9_handoff_reference.json --work-dir data/embedding-benchmark/t08-2/t9-handoff-repro`. [실행 절차](T08_2_t9_handoff.md)와 추적 가능한 기대값을 함께 사용한다.
 
 2. **인계 주의 사항**:
    - 검색 파이프라인(T9)에서는 한국어 질문에 모델 접두사(``)를 부가하여 384차원 정규화 벡터로 변환 후 Chroma `cosine` 거리 기반 top-k 검색을 수행해야 함.
    - RawPedia 청크(`R-C-heading-window-t8192-o64`)는 내부 윈도우 풀링(`chunk_window_mean_v2`) 방식으로 생성되었으므로, 색인 시 원문 segment 단위 분할 및 가중 평균 벡터 집계 방식을 동일하게 준수해야 함.
-
