@@ -20,6 +20,7 @@
 | tokenizers | 0.23.2 | Installed 2026-09-28 | Task 8-2 chunking & embedding benchmark |
 | numpy | 2.5.3 | Installed 2026-09-28 | Task 8-2 chunking & embedding benchmark |
 | chromadb | 1.5.9 | Installed 2026-09-28 | Task 8-2 vector store & benchmark |
+| langgraph | 1.2.12 | Installed 2026-09-29 | LangGraph router graph skeleton (Task 13-2) |
 
 Add a dependency here when its consuming task installs it. Packaging metadata
 will be considered only when the installed set requires a maintained list.
