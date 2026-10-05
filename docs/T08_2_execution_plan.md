@@ -1,6 +1,6 @@
 # Task 8-2 문서 청킹 및 임베딩 벤치마크 실행 플랜
 
-작성일: 2026-09-28 · 개정일: 2026-10-01 · 담당: 김대성 레인 · 구현 실행자: Antigravity(Gemini 3.8 Flash)
+작성일: 2026-09-28 · 개정일: 2026-10-01 · 담당: 김대성 레인
 
 이 문서는 WBS Phase A의 **A-08 2/3·3/3, A-10 3/4**를 실행하기 위한 구현 계약이다. 목표는 두 출처의 후보 청크를 실제로 생성하고, 고정 100개 질문으로 **같은 임시 Chroma의 독립 컬렉션**에서 비교하여 **RawPedia 방식·크기·오버랩 + GitHub 방식·크기·오버랩 또는 내부 윈도우 크기 + 공통 임베딩 모델**을 함께 선정하는 것이다. 2026-09-30 개정에서 정한 실행 순서는 §15의 현행 5502행 검증, 이어서 §16의 R-C/G-C 추가 규칙 전체 교차 비교였다. §1~14의 이전 계약과 실행 결과는 이력으로 보존한다.
 
@@ -460,7 +460,7 @@ JSON 리포트 필수 키:
 
 주 로직은 작은 fixture와 수작업 vectors로 검증한다. 모델 semantic 성능을 고정 기대값의 단위 테스트로 만들지 않는다. 실제 원문/147스팬 회귀와 실제 Chroma roundtrip은 의존성 준비 뒤 반드시 실행한다. 테스트 중 숨은 네트워크 다운로드 대신 사전 cache를 쓰며 skip/xfail로 필수 검증을 줄이지 않는다.
 
-## 11. Antigravity Step 1~6 체크리스트
+## 11. 실행 Step 1~6 체크리스트
 
 이 체크리스트는 완료된 **128~224토큰/1080조합 단계의 구현·재현 순서**다. 완료 상태의 정본은 `tasks/todo.md`이고, 아래 체크박스는 원래 실행 계약을 보존한 것이다. 이번 추가 실험은 **§13.6의 확장 Step 1~6**을 사용한다. WBS의 최초 8h 배분은 보존하고 추가 실행 시간은 청크 수·encode/index/query 실측으로 추정한다. 문서 벡터 캐시와 실행 상태를 보존하여 남은 행을 이어서 수행한다.
 
@@ -620,7 +620,7 @@ ART_PIPELINE_PY=/Users/user/Workspace/Programming/Projects/AAART/venv/bin/python
 
 `benchmark check`는 전체 로그 재집계와 파라미터별 재현 증거를 작업 JSON에 저장한다. `report`는 완료율/선정/재현 게이트를 확인한 뒤 해당 JSON과 수치로 최종 MD/JSON을 임시 파일에 생성하고 성공 시 교체한다. 실패하면 작업 결과와 기존 기준선 리포트를 보존한다. 기준선 대비 표는 새 실행에서 다시 측정한 192/32 행을 사용하고 과거 리포트 값은 별도로 표시한다.
 
-Antigravity는 위 순서를 따르고 미확인 항목을 추측으로 PASS 처리하지 않는다. 실행 불가 후보, 보존되지 않은 산출물, 미완료 재현 검사는 상태와 남은 작업을 JSON/Markdown 모두에 기록한다.
+위 순서에 따라 실행하고 미확인 항목을 추측으로 PASS 처리하지 않는다. 실행 불가 후보, 보존되지 않은 산출물, 미완료 재현 검사는 상태와 남은 작업을 JSON/Markdown 모두에 기록한다.
 
 ## 13. 대형 청크 추가 실험: 224토큰 상한 이후
 
@@ -757,7 +757,7 @@ data/embedding-benchmark/t08-2/large-combined-001/
 
 N/P의 해당 전체 행렬·§7 계측·회귀·재현을 통과한 뒤 최종 `docs/chunking_embedding_benchmark.md/.json`을 갱신하고 T9로 인계한다. 그 전까지 작업 리포트와 기준선 파일을 보존한다.
 
-### 13.6 Antigravity 확장 Step 1~6 및 회귀
+### 13.6 확장 Step 1~6 및 회귀
 
 1. **기준선/입력 고정:** 현재 1080 MD/JSON 바이트·SHA, 원문/100문항/147스팬, 모델 revision/배포 한도/환경을 고정한다. 확장 전용 디렉터리와 N/P 정의를 저장한다.
 2. **guard 수직 구현:** 한 RawPedia 구간과 한 긴 GitHub body로 N의 448 입력 조립→실제 tokenizer guard→encode→Chroma 전체 content 반환→gold trace를 통과한다. 헤더/prefix로 입력이 초과하는 사례를 먼저 검증한다.
@@ -990,7 +990,7 @@ Q-N 108 + Q-P 60 = **정식168행**, 4096 실행 시 **180행**이다. 새 진�
 
 경계는 모델/정책/축마다 판정한다. 더 큰 L에서 저하하면 `interior_peak`, 동일 실제 경계면 `encoder_limited` 또는 크기 효과 `no_effect`, 최고점이 실제 탐색 상한에 있고 인접 비교도 개선이면 `upper_boundary`다. 선두에 오른 L만 검사하여 단조 증가를 선언하지 않는다. 4096까지 개선되면 **이 고정 질문셋과 탐색 범위의 최선**으로 기록한다. 이후 확대는 개선 문항·예산 결과·비용 근거를 별도 제안으로 남긴다. 이번 실행에서 장문 모델 도입, 8192 이상 자동 확장, 신규 골드 질문 생성은 포함하지 않는다.
 
-### 14.6 Antigravity Step 1~6 및 산출물
+### 14.6 실행 Step 1~6 및 산출물
 
 1. **보존·등록:** 현재 4290 MD/JSON 및 원문/147스팬/모델 revision을 고정한다. Q-N/Q-P 부분 행렬, 고정 GitHub map, 새 policy/protocol hash와 168행 예상 수를 저장한다. 기존 selected는 과거 실행 기준점으로 보존한다.
 2. **보정·회귀:** §14.2의 실제 끝점 기반 전진, body-only window 가중치, end-to-end 타이머, 명시적 정책 ID를 구현한다. 긴 문장·표·tail·비ASCII·512 입력 경계·정책별 cache 분리 테스트를 먼저 통과한다.
@@ -1046,7 +1046,7 @@ ART_BOUNDARY_WORK=data/embedding-benchmark/t08-2/boundary-native-bge-base-001
   tests/test_benchmark_embeddings.py tests/test_eval_queries.py tests/test_filter_issues.py -q
 ```
 
-추가 회귀는 **guard로 줄인 tail의 다음 청크 회수와 원문 합집합**, 입력 한도에 닿은 여러 L의 실제 경계 동률, 1536/2048/4096 tail의 실제 encoder/반환 coverage, 생성 헤더 가중0, budget 경계/빈 결과/중복 chunk ID, 모델별 고정 G 필터와 행 수, 매 query/repeat의 실제 encoder 호출 및 단일 타이머를 확인한다. 통합은 새 공통 평가 protocol 아래 Q-N/Q-P 정책 차이를 실험 요인으로 허용하며 과거 protocol의 결과/cache 혼입은 거부한다. 의미 성능 수치를 unit test에 고정하지 않는다. 계획 문서 수정 자체는 실행 증거가 아니며 새 CLI/회귀/168행과 조건부 실행 검증은 Antigravity가 수행한다.
+추가 회귀는 **guard로 줄인 tail의 다음 청크 회수와 원문 합집합**, 입력 한도에 닿은 여러 L의 실제 경계 동률, 1536/2048/4096 tail의 실제 encoder/반환 coverage, 생성 헤더 가중0, budget 경계/빈 결과/중복 chunk ID, 모델별 고정 G 필터와 행 수, 매 query/repeat의 실제 encoder 호출 및 단일 타이머를 확인한다. 통합은 새 공통 평가 protocol 아래 Q-N/Q-P 정책 차이를 실험 요인으로 허용하며 과거 protocol의 결과/cache 혼입은 거부한다. 의미 성능 수치를 unit test에 고정하지 않는다. 계획 문서 수정 자체는 실행 증거가 아니며 새 CLI/회귀/168행과 조건부 실행 검증을 완료해야 한다.
 
 ## 15. 현행 정책 전체 조합 재측정과 선정 재검증
 
@@ -1138,7 +1138,7 @@ native 그룹의 R/G-B는 `direct_native_v3`, pooled 그룹의 R/G-B는 `chunk_w
 
 각 행은 필수 집합의 같은 모델/R 방식/O/G 조건인1024·1536·2048·4096과 비교한다. MRR 개선과 예산2048/4096의 근거 보존·비용을 함께 보고한다. 큰 청크가 예산에 안 들어가면 skip/실패를 그대로 기록한다. 확장 행의 성공24 및 latency7200 관측을 별도 검사한다. 실행하면 합계 **5502행(정식4716/진단786), latency1,650,600개**이며 C0/C1 검증 반복은 별도다. 현행 재측정 후4096 개선이 달라졌다면 그 사실도 기록하고 과거값으로 새 곡선을 이어 붙이지 않는다. 이후 추가 크기는 해당 결과의 경계·비용 근거를 새로 등록한다.
 
-### 15.7 Antigravity Step 1~6
+### 15.7 실행 Step 1~6
 
 - [ ] **Step 1 — 보존·인벤토리:** 세 실행 이력·최신 report를 보존하고 원본5550행→현행5478행 매핑과 그룹별 분모를 고정한다. 입력/모델 revision·평가 protocol을 저장한다. 의존: 기존 자산. checkpoint: 제외0·중복72.
 - [ ] **Step 2 — 실행 오류 보정:** 그룹별 manifest·실제 guard 강제 검사와 `native-common-256`을 구현하고, `run/check` 공통 검색 경로·Q091 재현 실패를 해결한다. 관련 단위/회귀와 작은 실제 Chroma 검색을 통과한다. 의존: Step1. checkpoint: 잘못된256 guard 거부·동일 입력의 재현 검사 통과.
@@ -1154,7 +1154,7 @@ native 그룹의 R/G-B는 `direct_native_v3`, pooled 그룹의 R/G-B는 `chunk_w
 
 2026-09-29 검토에서 5502행의 집계와 latency 배열은 확인했으나, query/repeat 로그·encoder window trace·실제 code/protocol SHA가 없고 재현 검사의 허용오차가 0.01이었다. 이를 완료 증거로 사용하지 않는다. 집계는 반올림 전 실제 출처별 분모로 계산하고, 근접 후보의 근거 보존 조건은 **complex 질문의 Macro FullEvidence@5**로 적용한다.
 
-Antigravity는 기존 `run/check/combine/report` 경로에 로그·지문·재집계·재현 게이트를 구현한다. 필요하면 `scripts/verify_embedding_benchmark.py`와 `scripts/complete_embedding_validation.py`로 검증·전체 실행을 분리할 수 있으나 **별도 스크립트 생성 자체는 완료 조건이 아니다.** 아래 명령은 해당 스크립트를 구현하기로 선택했을 때의 실행 예시다. 같은 명령의 재실행은 같은 지문에서 검증된 행 checkpoint만 이어서 사용한다. 기존 `remeasurement-001` 결과·벡터는 보존하며 로그가 없는 과거 행을 새 완료 수에 넣지 않는다.
+기존 `run/check/combine/report` 경로에 로그·지문·재집계·재현 게이트를 구현한다. 필요하면 `scripts/verify_embedding_benchmark.py`와 `scripts/complete_embedding_validation.py`로 검증·전체 실행을 분리할 수 있으나 **별도 스크립트 생성 자체는 완료 조건이 아니다.** 아래 명령은 해당 스크립트를 구현하기로 선택했을 때의 실행 예시다. 같은 명령의 재실행은 같은 지문에서 검증된 행 checkpoint만 이어서 사용한다. 기존 `remeasurement-001` 결과·벡터는 보존하며 로그가 없는 과거 행을 새 완료 수에 넣지 않는다.
 
 ```bash
 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PYTHONDONTWRITEBYTECODE=1 \
@@ -1212,7 +1212,7 @@ GitHub의 정식 두 방식은 정제 35조각 전체를 후보당 하나로 묶
 
 원문 누락0, source segment/hash 오류0, 입력 truncation0, 전체 정식19143/진단1809 성공, 실제 지연 관측6,285,600개, query별 로그 재집계, ANN/동점 검사 및 선두·선정·차순위·기존 기준점의 독립 재인코딩/새 색인 재현을 모두 통과해야 최종 선정한다. §8.1의 사전 선정 순서를 **완료된 §16 정식 행 전체**에 적용하고, 8192와 O128 등 실제 탐색 경계와 문맥 예산의 손실을 같이 명시한다. 표현은 이번 고정 질문셋과 선언한 후보·파라미터 범위 안의 최선이며 전역 최적점이나 독립 hold-out 성능을 주장하지 않는다. 이후에야 `docs/chunking_embedding_benchmark.md/.json`, T9 인계 manifest 및 Task8-2 완료 체크를 갱신한다.
 
-### 16.5 Antigravity 실행 체크리스트
+### 16.5 실행 체크리스트
 
 - [ ] **Step 1 — 기준선 게이트:** §15.8의5502행·원시 로그·독립 재현을 완료하고 manifest/SHA와 미해결 실패0을 고정한다. 실패하면 §16 점수 선정으로 넘어가지 않는다.
 - [ ] **Step 2 — 규칙 계약·fixture:** R-C의 heading snap 및 G-C의 curated 직렬화/다중 source segment를 고정하고 원문116개·정제35조각의 hash·순서·range와 작은 회귀 fixture를 작성한다. Q/A 관계는 추정하지 않는다.

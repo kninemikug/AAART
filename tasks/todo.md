@@ -207,7 +207,7 @@
 
 **검증:** 후속 CLI `prepare/run/check/report` 및 `tests/test_search_strategies.py`; 선행 T8-2 기준선 재현과 별도 작업 폴더 확인
 **의존:** T8-2 §15 검증 완료(독립 실험); 서비스 연결은 기존 T9·T14·T15 의존 관계를 따름
-**담당:** 실행 플랜 김대성 · 실험 Antigravity · 서비스 연결은 T15 담당 김구
+**담당:** 실행 플랜 김대성 · 실험 담당 별도 배정 · 서비스 연결은 T15 담당 김구
 **예상 파일:** `scripts/benchmark_search_strategies.py`, `src/artagent/retrieval/search_strategies.py`, `tests/test_search_strategies.py`, `docs/search_strategy_benchmark.md/.json`
 **규모:** Step별 S/M으로 분할. 기존 T15의 완료 기준·일정·시간 배분은 보존하며 추가 실험 시간을 별도 기록함
 

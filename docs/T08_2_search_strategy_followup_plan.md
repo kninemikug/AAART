@@ -1,6 +1,6 @@
 # T8-2 후속 검색 방식 비교 실행 플랜
 
-작성일: 2026-09-29 · 플랜 담당: 김대성 레인 · 실험 실행자: Antigravity(Gemini 3.8 Flash)
+작성일: 2026-09-29 · 플랜 담당: 김대성 레인
 
 **상태: `awaiting_t08_2_completion` — 계획 작성 완료, 구현·벤치마크 미착수.** 현재 실행 중인 [T8-2 실행 플랜 §15](T08_2_execution_plan.md#15-현행-정책-전체-조합-재측정과-선정-재검증)가 검증까지 끝난 뒤 이 문서를 실행한다. 선행 작업의 코드·행렬·청크·캐시·보고서는 그대로 사용하고, 후속 산출물은 별도 경로에 기록한다.
 
@@ -217,7 +217,7 @@ JSON 필수 항목은 `schema_version/run_id/status/upstream_snapshot/protocol_h
 
 원시 query log에는 query/repeat/행 ID, query input hash, 두 채널 후보의 전체 순서와 rank/score, RRF 합집합, 최종 top5 및 source_segments, support/counterevidence coverage, 예산 packing·token 소비, 실제 단계별/총 지연을 기록한다. 사용하지 않은 채널은 null/빈 목록으로 표시한다. Markdown은 JSON에서 생성하며 같은 스택의 방식 비교·같은 방식의 스택 비교·국소 L/O/W 곡선·출처별/complex/negative 결과·실패 문항·속도/크기·추천 이유와 탐색 범위를 포함한다.
 
-## 8. Antigravity Step 1~6 체크리스트
+## 8. 실행 Step 1~6 체크리스트
 
 아래 단계는 모두 미실행이다. 산출물의 검증 통과를 완료 조건으로 삼고 파일 생성만으로 완료 체크하지 않는다.
 
