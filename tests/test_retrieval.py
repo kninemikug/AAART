@@ -649,8 +649,9 @@ def test_idempotent_index(tmp_path: Path, spec: RetrievalSpec, session: EncoderS
 # 12. 그룹 갱신 및 구 청크 삭제 (replace_source)
 # =========================================================================
 
-def test_group_update_and_cleanup(tmp_path: Path, spec: RetrievalSpec, session: EncoderSession, source_root: Path, repro_dir: Path) -> None:
-    """replace_source를 통한 청크 갱신 및 오래된 청크 ID 삭제 검증."""
+@pytest.mark.parametrize("source_type", ["rawpedia", "github"])
+def test_group_update_and_cleanup(tmp_path: Path, spec: RetrievalSpec, session: EncoderSession, source_root: Path, repro_dir: Path, source_type: str) -> None:
+    """두 출처의 실제 본문 갱신, 구 ID 삭제, 다른 그룹 보존과 재실행 검증."""
     manifest_path = repro_dir / "chunks/manifest.json"
     chunks = load_selected_chunks(manifest_path, spec, source_root)
 
@@ -658,22 +659,83 @@ def test_group_update_and_cleanup(tmp_path: Path, spec: RetrievalSpec, session: 
     store = open_store(persist_dir, spec)
     store.index_all(chunks, session, source_root=source_root)
 
-    # RawPedia의 첫 번째 doc_id 선택
-    target_doc_id = chunks[0].doc_id
-    target_group_chunks = [c for c in chunks if c.doc_id == target_doc_id]
-    key = SourceKey(source_type="rawpedia", source_group_id=target_doc_id)
+    target = next(chunk for chunk in chunks if chunk.source_type == source_type)
+    target_group_chunks = [
+        chunk for chunk in chunks
+        if chunk.source_type == source_type and chunk.doc_id == target.doc_id
+    ]
+    key = SourceKey(source_type=source_type, source_group_id=target.doc_id)
+    old_ids = {chunk.chunk_id for chunk in target_group_chunks}
+    other_ids = {chunk.chunk_id for chunk in chunks} - old_ids
+    other_before = store.collection.get(ids=sorted(other_ids), include=["documents", "metadatas", "embeddings"])
 
     # 1. 동일 청크로 갱신 시 쓰기 생략 확인
     rep_same = store.replace_source(key, target_group_chunks, session, source_root=source_root)
     assert rep_same.unchanged == len(target_group_chunks)
 
-    # 2. 청크 수 감소 및 내용 변경 갱신
-    # 2개 이상인 경우 1개만 남기고 갱신
-    if len(target_group_chunks) >= 2:
-        new_subset = [target_group_chunks[0]]
-        rep_sub = store.replace_source(key, new_subset, session, source_root=source_root)
-        assert rep_sub.deleted >= 1
-        assert store.collection.count() == 154 - rep_sub.deleted
+    # 원본 파일은 유지하고, 실제 원문에서 파생한 새 snapshot을 임시 경로에 둔다.
+    updated_root = tmp_path / "updated_source"
+    updated_root.mkdir()
+    updated_content = target.content + "\nUpdated exposure and white balance instructions."
+    relative_path = "updated.md" if source_type == "rawpedia" else "updated.json"
+    snapshot_bytes = (
+        updated_content.encode("utf-8") if source_type == "rawpedia"
+        else canonical_json_bytes({"body": updated_content})
+    )
+    (updated_root / relative_path).write_bytes(snapshot_bytes)
+    segment = copy.deepcopy(target.metadata["source_segments"][0])
+    segment.update({
+        "source_path": relative_path,
+        "source_file_sha256": sha256_bytes(snapshot_bytes),
+        "json_pointer": None if source_type == "rawpedia" else "/body",
+        "char_start": 0,
+        "char_end": len(updated_content),
+        "byte_start": 0,
+        "byte_end": len(updated_content.encode("utf-8")),
+        "content_char_start": 0,
+        "content_char_end": len(updated_content),
+        "segment_sha256": sha256_str(updated_content),
+    })
+    if source_type == "github":
+        segment["body_sha256"] = sha256_str(updated_content)
+    updated_metadata = copy.deepcopy(target.metadata)
+    updated_metadata.update({
+        "content_sha256": sha256_str(updated_content),
+        "range_basis": "source_file" if source_type == "rawpedia" else "json_body",
+        "source_segments": [segment],
+    })
+    updated = Chunk(
+        chunk_id=compute_chunk_id(
+            "t08c:v1", target.rule_fingerprint, source_type, target.doc_id,
+            [segment], sha256_str(updated_content),
+        ),
+        source_type=source_type,
+        doc_id=target.doc_id,
+        section_title=target.section_title,
+        content=updated_content,
+        char_range=(0, len(updated_content)),
+        metadata=updated_metadata,
+    )
+    assert updated.chunk_id not in old_ids
+    validate_provenance(updated, updated_root)
+    report = store.replace_source(key, [updated], session, source_root=updated_root)
+    assert report.created == 1
+    assert report.deleted == len(old_ids)
+    assert set(store.collection.get()["ids"]) == other_ids | {updated.chunk_id}
+    assert store.collection.count() == 154 - len(old_ids) + 1
+    stored_update = store.collection.get(ids=[updated.chunk_id], include=["documents", "metadatas"])
+    assert stored_update["documents"] == [updated_content]
+    assert stored_update["metadatas"] == [serialize_metadata(updated, spec, excluded=False)]
+
+    other_after = store.collection.get(ids=sorted(other_ids), include=["documents", "metadatas", "embeddings"])
+    assert other_after["ids"] == other_before["ids"]
+    assert other_after["documents"] == other_before["documents"]
+    assert other_after["metadatas"] == other_before["metadatas"]
+    np.testing.assert_array_equal(other_after["embeddings"], other_before["embeddings"])
+    retry = store.replace_source(key, [updated], session, source_root=updated_root)
+    assert retry.unchanged == 1
+    assert retry.created == retry.updated == retry.deleted == 0
+    assert set(store.collection.get()["ids"]) == other_ids | {updated.chunk_id}
 
 
 # =========================================================================

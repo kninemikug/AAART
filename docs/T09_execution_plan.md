@@ -1,12 +1,12 @@
 # Task 9 (A-09) 벡터DB 실행 플랜
 
-작성일: 2026-10-01. 상태: 실행 전 설계. 수용기준은 [tasks/todo.md의 Task 9](../tasks/todo.md), 의존 관계와 후속 범위는 [tasks/plan.md](../tasks/plan.md)를 따른다.
+작성일: 2026-10-01. 보완일: 2026-10-06. 실행 설계에 저장소 계약·복구 규칙과 검증 기록을 보완했다. 수용기준은 [tasks/todo.md의 Task 9](../tasks/todo.md), 의존 관계와 후속 범위는 [tasks/plan.md](../tasks/plan.md)를 따른다.
 
 ## 1. 목적/범위
 
 T08-2가 선정한 두 출처의 청크와 임베딩·검색 절차를 보존하면서, 후속 검색 소비처가 호출할 Chroma 공통 모듈을 설계한다. Task 9의 실행 범위는 전량 적재, 원문 위치를 포함한 top5 검색, 원문 문서 또는 검색 후보 항목 ID별 갱신·검색 제외, 영속 저장소 재개방 및 선정 결과와의 대조 검증이다.
 
-이번 작업의 산출물은 이 문서 하나다. `src/`, `tests/` 파일 생성·수정, 의존성 설치, 청크 생성, 임베딩 실행 및 저장소 생성은 실행 단계에 남긴다. **T08-2 산출물 수정 금지**를 적용하며, 기존 규칙·모델·재현 스크립트·기대값 계약을 변경하지 않는다. `tasks/plan.md`와 `tasks/todo.md`도 수정하지 않는다.
+최초 계획 작성 단계의 산출물은 이 문서 하나였고, `src/`, `tests/` 파일 생성·수정, 의존성 설치, 청크 생성, 임베딩 실행 및 저장소 생성은 실행 단계에 남겼다. 구현 검토 후 보완한 저장소 동작과 시험은 아래 계약에 반영한다. **T08-2 산출물 수정 금지**를 적용하며, 기존 규칙·모델·재현 스크립트·기대값 계약을 변경하지 않는다. `tasks/plan.md`와 `tasks/todo.md`도 수정하지 않는다.
 
 인계 입력은 원칙적으로 `docs/T08_2_t9_handoff.md`와 `docs/T08_2_t9_handoff_reference.json`이다. 현재 worktree에는 두 파일과 `scripts/reproduce_t08_2_selected.py`가 없어 다음 파일을 읽기 전용으로 참조했다.
 
@@ -152,7 +152,9 @@ Chroma의 `ids`에는 인계 청크의 `chunk_id`를 그대로 사용한다. 순
 
 생성 직후 및 재개방 시 실제 적용된 벡터 인덱스 설정을 읽어 cosine과 HNSW 네 값을 검증한다. 인계 코드에서 확인한 `schema.keys['#embedding'].float_list.vector_index.config` 경로의 지원 여부를 실행 환경에서 먼저 확인한다. 단순히 컬렉션 metadata에 설정명을 남기는 것으로 검증을 대신하지 않는다. `configuration`의 HNSW 필드는 [Chroma 컬렉션 설정 문서](https://docs.trychroma.com/docs/collections/configure)를 따른다.
 
-컬렉션 metadata에는 저장 스키마 버전, 모델 ID·revision, dimension·dtype·정규화 여부, 두 청크 규칙, 풀링 정책, 기준 토크나이저 revision, 빈 prefix, 인계 reference SHA·protocol SHA 및 `store_state`를 기록한다. 기존 컬렉션을 열 때 이 계약을 대조하고, 불일치하면 오류를 반환한다. `get_or_create_collection`만 호출하여 기존 설정이 교체되었다고 간주하지 않는다.
+컬렉션 metadata에는 저장 스키마 버전, 모델 ID·revision, dimension·dtype·정규화 여부, 두 청크 규칙, 물리·스레드 풀링 정책, 기준 토크나이저 ID·revision, 윈도우·오버랩·헤더·최대 입력 길이, 빈 prefix, 인계 reference SHA·protocol SHA 및 `store_state`를 기록한다. 기존 컬렉션을 열 때와 적재·갱신·제외·검색 호출에서 이 계약을 대조하고, 불일치하면 오류를 반환한다. 임베딩 세션의 계산 설정도 저장소 계약과 대조한다. `get_or_create_collection`만 호출하여 기존 설정이 교체되었다고 간주하지 않는다.
+
+초기 구현의 저장소에 기록되지 않았던 `ref_tokenizer_id`, `thread_embedding_policy`, `encoder_window_tokens`, `encoder_overlap_tokens`, `max_header_tokens`, `max_seq_length` 여섯 필드는 당시 인계의 고정 기본값으로만 해석한다. 다른 값으로 재개방하면 오류를 반환하며 열기·검색만으로 metadata를 다시 쓰지 않는다. 그 외 기존 필수 계약 필드의 누락은 오류다.
 
 인계 환경 설치 기록의 Chroma는 `1.5.9`다. 기존 프로젝트 가상환경에서 실제 버전을 확인하고 적용 설정을 검증한다. 구형 `hnsw:*` metadata 방식으로의 묵시적 fallback이나 자동 패키지 업그레이드는 계획에 포함하지 않는다.
 
@@ -175,17 +177,17 @@ Chroma의 upsert는 ID별 생성·갱신을 수행한다. [Chroma Collection 문
 
 그룹 갱신은 다음 순서로 수행한다.
 
-1. 새 청크셋의 원문·그룹 키·유일 ID·임베딩을 모두 검증하고 계산한다. 이 단계의 오류는 기존 저장소를 바꾸지 않는다.
-2. 해당 `(source_type, source_group_id)`의 기존 ID와 저장 내용을 읽는다. ID 집합·본문·원본 메타데이터가 같고 `excluded=False`이면 쓰기를 생략하여 중복과 불필요한 인덱스 변경을 막는다.
-3. 새 청크셋을 ID순으로 upsert하며 `excluded=False`로 둔다. 같은 ID는 덮어쓰고 새 ID는 추가한다.
+1. 저장소·세션 계약과 진행 중 작업을 검사하고 새 청크셋의 원문·그룹 키·유일 ID를 검증한다. 이 단계의 오류는 기존 저장소를 바꾸지 않는다.
+2. 해당 `(source_type, source_group_id)`의 기존 ID와 저장 내용을 읽는다. ID 집합·본문·제목·원본 메타데이터·전체 직렬화 레코드가 같고 `excluded=False`이면 임베딩 계산과 쓰기를 생략한다. ID와 본문이 같아도 제목·원문 SHA·URL·segment 변경은 갱신한다.
+3. 변경이 있으면 임베딩을 계산·검증한 뒤 작업 기록을 저장한다. 새 청크셋을 ID순으로 upsert하며 `excluded=False`로 둔다. 같은 ID는 덮어쓰고 새 ID는 추가한다.
 4. `기존 ID 집합 - 새 ID 집합`만 삭제한다. 다른 원문 문서·후보 항목의 청크는 건드리지 않는다.
 5. 그룹의 ID 집합·본문·segment를 다시 읽어 새 청크셋과 같음을 확인한 뒤 성공을 반환한다. 같은 변경분 재실행은 동일한 최종 상태가 되어야 한다.
 
 검색 제외는 해당 그룹 전체의 `excluded=True`를 저장하며, 모든 조회에서 이 조건을 후보 조회 전에 적용한다. 같은 제외 요청을 반복해도 상태·건수가 변하지 않는다. 아직 저장되지 않은 그룹의 제외는 변경 0건을 반환한다. 재포함은 완전한 청크셋의 `replace_source`로 수행하며 오래된 ID도 정리한다. 물리 건수와 검색 가능한 건수를 구분한다.
 
-공통 모듈 내부에서 저장소별 읽기·쓰기 잠금을 공유하고 단일 작성자를 전제로 한다. 변경 직전에 컬렉션 metadata를 `store_state=updating`으로 표시하고 작업 종류·그룹 키·입력 지문을 함께 남긴다. 검증 성공 후 `ready`로 바꾼다. 오류나 재시작으로 `updating`이 남으면 검색을 거부하고 같은 작업 재시도로 정합성을 복구한다. 여러 호출을 묶은 upsert/delete의 원자성을 가정하지 않는다.
+공통 모듈 내부에서 해석한 persist 경로·컬렉션 이름을 기준으로 같은 프로세스의 읽기·쓰기 잠금을 공유하고 단일 작성자를 전제로 한다. 호출 시 컬렉션 래퍼의 캐시 대신 영속 metadata에서 최신 계약과 상태를 읽는다. 변경 직전에 `store_state=updating`으로 표시하고 `operation`·그룹 키·`input_fingerprint`를 함께 남긴다. 입력 지문은 ID순 청크의 ID·본문·전체 직렬화 메타데이터를 canonical JSON으로 만든 SHA-256이다. 제외 작업은 대상 그룹 키를 지문화한다. 검증 성공 후 `ready`로 바꾸고 작업 기록을 제거한다. 오류나 재시작으로 `updating`이 남으면 검색을 거부하고 같은 작업 재시도로 정합성을 복구한다. 여러 호출을 묶은 upsert/delete의 원자성을 가정하지 않는다.
 
-초기 적재 실패는 검증한 동일 입력으로 재시도한다. 갱신 실패는 같은 그룹의 완전한 청크셋으로 재시도하고, 제외 실패는 같은 그룹 제외를 재시도한다. 다른 작업으로 미완료 작업을 덮어쓰지 않는다. 외부 원문 동기화 상태나 벡터 반영 완료 표시는 Task 9가 쓰지 않으며, 후속 호출자가 검증된 성공 반환을 받은 뒤 갱신하도록 한다.
+초기 적재 실패는 검증한 동일 입력으로 재시도한다. 갱신 실패는 같은 그룹의 완전한 청크셋으로 재시도하고, 제외 실패는 같은 그룹 제외를 재시도한다. 작업 종류·그룹 키·입력 지문이 다르면 미완료 작업을 덮어쓰지 않는다. 데이터 반영은 끝났지만 `ready` 전환이 실패한 경우도, 같은 입력의 저장 내용을 확인하고 `ready`를 복구한 뒤 성공을 반환한다. 입력 지문이 없는 과거 미완료 기록은 안전한 재시도 대상을 증명할 수 없으므로 거부하며, 검증한 입력으로 새 persist 경로에 다시 적재한다. `IndexReport.total_active`에는 제외 청크를 세지 않는다. 외부 원문 동기화 상태나 벡터 반영 완료 표시는 Task 9가 쓰지 않으며, 후속 호출자가 검증된 성공 반환을 받은 뒤 갱신하도록 한다.
 
 ## 7. 검색 절차
 
@@ -227,7 +229,7 @@ python3 scripts/reproduce_t08_2_selected.py --reference docs/T08_2_t9_handoff_re
 구현 후, 재현 출력과 고정 원문을 pytest fixture 입력으로 연결하여 다음 명령으로 실행한다. 환경 변수는 시험 입력 경로를 지정하는 제안 계약이며 실행 단계에서 적용한다.
 
 ```bash
-T09_REPRO_DIR="$T09_REPRO_DIR" T09_SOURCE_ROOT="$PWD" PYTHONPATH=src python3 -m pytest tests/test_retrieval.py -q
+T09_REPRO_DIR="$T09_REPRO_DIR" T09_SOURCE_ROOT="$PWD" PYTHONPATH=src python3 -m pytest tests/test_retrieval.py tests/test_retrieval_state.py -q
 ```
 
 `T09_SOURCE_ROOT`는 재현에 사용한 고정 원문 저장소 루트다. fallback 루트에서 재현했다면 그 절대 경로를 지정하고, 시험 명령은 Task 9 구현 저장소 루트에서 실행한다. 재현 결과나 고정 revision이 없으면 수용 검증은 명시적으로 오류를 내며, 실제 청크·모델 roundtrip을 mock 또는 skip으로 대체하지 않는다.
@@ -243,11 +245,36 @@ T09_REPRO_DIR="$T09_REPRO_DIR" T09_SOURCE_ROOT="$PWD" PYTHONPATH=src python3 -m 
 
 실험 ID, 작업 절대 경로, 실행 지연은 환경에 따라 달라질 수 있어 합격의 동일성 비교 대상에서 제외한다. 질문셋은 RawPedia 긍정 80개, GitHub 긍정 15개, 부정 5개로 총 100개이며 대략적인 질문 수 계획을 실제 검증 건수로 사용하지 않는다.
 
+### 8.3 저장소 보완 검증 기록 (2026-10-06)
+
+기존 구현에서 계약·갱신·상태 시험 42개 중 39개 실패로 문제를 재현한 뒤 저장소를 보완했다. 최종 실행은 아래 명령으로 완료했다. 모델·토크나이저는 기존 로컬 cache와 프로젝트 가상환경을 사용하고, 기준선은 이미 `status=passed`인 `/private/tmp/t09-repro.PR4bPW`의 재현 출력과 읽기 전용 원문이다.
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 \
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+T09_REPRO_DIR=/private/tmp/t09-repro.PR4bPW \
+T09_SOURCE_ROOT=/Users/user/orca/workspaces/AAART/T08-2-chunking-embedding \
+PYTHONPATH=src \
+/Users/user/Workspace/Programming/Projects/AAART/venv/bin/python -m pytest -q -p no:cacheprovider
+```
+
+결과는 **146 passed, 1 warning in 97.13s**다. 검색 관련 시험은 실제 인계 입력 시험 15개와 상태·계약 시험 66개로 총 81개이며, 나머지 기존 시험 65개도 통과했다. 경고는 설치된 Chroma의 `asyncio.iscoroutinefunction` 사용에 대한 기존 폐기 예정 알림이다.
+
+- 실제 141/13개 청크와 고정 revision의 문서·쿼리 벡터 기대 지문을 대조했다.
+- 100문항 × 3회 top5 순위 지문 `a8ac9685ce31717b4d2b7cfe10bb635f5016dec41f4b8be0ca273b4bb0dbf25c`가 일치하고 원시 거리 최대 차이는 `1e-5` 이하였다.
+- 두 출처 모두 본문 변경·새 ID 생성·구 ID 삭제·다른 그룹의 본문·메타데이터·벡터 보존·동일 변경분 재실행을 검증했다.
+- 같은 ID의 제목·출처 SHA·URL 변경, 제외 후 실제 활성 건수, segment 두 사본 불일치 거부를 검증했다.
+- 부분 upsert/delete/update 및 `ready` 직전 실패에서 같은 입력 재시도로 복구하고 다른 작업을 거부했다.
+- 미리 열린 핸들의 최신 상태 확인·공유 잠금과 새 프로세스의 영속 상태 조회·검색 거부·제외 재시도 복구를 검증했다.
+- 기존 저장소 계약 호환, 필수 필드 누락 거부, 잘못된 차원·dtype·NaN·0벡터·노름 허용치 초과 거부를 검증했다.
+
+T08-2 산출물과 풀링 계산은 변경하지 않았고 의존성을 추가하지 않았다. 단일 작성자와 동일 프로세스의 공유 잠금이라는 §6·§11의 운영 범위는 유지한다.
+
 ## 9. 산출물 파일 설계
 
 ### 9.1 모듈과 함수 계약
 
-아래 경로는 구현 단계의 예정 산출물이다. 이번 작업에서는 생성하지 않는다. 기존 T08-2의 `Chunk`와 출처 검증 함수를 재사용하고, 공통 모듈은 실행 스크립트의 동적 import나 절대 경로 삽입에 의존하지 않게 한다.
+아래 경로는 구현 단계의 산출물 설계다. 기존 T08-2의 `Chunk`와 출처 검증 계약을 보존하고, 공통 모듈은 실행 스크립트의 동적 import나 절대 경로 삽입에 의존하지 않게 한다.
 
 | 예정 파일 | 책임 및 함수 시그니처 |
 | --- | --- |
@@ -257,6 +284,7 @@ T09_REPRO_DIR="$T09_REPRO_DIR" T09_SOURCE_ROOT="$PWD" PYTHONPATH=src python3 -m 
 | `src/artagent/retrieval/store.py` | `open_store(persist_dir: Path, spec: RetrievalSpec) -> RetrievalStore`; `RetrievalStore.index_all(chunks: Sequence[Chunk], session: EncoderSession, *, source_root: Path) -> IndexReport`; `RetrievalStore.replace_source(key: SourceKey, chunks: Sequence[Chunk], session: EncoderSession, *, source_root: Path) -> IndexReport`; `RetrievalStore.exclude_source(key: SourceKey) -> IndexReport`; `RetrievalStore.search(query: str, session: EncoderSession, *, source_key: Optional[SourceKey] = None) -> list[SearchHit]` |
 | `src/artagent/retrieval/__init__.py` | 위 계약 타입·입력 로드·저장소 개방 함수의 공개 진입점. 동일 함수와 타입을 내보내며 별도 처리 경로를 추가하지 않음 |
 | `tests/test_retrieval.py` | 아래 단위·통합·회귀 시험을 구성. 실제 데이터는 재현 출력과 고정 원문을 읽고 저장소는 임시 경로를 사용 |
+| `tests/test_retrieval_state.py` | 실제 임시 Chroma와 유효한 원문 snapshot으로 계약 불일치·동일 ID의 메타데이터 변경·부분 실패·입력 지문·잠금·상태 복구를 시험. 계산 경계에는 통제된 384차원 벡터 사용 |
 
 `Float32Array`는 NumPy `float32` 배열을 뜻하며, 문서 출력은 `(N, 384)`, 쿼리 출력은 `(384,)`다. `EncoderSession`은 고정 모델과 두 토크나이저 및 실행 설정을 보유한다. `SourceKey`는 `source_type`·`source_group_id`, `SearchHit`는 §3의 반환 필드와 `rank`·원시 `distance`·6자리 `distance_text`를 보유한다. `IndexReport`는 적용 그룹, 생성·갱신·변경 없음·제외·오래된 청크 삭제 건수와 검증 성공 상태를 반환한다.
 
