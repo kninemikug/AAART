@@ -395,6 +395,8 @@ Q096~Q100은 `expected_behavior=unsupported_or_insufficient_evidence`, `gold_sup
 
 **완료 후 인계 보완 (2026-10-01):** §16 최종 선정값의 실제 재생성 명령, 기대 SHA·지표, T9 적재·검색 계약은 [T9 재현 인계](T08_2_t9_handoff.md)와 [기대값 JSON](T08_2_t9_handoff_reference.json)에 둔다. T9는 현재 검색 기준점을 우선 적용하며, 답변 기준 최종 선정은 [별도 후속 게이트](../tasks/todo.md)에서 수행한다.
 
+**게시 경로 보완 (2026-10-06):** 전체 20,952행 기계 판독 결과는 [압축 JSON](chunking_embedding_benchmark.json.gz)으로 보존한다. 이 문서의 `docs/chunking_embedding_benchmark.json` 경로를 읽는 명령은 저장소 루트에서 `gzip -dc docs/chunking_embedding_benchmark.json.gz > docs/chunking_embedding_benchmark.json`으로 먼저 펼친 뒤 실행한다. 압축 전후의 JSON 내용과 선정 계약은 같다.
+
 ## 9. 산출물 구조와 리포트 명세
 
 기존 module/CLI/test/리포트를 확장한다. grid 산출물은 아래 **새 출력 위치**를 사용한다. 실행 전에 기존 `docs/chunking_embedding_benchmark.md/.json`을 `docs/chunking_embedding_baseline_192_32.md/.json`으로 바이트 그대로 보존하고 SHA를 기록한다. 새 전 조합 결과/재현 검사를 통과한 뒤에만 최종 benchmark 리포트를 원자적으로 갱신한다.

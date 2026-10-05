@@ -8,10 +8,12 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import math
 from pathlib import Path
 import re
+import shutil
 import sys
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -40,6 +42,18 @@ T9_REPRO_COMMAND = (
     "--reference docs/T08_2_t9_handoff_reference.json "
     "--work-dir data/embedding-benchmark/t08-2/t9-handoff-repro"
 )
+
+
+def archive_benchmark_report(json_path: Path) -> Path:
+    """Store the full JSON report as a deterministic gzip archive."""
+    archive_path = json_path.with_name(json_path.name + ".gz")
+    temporary_path = archive_path.with_name(archive_path.name + ".tmp")
+    with json_path.open("rb") as source, temporary_path.open("wb") as target:
+        with gzip.GzipFile(fileobj=target, mode="wb", filename="", mtime=0,
+                           compresslevel=6) as compressed:
+            shutil.copyfileobj(source, compressed, length=1024 * 1024)
+    temporary_path.replace(archive_path)
+    return archive_path
 
 
 def row_key(row):
@@ -173,6 +187,7 @@ def generate_benchmark_markdown_and_json(data: dict, out_json_path: Path, out_md
         f"- 평가 질문 데이터셋: `{data.get('dataset_id')}` (100개 골드 질문: RawPedia 80 + GitHub 20 / 양성 95 + 음성 5 / 근거 147스팬)",
         f"- 총 실험 조합: {len(experiments)}개 (정식 {len(formal_exps)}개 + 진단 {len(diag_exps)}개, 100% 완료)",
         f"- 총 레이턴시 관측치: {TOTAL_OBSERVATIONS:,}개 (100문항 × 3회 반복 실측 계측)",
+        "- 전체 조합 원시 JSON: [압축 보고서](chunking_embedding_benchmark.json.gz). `gzip -dc docs/chunking_embedding_benchmark.json.gz > docs/chunking_embedding_benchmark.json`으로 펼친 뒤 기존 분석 명령을 실행한다.",
         "",
         "## 1. 최종 선정 결과 요약",
         "",
@@ -412,6 +427,8 @@ def generate_benchmark_markdown_and_json(data: dict, out_json_path: Path, out_md
     out_json_path.parent.mkdir(parents=True, exist_ok=True)
     out_json_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"SUCCESS: Benchmark JSON saved to {out_json_path}", flush=True)
+    archive_path = archive_benchmark_report(out_json_path)
+    print(f"SUCCESS: Full benchmark JSON archived at {archive_path}", flush=True)
 
 
 def main():

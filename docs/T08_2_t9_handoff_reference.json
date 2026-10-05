@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
-  "source_report": "docs/chunking_embedding_benchmark.json",
+  "source_report": "docs/chunking_embedding_benchmark.json.gz",
+  "source_report_sha256": "a94b64df8940c099231c9afddef24831281e7c55cb8b1a4da59a4dd53a6b612e",
   "protocol_sha256": "3694eb3cb0a8b8e989e6bc828adf1f067b4f988f9be0a04a4d43507850412dc5",
   "selected": {
     "experiment_id": "exp_899cebf945c97ade09c3e9e6",

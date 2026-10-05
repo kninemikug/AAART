@@ -32,7 +32,7 @@ T9 + T14 → T15: 서비스 경로에서 리랭킹·top-k·임계값 튜닝 및 
 | 실제 실행 로그 완비 | 100문항 × 3회 × 5502행 = **1,650,600개** 지연 관측과 원시 검색 로그; 전수 재집계 일치 |
 | 입력·청킹·임베딩 무결성 | 원문 누락·source/hash 오류·truncation·guard 그룹 불일치 0; 모든 실제 encoder 입력/window trace |
 | 재현 문제 해결 | 선두·선정·차순위·현행 448/32 기준점·Q091의 독립 재현 및 ANN 검사 통과; 원인과 보정 기록 |
-| 선정 계약 확정 | `docs/chunking_embedding_benchmark.json`의 검증된 `selected`, 실제 R/G JSONL·모델 revision·guard/window/prefix·Chroma/검색 설정 |
+| 선정 계약 확정 | 압축 정본 `docs/chunking_embedding_benchmark.json.gz`을 펼친 JSON의 검증된 `selected`, 실제 R/G JSONL·모델 revision·guard/window/prefix·Chroma/검색 설정 |
 
 선행 완료 기준이 정식으로 개정되면 개정 문서·commit과 변경된 분모를 함께 고정한다. 후속 실행자가 일부 완료 행만 읽어 시작 조건을 낮추지 않는다. 입력 부족 시 `status=awaiting_t08_2_completion`, 누락 목록을 출력하고 종료한다. 자동 원문 재수집·골드 변경·모델 대체로 진행하지 않는다.
 
@@ -202,6 +202,7 @@ data/retrieval-benchmark/t08-2-search-followup/run-001/
 실행 CLI는 다음 순서다. `$T08_SEARCH_PY`에는 기존 root venv의 Python 실행 파일, `$T08_SEARCH_RUN`에는 위 새 run 경로를 지정한다. `prepare`가 선행 보고서에서 실제 manifest/log 경로를 읽고 확인하며 없는 경로를 추측하지 않는다.
 
 ```bash
+gzip -dc docs/chunking_embedding_benchmark.json.gz > docs/chunking_embedding_benchmark.json
 "$T08_SEARCH_PY" scripts/benchmark_search_strategies.py prepare --upstream-report docs/chunking_embedding_benchmark.json --queries docs/search_eval_queries.json --work-dir "$T08_SEARCH_RUN"
 "$T08_SEARCH_PY" scripts/benchmark_search_strategies.py matrix --work-dir "$T08_SEARCH_RUN" --strategies dense bm25 hybrid_rrf
 "$T08_SEARCH_PY" scripts/benchmark_search_strategies.py run --work-dir "$T08_SEARCH_RUN" --matrix experiment_matrix.json --device cpu --warmup 10 --query-repeat 3 --resume

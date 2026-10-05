@@ -4,6 +4,7 @@
 - 평가 질문 데이터셋: `t08-1-100-v1` (100개 골드 질문: RawPedia 80 + GitHub 20 / 양성 95 + 음성 5 / 근거 147스팬)
 - 총 실험 조합: 20952개 (정식 19143개 + 진단 1809개, 100% 완료)
 - 총 레이턴시 관측치: 6,285,600개 (100문항 × 3회 반복 실측 계측)
+- 전체 조합 원시 JSON: [압축 보고서](chunking_embedding_benchmark.json.gz). `gzip -dc docs/chunking_embedding_benchmark.json.gz > docs/chunking_embedding_benchmark.json`으로 펼친 뒤 기존 분석 명령을 실행한다.
 
 ## 1. 최종 선정 결과 요약
 

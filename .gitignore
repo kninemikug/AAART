@@ -5,3 +5,4 @@ __pycache__/
 .env.*.local
 data/chunks/
 data/embedding-benchmark/
+/docs/chunking_embedding_benchmark.json
