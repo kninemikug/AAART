@@ -6,6 +6,8 @@ of docs/langgraph_router_design.md.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
+
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
@@ -34,7 +36,7 @@ from .state import AgentState, Path
 def route_after_intake(state: AgentState) -> str:
     if state.get("error"):
         return "FALLBACK"
-    if state.get("clarification") and state.get("resume"):
+    if state.get("clarification") or state.get("resume"):
         return "CLARIFY"
     return "ROUTE"
 
@@ -50,9 +52,11 @@ def route_after_route(state: AgentState) -> str:
 def route_after_clarify(state: AgentState) -> str:
     if state.get("error"):
         return "FALLBACK"
-    if state.get("clarification") and not state.get("resume"):
+    if state.get("clarification"):
         # Paused waiting for user response
         return END
+    if state.get("resume_origin") == "CHECK_EXEC":
+        return "CHECK_EXEC"
     return "ROUTE"
 
 
@@ -114,10 +118,10 @@ def route_after_research(state: AgentState) -> str:
 
 
 def route_after_check_exec(state: AgentState) -> str:
-    if state.get("clarification"):
-        return "CLARIFY"
     if state.get("error"):
         return "FALLBACK"
+    if state.get("clarification"):
+        return "CLARIFY"
     return "FEATURES"
 
 
@@ -135,6 +139,8 @@ def route_after_generate_profile(state: AgentState) -> str:
 
 def route_after_validate_profile(state: AgentState) -> str:
     val = state.get("validation")
+    if state.get("error") and (not val or val.status != "INVALID" or state["error"].code != "PROFILE_INVALID"):
+        return "FALLBACK"
     if val and val.status == "VALID":
         if state.get("render_attempts", 0) < 3:
             return "RENDER"
@@ -149,6 +155,8 @@ def route_after_validate_profile(state: AgentState) -> str:
 
 def route_after_render(state: AgentState) -> str:
     render = state.get("render")
+    if state.get("error") and (not render or render.status != "FAILED" or state["error"].code != "RENDER_FAILED"):
+        return "FALLBACK"
     if render and render.status == "SUCCEEDED":
         return "ADVANCE"
     if render and render.status == "UNKNOWN":
@@ -193,28 +201,37 @@ def route_after_advance(state: AgentState) -> str:
     return "RESPOND"
 
 
-def create_router_graph() -> CompiledStateGraph:
-    """Build and compile the LangGraph router and execution graph."""
+def create_router_graph(
+    node_overrides: Mapping[str, Callable[[AgentState], dict]] | None = None,
+) -> CompiledStateGraph:
+    """Build the router; integrations may provide concrete service nodes."""
     graph = StateGraph(AgentState)
+    overrides = dict(node_overrides or {})
+    nodes = {
+        "INTAKE": intake_node,
+        "ROUTE": route_node,
+        "CLARIFY": clarify_node,
+        "DISPATCH": dispatch_node,
+        "SEARCH_RAWPEDIA": search_rawpedia_node,
+        "SEARCH_GITHUB": search_github_node,
+        "ANSWER": answer_node,
+        "RESEARCH": research_node,
+        "CHECK_EXEC": check_exec_node,
+        "FEATURES": features_node,
+        "GENERATE_PROFILE": generate_profile_node,
+        "VALIDATE_PROFILE": validate_profile_node,
+        "RENDER": render_node,
+        "REPAIR_PROFILE": repair_profile_node,
+        "FALLBACK": fallback_node,
+        "ADVANCE": advance_node,
+        "RESPOND": respond_node,
+    }
+    unknown = set(overrides) - set(nodes)
+    if unknown:
+        raise ValueError(f"Unknown graph nodes: {sorted(unknown)}")
 
-    # Add all 17 nodes
-    graph.add_node("INTAKE", intake_node)
-    graph.add_node("ROUTE", route_node)
-    graph.add_node("CLARIFY", clarify_node)
-    graph.add_node("DISPATCH", dispatch_node)
-    graph.add_node("SEARCH_RAWPEDIA", search_rawpedia_node)
-    graph.add_node("SEARCH_GITHUB", search_github_node)
-    graph.add_node("ANSWER", answer_node)
-    graph.add_node("RESEARCH", research_node)
-    graph.add_node("CHECK_EXEC", check_exec_node)
-    graph.add_node("FEATURES", features_node)
-    graph.add_node("GENERATE_PROFILE", generate_profile_node)
-    graph.add_node("VALIDATE_PROFILE", validate_profile_node)
-    graph.add_node("RENDER", render_node)
-    graph.add_node("REPAIR_PROFILE", repair_profile_node)
-    graph.add_node("FALLBACK", fallback_node)
-    graph.add_node("ADVANCE", advance_node)
-    graph.add_node("RESPOND", respond_node)
+    for name, default in nodes.items():
+        graph.add_node(name, overrides.get(name, default))
 
     # Entry point
     graph.add_edge(START, "INTAKE")
@@ -233,7 +250,7 @@ def create_router_graph() -> CompiledStateGraph:
     graph.add_conditional_edges(
         "CLARIFY",
         route_after_clarify,
-        {"FALLBACK": "FALLBACK", "ROUTE": "ROUTE", END: END},
+        {"FALLBACK": "FALLBACK", "ROUTE": "ROUTE", "CHECK_EXEC": "CHECK_EXEC", END: END},
     )
     graph.add_conditional_edges(
         "DISPATCH",

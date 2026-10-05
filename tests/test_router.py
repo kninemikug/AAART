@@ -16,18 +16,24 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from artagent.graph import (
     AgentState,
+    AnswerResult,
     AssetRef,
+    Citation,
     Clarification,
     ErrorInfo,
+    Evidence,
     OutputSpec,
     Path as AgentPath,
     PlanStep,
     ProfileData,
+    PhotoFeatures,
     RequestContext,
     RequestInput,
     ResponseStatus,
     ResumeInput,
     RouteDecision,
+    RetrievalBundle,
+    RenderResult,
     RuntimeCapabilities,
     StepResult,
     ValidationIssue,
@@ -36,6 +42,7 @@ from artagent.graph import (
     create_router_graph,
     route_request,
 )
+from artagent.graph.nodes import intake_node
 
 
 # 20 benchmark test cases defined in docs/langgraph_router_design.md Sections 7.2 and 7.3
@@ -247,7 +254,7 @@ BENCHMARK_CASES = [
         "first_branch": "SEARCH_RAWPEDIA",
         "needs_clarify": False,
         "assets": [AssetRef(asset_id="raw_m01", kind="RAW", path="data/sample.raw")],
-        "context": RequestContext(confirmed_goal="중립 WB", output=OutputSpec(format="JPEG")),
+        "context": RequestContext(confirmed_goal="중립 WB", output=OutputSpec(format="JPEG", destination="fixture.jpg")),
     },
     # 17 (M02: Troubleshoot + Execute)
     {
@@ -261,7 +268,7 @@ BENCHMARK_CASES = [
         "first_branch": "SEARCH_GITHUB",
         "needs_clarify": False,
         "assets": [AssetRef(asset_id="raw_m02", kind="RAW", path="data/sample.raw")],
-        "context": RequestContext(output=OutputSpec(format="JPEG")),
+        "context": RequestContext(output=OutputSpec(format="JPEG", destination="fixture.jpg")),
     },
     # 18 (M03: Ambiguous)
     {
@@ -283,7 +290,7 @@ BENCHMARK_CASES = [
         "first_branch": "CHECK_EXEC",
         "needs_clarify": True,
         "assets": [],
-        "context": RequestContext(output=OutputSpec(format="JPEG")),
+        "context": RequestContext(output=OutputSpec(format="JPEG", destination="fixture.jpg")),
     },
     # 20 (M05: Troubleshoot + Guide, Execution Negated)
     {
@@ -304,8 +311,76 @@ BENCHMARK_CASES = [
 
 @pytest.fixture(scope="module")
 def router_graph():
-    """Compile and reuse the router graph for testing."""
-    return create_router_graph()
+    """Use explicit contract doubles; production nodes never invent I/O results."""
+    ready = RuntimeCapabilities(search_ready=True, profile_ready=True, render_ready=True)
+
+    def intake(state):
+        return {**intake_node(state), "capabilities": state.get("capabilities") or ready}
+
+    def search(source, name):
+        def node(state):
+            step = state["decision"].plan[state["cursor"]]
+            hit = Evidence(
+                chunk_id=f"fixture_{step.step_id}", doc_id="fixture_doc",
+                source_group_id="fixture", source_type=source,
+                source_path="fixture.md", source_location="fixture",
+                target_url="https://example.invalid/fixture", text="테스트 근거",
+            )
+            return {
+                "retrieval": RetrievalBundle(step.query, source, [hit], "fixture"),
+                "trace": [*state.get("trace", []), name],
+            }
+        return node
+
+    def features(state):
+        return {
+            "features": PhotoFeatures(raw_asset_id=state["execution"].raw.asset_id),
+            "trace": [*state.get("trace", []), "FEATURES"],
+        }
+
+    def answer(state):
+        hit = state["retrieval"].hits[0]
+        citation = Citation(hit.doc_id, hit.source_location, hit.target_url, hit.source_location)
+        return {
+            "answer": AnswerResult("SUPPORTED", f"테스트 근거: {hit.text}", [citation]),
+            "trace": [*state.get("trace", []), "ANSWER"],
+        }
+
+    def generate(state):
+        return {
+            "profile": ProfileData(
+                ppversion=ready.ppversion,
+                groups={"Exposure": {"Compensation": 0.5}},
+                changed_keys=["Exposure.Compensation"],
+            ),
+            "profile_attempts": state.get("profile_attempts", 0) + 1,
+            "trace": [*state.get("trace", []), "GENERATE_PROFILE"],
+        }
+
+    def validate(state):
+        return {
+            "validation": ValidationResult("VALID", profile_ref="fixture.arp"),
+            "error": None,
+            "trace": [*state.get("trace", []), "VALIDATE_PROFILE"],
+        }
+
+    def render(state):
+        return {
+            "render": RenderResult("SUCCEEDED", exit_code=0, output_path="fixture.jpg", output_verified=True),
+            "render_attempts": state.get("render_attempts", 0) + 1,
+            "trace": [*state.get("trace", []), "RENDER"],
+        }
+
+    return create_router_graph({
+        "INTAKE": intake,
+        "SEARCH_RAWPEDIA": search("rawpedia", "SEARCH_RAWPEDIA"),
+        "SEARCH_GITHUB": search("github", "SEARCH_GITHUB"),
+        "ANSWER": answer,
+        "FEATURES": features,
+        "GENERATE_PROFILE": generate,
+        "VALIDATE_PROFILE": validate,
+        "RENDER": render,
+    })
 
 
 def test_20_benchmark_queries_accuracy(router_graph):
@@ -383,6 +458,18 @@ def test_m02_dependency_rule():
     assert step_tb.step_id in step_ex.requires, "M02 P3 step must require P2 step ID"
 
 
+def test_m02_without_actionable_workaround_blocks_execution(router_graph):
+    case = next(c for c in BENCHMARK_CASES if c["id"] == "M02")
+    request = RequestInput(
+        "blocked_m02", case["text"], assets=case["assets"], context=case["context"]
+    )
+    result = router_graph.invoke({"request": request})
+    assert result["step_results"]["blocked_m02_step_1"].status == "SUCCEEDED"
+    assert result["step_results"]["blocked_m02_step_2"].status == "BLOCKED"
+    assert result["response"].status == ResponseStatus.PARTIAL.value
+    assert "FEATURES" not in result["trace"]
+
+
 def test_m03_ambiguous_purpose_clarification():
     """Verify that M03 triggers ROUTE clarification with empty plan and both candidate paths."""
     case_m03 = next(c for c in BENCHMARK_CASES if c["id"] == "M03")
@@ -408,7 +495,7 @@ def test_m04_missing_raw_clarification(router_graph):
         request_id="test_m04",
         text=case_m04["text"],
         assets=[],
-        context=RequestContext(output=OutputSpec(format="JPEG")),
+        context=RequestContext(output=OutputSpec(format="JPEG", destination="fixture.jpg")),
     )
     decision, clarify = route_request(req)
 
@@ -485,7 +572,7 @@ def test_graph_state_transition_p2(router_graph):
 def test_graph_state_transition_p3(router_graph):
     """Verify complete state transition pipeline for a P3 EXECUTE query with RAW provided."""
     raw_asset = AssetRef(asset_id="raw_1", kind="RAW", path="data/sample.raw")
-    ctx = RequestContext(confirmed_goal="노출 +0.5 EV 보정", output=OutputSpec(format="JPEG"))
+    ctx = RequestContext(confirmed_goal="노출 +0.5 EV 보정", output=OutputSpec(format="JPEG", destination="fixture.jpg"))
     req = RequestInput(
         request_id="test_p3",
         text="노출을 +0.5 EV로 보정해서 JPEG로 저장해줘.",
@@ -538,7 +625,7 @@ def test_clarification_pause_and_resume_to_exec(router_graph):
         request_id="test_m04_resume",
         text="노출을 +0.7 EV로 보정해서 JPEG로 저장해줘.",
         assets=[],
-        context=RequestContext(output=OutputSpec(format="JPEG")),
+        context=RequestContext(output=OutputSpec(format="JPEG", destination="fixture.jpg")),
     )
     state_paused = router_graph.invoke({"request": req})
     assert state_paused["response"].status == ResponseStatus.WAITING_CLARIFICATION.value
@@ -779,4 +866,3 @@ def test_clarification_resume_validation_and_retry_count(router_graph):
     })
     assert res_empty_2.get("error") is not None
     assert res_empty_2["error"].code == "CLARIFICATION_UNRESOLVED"
-

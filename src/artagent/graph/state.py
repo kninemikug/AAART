@@ -115,9 +115,9 @@ class ResumeInput:
 class RuntimeCapabilities:
     """Capabilities provided by current runtime environment."""
 
-    search_ready: bool = True
-    profile_ready: bool = True
-    render_ready: bool = True
+    search_ready: bool = False
+    profile_ready: bool = False
+    render_ready: bool = False
     ppversion: int = 1045
 
 
@@ -329,6 +329,7 @@ class AgentState(TypedDict, total=False):
     research_count: int
     clarification: Optional[Clarification]
     clarification_count: int
+    clarification_field: Optional[str]
     execution: Optional[ExecutionInput]
     features: Optional[PhotoFeatures]
     profile: Optional[ProfileData]
@@ -341,4 +342,6 @@ class AgentState(TypedDict, total=False):
     response: Optional[ResponseOutput]
     capabilities: RuntimeCapabilities
     resume: Optional[ResumeInput]
+    resume_origin: Optional[str]
+    resolved_goal: Optional[str]
     trace: list[str]
