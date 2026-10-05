@@ -14,6 +14,8 @@ python3 scripts/reproduce_t08_2_selected.py \
 
 `--work-dir`는 **비어 있는 새 디렉터리**여야 한다. 명령은 Git 관리 원문·질문·스크립트와 고정 모델 revision으로 입력 검증 → 두 규칙 청크 재생성 및 독립 재생성 검사 → 선정 조합 1행의 문서·질의 임베딩 → 새 Chroma 적재 → 100문항×3회 검색 → 로그 재집계를 수행한다. 기존 `data/chunks/` 또는 `data/embedding-benchmark/` 산출물을 입력으로 읽지 않는다. 모델 가중치는 로컬 cache 또는 해당 고정 revision에서 확보해야 한다. 원격 접근 없이 확인하려면 `HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1`을 설정한다.
 
+전체 비교 결과인 `docs/chunking_embedding_benchmark.json`은 Git LFS 파일이다. 새 checkout에서 전체 결과를 읽을 때는 Git LFS를 설치하고 `git lfs pull --include=docs/chunking_embedding_benchmark.json`로 확보한다. 위 선정 조합 재현 명령은 이 대형 JSON을 입력으로 사용하지 않는다.
+
 성공 시 `<work-dir>/reproduction.json`에 `status=passed`가 기록된다. [기대값 계약](T08_2_t9_handoff_reference.json)은 두 청크셋의 건수·파일 SHA, 문서/질의 벡터 SHA, 공통 protocol SHA, 출처별·복합 질문 지표, 300개 질문/반복의 top5 순서 및 근거·문맥 예산 평가 지문을 고정한다. top5 거리는 기존값과 최대 `1e-5` 차이까지 허용한다. 재생성한 실험 ID와 실행 지연은 작업 경로와 실행 환경에 따라 달라질 수 있으므로 합격 비교 대상이 아니다.
 
 2026-10-01 독립 출력 디렉터리에서 실행한 결과, RawPedia **141개** (`8e8f163d2ce8da99fec3dc7e38652ea3d7aecb35997dc20a3d2202c09753c4cd`)와 GitHub **13개** (`7f8943d6bed8a482e7f34602099ade665a99c341a8870a16ed32da2196512571`)의 파일 SHA가 일치했다. 문서·질의 벡터 SHA, 300개 top5 순서, 전체 검색·문맥 예산 지표도 일치했다. Macro MRR@5=`0.8192708333333334`, Macro Hit@5=`0.8708333333333333`이었다. 이 명령은 전체 20,952행 재실행이나 T9 서비스 코드의 완료를 뜻하지 않는다.
