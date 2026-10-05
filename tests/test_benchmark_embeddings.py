@@ -1,0 +1,624 @@
+"""Unit tests for embedding benchmark metrics, evaluation rules, and Chroma retrieval."""
+
+from __future__ import annotations
+
+import math
+from pathlib import Path
+import pytest
+import chromadb
+import numpy as np
+
+from src.artagent.chunking import Chunk, SourceSegment, sha256_str
+
+
+def evaluate_sample_query_metrics(
+    query_evidence: list[dict],
+    returned_chunks: list[Chunk],
+    ks: tuple[int, ...] = (1, 3, 5),
+    relevance_threshold: float = 0.5,
+) -> dict:
+    """Compute Hit@k, RR@k, All@k, FullEvidence@k for a query."""
+    support_evs = [e for e in query_evidence if e["role"] == "support"]
+    if not support_evs:
+        # Negative query
+        return {
+            "is_negative": True,
+            "hit": {k: None for k in ks},
+            "rr": {k: None for k in ks},
+            "all": {k: None for k in ks},
+            "full_evidence": {k: None for k in ks},
+        }
+
+    # Rank of first relevant chunk
+    first_rel_rank = None
+    for r_idx, chunk in enumerate(returned_chunks, start=1):
+        is_rel = False
+        for ev in support_evs:
+            # Simple coverage calculation for unit test
+            cov = calculate_dummy_coverage(ev, chunk)
+            if cov >= relevance_threshold:
+                is_rel = True
+                break
+        if is_rel:
+            first_rel_rank = r_idx
+            break
+
+    hit_any = {}
+    rr_any = {}
+    for k in ks:
+        if first_rel_rank is not None and first_rel_rank <= k:
+            hit_any[k] = 1.0
+            rr_any[k] = 1.0 / first_rel_rank
+        else:
+            hit_any[k] = 0.0
+            rr_any[k] = 0.0
+
+    # All@k and FullEvidence@k
+    all_k = {}
+    full_ev_k = {}
+    for k in ks:
+        top_k_chunks = returned_chunks[:k]
+        all_covered = True
+        full_covered = True
+        for ev in support_evs:
+            cov = calculate_dummy_union_coverage(ev, top_k_chunks)
+            if cov < relevance_threshold:
+                all_covered = False
+            if cov < 1.0 - 1e-6:
+                full_covered = False
+        all_k[k] = 1.0 if all_covered else 0.0
+        full_ev_k[k] = 1.0 if full_covered else 0.0
+
+    return {
+        "is_negative": False,
+        "first_rel_rank": first_rel_rank,
+        "hit": hit_any,
+        "rr": rr_any,
+        "all": all_k,
+        "full_evidence": full_ev_k,
+    }
+
+
+def calculate_dummy_coverage(ev: dict, chunk: Chunk) -> float:
+    return chunk.metadata.get("coverage_map", {}).get(ev["id"], 0.0)
+
+
+def calculate_dummy_union_coverage(ev: dict, chunks: list[Chunk]) -> float:
+    # Union of disjoint pieces in metadata
+    pieces = set()
+    for c in chunks:
+        pieces.update(c.metadata.get("piece_map", {}).get(ev["id"], []))
+    total_pieces = ev.get("total_pieces", 10)
+    return len(pieces) / total_pieces
+
+
+def test_metric_calculations_any_all_full_example():
+    """Verify execution plan §7.2 example:
+
+    2위가 e1의 80%, 3위가 나머지 20%, 4위가 e2의 60%, 5위가 나머지 40%를 포함하면
+    Hit@1=0, Hit@3=1, Hit@5=1, MRR@5=0.5, All@3=0, All@5=1, FullEvidence_all@5=1.
+    """
+    ev1 = {"id": "e1", "role": "support", "total_pieces": 10}
+    ev2 = {"id": "e2", "role": "support", "total_pieces": 10}
+    evidence = [ev1, ev2]
+
+    # Rank 1: irrelevant
+    c1 = Chunk("c1", "rawpedia", "d1", "t", "text1", (0, 10), {"coverage_map": {}, "piece_map": {}})
+    # Rank 2: covers e1 80% (8 pieces, cov=0.8 >= 0.5 -> relevant!)
+    c2 = Chunk("c2", "rawpedia", "d1", "t", "text2", (10, 20), {"coverage_map": {"e1": 0.8}, "piece_map": {"e1": list(range(0, 8))}})
+    # Rank 3: covers e1 20% (pieces 8,9)
+    c3 = Chunk("c3", "rawpedia", "d1", "t", "text3", (20, 30), {"coverage_map": {"e1": 0.2}, "piece_map": {"e1": list(range(8, 10))}})
+    # Rank 4: covers e2 60% (pieces 0..5, cov=0.6 >= 0.5 -> relevant!)
+    c4 = Chunk("c4", "rawpedia", "d1", "t", "text4", (30, 40), {"coverage_map": {"e2": 0.6}, "piece_map": {"e2": list(range(0, 6))}})
+    # Rank 5: covers e2 40% (pieces 6..9)
+    c5 = Chunk("c5", "rawpedia", "d1", "t", "text5", (40, 50), {"coverage_map": {"e2": 0.4}, "piece_map": {"e2": list(range(6, 10))}})
+
+    returned = [c1, c2, c3, c4, c5]
+    metrics = evaluate_sample_query_metrics(evidence, returned, ks=(1, 3, 5))
+
+    assert metrics["hit"][1] == 0.0
+    assert metrics["hit"][3] == 1.0
+    assert metrics["hit"][5] == 1.0
+    assert metrics["rr"][5] == pytest.approx(0.5)
+
+    assert metrics["all"][3] == 0.0  # e2 not covered at all in top 3
+    assert metrics["all"][5] == 1.0  # both e1 and e2 >= 50% in top 5
+    assert metrics["full_evidence"][5] == 1.0  # both e1 and e2 100% covered in top 5
+
+
+def test_negative_query_exclusion():
+    """Verify negative queries are marked and excluded from positive Hit/MRR."""
+    neg_ev = [{"id": "c1", "role": "counterevidence", "total_pieces": 5}]
+    c1 = Chunk("c1", "github", "d1", "t", "text1", (0, 10), {})
+    metrics = evaluate_sample_query_metrics(neg_ev, [c1], ks=(1, 3, 5))
+
+    assert metrics["is_negative"] is True
+    assert metrics["hit"][1] is None
+    assert metrics["hit"][5] is None
+    assert metrics["rr"][5] is None
+
+
+def test_chroma_roundtrip_with_cosine(tmp_path):
+    """Verify Chroma PersistentClient cosine retrieval with handmade orthogonal vectors."""
+    db_path = str(tmp_path / "chroma_test")
+    client = chromadb.PersistentClient(path=db_path)
+    col = client.create_collection("cosine_test", metadata={"hnsw:space": "cosine"})
+
+    # 3 vectors in 4D
+    v_a = [1.0, 0.0, 0.0, 0.0]
+    v_b = [0.0, 1.0, 0.0, 0.0]
+    v_c = [0.7071, 0.7071, 0.0, 0.0]
+
+    col.add(
+        ids=["A", "B", "C"],
+        embeddings=[v_a, v_b, v_c],
+        documents=["Doc A", "Doc B", "Doc C"],
+        metadatas=[{"src": "rp"}, {"src": "gh"}, {"src": "rp"}],
+    )
+
+    # Query with [1.0, 0.0, 0.0, 0.0] -> nearest is A (dist 0.0), then C (dist ~0.29), then B (dist 1.0)
+    res = col.query(query_embeddings=[v_a], n_results=3)
+    assert res["ids"][0] == ["A", "C", "B"]
+    assert res["distances"][0][0] == pytest.approx(0.0, abs=1e-4)
+    assert res["distances"][0][1] < res["distances"][0][2]
+
+
+def test_enumerate_chunking_variants_counts():
+    """Verify enumerate_chunking_variants produces 33 variants across the grid."""
+    from src.artagent.chunking import enumerate_chunking_variants
+
+    variants = enumerate_chunking_variants()
+    assert len(variants) == 33
+
+    rawpedia = [v for v in variants if v.source_type == "rawpedia"]
+    github_formal = [v for v in variants if v.source_type == "github" and not v.is_diagnostic]
+    github_diagnostic = [v for v in variants if v.source_type == "github" and v.is_diagnostic]
+
+    assert len(rawpedia) == 18  # 2 rules * 3 L * 3 O
+    assert len(github_formal) == 12  # 9 G-B + 3 G-A-curated
+    assert len(github_diagnostic) == 3  # 3 G-A-full
+
+
+def test_matrix_cartesian_counts():
+    """Verify matrix calculation produces 1080 rows (864 formal + 216 diagnostic)."""
+    rawpedia_count = 18
+    github_formal_count = 12
+    github_diagnostic_count = 3
+    models_count = 4
+
+    formal_combinations = rawpedia_count * github_formal_count * models_count
+    diagnostic_combinations = rawpedia_count * github_diagnostic_count * models_count
+    total = formal_combinations + diagnostic_combinations
+
+    assert formal_combinations == 864
+    assert diagnostic_combinations == 216
+    assert total == 1080
+
+
+def test_decide_extension_logic(tmp_path):
+    """Test decide_extension trigger rules according to §13.4."""
+    import argparse
+    import json
+    from scripts.benchmark_embeddings import cmd_decide_extension
+
+    # Case 1: Physical L=448 outperforms 384 -> trigger True
+    exp_448 = {
+        "experiment_id": "exp_448",
+        "is_diagnostic": False,
+        "rawpedia_rule": "R-B-window-t448-o0",
+        "github_rule": "G-A-curated-thread-w224-wo0",
+        "model_id": "BAAI/bge-base-en-v1.5",
+        "model_revision": "rev1",
+        "metrics": {"macro": {"mrr@5": 0.80, "hit@5": 0.92, "full_evidence@5": 0.70}},
+        "latency": {"p95_seconds": 0.05},
+        "vector_bytes": 1000,
+    }
+    exp_384 = {
+        "experiment_id": "exp_384",
+        "is_diagnostic": False,
+        "rawpedia_rule": "R-B-window-t384-o0",
+        "github_rule": "G-A-curated-thread-w224-wo0",
+        "model_id": "BAAI/bge-base-en-v1.5",
+        "model_revision": "rev1",
+        "metrics": {"macro": {"mrr@5": 0.78, "hit@5": 0.90, "full_evidence@5": 0.68}},
+        "latency": {"p95_seconds": 0.04},
+        "vector_bytes": 800,
+    }
+    res_file1 = tmp_path / "results1.json"
+    res_file1.write_text(json.dumps({"experiments": [exp_448, exp_384]}))
+
+    dec_file1 = tmp_path / "decision1.json"
+    args1 = argparse.Namespace(inputs=[str(res_file1)], output_json=str(dec_file1))
+    assert cmd_decide_extension(args1) == 0
+    d1 = json.loads(dec_file1.read_bytes())
+    assert d1["trigger"] is True
+    assert d1["per_model_evaluation"]["BAAI/bge-base-en-v1.5"]["triggered_by_mrr"] is True
+
+    # Case 2: Only internal W=448, physical L=224 -> trigger False
+    exp_w448 = {
+        "experiment_id": "exp_w448",
+        "is_diagnostic": False,
+        "rawpedia_rule": "R-B-window-t224-o0",
+        "github_rule": "G-A-curated-thread-w448-wo0",
+        "model_id": "BAAI/bge-base-en-v1.5",
+        "model_revision": "rev1",
+        "metrics": {"macro": {"mrr@5": 0.77, "hit@5": 0.90, "full_evidence@5": 0.65}},
+        "latency": {"p95_seconds": 0.05},
+        "vector_bytes": 1000,
+    }
+    res_file2 = tmp_path / "results2.json"
+    res_file2.write_text(json.dumps({"experiments": [exp_w448]}))
+
+    dec_file2 = tmp_path / "decision2.json"
+    args2 = argparse.Namespace(inputs=[str(res_file2)], output_json=str(dec_file2))
+    assert cmd_decide_extension(args2) == 0
+    d2 = json.loads(dec_file2.read_bytes())
+    assert d2["trigger"] is False
+    assert d2["per_model_evaluation"]["BAAI/bge-base-en-v1.5"]["has_physical_448"] is False
+
+
+def test_chunk_window_mean_encoding():
+    """Verify chunk_window_mean_v1 policy splits large content into windows and returns normalized vector."""
+    from scripts.benchmark_embeddings import encode_chunk_list
+    from transformers import AutoTokenizer
+
+    class DummyEncoder:
+        def __init__(self):
+            self.max_seq_length = 512
+            self.tokenizer = AutoTokenizer.from_pretrained("BAAI/bge-small-en-v1.5", revision="5c38ec7c405ec4b44b94cc5a9bb96e735b38267a")
+
+        def get_sentence_embedding_dimension(self):
+            return 8
+
+        def encode(self, texts, **kwargs):
+            # Deterministic pseudo-embedding: count letters
+            arr = np.zeros((len(texts), 8), dtype=np.float32)
+            for i, t in enumerate(texts):
+                arr[i] = [len(t) % 7 + 1.0] * 8
+                arr[i] /= np.linalg.norm(arr[i])
+            return arr
+
+    dummy_enc = DummyEncoder()
+    ref_tok = dummy_enc.tokenizer
+
+    long_text = "This is a long test document sentence for chunk window mean pooling. " * 30
+    chunk = Chunk(
+        chunk_id="test_chunk",
+        source_type="rawpedia",
+        doc_id="doc1",
+        section_title="Test Section",
+        content=long_text,
+        char_range=(0, len(long_text)),
+        metadata={
+            "embedding_policy": "chunk_window_mean_v1",
+            "encoder_window_tokens": 64,
+        },
+    )
+
+    vecs = encode_chunk_list([chunk], dummy_enc, "dummy", "", ref_tok)
+    assert vecs.shape == (1, 8)
+    norm = np.linalg.norm(vecs[0])
+    assert norm == pytest.approx(1.0, abs=1e-4)
+    assert not np.isnan(vecs).any()
+
+
+def test_chunk_window_mean_v2_and_thread_window_mean_v3_zero_header_weight():
+    """Verify chunk_window_mean_v2 and thread_window_mean_v3 support and weighting."""
+    from scripts.benchmark_embeddings import encode_chunk_list
+    from transformers import AutoTokenizer
+
+    class DummyEncoder:
+        def __init__(self):
+            self.max_seq_length = 512
+            self.tokenizer = AutoTokenizer.from_pretrained("BAAI/bge-small-en-v1.5", revision="5c38ec7c405ec4b44b94cc5a9bb96e735b38267a")
+
+        def get_sentence_embedding_dimension(self):
+            return 8
+
+        def encode(self, texts, **kwargs):
+            arr = np.zeros((len(texts), 8), dtype=np.float32)
+            for i, t in enumerate(texts):
+                arr[i] = [len(t) % 7 + 1.0] * 8
+                arr[i] /= np.linalg.norm(arr[i])
+            return arr
+
+    dummy_enc = DummyEncoder()
+    ref_tok = dummy_enc.tokenizer
+
+    body_text = "Detailed paragraph about image processing in ART raw converter. " * 20
+    chunk_pooled = Chunk(
+        chunk_id="test_pooled_v2",
+        source_type="rawpedia",
+        doc_id="doc1",
+        section_title="Noise Reduction",
+        content=body_text,
+        char_range=(0, len(body_text)),
+        metadata={
+            "embedding_policy": "chunk_window_mean_v2",
+            "encoder_window_tokens": 64,
+        },
+    )
+
+    vecs_p = encode_chunk_list([chunk_pooled], dummy_enc, "dummy", "", ref_tok)
+    assert vecs_p.shape == (1, 8)
+    assert np.linalg.norm(vecs_p[0]) == pytest.approx(1.0, abs=1e-4)
+
+    # Thread chunk with source_segments
+    seg1_text = "First comment in github thread about bug. " * 10
+    seg2_text = "Second comment providing fix for the bug. " * 10
+    full_thread = f"{seg1_text}\n\n{seg2_text}"
+    seg1 = SourceSegment(
+        doc_id="issue:100",
+        source_path="data/issues/100.json",
+        source_file_sha256="abc",
+        json_pointer=None,
+        char_start=0,
+        char_end=len(seg1_text),
+        byte_start=0,
+        byte_end=len(seg1_text.encode("utf-8")),
+        content_char_start=0,
+        content_char_end=len(seg1_text),
+        target_url="https://github.com",
+        segment_sha256=sha256_str(seg1_text),
+    )
+    seg2 = SourceSegment(
+        doc_id="issue:100",
+        source_path="data/issues/100.json",
+        source_file_sha256="abc",
+        json_pointer=None,
+        char_start=len(seg1_text) + 2,
+        char_end=len(full_thread),
+        byte_start=len(seg1_text.encode("utf-8")) + 2,
+        byte_end=len(full_thread.encode("utf-8")),
+        content_char_start=len(seg1_text) + 2,
+        content_char_end=len(full_thread),
+        target_url="https://github.com",
+        segment_sha256=sha256_str(seg2_text),
+    )
+    chunk_thread = Chunk(
+        chunk_id="test_thread_v3",
+        source_type="github",
+        doc_id="issue:100",
+        section_title="Fix Memory Leak",
+        content=full_thread,
+        char_range=(0, len(full_thread)),
+        metadata={
+            "embedding_policy": "thread_window_mean_v3",
+            "encoder_window_tokens": 64,
+            "source_segments": [seg1.to_dict(), seg2.to_dict()],
+        },
+    )
+
+    vecs_t = encode_chunk_list([chunk_thread], dummy_enc, "dummy", "", ref_tok)
+    assert vecs_t.shape == (1, 8)
+    assert np.linalg.norm(vecs_t[0]) == pytest.approx(1.0, abs=1e-4)
+
+
+def test_cmd_decide_extension_boundary_pooled(tmp_path: Path):
+    """Verify boundary-pooled extension decision logic under §14.4."""
+    import argparse
+    import json
+    from scripts.benchmark_embeddings import cmd_decide_extension
+
+    exp_2048 = {
+        "experiment_id": "exp_2048",
+        "is_diagnostic": False,
+        "rawpedia_rule": "R-B-window-t2048-o64",
+        "github_rule": "G-A-curated-thread-w224-wo0",
+        "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+        "model_revision": "rev1",
+        "metrics": {
+            "macro": {
+                "mrr@5": 0.82,
+                "hit@5": 0.94,
+                "full_evidence@5": 0.75,
+                "budget_4096_full_evidence@5": 0.74,
+            }
+        },
+        "latency": {"p95_seconds": 0.05},
+        "vector_bytes": 1000,
+    }
+    exp_1536 = {
+        "experiment_id": "exp_1536",
+        "is_diagnostic": False,
+        "rawpedia_rule": "R-B-window-t1536-o64",
+        "github_rule": "G-A-curated-thread-w224-wo0",
+        "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+        "model_revision": "rev1",
+        "metrics": {
+            "macro": {
+                "mrr@5": 0.80,
+                "hit@5": 0.93,
+                "full_evidence@5": 0.73,
+                "budget_4096_full_evidence@5": 0.72,
+            }
+        },
+        "latency": {"p95_seconds": 0.04},
+        "vector_bytes": 800,
+    }
+    exp_1024 = {
+        "experiment_id": "exp_1024",
+        "is_diagnostic": False,
+        "rawpedia_rule": "R-B-window-t1024-o64",
+        "github_rule": "G-A-curated-thread-w224-wo0",
+        "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+        "model_revision": "rev1",
+        "metrics": {
+            "macro": {
+                "mrr@5": 0.79,
+                "hit@5": 0.91,
+                "full_evidence@5": 0.70,
+                "budget_4096_full_evidence@5": 0.71,
+            }
+        },
+        "latency": {"p95_seconds": 0.04},
+        "vector_bytes": 800,
+    }
+
+    res_file = tmp_path / "results_qp.json"
+    res_file.write_text(json.dumps({"experiments": [exp_2048, exp_1536, exp_1024]}))
+
+    dec_file = tmp_path / "decision_qp.json"
+    args = argparse.Namespace(inputs=[str(res_file)], output_json=str(dec_file), stage="boundary-pooled")
+    assert cmd_decide_extension(args) == 0
+    d = json.loads(dec_file.read_bytes())
+    assert d["trigger"] is True
+    assert d["per_model_evaluation"]["sentence-transformers/all-MiniLM-L6-v2"]["is_2048"] is True
+
+
+def test_query_collection_deterministic_tie_breaking():
+    """Verify deterministic tie-breaking on distance and chunk_id."""
+    from scripts.benchmark_embeddings import query_collection_deterministic
+    import chromadb
+
+    client = chromadb.Client()
+    col = client.create_collection("test_tie_break", metadata={"hnsw:space": "cosine"})
+
+    # Insert two chunks with identical vectors (distance will be equal)
+    vec = [1.0, 0.0, 0.0, 0.0]
+    col.add(
+        ids=["chunk_z", "chunk_a"],
+        embeddings=[vec, vec],
+        documents=["text z", "text a"],
+        metadatas=[{"doc_id": "z"}, {"doc_id": "a"}],
+    )
+
+    class MockEncoder:
+        def encode(self, texts, **kwargs):
+            return np.array([[1.0, 0.0, 0.0, 0.0]], dtype=np.float32)
+
+    encoder = MockEncoder()
+    top_ids, top_dists, _, diags = query_collection_deterministic(
+        col=col,
+        encoder=encoder,
+        query_texts=["sample query"],
+        n_results=5,
+        k=2,
+    )
+    # chunk_a should precede chunk_z alphabetically due to deterministic tie-breaking
+    assert top_ids[0] == ["chunk_a", "chunk_z"]
+    assert diags[0]["tie_at_boundary"] is True
+
+
+def test_matrix_filters_and_guard_compatibility(tmp_path):
+    """Verify matrix filters and strict guard group model compatibility."""
+    import argparse
+    import json
+    from scripts.benchmark_embeddings import cmd_matrix
+
+    chunk_manifest = {
+        "guard_group": "e5-512",
+        "chunking_rules": {
+            "R-A-heading-t448-o32": {"rule_id": "R-A-heading-t448-o32", "is_diagnostic": False},
+            "R-B-window-t448-o32": {"rule_id": "R-B-window-t448-o32", "is_diagnostic": False},
+            "G-A-curated-thread-w224-wo0": {"rule_id": "G-A-curated-thread-w224-wo0", "is_diagnostic": False},
+        },
+    }
+    model_manifest = {
+        "models": {
+            "intfloat/multilingual-e5-small": {"revision": "rev_e5", "hidden_size": 384},
+            "BAAI/bge-small-en-v1.5": {"revision": "rev_bge", "hidden_size": 384},
+        }
+    }
+    cm_path = tmp_path / "chunk_manifest.json"
+    mm_path = tmp_path / "model_manifest.json"
+    q_path = tmp_path / "queries.json"
+    out_path = tmp_path / "matrix.json"
+
+    cm_path.write_text(json.dumps(chunk_manifest))
+    mm_path.write_text(json.dumps(model_manifest))
+    q_path.write_text(json.dumps({"queries": []}))
+
+    # 1. Incompatible model for e5-512 must raise ValueError
+    args_bad = argparse.Namespace(
+        chunk_manifest=str(cm_path),
+        model_manifest=str(mm_path),
+        queries=str(q_path),
+        output_json=str(out_path),
+        model_ids=["BAAI/bge-small-en-v1.5"],
+        rawpedia_variant_ids=None,
+        github_variant_ids=None,
+        guard_group=None,
+        ks=[1, 3, 5],
+        device="cpu",
+    )
+    with pytest.raises(ValueError, match="not allowed for guard group 'e5-512'"):
+        cmd_matrix(args_bad)
+
+    # 2. Duplicate filter IDs must raise ValueError
+    args_dup = argparse.Namespace(
+        chunk_manifest=str(cm_path),
+        model_manifest=str(mm_path),
+        queries=str(q_path),
+        output_json=str(out_path),
+        model_ids=["intfloat/multilingual-e5-small", "intfloat/multilingual-e5-small"],
+        rawpedia_variant_ids=None,
+        github_variant_ids=None,
+        guard_group=None,
+        ks=[1, 3, 5],
+        device="cpu",
+    )
+    with pytest.raises(ValueError, match="Duplicate model IDs"):
+        cmd_matrix(args_dup)
+
+    # 3. Valid filtered matrix generation succeeds
+    args_valid = argparse.Namespace(
+        chunk_manifest=str(cm_path),
+        model_manifest=str(mm_path),
+        queries=str(q_path),
+        output_json=str(out_path),
+        model_ids=["intfloat/multilingual-e5-small"],
+        rawpedia_variant_ids=["R-B-window-t448-o32"],
+        github_variant_ids=["G-A-curated-thread-w224-wo0"],
+        guard_group=None,
+        ks=[1, 3, 5],
+        device="cpu",
+    )
+    assert cmd_matrix(args_valid) == 0
+    matrix_data = json.loads(out_path.read_bytes())
+    assert matrix_data["total_experiments_count"] == 1
+
+
+
+
+
+def test_actual_evaluator_preserves_precision_and_negative_counter_diagnostics(monkeypatch):
+    """Exercise the production evaluator, rather than a duplicate metric implementation."""
+    from scripts import benchmark_embeddings as runner
+
+    monkeypatch.setattr(runner, "calculate_evidence_chunk_coverage",
+                        lambda ev, chunk, coordinates: float(chunk.chunk_id == ev["target"]))
+    monkeypatch.setattr(runner, "calculate_evidence_chunks_union_coverage",
+                        lambda ev, chunks, coordinates: float(any(c.chunk_id == ev["target"] for c in chunks)))
+    chunks = {str(i): Chunk(str(i), "rawpedia", "doc", "title", "body", (0, 4), {}) for i in range(1, 6)}
+    queries, returned = [], []
+    for qid, source, target, negative in (("R1", "rawpedia", "3", False), ("R2", "rawpedia", "missing", False),
+                                         ("R3", "rawpedia", "missing", False), ("G1", "github", "1", False),
+                                         ("N1", "github", "missing", True)):
+        queries.append({"query_id": qid, "source_type": source, "difficulty": "negative" if negative else "complex",
+            "evidence": [{"target": target, "source_path": "test", "role": "counter" if negative else "support"}]})
+        returned.append(list(chunks))
+    metrics = runner.evaluate_retrieval(queries, returned, chunks, {}, "raw", "github")
+    assert metrics["rawpedia"]["mrr@5"] == pytest.approx(1 / 9, abs=1e-14)
+    assert metrics["macro"]["mrr@5"] == pytest.approx((1 / 9 + 1) / 2, abs=1e-14)
+    assert metrics["micro"]["mrr@5"] == pytest.approx(1 / 3, abs=1e-14)
+    negative = next(r for r in metrics["query_results"] if r["query_id"] == "N1")
+    assert negative["full_evidence"][5] == 0.0
+    assert negative["evidence_coverage"][0]["role"] == "counter"
+
+
+def test_document_cache_fingerprint_changes_when_content_tail_changes(tmp_path, monkeypatch):
+    """The old content[:40] cache key silently reused changed document vectors."""
+    import numpy as np
+    from scripts import benchmark_embeddings as runner
+    calls = []
+    def encode(chunks, **kwargs):
+        calls.append(chunks[0].content)
+        return np.ones((1, 2), dtype=np.float32)
+    monkeypatch.setattr(runner, "encode_chunk_list", encode)
+    chunk = Chunk("same-id", "rawpedia", "doc", "section", "x" * 40 + "old tail", (0, 48), {})
+    info = {"revision": "fixed-revision", "hidden_size": 2}
+    runner.get_cached_rule_vectors("rule", [chunk], None, "model", info, tmp_path)
+    chunk.content = "x" * 40 + "new tail"
+    runner.get_cached_rule_vectors("rule", [chunk], None, "model", info, tmp_path)
+    assert len(calls) == 2

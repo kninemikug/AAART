@@ -3,3 +3,6 @@ __pycache__/
 .env
 .env.local
 .env.*.local
+data/chunks/
+data/embedding-benchmark/
+/docs/chunking_embedding_benchmark.json
