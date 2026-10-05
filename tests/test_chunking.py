@@ -1,0 +1,478 @@
+"""Unit tests for chunking schema, deterministic IDs, provenance validation, and gold coverage."""
+
+from __future__ import annotations
+
+import dataclasses
+import json
+from pathlib import Path
+import pytest
+
+from src.artagent.chunking import (
+    CHUNK_SCHEMA_VERSION,
+    GUARD_GROUP_CONTRACTS,
+    Chunk,
+    SourceSegment,
+    calculate_evidence_chunk_coverage,
+    calculate_evidence_chunks_union_coverage,
+    compute_chunk_id,
+    get_evidence_char_range,
+    resolve_guard_models,
+    sha256_bytes,
+    sha256_str,
+    validate_chunk_provenance,
+)
+
+
+def test_chunk_id_determinism():
+    """Ensure chunk ID computation is deterministic and canonical."""
+    seg = SourceSegment(
+        doc_id="rawpedia:Exposure",
+        source_path="data/rawpedia/Exposure.md",
+        source_file_sha256="abc123def",
+        json_pointer=None,
+        char_start=10,
+        char_end=50,
+        byte_start=10,
+        byte_end=50,
+        content_char_start=0,
+        content_char_end=40,
+        target_url="https://example.com/exposure",
+        segment_sha256=sha256_str("Hello World! This is a test segment text."),
+    )
+    content = "Hello World! This is a test segment text."
+    cid1 = compute_chunk_id(
+        schema_version=CHUNK_SCHEMA_VERSION,
+        rule_fingerprint="R-A-heading:v1",
+        source_type="rawpedia",
+        doc_id="rawpedia:Exposure",
+        source_segments=[seg],
+        content_sha256=sha256_str(content),
+    )
+    cid2 = compute_chunk_id(
+        schema_version=CHUNK_SCHEMA_VERSION,
+        rule_fingerprint="R-A-heading:v1",
+        source_type="rawpedia",
+        doc_id="rawpedia:Exposure",
+        source_segments=[seg],
+        content_sha256=sha256_str(content),
+    )
+    assert cid1 == cid2
+    assert cid1.startswith("t08c:v1:rawpedia:R-A-heading:")
+
+
+def test_validate_chunk_provenance_and_tampering():
+    """Verify that provenance validation accepts valid chunks and rejects tampering."""
+    doc_text = "Line 1: Introduction\nLine 2: Important detail about Exposure.\nLine 3: End."
+    file_sha = sha256_str(doc_text)
+
+    # Slice "Important detail about Exposure."
+    target_str = "Important detail about Exposure."
+    char_start = doc_text.index(target_str)
+    char_end = char_start + len(target_str)
+    byte_start = len(doc_text[:char_start].encode("utf-8"))
+    byte_end = len(doc_text[:char_end].encode("utf-8"))
+
+    seg = SourceSegment(
+        doc_id="rawpedia:Exposure",
+        source_path="data/rawpedia/Exposure.md",
+        source_file_sha256=file_sha,
+        json_pointer=None,
+        char_start=char_start,
+        char_end=char_end,
+        byte_start=byte_start,
+        byte_end=byte_end,
+        content_char_start=0,
+        content_char_end=len(target_str),
+        target_url="https://example.com/exposure",
+        segment_sha256=sha256_str(target_str),
+    )
+
+    metadata = {
+        "content_sha256": sha256_str(target_str),
+        "range_basis": "source_file",
+        "source_segments": [seg.to_dict()],
+    }
+
+    chunk = Chunk(
+        chunk_id="test-chunk-1",
+        source_type="rawpedia",
+        doc_id="rawpedia:Exposure",
+        section_title="Exposure",
+        content=target_str,
+        char_range=(char_start, char_end),
+        metadata=metadata,
+    )
+
+    def dummy_source_getter(s: SourceSegment):
+        return doc_text, file_sha
+
+    # 1. Valid passes
+    validate_chunk_provenance(chunk, dummy_source_getter)
+
+    # 2. Tampered content fails
+    tampered_chunk = Chunk(
+        chunk_id="test-chunk-1",
+        source_type="rawpedia",
+        doc_id="rawpedia:Exposure",
+        section_title="Exposure",
+        content=target_str + "!",
+        char_range=(char_start, char_end),
+        metadata=metadata,
+    )
+    with pytest.raises(ValueError, match="content SHA256 mismatch"):
+        validate_chunk_provenance(tampered_chunk, dummy_source_getter)
+
+    # 3. Tampered segment offset fails
+    bad_seg = dataclasses.replace(seg, byte_start=byte_start + 1)
+    bad_meta = {
+        "content_sha256": sha256_str(target_str),
+        "range_basis": "source_file",
+        "source_segments": [bad_seg.to_dict()],
+    }
+    bad_chunk = Chunk(
+        chunk_id="test-chunk-1",
+        source_type="rawpedia",
+        doc_id="rawpedia:Exposure",
+        section_title="Exposure",
+        content=target_str,
+        char_range=(char_start, char_end),
+        metadata=bad_meta,
+    )
+    with pytest.raises(ValueError, match="byte offset mismatch"):
+        validate_chunk_provenance(bad_chunk, dummy_source_getter)
+
+
+def test_evidence_coverage_single_chunk():
+    """Verify single chunk evidence coverage calculation with 50% relevance threshold."""
+    doc_text = "ABCDEFGHIJ 1234567890"
+    file_sha = sha256_str(doc_text)
+
+    # Evidence span: "ABCDEFGHIJ" (10 non-ws chars)
+    ev = {
+        "source_path": "data/test.md",
+        "json_pointer": None,
+        "doc_id": "test:doc1",
+        "char_start": 0,
+        "char_end": 10,
+        "text_span": "ABCDEFGHIJ",
+    }
+
+    # Chunk covers first 4 chars: "ABCD" (40% coverage < 50%)
+    seg_40 = SourceSegment(
+        doc_id="test:doc1",
+        source_path="data/test.md",
+        source_file_sha256=file_sha,
+        json_pointer=None,
+        char_start=0,
+        char_end=4,
+        byte_start=0,
+        byte_end=4,
+        content_char_start=0,
+        content_char_end=4,
+        target_url="https://test",
+        segment_sha256=sha256_str("ABCD"),
+    )
+    chunk_40 = Chunk(
+        chunk_id="c40",
+        source_type="rawpedia",
+        doc_id="test:doc1",
+        section_title="test",
+        content="ABCD",
+        char_range=(0, 4),
+        metadata={"source_segments": [seg_40.to_dict()]},
+    )
+    cov_40 = calculate_evidence_chunk_coverage(ev, chunk_40)
+    assert cov_40 == pytest.approx(0.4)
+    assert cov_40 < 0.5  # Not relevant
+
+    # Chunk covers first 6 chars: "ABCDEF" (60% coverage >= 50%)
+    seg_60 = dataclasses.replace(
+        seg_40,
+        char_end=6,
+        byte_end=6,
+        content_char_end=6,
+        segment_sha256=sha256_str("ABCDEF"),
+    )
+    chunk_60 = Chunk(
+        chunk_id="c60",
+        source_type="rawpedia",
+        doc_id="test:doc1",
+        section_title="test",
+        content="ABCDEF",
+        char_range=(0, 6),
+        metadata={"source_segments": [seg_60.to_dict()]},
+    )
+    cov_60 = calculate_evidence_chunk_coverage(ev, chunk_60)
+    assert cov_60 == pytest.approx(0.6)
+    assert cov_60 >= 0.5  # Relevant
+
+
+def test_evidence_coverage_union_chunks():
+    """Verify union coverage across multiple chunks without double-counting overlaps."""
+    # Evidence: "0123456789" (10 chars)
+    ev = {
+        "source_path": "data/test.md",
+        "json_pointer": None,
+        "doc_id": "test:doc1",
+        "char_start": 0,
+        "char_end": 10,
+        "text_span": "0123456789",
+    }
+
+    # Chunk 1: [0, 6) -> "012345"
+    # Chunk 2: [4, 10) -> "456789" (overlap at [4, 6))
+    seg1 = SourceSegment(
+        doc_id="test:doc1",
+        source_path="data/test.md",
+        source_file_sha256="dummy",
+        json_pointer=None,
+        char_start=0,
+        char_end=6,
+        byte_start=0,
+        byte_end=6,
+        content_char_start=0,
+        content_char_end=6,
+        target_url="https://test",
+        segment_sha256="dummy",
+    )
+    c1 = Chunk("c1", "rawpedia", "test:doc1", "t", "012345", (0, 6), {"source_segments": [seg1.to_dict()]})
+
+    seg2 = SourceSegment(
+        doc_id="test:doc1",
+        source_path="data/test.md",
+        source_file_sha256="dummy",
+        json_pointer=None,
+        char_start=4,
+        char_end=10,
+        byte_start=4,
+        byte_end=10,
+        content_char_start=0,
+        content_char_end=6,
+        target_url="https://test",
+        segment_sha256="dummy",
+    )
+    c2 = Chunk("c2", "rawpedia", "test:doc1", "t", "456789", (4, 10), {"source_segments": [seg2.to_dict()]})
+
+    # Individual coverages are 0.6 each
+    assert calculate_evidence_chunk_coverage(ev, c1) == pytest.approx(0.6)
+    assert calculate_evidence_chunk_coverage(ev, c2) == pytest.approx(0.6)
+
+    # Union coverage should be 1.0 (no double count)
+    union_cov = calculate_evidence_chunks_union_coverage(ev, [c1, c2])
+    assert union_cov == pytest.approx(1.0)
+
+
+def test_crlf_and_korean_unicode():
+    """Verify handling of CRLF and multibyte Korean text."""
+    body_text = "첫 번째 줄\r\n두 번째 줄: 가나다라\r\n세 번째 줄: 끝"
+    # "가나다라"
+    target = "가나다라"
+    c_start = body_text.index(target)
+    c_end = c_start + len(target)
+
+    body_bytes = body_text.encode("utf-8")
+    b_start = len(body_text[:c_start].encode("utf-8"))
+    b_end = len(body_text[:c_end].encode("utf-8"))
+
+    ev = {
+        "source_path": "data/issues/snapshots/test.json",
+        "json_pointer": "/body",
+        "doc_id": "issue:123",
+        "ref_id": "issue:123",
+        "char_start": c_start,
+        "char_end": c_end,
+        "byte_start": b_start,
+        "byte_end": b_end,
+        "text_span": target,
+    }
+
+    seg = SourceSegment(
+        doc_id="issue:123",
+        source_path="data/issues/snapshots/test.json",
+        source_file_sha256="dummy",
+        json_pointer="/body",
+        char_start=c_start,
+        char_end=c_end,
+        byte_start=b_start,
+        byte_end=b_end,
+        content_char_start=0,
+        content_char_end=len(target),
+        target_url="https://github.com/test",
+        segment_sha256=sha256_str(target),
+        ref_id="issue:123",
+    )
+    chunk = Chunk("c-kr", "github", "issue:123", "/body", target, (c_start, c_end), {"source_segments": [seg.to_dict()]})
+
+    cov = calculate_evidence_chunk_coverage(ev, chunk)
+    assert cov == pytest.approx(1.0)
+
+
+def test_guard_group_contracts_and_model_resolution():
+    """Verify strict guard model manifests according to guard group contracts."""
+    sample_models = {
+        "BAAI/bge-small-en-v1.5": {"revision": "5c38e", "max_seq_length": 512, "doc_prefix": ""},
+        "BAAI/bge-base-en-v1.5": {"revision": "a5beb", "max_seq_length": 512, "doc_prefix": ""},
+        "sentence-transformers/all-MiniLM-L6-v2": {"revision": "fa97f", "max_seq_length": 256, "doc_prefix": ""},
+        "intfloat/multilingual-e5-small": {"revision": "61424", "max_seq_length": 512, "doc_prefix": "passage: "},
+    }
+
+    # 1. native-common-256 requires all 4 models
+    res_native = resolve_guard_models("native-common-256", sample_models)
+    assert len(res_native) == 4
+    assert set(res_native.keys()) == set(sample_models.keys())
+
+    # 2. bge-512 allows ONLY bge-small and bge-base
+    res_bge = resolve_guard_models("bge-512", sample_models)
+    assert len(res_bge) == 2
+    assert "BAAI/bge-small-en-v1.5" in res_bge
+    assert "BAAI/bge-base-en-v1.5" in res_bge
+    assert "sentence-transformers/all-MiniLM-L6-v2" not in res_bge
+    assert "intfloat/multilingual-e5-small" not in res_bge
+
+    # 3. e5-512 allows ONLY multilingual-e5-small
+    res_e5 = resolve_guard_models("e5-512", sample_models)
+    assert len(res_e5) == 1
+    assert "intfloat/multilingual-e5-small" in res_e5
+    assert "sentence-transformers/all-MiniLM-L6-v2" not in res_e5
+
+    # 4. pooled-common-256 requires all 4 models
+    res_pooled = resolve_guard_models("pooled-common-256", sample_models)
+    assert len(res_pooled) == 4
+
+    # 5. Missing required models raises ValueError
+    incomplete_models = {
+        "BAAI/bge-small-en-v1.5": {"revision": "5c38e", "max_seq_length": 512},
+    }
+    with pytest.raises(ValueError, match="missing required models"):
+        resolve_guard_models("bge-512", incomplete_models)
+
+    # 6. Mismatched length limit raises ValueError
+    bad_limit_models = {
+        "intfloat/multilingual-e5-small": {"revision": "61424", "max_seq_length": 256, "doc_prefix": "passage: "},
+    }
+    with pytest.raises(ValueError, match="max_seq_length=256, expected 512"):
+        resolve_guard_models("e5-512", bad_limit_models)
+
+    # 7. Unknown guard group raises ValueError
+    with pytest.raises(ValueError, match="Unknown guard_group"):
+        resolve_guard_models("invalid-guard", sample_models)
+
+
+def test_enumerate_chunking_variants_with_expanded_rules():
+    """Verify enumerate_chunking_variants supports include_expanded_rules."""
+    from src.artagent.chunking import enumerate_chunking_variants
+
+    variants_default = enumerate_chunking_variants()
+    assert len(variants_default) == 33
+
+    variants_expanded = enumerate_chunking_variants(include_expanded_rules=True)
+    assert len(variants_expanded) == 51
+
+    rc_variants = [v for v in variants_expanded if v.rule_family == "R-C-heading-window"]
+    gc_variants = [v for v in variants_expanded if v.rule_family == "G-C-curated-group"]
+    assert len(rc_variants) == 9
+    assert len(gc_variants) == 9
+
+
+def test_rawpedia_heading_window_rule_and_code_fence():
+    """Verify R-C heading snap, code fence immunity, and zero omissions."""
+    from transformers import AutoTokenizer
+    from src.artagent.chunking import (
+        BGE_REVISION,
+        TokenizerBundle,
+        chunk_rawpedia_heading_window_rule,
+    )
+
+    bge_tok = AutoTokenizer.from_pretrained("BAAI/bge-small-en-v1.5", revision=BGE_REVISION)
+    tb = TokenizerBundle(bge_tok, {"BAAI/bge-small-en-v1.5": bge_tok})
+
+    md_content = """---
+title: "Test Page"
+---
+This is the introductory text. It explains the overview of ART processing in detail.
+We add several sentences to build up token length. ART is an advanced raw image editor.
+It provides demosaicing, tone curves, color balance, and noise reduction features.
+```python
+# Code block: this heading must be ignored!
+## Fake Heading Inside Code
+def process():
+    pass
+```
+More text following the code fence. This continues the introduction section with further explanation.
+The algorithm performs accurate calculations without unnecessary artifacts or loss of precision.
+
+## Important Features
+
+This is section two under the real H2 heading.
+It describes high quality interpolation and color management.
+We continue adding text to observe chunk boundary behavior and heading snap.
+
+### Sub-feature Detail
+
+This is section three under H3 heading.
+All details are thoroughly documented and tested.
+"""
+    raw_bytes = md_content.encode("utf-8")
+    chunks = chunk_rawpedia_heading_window_rule(
+        file_path="data/rawpedia/Test.md",
+        raw_bytes=raw_bytes,
+        doc_id="rawpedia:Test",
+        target_url="https://example.com/test",
+        tokenizer_bundle=tb,
+        target_tokens=64,
+        overlap_tokens=16,
+    )
+
+    assert len(chunks) >= 2
+    # Verify provenance for each chunk
+    for c in chunks:
+        assert c.source_type == "rawpedia"
+        assert c.doc_id == "rawpedia:Test"
+        assert c.content == md_content[c.char_range[0] : c.char_range[1]]
+        # Fake heading in code must not be treated as section title
+        assert "Fake Heading Inside Code" not in c.section_title
+
+
+def test_github_curated_group_rule_multi_segment_provenance():
+    """Verify G-C multi-segment serialization and provenance validation."""
+    from transformers import AutoTokenizer
+    from src.artagent.chunking import (
+        BGE_REVISION,
+        TokenizerBundle,
+        chunk_github_curated_group_rule,
+    )
+
+    bge_tok = AutoTokenizer.from_pretrained("BAAI/bge-small-en-v1.5", revision=BGE_REVISION)
+    tb = TokenizerBundle(bge_tok, {"BAAI/bge-small-en-v1.5": bge_tok})
+
+    cand_path = Path("data/issues/search-candidates.json")
+    github_dir = Path("data/issues")
+    if not cand_path.is_file():
+        pytest.skip("Search candidates file not found")
+
+    cands = json.loads(cand_path.read_bytes())["candidates"]
+    multi_cand = next(c for c in cands if len(c.get("curated_content", [])) >= 2)
+
+    chunks = chunk_github_curated_group_rule(
+        candidate=multi_cand,
+        github_dir=github_dir,
+        tokenizer_bundle=tb,
+        target_tokens=224,
+        overlap_tokens=0,
+    )
+
+    assert len(chunks) >= 1
+
+    def source_text_getter(seg):
+        p = Path(seg.source_path)
+        b = p.read_bytes()
+        f_sha = sha256_bytes(b)
+        return json.loads(b).get("body", ""), f_sha
+
+    for c in chunks:
+        validate_chunk_provenance(c, source_text_getter)
+        assert c.source_type == "github"
+        assert c.metadata["range_basis"] == "serialized_content"
+        assert len(c.metadata["source_segments"]) >= 1
+
+
