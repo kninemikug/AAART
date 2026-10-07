@@ -7,31 +7,27 @@ from __future__ import annotations
 
 import math
 import re
+from dataclasses import replace
+from functools import lru_cache
+from pathlib import Path as FilePath
 from typing import Any
 
 from .router import analyze_signals, route_request
 from .state import (
     AgentState,
-    AnswerResult,
     Artifact,
-    AssetRef,
     Citation,
     Clarification,
     ErrorInfo,
-    Evidence,
     ExecutionInput,
     OutputSpec,
     Path,
-    PhotoFeatures,
-    ProfileData,
     ResponseOutput,
     ResponseStatus,
-    RetrievalBundle,
     RuntimeCapabilities,
     StepResult,
     ValidationIssue,
     ValidationResult,
-    RenderResult,
 )
 
 
@@ -70,8 +66,14 @@ def route_node(state: AgentState) -> dict[str, Any]:
 
     request = state["request"]
     completed_steps = state.get("step_results", {})
-    decision, clarification = route_request(request, completed_steps)
+    decision, clarification = route_request(request, completed_steps, state.get("resolved_goal"))
     signals = analyze_signals(request.text, request.context)
+    if state.get("resolved_goal"):
+        signals.goal = state["resolved_goal"]
+        signals.ambiguous_reasons = [
+            reason for reason in signals.ambiguous_reasons
+            if reason != "CONFLICTING_GLOBAL_EXPOSURE_GOALS"
+        ]
 
     if not decision.plan and not clarification:
         error = ErrorInfo(
@@ -92,6 +94,7 @@ def route_node(state: AgentState) -> dict[str, Any]:
                 recoverable=False,
             )
             return {"error": error, "clarification": None, "trace": trace}
+        clarification = replace(clarification, id=f"{clarification.id}_{count}")
         return {
             "signals": signals,
             "decision": decision,
@@ -100,12 +103,19 @@ def route_node(state: AgentState) -> dict[str, Any]:
             "trace": trace,
         }
 
+    cursor = 0
+    for step in decision.plan:
+        result = completed_steps.get(step.step_id)
+        if result and result.path == step.path and result.status == "SUCCEEDED":
+            cursor += 1
+        else:
+            break
     return {
         "signals": signals,
         "decision": decision,
         "clarification": None,
         "clarification_count": 0,
-        "cursor": 0,
+        "cursor": cursor,
         "trace": trace,
     }
 
@@ -129,7 +139,7 @@ def clarify_node(state: AgentState) -> dict[str, Any]:
                 node="CLARIFY",
                 recoverable=False,
             )
-            return {"error": error, "trace": trace}
+            return {"error": error, "clarification": None, "resume": None, "trace": trace}
 
         if (
             resume.clarification_id != clarification.id
@@ -145,7 +155,7 @@ def clarify_node(state: AgentState) -> dict[str, Any]:
                 node="CLARIFY",
                 recoverable=False,
             )
-            return {"error": error, "trace": trace}
+            return {"error": error, "clarification": None, "resume": None, "trace": trace}
 
         # 2. Check user cancellation
         reply_lower = resume.reply_text.strip().lower()
@@ -156,7 +166,7 @@ def clarify_node(state: AgentState) -> dict[str, Any]:
                 node="CLARIFY",
                 recoverable=False,
             )
-            return {"error": error, "clarification": None, "trace": trace}
+            return {"error": error, "clarification": None, "resume": None, "trace": trace}
 
         # 3. Check if empty reply provided
         is_empty_reply = not resume.reply_text.strip() and not resume.assets
@@ -168,22 +178,24 @@ def clarify_node(state: AgentState) -> dict[str, Any]:
                     node="CLARIFY",
                     recoverable=False,
                 )
-                return {"error": error, "clarification": None, "trace": trace}
-            else:
-                return {
-                    "clarification_count": clarification_count + 1,
-                    "resume": None,
-                    "response": ResponseOutput(
-                        request_id=req.request_id if req else "",
-                        status=ResponseStatus.WAITING_CLARIFICATION.value,
-                        primary_path=state.get("decision").primary_path if state.get("decision") else None,
-                        planned_paths=[s.path for s in state["decision"].plan] if state.get("decision") else [],
-                        completed_steps=list(state.get("step_results", {}).values()),
-                        message=clarification.question,
-                        clarification=clarification,
-                    ),
-                    "trace": trace,
-                }
+                return {"error": error, "clarification": None, "resume": None, "trace": trace}
+            next_clarification = replace(clarification, id=f"{clarification.id}_retry2")
+            response = ResponseOutput(
+                request_id=req.request_id if req else "",
+                status=ResponseStatus.WAITING_CLARIFICATION.value,
+                primary_path=state.get("decision").primary_path if state.get("decision") else None,
+                planned_paths=[s.path for s in state["decision"].plan] if state.get("decision") else [],
+                completed_steps=list(state.get("step_results", {}).values()),
+                message=next_clarification.question,
+                clarification=next_clarification,
+            )
+            return {
+                "clarification_count": clarification_count + 1,
+                "clarification": next_clarification,
+                "resume": None,
+                "response": response,
+                "trace": trace,
+            }
 
         # 4. User provided reply text/assets: update request, preserve clarification_count
         updated_text = f"{req.text} {resume.reply_text}".strip() if req else resume.reply_text.strip()
@@ -192,14 +204,21 @@ def clarify_node(state: AgentState) -> dict[str, Any]:
             if not any(existing.asset_id == a.asset_id for existing in merged_assets):
                 merged_assets.append(a)
 
-        if req:
-            req.text = updated_text
-            req.assets = merged_assets
+        updated_request = replace(req, text=updated_text, assets=merged_assets) if req else None
+        resolved_goal = state.get("resolved_goal")
+        if state.get("decision") and "R7_CONFLICTING_GOALS" in state["decision"].reason_codes:
+            if re.search(r"밝게|올려", resume.reply_text):
+                resolved_goal = "전체 노출 밝게 보정"
+            elif re.search(r"어둡게|낮춰", resume.reply_text):
+                resolved_goal = "전체 노출 낮춰 보정"
 
         return {
-            "request": req,
+            "request": updated_request,
+            "signals": analyze_signals(updated_text, req.context) if req else None,
+            "resolved_goal": resolved_goal,
             "clarification": None,
             "clarification_count": clarification_count,
+            "resume_origin": clarification.origin,
             "resume": None,
             "trace": trace,
         }
@@ -287,112 +306,36 @@ def dispatch_node(state: AgentState) -> dict[str, Any]:
 
 def search_rawpedia_node(state: AgentState) -> dict[str, Any]:
     """Retrieve RawPedia documentation chunks for P1 DOC_QA."""
-    trace = list(state.get("trace", []))
-    trace.append("SEARCH_RAWPEDIA")
-
-    decision = state["decision"]
-    cursor = state["cursor"]
-    step = decision.plan[cursor]
-
-    evidence = Evidence(
-        chunk_id=f"rawpedia_{step.step_id}_chunk1",
-        doc_id="rawpedia_doc_1",
-        source_group_id="rawpedia_exposure",
-        source_type="rawpedia",
-        source_path="data/rawpedia/exposure.md",
-        source_location="Exposure and Tone Mapping",
-        target_url="https://rawpedia.rawtherapee.com/Exposure",
-        text=f"RawPedia reference details for: {step.query}",
-        product_scope="RawTherapee / ART",
-    )
-    bundle = RetrievalBundle(
-        query=step.query,
-        source_filter="RAWPEDIA",
-        hits=[evidence],
-        snapshot_ref="rawpedia_20260904",
-    )
-    return {"retrieval": bundle, "trace": trace}
+    return _unavailable(state, "SEARCH_RAWPEDIA")
 
 
 def search_github_node(state: AgentState) -> dict[str, Any]:
     """Retrieve GitHub Issues and Discussions chunks for P2 TROUBLESHOOT."""
+    return _unavailable(state, "SEARCH_GITHUB")
+
+
+def _unavailable(state: AgentState, node: str) -> dict[str, Any]:
     trace = list(state.get("trace", []))
-    trace.append("SEARCH_GITHUB")
-
-    decision = state["decision"]
-    cursor = state["cursor"]
-    step = decision.plan[cursor]
-
-    evidence = Evidence(
-        chunk_id=f"github_{step.step_id}_chunk1",
-        doc_id="github_issue_516",
-        source_group_id="github_issue",
-        source_type="github",
-        source_path="data/issues/issue_516.json",
-        source_location="Issue #516 comment #2",
-        target_url="https://github.com/Agatha-org/ART/issues/516",
-        text=f"GitHub Issue/Discussion reference details for: {step.query}",
-        product_scope="ART",
-    )
-    bundle = RetrievalBundle(
-        query=step.query,
-        source_filter="GITHUB",
-        hits=[evidence],
-        snapshot_ref="github_snapshot_20260904",
-    )
-    return {"retrieval": bundle, "trace": trace}
+    trace.append(node)
+    return {
+        "error": ErrorInfo(
+            code="CAPABILITY_UNAVAILABLE",
+            message=f"{node} integration is not connected",
+            node=node,
+            recoverable=False,
+        ),
+        "trace": trace,
+    }
 
 
 def answer_node(state: AgentState) -> dict[str, Any]:
     """Generate grounded answer with citations from retrieved evidence."""
-    trace = list(state.get("trace", []))
-    trace.append("ANSWER")
-
-    retrieval = state.get("retrieval")
-    cursor = state["cursor"]
-    step = state["decision"].plan[cursor]
-
-    # Handle negative / unsupported cases or lack of evidence
-    if not retrieval or not retrieval.hits:
-        answer = AnswerResult(
-            status="INSUFFICIENT_EVIDENCE",
-            text="관련 근거를 찾을 수 없습니다.",
-            citations=[],
-        )
-        return {"answer": answer, "trace": trace}
-
-    # Grounded answer with citation
-    hit = retrieval.hits[0]
-    citation = Citation(
-        doc_id=hit.doc_id,
-        title=hit.source_location,
-        url=hit.target_url,
-        source_location=hit.source_location,
-    )
-    answer = AnswerResult(
-        status="SUPPORTED",
-        text=f"근거 답변: {hit.text} [출처: {citation.title}·{citation.url}]",
-        citations=[citation],
-        actionable_goal=None,
-    )
-    return {"answer": answer, "trace": trace}
+    return _unavailable(state, "ANSWER")
 
 
 def research_node(state: AgentState) -> dict[str, Any]:
     """1-time query rewriting for insufficient evidence."""
-    trace = list(state.get("trace", []))
-    trace.append("RESEARCH")
-
-    cursor = state["cursor"]
-    step = state["decision"].plan[cursor]
-    step.query = f"{step.query} (rewritten)"
-
-    return {
-        "research_count": 1,
-        "retrieval": None,
-        "answer": None,
-        "trace": trace,
-    }
+    return _unavailable(state, "RESEARCH")
 
 
 def check_exec_node(state: AgentState) -> dict[str, Any]:
@@ -401,51 +344,61 @@ def check_exec_node(state: AgentState) -> dict[str, Any]:
     trace.append("CHECK_EXEC")
 
     request = state["request"]
-
-    # Locate RAW asset
-    raw_asset = next((a for a in request.assets if a.kind.upper() == "RAW"), None)
-    if not raw_asset and request.context and request.context.target_raw_id:
-        raw_asset = AssetRef(
-            asset_id=request.context.target_raw_id,
-            kind="RAW",
-            path=request.context.target_raw_id,
-        )
-
-    if not raw_asset:
-        # RAW missing -> Clarification needed
-        count = state.get("clarification_count", 0) + 1
-        if count > 2:
-            error = ErrorInfo(
-                code="CLARIFICATION_UNRESOLVED",
-                message="Execution input clarification unresolved after maximum attempts",
-                node="CHECK_EXEC",
-                recoverable=False,
-            )
-            return {"error": error, "clarification": None, "trace": trace}
-        clarification = Clarification(
-            id=f"clarify_raw_{request.request_id}",
-            question="어떤 RAW 파일에 적용할까요?",
-            missing_fields=["raw"],
-            candidate_paths=[Path.EXECUTE],
-            origin="CHECK_EXEC",
-        )
+    decision = state.get("decision")
+    cursor = state.get("cursor", 0)
+    if not decision or cursor >= len(decision.plan) or not state.get("signals") or not state["signals"].wants_execute:
         return {
-            "clarification": clarification,
-            "clarification_count": count,
+            "error": ErrorInfo("CONTRACT_VIOLATION", "Explicit execution intent is required", "CHECK_EXEC"),
             "trace": trace,
         }
 
-    # Goal and output spec
-    output_spec = (
-        request.context.output
-        if (request.context and request.context.output)
-        else OutputSpec(format="JPEG")
-    )
-    goal = (
-        request.context.confirmed_goal
-        if (request.context and request.context.confirmed_goal)
-        else (state.get("signals").goal if state.get("signals") else None) or "기본 보정 적용"
-    )
+    step = decision.plan[cursor]
+    derived_goal = None
+    for prerequisite_id in step.requires:
+        prerequisite = state.get("step_results", {}).get(prerequisite_id)
+        if not prerequisite or prerequisite.status != "SUCCEEDED":
+            return {
+                "error": ErrorInfo("DEPENDENCY_UNSATISFIED", "Prerequisite did not succeed", "CHECK_EXEC"),
+                "trace": trace,
+            }
+        actionable = prerequisite.answer.actionable_goal if prerequisite.answer else None
+        if not actionable:
+            return {
+                "error": ErrorInfo(
+                    "DEPENDENCY_UNSATISFIED",
+                    "Prerequisite did not supply a supported profile adjustment",
+                    "CHECK_EXEC",
+                ),
+                "trace": trace,
+            }
+        derived_goal = actionable
+
+    raw_assets = [asset for asset in request.assets if asset.kind.upper() == "RAW" and asset.path.strip()]
+    target_id = request.context.target_raw_id if request.context else None
+    selected = [asset for asset in raw_assets if asset.asset_id == target_id] if target_id else raw_assets
+    if len(selected) != 1:
+        return _ask_execution_input(state, "raw", "어떤 RAW 파일에 적용할까요?", trace)
+    raw_asset = selected[0]
+
+    goal = derived_goal or state["signals"].goal
+    goal = goal or (request.context.confirmed_goal if request.context else None)
+    if not goal or not goal.strip():
+        return _ask_execution_input(state, "confirmed_goal", "어떤 보정 목표를 적용할까요?", trace)
+
+    output_spec = request.context.output if request.context else None
+    destination = re.search(r"(?:/|\./)?[\w./-]+\.(?:jpe?g|png|tiff?)(?![A-Za-z0-9])", request.text, re.IGNORECASE)
+    if destination and (not output_spec or not output_spec.destination.strip()):
+        suffix = destination.group().rsplit(".", 1)[1].upper()
+        output_spec = OutputSpec(
+            format="JPEG" if suffix in ("JPG", "JPEG") else "TIFF" if suffix in ("TIF", "TIFF") else "PNG",
+            destination=destination.group(),
+        )
+    if (
+        not output_spec
+        or output_spec.format.upper() not in ("JPEG", "PNG", "TIFF")
+        or not output_spec.destination.strip()
+    ):
+        return _ask_execution_input(state, "output", "출력 형식과 저장 위치를 알려주세요.", trace)
 
     execution = ExecutionInput(
         raw=raw_asset,
@@ -456,42 +409,52 @@ def check_exec_node(state: AgentState) -> dict[str, Any]:
         "execution": execution,
         "clarification": None,
         "clarification_count": 0,
+        "clarification_field": None,
+        "resume_origin": None,
+        "trace": trace,
+    }
+
+
+def _ask_execution_input(
+    state: AgentState, field: str, question: str, trace: list[str]
+) -> dict[str, Any]:
+    count = (
+        state.get("clarification_count", 0) + 1
+        if state.get("clarification_field") == field else 1
+    )
+    if count > 2:
+        return {
+            "error": ErrorInfo(
+                "CLARIFICATION_UNRESOLVED",
+                "Execution input clarification unresolved after maximum attempts",
+                "CHECK_EXEC",
+            ),
+            "clarification": None,
+            "trace": trace,
+        }
+    clarification = Clarification(
+        id=f"clarify_{field}_{state['request'].request_id}_{count}",
+        question=question,
+        missing_fields=[field],
+        candidate_paths=[Path.EXECUTE],
+        origin="CHECK_EXEC",
+    )
+    return {
+        "clarification": clarification,
+        "clarification_count": count,
+        "clarification_field": field,
         "trace": trace,
     }
 
 
 def features_node(state: AgentState) -> dict[str, Any]:
     """Extract photo features (EXIF, histogram) from RAW."""
-    trace = list(state.get("trace", []))
-    trace.append("FEATURES")
-
-    exec_input = state["execution"]
-    features = PhotoFeatures(
-        exif={"ISO": 100, "Camera": "Canon EOS R8", "Shutter": "1/200"},
-        histogram={"luminance": [0.1, 0.5, 0.4]},
-        raw_asset_id=exec_input.raw.asset_id,
-    )
-    return {"features": features, "trace": trace}
+    return _unavailable(state, "FEATURES")
 
 
 def generate_profile_node(state: AgentState) -> dict[str, Any]:
     """Generate structured profile data."""
-    trace = list(state.get("trace", []))
-    trace.append("GENERATE_PROFILE")
-
-    capabilities = state.get("capabilities", RuntimeCapabilities())
-    profile = ProfileData(
-        ppversion=capabilities.ppversion,
-        groups={"Exposure": {"Compensation": 0.0}, "WhiteBalance": {"Temperature": 5500}},
-        changed_keys=["Exposure.Compensation", "WhiteBalance.Temperature"],
-    )
-    attempts = state.get("profile_attempts", 0) + 1
-    return {
-        "profile": profile,
-        "profile_attempts": attempts,
-        "validation": None,
-        "trace": trace,
-    }
+    return _unavailable(state, "GENERATE_PROFILE")
 
 
 def validate_profile_node(state: AgentState) -> dict[str, Any]:
@@ -531,7 +494,8 @@ def validate_profile_node(state: AgentState) -> dict[str, Any]:
             )
         )
 
-    # 3. Groups dictionary check
+    # 3. Reject names absent from the checked-in ART .arp key inventory.
+    schema_keys = _arp_schema_keys()
     if not isinstance(profile.groups, dict) or len(profile.groups) == 0:
         issues.append(
             ValidationIssue(
@@ -550,6 +514,14 @@ def validate_profile_node(state: AgentState) -> dict[str, Any]:
                         message="Group name must be a non-empty string",
                     )
                 )
+            elif group_name not in schema_keys:
+                issues.append(
+                    ValidationIssue(
+                        field=f"groups.{group_name}",
+                        code="UNKNOWN_GROUP",
+                        message=f"Group '{group_name}' is absent from the ART profile schema",
+                    )
+                )
             if not isinstance(group_data, dict):
                 issues.append(
                     ValidationIssue(
@@ -566,6 +538,14 @@ def validate_profile_node(state: AgentState) -> dict[str, Any]:
                                 field=f"{group_name}.{key}",
                                 code="INVALID_KEY_NAME",
                                 message="Key name must be a non-empty string",
+                            )
+                        )
+                    elif group_name in schema_keys and key not in schema_keys[group_name]:
+                        issues.append(
+                            ValidationIssue(
+                                field=f"{group_name}.{key}",
+                                code="UNKNOWN_KEY",
+                                message=f"Key '{key}' is absent from group '{group_name}'",
                             )
                         )
                     if val is None:
@@ -657,7 +637,10 @@ def validate_profile_node(state: AgentState) -> dict[str, Any]:
                     )
 
     if issues:
-        is_recoverable = all(iss.code not in ("VERSION_MISMATCH", "MISSING_PROFILE") for iss in issues)
+        is_recoverable = all(
+            iss.code not in ("VERSION_MISMATCH", "MISSING_PROFILE", "UNKNOWN_GROUP", "UNKNOWN_KEY")
+            for iss in issues
+        )
         error = ErrorInfo(
             code="PROFILE_INVALID",
             message="; ".join(iss.message for iss in issues[:3]),
@@ -667,50 +650,51 @@ def validate_profile_node(state: AgentState) -> dict[str, Any]:
         validation = ValidationResult(status="INVALID", issues=issues)
         return {"validation": validation, "error": error, "trace": trace}
 
-    validation = ValidationResult(
-        status="VALID",
-        issues=[],
-        profile_ref="/tmp/validated_profile.arp",
+    issue = ValidationIssue(
+        field="profile_ref",
+        code="WRITER_UNAVAILABLE",
+        message="Profile serializer and persistent writer are not connected",
     )
-    return {"validation": validation, "error": None, "trace": trace}
+    return {
+        "validation": ValidationResult(status="INVALID", issues=[issue]),
+        "error": ErrorInfo(
+            code="PROFILE_WRITE_FAILED",
+            message=issue.message,
+            node="VALIDATE_PROFILE",
+            recoverable=False,
+        ),
+        "trace": trace,
+    }
+
+
+@lru_cache(maxsize=1)
+def _arp_schema_keys() -> dict[str, frozenset[str]]:
+    """Read the project's checked-in key inventory until T19 supplies a validator."""
+    schema_path = FilePath(__file__).resolve().parents[3] / "docs" / "arp_schema.md"
+    if not schema_path.is_file():
+        return {}
+    groups: dict[str, set[str]] = {}
+    group = None
+    for line in schema_path.read_text(encoding="utf-8").splitlines():
+        heading = re.fullmatch(r"## \[(.+)]", line.strip())
+        if heading:
+            group = heading.group(1)
+            groups[group] = set()
+        elif group:
+            key = re.fullmatch(r"- `([^`]+)`.*", line.strip())
+            if key:
+                groups[group].add(key.group(1))
+    return {name: frozenset(keys) for name, keys in groups.items()}
 
 
 def render_node(state: AgentState) -> dict[str, Any]:
     """Invoke ART-cli headless renderer."""
-    trace = list(state.get("trace", []))
-    trace.append("RENDER")
-
-    attempts = state.get("render_attempts", 0) + 1
-    render_result = RenderResult(
-        status="SUCCEEDED",
-        exit_code=0,
-        output_path="/tmp/output.jpg",
-        output_verified=True,
-        diagnostic="Render successful",
-    )
-    return {
-        "render": render_result,
-        "render_attempts": attempts,
-        "trace": trace,
-    }
+    return _unavailable(state, "RENDER")
 
 
 def repair_profile_node(state: AgentState) -> dict[str, Any]:
     """Repair recoverable profile defects."""
-    trace = list(state.get("trace", []))
-    trace.append("REPAIR_PROFILE")
-
-    attempts = state.get("profile_attempts", 0) + 1
-    profile = state["profile"]
-    profile.groups["Exposure"]["Compensation"] = 0.0  # reset defect
-
-    return {
-        "profile": profile,
-        "profile_attempts": attempts,
-        "validation": None,
-        "error": None,
-        "trace": trace,
-    }
+    return _unavailable(state, "REPAIR_PROFILE")
 
 
 def fallback_node(state: AgentState) -> dict[str, Any]:
@@ -753,7 +737,13 @@ def advance_node(state: AgentState) -> dict[str, Any]:
     elif render:
         status = "SUCCEEDED" if render.status == "SUCCEEDED" else "FAILED"
     else:
-        status = "SUCCEEDED"
+        error = ErrorInfo(
+            code="CONTRACT_VIOLATION",
+            message="Step ended without an answer, render result, or error",
+            node="ADVANCE",
+            recoverable=False,
+        )
+        status = "FAILED"
 
     artifacts: list[Artifact] = []
     if render and render.output_path and render.output_verified:
@@ -799,7 +789,10 @@ def respond_node(state: AgentState) -> dict[str, Any]:
     failed = [r for r in step_results if r.status in ("FAILED", "BLOCKED", "UNSUPPORTED", "INSUFFICIENT_EVIDENCE")]
     has_failure = bool(error) or len(failed) > 0
 
-    if state.get("clarification"):
+    if error and error.code in ("CANCELLED", "OUT_OF_SCOPE"):
+        status = ResponseStatus(error.code).value
+        msg = error.message
+    elif state.get("clarification") and not error:
         status = ResponseStatus.WAITING_CLARIFICATION.value
         msg = state["clarification"].question
     elif len(succeeded) > 0 and has_failure:
