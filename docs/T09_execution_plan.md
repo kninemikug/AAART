@@ -1,6 +1,6 @@
 # Task 9 (A-09) 벡터DB 실행 플랜
 
-작성일: 2026-10-01. 보완일: 2026-10-06. 실행 설계에 저장소 계약·복구 규칙과 검증 기록을 보완했다. 수용기준은 [tasks/todo.md의 Task 9](../tasks/todo.md), 의존 관계와 후속 범위는 [tasks/plan.md](../tasks/plan.md)를 따른다.
+작성일: 2026-10-01. 보완일: 2026-10-07. 실행 설계에 저장소 계약·복구 규칙과 검증 기록을 보완했다. 수용기준은 [tasks/todo.md의 Task 9](../tasks/todo.md), 의존 관계와 후속 범위는 [tasks/plan.md](../tasks/plan.md)를 따른다.
 
 ## 1. 목적/범위
 
@@ -59,7 +59,7 @@ T08-2가 선정한 두 출처의 청크와 임베딩·검색 절차를 보존하
 
 | 대상 | 기대 SHA-256 |
 | --- | --- |
-| 인계 기대값 JSON 파일 | `f21a1e65299e5595f9a2cc384abef22648ffb96553a0997a04cbbd451ab2fd23` |
+| 인계 기대값 JSON 파일 | `2c7081ba6a7c37b00735b0be2ef362f5b0c2a86cd41fe97bbb2a3b5ebdc195bc` |
 | RawPedia 청크 파일 | `8e8f163d2ce8da99fec3dc7e38652ea3d7aecb35997dc20a3d2202c09753c4cd` |
 | GitHub 청크 파일 | `7f8943d6bed8a482e7f34602099ade665a99c341a8870a16ed32da2196512571` |
 | RawPedia 문서 벡터 파일 | `88f5bf0e1ed5dfee85a4ee77768fd88e8d5088cd73c5a72b2725d9bd754ea018` |
@@ -269,6 +269,28 @@ PYTHONPATH=src \
 - 기존 저장소 계약 호환, 필수 필드 누락 거부, 잘못된 차원·dtype·NaN·0벡터·노름 허용치 초과 거부를 검증했다.
 
 T08-2 산출물과 풀링 계산은 변경하지 않았고 의존성을 추가하지 않았다. 단일 작성자와 동일 프로세스의 공유 잠금이라는 §6·§11의 운영 범위는 유지한다.
+
+### 8.4 main 통합 재현 (2026-10-07)
+
+T08-2의 PR #8이 머지된 main `97dd5bf36`과 T09를 별도 임시 checkout에서 통합했다. main의 보고서 압축 커밋 `82bdf97ed`는 인계 JSON의 `source_report`를 `.json.gz` 경로로 바꾸고 `source_report_sha256`을 추가했다. 그 외 선정 모델·청크·벡터·평가 기대값·protocol은 같음을 JSON 항목별로 확인했다. 이에 따라 T09의 기본 인계 지문과 고정 기대값을 §2의 현재 SHA로 맞추고 기본 스펙과 로드한 스펙의 지문 일치 검사도 추가했다.
+
+인계 protocol은 Python 실행 파일의 절대 경로도 포함한다. 재현에는 기존 가상환경의 `/Users/user/Workspace/Programming/Projects/AAART/venv/bin/python3`를 사용했다. 매번 새 빈 디렉토리를 준비하며, 이번 합격 출력은 `/private/tmp/t09-repro.kVTr0x`다. 통합 checkout 루트는 `/private/tmp/t09-main-merge-check.c7ltm3gt`다.
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+/Users/user/Workspace/Programming/Projects/AAART/venv/bin/python3 scripts/reproduce_t08_2_selected.py --reference docs/T08_2_t9_handoff_reference.json --work-dir /private/tmp/t09-repro.kVTr0x
+
+PYTHONDONTWRITEBYTECODE=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+T09_REPRO_DIR=/private/tmp/t09-repro.kVTr0x \
+T09_REFERENCE_PATH=/private/tmp/t09-main-merge-check.c7ltm3gt/docs/T08_2_t9_handoff_reference.json \
+T09_SOURCE_ROOT=/private/tmp/t09-main-merge-check.c7ltm3gt \
+PYTHONPATH=src \
+/Users/user/Workspace/Programming/Projects/AAART/venv/bin/python3 -m pytest -q -p no:cacheprovider
+```
+
+`reproduction.json`은 `status=passed`이며 protocol SHA는 §2의 기존 값과 같다. 300회 순위 지문도 기존 값과 일치하고 최대 top5 거리 차이는 `3.5762786865234375e-07`이다. 실제 청크·벡터 SHA와 전체 평가 지표 대조도 재현 스크립트의 고정 검사를 통과했다. T08-2 원본 스크립트·인계 파일은 수정하지 않았다.
+
+통합 checkout의 전체 시험 결과는 **235 passed, 1 warning in 98.11s**다. T09 검색 시험 81개와 main의 청킹·벤치마크·라우터 및 기존 시험을 모두 포함하며, 경고는 기존 Chroma의 폐기 예정 알림이다.
 
 ## 9. 산출물 파일 설계
 

@@ -41,7 +41,7 @@ class RetrievalSpec:
     hnsw_max_neighbors: int = 16
     hnsw_num_threads: int = 1
     retrieval_schema_version: int = 1
-    reference_sha256: str = "f21a1e65299e5595f9a2cc384abef22648ffb96553a0997a04cbbd451ab2fd23"
+    reference_sha256: str = "2c7081ba6a7c37b00735b0be2ef362f5b0c2a86cd41fe97bbb2a3b5ebdc195bc"
     protocol_sha256: str = "3694eb3cb0a8b8e989e6bc828adf1f067b4f988f9be0a04a4d43507850412dc5"
 
 
