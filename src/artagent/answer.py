@@ -82,6 +82,80 @@ def resolve_persist_dir(custom_path: Optional[Path] = None) -> Path:
     return DEFAULT_PERSIST_DIR.resolve()
 
 
+def validate_record_path(
+    record_path: Path,
+    reference_path: Path,
+    persist_dir: Path,
+    query_set_path: Path,
+) -> None:
+    """기록 대상이 질문셋·reference·코퍼스·DB 파일/디렉터리인지 검사하여 거부."""
+    target = record_path.resolve()
+
+    # 1. 보호 대상 단일 파일
+    protected_files = [
+        reference_path.resolve(),
+        query_set_path.resolve(),
+        Path("docs/search_eval_queries.json").resolve(),
+        Path("docs/T08_2_t9_handoff_reference.json").resolve(),
+    ]
+
+    # 2. 보호 대상 디렉터리 (내부 파일 및 하위 경로 포함)
+    protected_dirs = [
+        persist_dir.resolve(),
+        Path("data/vector-store").resolve(),
+        Path("data/rawpedia").resolve(),
+        Path("data/issues").resolve(),
+    ]
+    env_source_root = os.getenv("T09_SOURCE_ROOT")
+    if env_source_root:
+        sr = Path(env_source_root).resolve()
+        protected_files.extend([
+            (sr / "docs/search_eval_queries.json").resolve(),
+            (sr / "docs/T08_2_t9_handoff_reference.json").resolve(),
+        ])
+        protected_dirs.extend([
+            (sr / "data/rawpedia").resolve(),
+            (sr / "data/issues").resolve(),
+            (sr / "data/vector-store").resolve(),
+        ])
+
+    for pf in protected_files:
+        if target == pf:
+            raise ValueError(f"--record 경로가 보호된 파일({pf.name})과 동일합니다: {record_path}")
+
+    for pd in protected_dirs:
+        if target == pd:
+            raise ValueError(f"--record 경로가 보호된 디렉터리({pd.name})와 동일합니다: {record_path}")
+        try:
+            target.relative_to(pd)
+            raise ValueError(f"--record 경로가 보호된 디렉터리({pd.name}) 내부에 있습니다: {record_path}")
+        except ValueError as e:
+            if "보호된" in str(e):
+                raise
+            continue
+
+
+def check_input_matched(
+    query_id: Optional[str],
+    query_original: str,
+    query_set_path: Path,
+) -> bool:
+    """질문ID가 있을 때 원본 데이터셋의 query 문자열과 실제 입력 query_original을 대조."""
+    if not query_id:
+        return bool(query_original and query_original.strip())
+    if not query_set_path.is_file():
+        return False
+    try:
+        q_dataset = json.loads(query_set_path.read_bytes())
+        matched_q = next((item for item in q_dataset.get("queries", []) if item.get("query_id") == query_id), None)
+        if matched_q is None:
+            return False
+        return bool(matched_q.get("query") == query_original)
+    except Exception:
+        return False
+
+
+
 def get_git_commit() -> str:
     try:
         res = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True)
@@ -212,22 +286,82 @@ def generate_llm_response(
 ) -> Tuple[str, Optional[dict[str, Any]], dict[str, Any]]:
     """3.3 런타임 LLM 호출.
     
-    1. 외부 OpenAI 호환 HTTP API (OPENAI_API_KEY 또는 LLM_BASE_URL 제공 시)
-    2. 로컬 Codex CLI (codex 명령어가 존재할 시)
-    
-    응답은 반드시 answer 문자열과 citation_ids 배열을 포함하는 JSON 객체여야 한다.
-    하드코딩 답변이나 모의 응답 없이, 실패 시 예외를 발생시킨다.
+    LLM 제공처는 LLM_PROVIDER 환경변수로 명시 선택한다 (기본값: 'codex').
+    지원 제공처: 'codex', 'openai' (또는 'openai-compatible').
+    설정이나 실행 환경 부족 시 즉시 오류로 종료하며 다른 제공처로 자동 전환하지 않는다.
     """
     import shutil
     import tempfile
 
-    base_url = os.getenv("LLM_BASE_URL") or os.getenv("OPENAI_BASE_URL")
-    api_key = os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
-    provider = os.getenv("LLM_PROVIDER")
-    model_id = os.getenv("LLM_MODEL") or os.getenv("OPENAI_MODEL") or "gpt-5.6-sol"
+    provider = os.getenv("LLM_PROVIDER", "codex").lower().strip()
 
-    # 1. 외부 OpenAI 호환 HTTP API 경로
-    if (api_key or base_url) and provider != "codex":
+    if provider == "codex":
+        model_id = os.getenv("LLM_MODEL") or os.getenv("CODEX_MODEL") or "gpt-5.6-sol"
+        codex_bin = shutil.which("codex")
+        if not codex_bin:
+            raise RuntimeError("LLM_PROVIDER='codex'이나 'codex' 실행 파일을 PATH에서 찾을 수 없습니다.")
+
+        full_prompt = (
+            f"{system_instruction}\n\n"
+            f"{user_prompt}\n\n"
+            "반드시 마크다운 코드블록(```json 등) 없이 순수 JSON 객체(키: answer, citation_ids) 하나만 출력하십시오."
+        )
+
+        with tempfile.TemporaryDirectory() as empty_workdir:
+            out_path = Path(empty_workdir) / "last_message.json"
+            cmd = [
+                codex_bin, "exec",
+                "-m", model_id,
+                "-C", empty_workdir,
+                "--skip-git-repo-check",
+                "--ephemeral",
+                "-o", str(out_path),
+                full_prompt,
+            ]
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            if proc.returncode != 0:
+                err_msg = proc.stderr.strip() or proc.stdout.strip()
+                raise RuntimeError(f"codex exec 실패 (종료 코드 {proc.returncode}): {err_msg}")
+
+            if not out_path.is_file():
+                raise RuntimeError(f"codex exec 실행 후 출력 파일이 생성되지 않았습니다: {out_path}")
+
+            raw_content = out_path.read_text(encoding="utf-8").strip()
+
+        cleaned = _extract_json_text(raw_content)
+        parsed = json.loads(cleaned)
+        _validate_llm_json_obj(parsed)
+
+        # 토큰 사용량 확인 (이벤트 로그 출력에서 tokens used 추출)
+        usage = None
+        token_match = re.search(r"tokens used\s*([\d,]+)", proc.stdout)
+        if token_match:
+            try:
+                tokens_count = int(token_match.group(1).replace(",", ""))
+                usage = {"total_tokens": tokens_count}
+            except Exception:
+                usage = None
+
+        runtime_meta = {
+            "llm_provider": "codex-cli",
+            "model_id": model_id,
+            "endpoint": "codex exec",
+            "generation_config": {
+                "temperature": None,  # CLI에서 미확인된 temperature는 null
+                "prompt_version": PROMPT_VERSION,
+            },
+            "_finish_reason": None,  # CLI에서 미제공된 finish_reason은 null
+        }
+        return json.dumps(parsed, ensure_ascii=False), usage, runtime_meta
+
+    elif provider in ("openai", "openai-compatible"):
+        api_key = os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
+        base_url = os.getenv("LLM_BASE_URL") or os.getenv("OPENAI_BASE_URL")
+        model_id = os.getenv("LLM_MODEL") or os.getenv("OPENAI_MODEL") or "gpt-5.6-sol"
+
+        if not api_key and not base_url:
+            raise RuntimeError("LLM_PROVIDER='openai'이나 OPENAI_API_KEY 또는 LLM_BASE_URL이 설정되지 않았습니다.")
+
         api_url = (base_url.rstrip("/") + "/chat/completions") if base_url else "https://api.openai.com/v1/chat/completions"
         headers = {"Content-Type": "application/json"}
         if api_key:
@@ -247,60 +381,22 @@ def generate_llm_response(
             data = json.loads(resp.read().decode("utf-8"))
             raw_content = data["choices"][0]["message"]["content"]
             usage = data.get("usage")
+            finish_reason = data["choices"][0].get("finish_reason")
             runtime_meta = {
                 "llm_provider": "openai-compatible",
                 "model_id": model_id,
                 "endpoint": api_url.split("?")[0],
                 "generation_config": {"temperature": 0.0, "prompt_version": PROMPT_VERSION},
+                "_finish_reason": finish_reason,
             }
             cleaned = _extract_json_text(raw_content)
             parsed = json.loads(cleaned)
             _validate_llm_json_obj(parsed)
             return json.dumps(parsed, ensure_ascii=False), usage, runtime_meta
 
-    # 2. 로컬 Codex CLI 경로
-    codex_bin = shutil.which("codex")
-    if codex_bin:
-        full_prompt = (
-            f"{system_instruction}\n\n"
-            f"{user_prompt}\n\n"
-            "반드시 마크다운 코드블록(```json 등) 없이 순수 JSON 객체(키: answer, citation_ids) 하나만 출력하십시오."
-        )
-        with tempfile.NamedTemporaryFile("w+", suffix=".json", delete=False) as out_f:
-            out_path = out_f.name
+    else:
+        raise ValueError(f"지원되지 않는 LLM_PROVIDER입니다: '{provider}'. ('codex', 'openai' 중 선택)")
 
-        try:
-            cmd = [
-                codex_bin, "exec",
-                "-m", model_id,
-                "--ephemeral",
-                "-o", out_path,
-                full_prompt,
-            ]
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-            if proc.returncode != 0:
-                err_msg = proc.stderr.strip() or proc.stdout.strip()
-                raise RuntimeError(f"codex exec 실패 (종료 코드 {proc.returncode}): {err_msg}")
-
-            with open(out_path, "r", encoding="utf-8") as f:
-                raw_content = f.read().strip()
-        finally:
-            if os.path.exists(out_path):
-                os.remove(out_path)
-
-        cleaned = _extract_json_text(raw_content)
-        parsed = json.loads(cleaned)
-        _validate_llm_json_obj(parsed)
-
-        runtime_meta = {
-            "llm_provider": "codex-cli",
-            "model_id": model_id,
-            "endpoint": "codex exec",
-            "generation_config": {"temperature": 0.0, "prompt_version": PROMPT_VERSION},
-        }
-        return json.dumps(parsed, ensure_ascii=False), None, runtime_meta
-
-    raise RuntimeError("사용 가능한 LLM 실행 환경이 없습니다. OPENAI_API_KEY 환경변수 또는 codex CLI가 필요합니다.")
 
 
 
@@ -389,6 +485,9 @@ def run_pipeline(
         "schema_version": 1,
     }
 
+    # 질문ID 원본과 실제 입력 비교로 input_matched 계산
+    input_matched = check_input_matched(query_id, query_original, query_set_path)
+
     t0 = time.perf_counter()
     try:
         query_normalized = normalize_query(query_original)
@@ -419,8 +518,9 @@ def run_pipeline(
                 "error_message": str(e),
                 "durations_ms": durations,
             },
-            "verification": {"input_matched": False, "gold_reached": False, "citations_valid": False, "manual_review": "pending", "notes": ""},
+            "verification": {"input_matched": input_matched, "gold_reached": False, "citations_valid": False, "manual_review": "pending", "notes": ""},
         }
+
     durations["normalization"] = round((time.perf_counter() - t0) * 1000, 2)
 
     # 저장소 및 세션 준비
@@ -477,7 +577,7 @@ def run_pipeline(
                 "error_message": str(e),
                 "durations_ms": durations,
             },
-            "verification": {"input_matched": True, "gold_reached": False, "citations_valid": False, "manual_review": "pending", "notes": ""},
+            "verification": {"input_matched": input_matched, "gold_reached": False, "citations_valid": False, "manual_review": "pending", "notes": ""},
         }
     durations["retrieval"] = round((time.perf_counter() - t0) * 1000, 2)
 
@@ -525,10 +625,12 @@ def run_pipeline(
     raw_response = ""
     runtime_meta = None
     usage = None
+    finish_reason = None
     try:
         raw_response, usage, runtime_meta = generate_llm_response(
             SYSTEM_INSTRUCTION, user_prompt, context_citations, query_normalized
         )
+        finish_reason = runtime_meta.pop("_finish_reason", None) if runtime_meta else None
         parsed_obj = json.loads(raw_response)
         raw_answer = parsed_obj["answer"]
         parsed_citation_ids = parsed_obj["citation_ids"]
@@ -563,7 +665,7 @@ def run_pipeline(
                 "error_message": str(e),
                 "durations_ms": durations,
             },
-            "verification": {"input_matched": True, "gold_reached": False, "citations_valid": False, "manual_review": "pending", "notes": ""},
+            "verification": {"input_matched": input_matched, "gold_reached": False, "citations_valid": False, "manual_review": "pending", "notes": ""},
         }
 
     durations["generation"] = round((time.perf_counter() - t0) * 1000, 2)
@@ -602,7 +704,7 @@ def run_pipeline(
                 "parsed_answer": raw_answer,
                 "parsed_citation_ids": parsed_citation_ids,
                 "usage": usage,
-                "finish_reason": "stop",
+                "finish_reason": finish_reason,
             },
             "citations": [],
             "output": {"final_answer": "", "stdout": "", "stderr": f"[citation_validation] {e}", "exit_code": 1},
@@ -612,7 +714,7 @@ def run_pipeline(
                 "error_message": str(e),
                 "durations_ms": durations,
             },
-            "verification": {"input_matched": True, "gold_reached": False, "citations_valid": False, "manual_review": "pending", "notes": ""},
+            "verification": {"input_matched": input_matched, "gold_reached": False, "citations_valid": False, "manual_review": "pending", "notes": ""},
         }
     durations["citation_validation"] = round((time.perf_counter() - t0) * 1000, 2)
     durations["total"] = round((time.perf_counter() - t_start) * 1000, 2)
@@ -661,7 +763,7 @@ def run_pipeline(
             "parsed_answer": raw_answer,
             "parsed_citation_ids": parsed_citation_ids,
             "usage": usage,
-            "finish_reason": "stop",
+            "finish_reason": finish_reason,
         },
         "citations": used_citations,
         "output": {
@@ -677,7 +779,7 @@ def run_pipeline(
             "durations_ms": durations,
         },
         "verification": {
-            "input_matched": True,
+            "input_matched": input_matched,
             "gold_reached": gold_reached,
             "citations_valid": True,
             "manual_review": manual_review,
@@ -700,6 +802,19 @@ def main() -> int:
 
     ref_path = resolve_reference_path(args.reference)
     persist_dir = resolve_persist_dir(args.persist_dir)
+
+    # --record 유효성 검사 (호출·쓰기 전 거부)
+    if args.record:
+        try:
+            validate_record_path(
+                record_path=args.record,
+                reference_path=ref_path,
+                persist_dir=persist_dir,
+                query_set_path=args.query_set,
+            )
+        except Exception as e:
+            sys.stderr.write(f"[validation] {e}\n")
+            return 2
 
     record = run_pipeline(
         query_original=args.query,

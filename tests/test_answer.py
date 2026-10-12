@@ -9,9 +9,13 @@ import pytest
 from artagent.answer import (
     NORMALIZATION_RULE_VERSION,
     build_prompt_and_citations,
+    check_input_matched,
+    generate_llm_response,
+    main,
     normalize_query,
     run_pipeline,
     validate_and_format_citations,
+    validate_record_path,
 )
 from artagent.retrieval.types import SearchHit
 
@@ -154,3 +158,115 @@ def test_record_isolation():
             assert len(lines) == 1
             loaded = json.loads(lines[0])
             assert loaded["query_id"] == "Q_ISOLATION"
+
+
+def test_validate_record_path_rejections():
+    ref_path = Path("docs/T08_2_t9_handoff_reference.json").resolve()
+    query_set_path = Path("docs/search_eval_queries.json").resolve()
+    persist_dir = Path("data/vector-store").resolve()
+
+    # 1. Reference file rejection
+    with pytest.raises(ValueError, match="보호된 파일"):
+        validate_record_path(ref_path, ref_path, persist_dir, query_set_path)
+
+    # 2. Query set file rejection
+    with pytest.raises(ValueError, match="보호된 파일"):
+        validate_record_path(query_set_path, ref_path, persist_dir, query_set_path)
+
+    # 3. Corpus directory & subpath rejection
+    rawpedia_file = Path("data/rawpedia/sample.jsonl")
+    with pytest.raises(ValueError, match="보호된 디렉터리"):
+        validate_record_path(rawpedia_file, ref_path, persist_dir, query_set_path)
+
+    issues_file = Path("data/issues/comments.json")
+    with pytest.raises(ValueError, match="보호된 디렉터리"):
+        validate_record_path(issues_file, ref_path, persist_dir, query_set_path)
+
+    # 4. DB directory & subpath rejection
+    db_file = persist_dir / "chroma.sqlite3"
+    with pytest.raises(ValueError, match="보호된 디렉터리"):
+        validate_record_path(db_file, ref_path, persist_dir, query_set_path)
+
+    # 5. Allowed record path
+    valid_record_path = Path("docs/T11_execution_records.jsonl")
+    validate_record_path(valid_record_path, ref_path, persist_dir, query_set_path)
+
+
+def test_cli_record_path_rejection(capsys):
+    test_argv = [
+        "answer.py",
+        "Test query",
+        "--record", "data/rawpedia/forbidden.jsonl",
+    ]
+    with patch("sys.argv", test_argv):
+        ret = main()
+        assert ret == 2
+        captured = capsys.readouterr()
+        assert "[validation]" in captured.err
+        assert "보호된 디렉터리" in captured.err
+
+
+def test_llm_provider_selection_errors():
+    # 1. Invalid provider -> ValueError
+    with patch.dict("os.environ", {"LLM_PROVIDER": "unsupported_ai"}):
+        with pytest.raises(ValueError, match="지원되지 않는 LLM_PROVIDER"):
+            generate_llm_response("sys", "user", {}, "q")
+
+    # 2. Codex missing on PATH -> RuntimeError (no fallback to openai)
+    with patch.dict("os.environ", {"LLM_PROVIDER": "codex"}):
+        with patch("shutil.which", return_value=None):
+            with pytest.raises(RuntimeError, match="PATH에서 찾을 수 없습니다"):
+                generate_llm_response("sys", "user", {}, "q")
+
+    # 3. OpenAI missing API key & base URL -> RuntimeError (no fallback to codex)
+    with patch.dict("os.environ", {"LLM_PROVIDER": "openai", "OPENAI_API_KEY": "", "LLM_API_KEY": "", "LLM_BASE_URL": ""}, clear=True):
+        with pytest.raises(RuntimeError, match="OPENAI_API_KEY 또는 LLM_BASE_URL이 설정되지 않았습니다"):
+            generate_llm_response("sys", "user", {}, "q")
+
+
+def test_check_input_matched():
+    query_set_path = Path("docs/search_eval_queries.json")
+    if not query_set_path.is_file():
+        pytest.skip("Query set file not present at docs/search_eval_queries.json")
+
+    q_data = json.loads(query_set_path.read_bytes())
+    first_q = q_data["queries"][0]
+    qid = first_q["query_id"]
+    qtext = first_q["query"]
+
+    # Exactly matching
+    assert check_input_matched(qid, qtext, query_set_path) is True
+
+    # Modified query text
+    assert check_input_matched(qid, qtext + " modified", query_set_path) is False
+
+    # Non-existent query id
+    assert check_input_matched("Q_DOES_NOT_EXIST", qtext, query_set_path) is False
+
+
+def test_codex_runner_metadata_null():
+    ref_path = Path("/Users/user/orca/workspaces/AAART/T08-2-chunking-embedding/docs/T08_2_t9_handoff_reference.json")
+    persist_dir = Path("data/vector-store/t09")
+
+    mock_resp = json.dumps({"answer": "Auto Levels 설명 [C1S1]", "citation_ids": ["C1S1"]})
+    mock_meta = {
+        "llm_provider": "codex-cli",
+        "model_id": "gpt-5.6-sol",
+        "endpoint": "codex exec",
+        "generation_config": {"temperature": None, "prompt_version": 1},
+        "_finish_reason": None,
+    }
+
+    with patch("artagent.answer.generate_llm_response", return_value=(mock_resp, {"total_tokens": 120}, mock_meta)):
+        record = run_pipeline(
+            query_original="Auto Levels",
+            reference_path=ref_path,
+            persist_dir=persist_dir,
+            query_id="Q001",
+        )
+        assert record["execution"]["status"] == "success"
+        # Confirm temperature and finish_reason are null / None
+        assert record["runtime"]["generation_config"]["temperature"] is None
+        assert record["generation"]["finish_reason"] is None
+        assert record["generation"]["usage"] == {"total_tokens": 120}
+
