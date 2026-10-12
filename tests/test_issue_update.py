@@ -41,7 +41,7 @@ from artagent.retrieval.provenance import (
     canonical_json_str,
     validate_provenance,
 )
-from artagent.retrieval.store import _contract_metadata, open_store
+from artagent.retrieval.store import RetrievalStore, _contract_metadata, open_store
 from artagent.retrieval.types import RetrievalSpec, SourceKey, load_spec
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -602,3 +602,246 @@ def test_exclude_and_reinclude_lifecycle(tmp_path: Path, t09_store_dir: Path, sp
     app_re = apply_plan(Path(prep_re["plan_path"]), t09_store_dir, REFERENCE_PATH)
     assert app_re["status"] == "success"
     assert app_re["total_active"] == 154  # 복원
+
+
+# ---------------------------------------------------------------------------
+# 10. Codex 5:21PM 신규 리뷰 4항 회귀 테스트 (A, B, C, D)
+# ---------------------------------------------------------------------------
+
+
+def test_regression_a_chunk_id_change_reexecution_success(tmp_path: Path, t09_store_dir: Path, spec: RetrievalSpec):
+    """A. 청크 ID 변경 -> 구 청크 삭제·교체 및 재실행 성공 검증."""
+    output_dir = tmp_path / "output"
+    custom_corpus = tmp_path / "corpus"
+    shutil.copytree(FIXTURE_CORPUS, custom_corpus)
+    custom_curation = tmp_path / "curation-decisions.json"
+    shutil.copy2(FIXTURE_CURATION, custom_curation)
+
+    # 1. 초기 세대 적용
+    prep1 = prepare_generation(
+        source_root=ROOT,
+        input_dir=custom_corpus,
+        curation_path=custom_curation,
+        reference_path=REFERENCE_PATH,
+        persist_dir=t09_store_dir,
+        output_dir=output_dir,
+    )
+    apply_plan(Path(prep1["plan_path"]), t09_store_dir, REFERENCE_PATH)
+
+    store = open_store(t09_store_dir, spec)
+    col_before = store.collection.get(
+        where={"$and": [{"source_type": "github"}, {"source_group_id": "github:artraweditor/ART:issue:500"}]},
+        include=[],
+    )
+    old_chunk_ids = set(col_before["ids"])
+    assert len(old_chunk_ids) > 0
+
+    # 2. Issue 500 본문 수정 및 슬라이스 확장으로 청크 ID 완전 변경
+    snap_500 = custom_corpus / "snapshots" / "issues" / "500.json"
+    data_500 = json.loads(snap_500.read_text(encoding="utf-8"))
+    data_500["body"] = "Totally rewritten content that changes chunk boundaries.\n" + data_500["body"]
+    snap_500.write_text(json.dumps(data_500), encoding="utf-8")
+    new_snap_sha = compute_file_sha256(snap_500.read_bytes())
+
+    sync_file = custom_corpus / "sync-state.json"
+    sync_data = json.loads(sync_file.read_text(encoding="utf-8"))
+    sync_data["records"]["issue:500"]["file_sha256"] = new_snap_sha
+    sync_file.write_text(json.dumps(sync_data), encoding="utf-8")
+
+    inv = load_sources(custom_corpus)
+    thread_500 = next(t for t in inv.threads if t.record_key == "issue:500")
+    curation_data = json.loads(custom_curation.read_text(encoding="utf-8"))
+    curation_data["threads"]["issue:500"]["thread_sha256"] = thread_500.thread_sha256
+    curation_data["threads"]["issue:500"]["curated_content"][0]["char_end"] = len(data_500["body"])
+    custom_curation.write_text(json.dumps(curation_data), encoding="utf-8")
+
+    prep2 = prepare_generation(
+        source_root=ROOT,
+        input_dir=custom_corpus,
+        curation_path=custom_curation,
+        reference_path=REFERENCE_PATH,
+        persist_dir=t09_store_dir,
+        output_dir=output_dir,
+    )
+    assert prep2["generation_id"] != prep1["generation_id"]
+
+    plan2_doc = json.loads(Path(prep2["plan_path"]).read_text(encoding="utf-8"))
+    op_500 = next(op for op in plan2_doc["operations"] if op["candidate_id"] == "github:artraweditor/ART:issue:500")
+    new_chunk_ids = set(op_500["chunk_ids"])
+    assert old_chunk_ids != new_chunk_ids  # 청크 ID가 다름 확인
+
+    app2 = apply_plan(Path(prep2["plan_path"]), t09_store_dir, REFERENCE_PATH)
+    assert app2["status"] == "success"
+
+    col_after = store.collection.get(
+        where={"$and": [{"source_type": "github"}, {"source_group_id": "github:artraweditor/ART:issue:500"}]},
+        include=[],
+    )
+    current_ids = set(col_after["ids"])
+    assert current_ids == new_chunk_ids
+    assert not (old_chunk_ids & current_ids)
+
+
+def test_regression_b_interrupted_after_payload_write_recovery_to_ready_and_searchable(
+    tmp_path: Path, t09_store_dir: Path, spec: RetrievalSpec, monkeypatch: pytest.MonkeyPatch
+):
+    """B. 실제 payload 쓰기 후 ready 전 실패 -> 재시도 -> ready 및 검색 가능 검증."""
+    output_dir = tmp_path / "output"
+    custom_corpus = tmp_path / "corpus"
+    shutil.copytree(FIXTURE_CORPUS, custom_corpus)
+    custom_curation = tmp_path / "curation-decisions.json"
+    shutil.copy2(FIXTURE_CURATION, custom_curation)
+
+    # discussion 412 본문 수정하여 첫 번째 include 작업이 update로 replace_source 호출되도록 유도
+    snap_412 = custom_corpus / "snapshots" / "discussions" / "412.json"
+    data_412 = json.loads(snap_412.read_text(encoding="utf-8"))
+    data_412["body"] = "Modified discussion 412 body for recovery test.\n" + data_412["body"]
+    snap_412.write_text(json.dumps(data_412), encoding="utf-8")
+    new_snap_sha = compute_file_sha256(snap_412.read_bytes())
+
+    sync_file = custom_corpus / "sync-state.json"
+    sync_data = json.loads(sync_file.read_text(encoding="utf-8"))
+    sync_data["records"]["discussion:D_kwDONWPV1M4Ai6_I"]["file_sha256"] = new_snap_sha
+    sync_file.write_text(json.dumps(sync_data), encoding="utf-8")
+
+    inv = load_sources(custom_corpus)
+    thread_412 = next(t for t in inv.threads if t.record_key == "discussion:D_kwDONWPV1M4Ai6_I")
+    curation_data = json.loads(custom_curation.read_text(encoding="utf-8"))
+    curation_data["threads"]["discussion:D_kwDONWPV1M4Ai6_I"]["thread_sha256"] = thread_412.thread_sha256
+    curation_data["threads"]["discussion:D_kwDONWPV1M4Ai6_I"]["curated_content"][0]["char_end"] = len(data_412["body"])
+    custom_curation.write_text(json.dumps(curation_data), encoding="utf-8")
+
+    prep = prepare_generation(
+        source_root=ROOT,
+        input_dir=custom_corpus,
+        curation_path=custom_curation,
+        reference_path=REFERENCE_PATH,
+        persist_dir=t09_store_dir,
+        output_dir=output_dir,
+    )
+    plan_path = Path(prep["plan_path"])
+
+    store = open_store(t09_store_dir, spec)
+    session = load_encoder(spec)
+
+    # replace_source 내부에서 payload upsert 후 ready 직전에 실패 주입
+    orig_set_state = RetrievalStore._set_store_state
+    injected_failure = False
+
+    def crashing_set_store_state(self, state, **kwargs):
+        nonlocal injected_failure
+        if state == "ready" and not injected_failure:
+            injected_failure = True
+            raise RuntimeError("CRASH_AFTER_UPSERT: Simulated power loss right after payload write")
+        return orig_set_state(self, state, **kwargs)
+
+    monkeypatch.setattr(RetrievalStore, "_set_store_state", crashing_set_store_state)
+
+    # 1. apply_plan 실행 -> payload upsert 완료 후 예외 발생하여 partial 반환
+    app_fail = apply_plan(plan_path, t09_store_dir, REFERENCE_PATH)
+    assert app_fail["status"] == "partial"
+    assert app_fail["unapplied"] > 0
+
+    # 2. 저장소 상태가 updating이고 검색이 거부됨을 확인
+    assert store._get_store_state() == "updating"
+    with pytest.raises(RuntimeError, match="저장소가 준비되지 않았습니다"):
+        store.search("test query", session=session)
+
+    # 3. 실패 주입 해제 후 재시도
+    monkeypatch.undo()
+
+    app_retry = apply_plan(plan_path, t09_store_dir, REFERENCE_PATH)
+    assert app_retry["status"] == "success"
+
+    # 4. 통과 증거: 복구 후 ready 및 실제 검색 가능 확인
+    assert store._get_store_state() == "ready"
+    hits = store.search("Modified discussion 412 body", session=session)
+    assert isinstance(hits, list)
+
+
+def test_regression_c_same_id_metadata_change_stale_plan_rejection_preserves_latest(
+    tmp_path: Path, t09_store_dir: Path, spec: RetrievalSpec
+):
+    """C. chunk_id 동일·metadata 변경 시 오래된 계획 거부 및 최신 레코드 유지 검증."""
+    output_dir = tmp_path / "output"
+    custom_corpus = tmp_path / "corpus"
+    shutil.copytree(FIXTURE_CORPUS, custom_corpus)
+    custom_curation = tmp_path / "curation-decisions.json"
+    shutil.copy2(FIXTURE_CURATION, custom_curation)
+
+    # 1. 세대 A 준비 및 적용
+    prep_a = prepare_generation(
+        source_root=ROOT,
+        input_dir=custom_corpus,
+        curation_path=custom_curation,
+        reference_path=REFERENCE_PATH,
+        persist_dir=t09_store_dir,
+        output_dir=output_dir,
+    )
+    plan_a_path = Path(prep_a["plan_path"])
+    apply_plan(plan_a_path, t09_store_dir, REFERENCE_PATH)
+
+    # 2. 세대 B: 청크 본문/ID는 동일하되 curation metadata만 갱신 (정제 메타데이터 변경)
+    curation_data = json.loads(custom_curation.read_text(encoding="utf-8"))
+    curation_data["threads"]["issue:500"]["rationale"] = "Updated rationale for metadata fingerprint test."
+    custom_curation.write_text(json.dumps(curation_data), encoding="utf-8")
+
+    prep_b = prepare_generation(
+        source_root=ROOT,
+        input_dir=custom_corpus,
+        curation_path=custom_curation,
+        reference_path=REFERENCE_PATH,
+        persist_dir=t09_store_dir,
+        output_dir=output_dir,
+    )
+    plan_b_path = Path(prep_b["plan_path"])
+    assert prep_b["generation_id"] != prep_a["generation_id"]
+
+    app_b = apply_plan(plan_b_path, t09_store_dir, REFERENCE_PATH)
+    assert app_b["status"] == "success"
+
+    state_data_b = json.loads((output_dir / "vector-state.json").read_text(encoding="utf-8"))
+    cand_sha_b = state_data_b["items"]["github:artraweditor/ART:issue:500"]["candidate_sha256"]
+
+    # 3. 세대 A 오래된 계획 재적용 시도 -> 거부 확인
+    with pytest.raises(RuntimeError, match="오래된 계획 거부"):
+        apply_plan(plan_a_path, t09_store_dir, REFERENCE_PATH)
+
+    # 4. 통과 증거: 거부 후에도 세대 B의 최신 상태 및 지문이 그대로 유지됨
+    state_data_after = json.loads((output_dir / "vector-state.json").read_text(encoding="utf-8"))
+    assert state_data_after["last_completed_generation"] == prep_b["generation_id"]
+    assert state_data_after["items"]["github:artraweditor/ART:issue:500"]["candidate_sha256"] == cand_sha_b
+
+
+def test_regression_d_plan_operations_mutation_rejection_without_writes(
+    tmp_path: Path, t09_store_dir: Path, spec: RetrievalSpec
+):
+    """D. operations 삭제·변경 시 쓰기 없이 사전 거부 검증."""
+    output_dir = tmp_path / "output"
+    prep = prepare_generation(
+        source_root=ROOT,
+        input_dir=FIXTURE_CORPUS,
+        curation_path=FIXTURE_CURATION,
+        reference_path=REFERENCE_PATH,
+        persist_dir=t09_store_dir,
+        output_dir=output_dir,
+    )
+    plan_path = Path(prep["plan_path"])
+
+    store = open_store(t09_store_dir, spec)
+    initial_count = len(store.collection.get(include=[])["ids"])
+
+    # update-plan.json의 operations에서 한 항목을 임의 삭제
+    plan_data = json.loads(plan_path.read_text(encoding="utf-8"))
+    plan_data["operations"].pop(0)
+    plan_path.write_text(json.dumps(plan_data), encoding="utf-8")
+
+    # apply_plan 실행 -> manifest 불일치로 쓰기 전 거부
+    with pytest.raises(ValueError, match="(manifest와 불일치|집합이 불일치)"):
+        apply_plan(plan_path, t09_store_dir, REFERENCE_PATH)
+
+    # 거부 후 저장소 쓰기가 전혀 발생하지 않았음(레코드 수 불변) 검증
+    after_count = len(store.collection.get(include=[])["ids"])
+    assert after_count == initial_count
+    assert not (output_dir / "vector-state.json").exists()
+
