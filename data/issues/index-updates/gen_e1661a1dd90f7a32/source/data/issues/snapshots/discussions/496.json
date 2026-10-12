@@ -1,0 +1,16 @@
+{
+  "author": {
+    "login": "ryancara"
+  },
+  "body": "Hi there, \r\n\r\nI'm often wanting to use a combination of luminance only curves, and something more generic such as \"standard\" or \"film-like\". I do have a Luminance only curve as a CTL script that does the job, however miss not having the modifier to be able to select on the image and create a curve point with the CTRL key, or having visual feedback within the UI.\r\n\r\nRyan :) ",
+  "category": {
+    "name": "Ideas"
+  },
+  "createdAt": "2026-06-09T14:16:35Z",
+  "databaseId": 10227198,
+  "id": "D_kwDONWPV1M4AnA3-",
+  "number": 496,
+  "title": "Slider to blend between curves affecting RGB or only luminance, or being able to use multiple curves with different modes.",
+  "updatedAt": "2026-06-09T14:16:35Z",
+  "url": "https://github.com/orgs/artraweditor/discussions/496"
+}

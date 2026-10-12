@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "agriggio"
+  },
+  "body": "Hi, I just tried with 0.3.2 and it works for me. So I still suspect an issue on your side. You can get more info by running ART with a high verbosity (set `Verbose=2` in the `$HOME/.config/ART/options` file), and then set the environment variable `ART_DEBUG_EXTCLUT=1`. You should then be able to read the full error messages from the terminal (but note that setting the above env var will make ART hang, so it's only for debugging purposes).\r\nYou can then try to post the error message here and we can try to figure out what is going wrong...",
+  "createdAt": "2026-05-17T19:39:31Z",
+  "databaseId": 16952796,
+  "id": "DC_kwDONWPV1M4BAq3c",
+  "updatedAt": "2026-05-17T19:39:31Z",
+  "url": "https://github.com/artraweditor/ART/discussions/481#discussioncomment-16952796"
+}

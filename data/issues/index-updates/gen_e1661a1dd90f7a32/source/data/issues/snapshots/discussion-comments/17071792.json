@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "agriggio"
+  },
+  "body": "I finally see it! It's actually pretty obvious... Before I was testing with my local copy (on an M4 Mac) which works correctly. Also the intel build works fine, but the arm build is indeed broken. Now I have to understand why...",
+  "createdAt": "2026-05-27T06:40:23Z",
+  "databaseId": 17071792,
+  "id": "DC_kwDONWPV1M4BBH6w",
+  "updatedAt": "2026-05-27T06:40:23Z",
+  "url": "https://github.com/artraweditor/ART/discussions/487#discussioncomment-17071792"
+}

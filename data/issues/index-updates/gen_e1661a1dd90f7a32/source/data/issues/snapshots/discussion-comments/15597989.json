@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "agriggio"
+  },
+  "body": "Hi, yes it's possible. You just have to give a name to the mask, and then it will appear in subsequent tools as a \"Liked mask\". \"Subsequent\" here means that the tool / region follows the one in which you originally defined the mask in the processing pipeline (the order is the same as you see on the screen, from top to bottom).\r\n\r\nHere's a quick video that shows how to do it:\r\n\r\nhttps://github.com/user-attachments/assets/e0abb23c-fb24-40ef-ad55-ad81ec94c5bc\r\n\r\n",
+  "createdAt": "2026-01-25T14:20:31Z",
+  "databaseId": 15597989,
+  "id": "DC_kwDONWPV1M4A7gGl",
+  "updatedAt": "2026-01-25T14:20:31Z",
+  "url": "https://github.com/artraweditor/ART/discussions/442#discussioncomment-15597989"
+}

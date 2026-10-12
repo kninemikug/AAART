@@ -1,0 +1,1856 @@
+{
+  "candidates": [
+    {
+      "accepted_content": null,
+      "candidate_id": "github:artraweditor/ART:discussion:412",
+      "curated_content": [
+        {
+          "char_end": 2122,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "discussion:D_kwDONWPV1M4Ai6_I",
+          "role": "context",
+          "text": "I'm a Windows user and thought it would be nice to have Windows developer documentation, like the Ubuntu one. I spun up a VM so I could make sure I documented all the necessary steps.\r\n\r\n- Install [MSYS2](https://www.msys2.org) and accept defaults\r\n  - When the install finishes, in the console that opens type:\r\n`pacman -Syu`\r\n  - Reopen the console if it closes (MSYS2 MSYS), and continue to run the command until there are no more updates.\r\n  - Install the ART dependencies:\r\n`pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-gdb mingw-w64-x86_64-make mingw-w64-x86_64-pkg-config mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja mingw-w64-x86_64-gtkmm3 mingw-w64-x86_64-lcms2 mingw-w64-x86_64-fftw mingw-w64-x86_64-exiv2 mingw-w64-x86_64-lensfun mingw-w64-x86_64-libiptcdata mingw-w64-x86_64-gtk3 mingw-w64-x86_64-mimalloc mingw-w64-x86_64-opencolorio mingw-w64-x86_64-libraw`\r\n- Install [cmake](https://cmake.org/download/#latest)\r\n- Install [Visual Studio Code](https://code.visualstudio.com/Download)\r\n  - Open Visual Studio\r\n  - Open the extensions marketplace (Ctrl+Shift+X) and install `C/C++ Extension Pack`\r\n  - Choose File, Open Folder..., and choose the root ART folder\r\n  - Choose to trust the authors\r\n  - You should get a popup saying \"Compiler kits may be present in these directories\", with a list of directories from your MSYS2 installation. Choose the Yes option to set up the compiler kits. If the popup goes away you can open the command palette (Ctrl+Shift+P) and choose `CMake: Scan for Kits` to open it again.\r\n  - Open the command palette (Ctrl+Shift+P) and choose `CMake: Set Launch/Debug Target`. First you'll be prompted to select a kit. Choose `CC xx.x.x x86_64-w64-mingw32 (mingw64)`, where xx.x.x is the version number of the compiler you have installed. Wait until VS is done configuring the project, then you will be prompted to choose a launch target. Choose `art (Install)`.\r\n  - By default the debug configuration will be selected. If you'd like to build a different one, open the command palette and choose `CMake: Select Variant`.\r\n  - In Visual Studio press Shift+F5 to start debugging."
+        },
+        {
+          "char_end": 273,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "discussion-comment:DC_kwDONWPV1M4A5PbN",
+          "role": "explanation",
+          "text": "Hi,\r\nThanks for the contribution! FYI some information about the building steps can be extracted from the GitHub actions, e.g. [windows.yml](https://github.com/artraweditor/ART/blob/d1bb6c0f15eb0a2a1ed4e1c369aed214500398b5/.github/workflows/windows.yml) for windows.\r\n\r\nHTH"
+        }
+      ],
+      "metadata": {
+        "accepted_answer_availability": "not_collected",
+        "evidence": [
+          {
+            "content_index": 0,
+            "signal": "SELF_CONTAINED_TECHNICAL_GUIDE"
+          }
+        ],
+        "field_availability": {
+          "author_association": false,
+          "category": true,
+          "labels": false,
+          "reactions": false,
+          "state": false,
+          "state_reason": false
+        },
+        "knowledge_status": "curated_guidance",
+        "limitations": [
+          {
+            "code": "PLATFORM_SPECIFIC",
+            "content_indices": [
+              0,
+              1
+            ],
+            "note": "Windows MSYS2 빌드 절차이며 Linux나 macOS에는 적용되지 않는다."
+          }
+        ],
+        "platform_fields": {
+          "author_association": null,
+          "category": "General",
+          "labels": null,
+          "reactions": null,
+          "state": null,
+          "state_reason": null
+        },
+        "rationale": "Windows MSYS2 기반 개발 및 빌드 환경 단계별 가이드.",
+        "reason_codes": [
+          "SELF_CONTAINED_TECHNICAL_GUIDE"
+        ],
+        "relations": [],
+        "reviewed_by": "Antigravity",
+        "selection_method": "reviewed_snapshot",
+        "thread_sha256": "9d176d0165c005b537aefa743b0750a4e9c1c02d167d94d856ff561b2e5c7e05",
+        "thread_updated_at": "2025-11-18T22:08:04Z"
+      },
+      "source_id": "D_kwDONWPV1M4Ai6_I",
+      "source_locations": [
+        {
+          "actor": {
+            "api_association": null,
+            "api_login": "agriggio",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "5519c8b0bc954a078746fda344000ee30355a6c9180479efdaaf8581d63af241",
+          "created_at": "2025-11-18T21:15:32Z",
+          "database_id": "15005389",
+          "file_sha256": "62514ae804c6d9c8ae995882801119b7a5efe8ae79570a5c7f0cafc1c20f8f01",
+          "ref_id": "discussion-comment:DC_kwDONWPV1M4A5PbN",
+          "snapshot_path": "snapshots/discussion-comments/15005389.json",
+          "source_id": "DC_kwDONWPV1M4A5PbN",
+          "source_kind": "discussion-comment",
+          "source_number": 412,
+          "updated_at": "2025-11-18T21:15:33Z",
+          "url": "https://github.com/artraweditor/ART/discussions/412#discussioncomment-15005389"
+        },
+        {
+          "actor": {
+            "api_association": null,
+            "api_login": "colings",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "e65bb8eac8d27ddfe22493d4cf0f106cdf551b72c9477663c28f9e0535c3b11a",
+          "created_at": "2025-11-18T21:03:15Z",
+          "database_id": "9154504",
+          "file_sha256": "2e6adff8f509a283fa02af358b990af06a79e5c472f124c3663b2a7e5509549c",
+          "ref_id": "discussion:D_kwDONWPV1M4Ai6_I",
+          "snapshot_path": "snapshots/discussions/412.json",
+          "source_id": "D_kwDONWPV1M4Ai6_I",
+          "source_kind": "discussion",
+          "source_number": 412,
+          "updated_at": "2025-11-18T22:08:04Z",
+          "url": "https://github.com/orgs/artraweditor/discussions/412"
+        }
+      ],
+      "source_number": 412,
+      "source_record_key": "discussion:D_kwDONWPV1M4Ai6_I",
+      "source_type": "discussion",
+      "title": "Windows build documentation",
+      "url": "https://github.com/orgs/artraweditor/discussions/412"
+    },
+    {
+      "accepted_content": null,
+      "candidate_id": "github:artraweditor/ART:discussion:420",
+      "curated_content": [
+        {
+          "char_end": 440,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "discussion:D_kwDONWPV1M4AjNbf",
+          "role": "context",
+          "text": "I would like to use PhotoGIMP which is custom version of GIMP as a external editor. I can use it with RawTherapee but ART doesn't recognize it. I tried to use the custom command from RawTherapee but it still doesn't work and I cant find any documentation about the custom commands on ART.\r\n\r\nThe Rawtherapee's custom command:\r\n`/usr/bin/flatpak run --branch=stable --arch=x86_64 --command=gimp-3.0 --file-forwarding org.gimp.GIMP @@u %U @@`"
+        },
+        {
+          "char_end": 515,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "discussion-comment:DC_kwDONWPV1M4A6DN4",
+          "role": "guidance",
+          "text": "Hi, try with a wrapper shell script, something like this:\r\n\r\n```bash\r\n#!/bin/sh\r\n\r\n/usr/bin/flatpak run --branch=stable --arch=x86_64 --command=gimp-3.0 --file-forwarding org.gimp.GIMP \"$1\"\r\n```\r\n\r\nIf you call the script e.g.  `photogimp.sh`, then simply specify its path in the preferences (and make sure that the script is actually executable):\r\n\r\n<img width=\"565\" height=\"221\" alt=\"Screenshot 2025-12-10 at 10 09 48\" src=\"https://github.com/user-attachments/assets/0d5641a3-48e1-418b-b4f9-02a754a1ab00\" />\r\n\r\nHTH"
+        }
+      ],
+      "metadata": {
+        "accepted_answer_availability": "not_collected",
+        "evidence": [
+          {
+            "content_index": 1,
+            "signal": "ACTIONABLE_GUIDANCE"
+          }
+        ],
+        "field_availability": {
+          "author_association": false,
+          "category": true,
+          "labels": false,
+          "reactions": false,
+          "state": false,
+          "state_reason": false
+        },
+        "knowledge_status": "curated_guidance",
+        "limitations": [
+          {
+            "code": "PLATFORM_SPECIFIC",
+            "content_indices": [
+              1
+            ],
+            "note": "Flatpak 환경의 래퍼 셸 스크립트 구성 가이드다."
+          }
+        ],
+        "platform_fields": {
+          "author_association": null,
+          "category": "Q&A",
+          "labels": null,
+          "reactions": null,
+          "state": null,
+          "state_reason": null
+        },
+        "rationale": "외부 편집기(PhotoGIMP/GIMP Flatpak) 연동 래퍼 스크립트 작성 및 preferences 설정 방법.",
+        "reason_codes": [
+          "ACTIONABLE_GUIDANCE"
+        ],
+        "relations": [],
+        "reviewed_by": "Antigravity",
+        "selection_method": "reviewed_snapshot",
+        "thread_sha256": "4b0ef30bf0ade9c449288a4ed6bf4a6820791dd70e63f45a45d5bec56e0d8f68",
+        "thread_updated_at": "2025-12-10T10:16:12Z"
+      },
+      "source_id": "D_kwDONWPV1M4AjNbf",
+      "source_locations": [
+        {
+          "actor": {
+            "api_association": null,
+            "api_login": "agriggio",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "a75e27ee27406f820dce078a47c4924cddffe968c74fb71b264eaabc59bcd8c3",
+          "created_at": "2025-12-10T09:10:44Z",
+          "database_id": "15217528",
+          "file_sha256": "984eaec33b091766c96148b6a185a8c46a7031b037babcb72ed1a5d514b10c34",
+          "ref_id": "discussion-comment:DC_kwDONWPV1M4A6DN4",
+          "snapshot_path": "snapshots/discussion-comments/15217528.json",
+          "source_id": "DC_kwDONWPV1M4A6DN4",
+          "source_kind": "discussion-comment",
+          "source_number": 420,
+          "updated_at": "2025-12-10T09:10:44Z",
+          "url": "https://github.com/artraweditor/ART/discussions/420#discussioncomment-15217528"
+        },
+        {
+          "actor": {
+            "api_association": null,
+            "api_login": "aarolep",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "190850eff35a659e7942e3b67b1d739b57a6365c9c0baeb70942e055718ad18b",
+          "created_at": "2025-12-09T21:08:33Z",
+          "database_id": "9230047",
+          "file_sha256": "0c59edaacd10ac2063dafa47821bbf3dabe7dd3847ef9c7892e68d17966cbc13",
+          "ref_id": "discussion:D_kwDONWPV1M4AjNbf",
+          "snapshot_path": "snapshots/discussions/420.json",
+          "source_id": "D_kwDONWPV1M4AjNbf",
+          "source_kind": "discussion",
+          "source_number": 420,
+          "updated_at": "2025-12-10T10:16:12Z",
+          "url": "https://github.com/orgs/artraweditor/discussions/420"
+        }
+      ],
+      "source_number": 420,
+      "source_record_key": "discussion:D_kwDONWPV1M4AjNbf",
+      "source_type": "discussion",
+      "title": "Using external editor",
+      "url": "https://github.com/orgs/artraweditor/discussions/420"
+    },
+    {
+      "accepted_content": null,
+      "candidate_id": "github:artraweditor/ART:discussion:424",
+      "curated_content": [
+        {
+          "char_end": 406,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "discussion:D_kwDONWPV1M4AjV4v",
+          "role": "context",
+          "text": "As recent addition of Filmsim's, i tried the vkdt implementation of filmsim first and liked but the workflow wasnt for me and WB is a bit messed up. as coming from that to ART, it have been a pleasent ride but i cant ignore the absence of Halation and upscale feature in ART. \r\n\r\nAs from my understanding, ART is using napari in background for filmsim's. Napari has halation and Grain. there's film grain i"
+        },
+        {
+          "char_end": 932,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "discussion-comment:DC_kwDONWPV1M4A6YYd",
+          "role": "explanation",
+          "text": "Hi,\r\n\r\nART uses a LUT for the film simulations. This means that it can only apply \"point-wise\" functions, i.e. effects that look at a single pixel at a time. Both halation and grain are \"spatial\" operations, that need to look at a neighborhood of each pixel, and are not possible to implement with a LUT. That's why they are not available in the film simulations. \r\nBut they exist in other forms in ART, specifically in \"Local Editing -> Smoothing\" (mode \"Halation\" for halation, and mode \"Add noise\" for grain). Grain is also available in \"Special Effects\", but that's a simple recipe that might not be to your liking. \r\nIf you want more control, including support for multiple instances and masking, you can take a look at the Add noise mode of the smoothing tool. It won't be the same as filmsim, because the algorithm is very different, but it gives you a bit more flexibility than the simple film grain tool.\r\n\r\nHope this helps"
+        }
+      ],
+      "metadata": {
+        "accepted_answer_availability": "not_collected",
+        "evidence": [
+          {
+            "content_index": 1,
+            "signal": "ART_TECHNICAL_EXPLANATION"
+          }
+        ],
+        "field_availability": {
+          "author_association": false,
+          "category": true,
+          "labels": false,
+          "reactions": false,
+          "state": false,
+          "state_reason": false
+        },
+        "knowledge_status": "curated_guidance",
+        "limitations": [
+          {
+            "code": "AS_OF_SOURCE_ONLY",
+            "content_indices": [
+              1
+            ],
+            "note": "ART의 LUT 처리 방식과 Smoothing 도구 구성에 대한 기술 설명이다."
+          }
+        ],
+        "platform_fields": {
+          "author_association": null,
+          "category": "Ideas",
+          "labels": null,
+          "reactions": null,
+          "state": null,
+          "state_reason": null
+        },
+        "rationale": "LUT 점단위 제약과 Local Editing -> Smoothing의 Halation/Add noise 사용 설명.",
+        "reason_codes": [
+          "ART_TECHNICAL_EXPLANATION"
+        ],
+        "relations": [],
+        "reviewed_by": "Antigravity",
+        "selection_method": "reviewed_snapshot",
+        "thread_sha256": "371e701a77641d52bb473085cdc864ed158a8a34131bd7eca2ec284de18233c6",
+        "thread_updated_at": "2025-12-20T07:22:55Z"
+      },
+      "source_id": "D_kwDONWPV1M4AjV4v",
+      "source_locations": [
+        {
+          "actor": {
+            "api_association": null,
+            "api_login": "agriggio",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "536ddfc88c17ea6871223eaca9338c0082e4aaced1fef1502fefc113c689ffc2",
+          "created_at": "2025-12-20T07:22:55Z",
+          "database_id": "15304221",
+          "file_sha256": "d8cfe115fff9c3907b3b094dfc86ea0b32c8189f4836a78dcdad123234688482",
+          "ref_id": "discussion-comment:DC_kwDONWPV1M4A6YYd",
+          "snapshot_path": "snapshots/discussion-comments/15304221.json",
+          "source_id": "DC_kwDONWPV1M4A6YYd",
+          "source_kind": "discussion-comment",
+          "source_number": 424,
+          "updated_at": "2025-12-20T07:22:55Z",
+          "url": "https://github.com/artraweditor/ART/discussions/424#discussioncomment-15304221"
+        },
+        {
+          "actor": {
+            "api_association": null,
+            "api_login": "notaliveRN",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "5cf8adb23506deb13acbfc87b220c8ff78843c30c276c37795b4904739a834a4",
+          "created_at": "2025-12-19T15:59:32Z",
+          "database_id": "9264687",
+          "file_sha256": "403921d73aeddd6a49c29f4583ecf6dc988d919ec27e4ca4174e1ce07bd50beb",
+          "ref_id": "discussion:D_kwDONWPV1M4AjV4v",
+          "snapshot_path": "snapshots/discussions/424.json",
+          "source_id": "D_kwDONWPV1M4AjV4v",
+          "source_kind": "discussion",
+          "source_number": 424,
+          "updated_at": "2025-12-20T07:22:55Z",
+          "url": "https://github.com/orgs/artraweditor/discussions/424"
+        }
+      ],
+      "source_number": 424,
+      "source_record_key": "discussion:D_kwDONWPV1M4AjV4v",
+      "source_type": "discussion",
+      "title": "Halation,Grain and Upscaling",
+      "url": "https://github.com/orgs/artraweditor/discussions/424"
+    },
+    {
+      "accepted_content": null,
+      "candidate_id": "github:artraweditor/ART:discussion:440",
+      "curated_content": [
+        {
+          "char_end": 628,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "discussion:D_kwDONWPV1M4AjyUw",
+          "role": "context",
+          "text": "Hi,\r\n\r\nI'm new here, and I have no idea which category would be appropriate (there's no \"bug report\" category or the like), and I think this omission might not be intentional, thus decided to use \"General\":\r\n\r\nWhen using the context menu, there's no file operation \"Move\", only \"Delete\" and \"Copy to\".\r\n\r\nRT does have the Move command, and it is actually a core feature of file operations (I would actually need it to cull my images, as I don't want to delete images, but move them to a subfolder \"_trash\" or the like, or might even want to move images \"out of the way\" by moving them to specific subfolders).\r\n\r\nBest, Christian"
+        },
+        {
+          "char_end": 54,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "discussion-comment:DC_kwDONWPV1M4A7c93",
+          "role": "guidance",
+          "text": "Hi,\r\nThere's rename which also works as a move.\r\n\r\nHTH"
+        },
+        {
+          "char_end": 1277,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "discussion-comment:DC_kwDONWPV1M4A7ehG",
+          "role": "confirmation",
+          "text": "Hi,\r\na quite unusual approach nowadays, reminds me of Unix (were rename is made with the mv command, as far as I remember). Works so far and feels quite practical, but I would suggest some improvements (in order of \"importance\" ;-)):\r\n\r\n1. Change the menu name to \"Rename/Move\" to make this functionality clear to the \"unsuspecting\" user. (BTW, if you need/want support for the German language, I could be of help.)\r\n\r\n2. Move the XMP file too, since this is part of the \"bundle\". (I tested on Linux. I didn't check if the Rename operation already does it. XnView MP has an interesting feature regarding sidecar files, as it includes JPEG and lets one define additional extensions.)\r\n\r\n3. When first clicking on the folder selection for the move operation, use the current directory of the file browser (as is indicated by the \".\" on first use), not with some other folder. (I tested this on macOS, Windows and Linux, and it were totally different locations; opening the home folder in Linux was the most sensible of the three. ;-))\r\n\r\n4. Related to point 3: The \"Base directory:\" is misleading, as it points to the last base directory, not the current (again, on Linux). This is shown in the \"Preview\" string, but this is not what I would expect. Didn't test it in RT.\r\n\r\nBest"
+        }
+      ],
+      "metadata": {
+        "accepted_answer_availability": "not_collected",
+        "evidence": [
+          {
+            "confirms_content_index": 1,
+            "content_index": 2,
+            "signal": "USER_CONFIRMED_ACTION"
+          }
+        ],
+        "field_availability": {
+          "author_association": false,
+          "category": true,
+          "labels": false,
+          "reactions": false,
+          "state": false,
+          "state_reason": false
+        },
+        "knowledge_status": "curated_guidance",
+        "limitations": [
+          {
+            "code": "AS_OF_SOURCE_ONLY",
+            "content_indices": [
+              2
+            ],
+            "note": "Rename을 통한 이동 동작 확인이며 XMP 동반 이동 등 미구현 사항이 있다."
+          }
+        ],
+        "platform_fields": {
+          "author_association": null,
+          "category": "General",
+          "labels": null,
+          "reactions": null,
+          "state": null,
+          "state_reason": null
+        },
+        "rationale": "Rename 메뉴를 통한 파일 이동 동작 안내와 사용자 확인.",
+        "reason_codes": [
+          "USER_CONFIRMED_ACTION"
+        ],
+        "relations": [],
+        "reviewed_by": "Antigravity",
+        "selection_method": "reviewed_snapshot",
+        "thread_sha256": "fb28ae284e630aae18b38eed7495339859e182fefd751c515006c71e18d9cd52",
+        "thread_updated_at": "2026-01-24T16:02:30Z"
+      },
+      "source_id": "D_kwDONWPV1M4AjyUw",
+      "source_locations": [
+        {
+          "actor": {
+            "api_association": null,
+            "api_login": "agriggio",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "47b34a8c2551e5da094eda6ff2c07e4e66cc1161cbd7b3377e77ae2c410623b3",
+          "created_at": "2026-01-23T21:17:45Z",
+          "database_id": "15585143",
+          "file_sha256": "f60cf256bcda2ec68c392707151ed001f33067816249efea3938b3af10ad2454",
+          "ref_id": "discussion-comment:DC_kwDONWPV1M4A7c93",
+          "snapshot_path": "snapshots/discussion-comments/15585143.json",
+          "source_id": "DC_kwDONWPV1M4A7c93",
+          "source_kind": "discussion-comment",
+          "source_number": 440,
+          "updated_at": "2026-01-23T21:17:45Z",
+          "url": "https://github.com/artraweditor/ART/discussions/440#discussioncomment-15585143"
+        },
+        {
+          "actor": {
+            "api_association": null,
+            "api_login": "caugustin",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "7af0706527db2fd712e83b823273e0916f92655d3a94f7c24425df8de340ff9a",
+          "created_at": "2026-01-24T15:05:32Z",
+          "database_id": "15591494",
+          "file_sha256": "c077dd82542a9c8e7e9a42bde0e1c39165cc5f1749665e55154d9899ab1c09fa",
+          "ref_id": "discussion-comment:DC_kwDONWPV1M4A7ehG",
+          "snapshot_path": "snapshots/discussion-comments/15591494.json",
+          "source_id": "DC_kwDONWPV1M4A7ehG",
+          "source_kind": "discussion-comment",
+          "source_number": 440,
+          "updated_at": "2026-01-24T15:05:32Z",
+          "url": "https://github.com/artraweditor/ART/discussions/440#discussioncomment-15591494"
+        },
+        {
+          "actor": {
+            "api_association": null,
+            "api_login": "caugustin",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "dd66ac899bc8b0227dc8a4ee33400f73b707d42a1b4a58bd07c7f39d31c68276",
+          "created_at": "2026-01-23T19:46:02Z",
+          "database_id": "9381168",
+          "file_sha256": "6b96895e027d44e1b2754937678118cbe58f1bd603fdaf470f143990c8f28e5c",
+          "ref_id": "discussion:D_kwDONWPV1M4AjyUw",
+          "snapshot_path": "snapshots/discussions/440.json",
+          "source_id": "D_kwDONWPV1M4AjyUw",
+          "source_kind": "discussion",
+          "source_number": 440,
+          "updated_at": "2026-01-24T16:02:17Z",
+          "url": "https://github.com/orgs/artraweditor/discussions/440"
+        }
+      ],
+      "source_number": 440,
+      "source_record_key": "discussion:D_kwDONWPV1M4AjyUw",
+      "source_type": "discussion",
+      "title": "File operation \"Move\" missing in context menu",
+      "url": "https://github.com/orgs/artraweditor/discussions/440"
+    },
+    {
+      "accepted_content": null,
+      "candidate_id": "github:artraweditor/ART:discussion:442",
+      "curated_content": [
+        {
+          "char_end": 607,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "discussion:D_kwDONWPV1M4Ajzpk",
+          "role": "context",
+          "text": "Hi all and please excuse my ignorance:\r\n\r\nI painted a mask over a beautiful bird sitting on an branch.\r\nI used some fine contrast to be applied only to this masked bird - it works as expected.\r\n\r\n**My question:**\r\n\r\nNow I want to reuse this same mask elsewhere ... but I don't see / find a way how to refer to it. How can I achieve the intended reuse?\r\n\r\n**_NB:_** I used to use _darktable_ for years but find it's GUI and tools behaviour much less than comfortable. Thus I currently investigate **ART** .... having already left _RawTherapee_ behind due to the lack of advanced selective retouching options."
+        },
+        {
+          "char_end": 464,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "discussion-comment:DC_kwDONWPV1M4A7gGl",
+          "role": "guidance",
+          "text": "Hi, yes it's possible. You just have to give a name to the mask, and then it will appear in subsequent tools as a \"Liked mask\". \"Subsequent\" here means that the tool / region follows the one in which you originally defined the mask in the processing pipeline (the order is the same as you see on the screen, from top to bottom).\r\n\r\nHere's a quick video that shows how to do it:\r\n\r\nhttps://github.com/user-attachments/assets/e0abb23c-fb24-40ef-ad55-ad81ec94c5bc\r\n\r\n"
+        },
+        {
+          "char_end": 541,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "discussion-comment:DC_kwDONWPV1M4A7hf1",
+          "role": "caveat",
+          "text": "Hi, \r\nyou are right, you can only reuse masks in tools that appear later in the pipeline. This is not something that can be relaxed easily, and I have no plans of changing it in the near future, sorry. However, you can copy/paste a mask from a tool to another freely. The masks might not be identical (because the result of parametric masks depend on where they are applied in the pipeline), but should be close enough to give you a reasonable starting point.\r\nIf this is still not enough, I'm afraid ART is not the right tool, sorry.\r\n\r\nHTH"
+        }
+      ],
+      "metadata": {
+        "accepted_answer_availability": "not_collected",
+        "evidence": [
+          {
+            "content_index": 1,
+            "signal": "ART_TECHNICAL_EXPLANATION"
+          }
+        ],
+        "field_availability": {
+          "author_association": false,
+          "category": true,
+          "labels": false,
+          "reactions": false,
+          "state": false,
+          "state_reason": false
+        },
+        "knowledge_status": "curated_guidance",
+        "limitations": [
+          {
+            "code": "AS_OF_SOURCE_ONLY",
+            "content_indices": [
+              1,
+              2
+            ],
+            "note": "마스크 재사용은 파이프라인 후속 도구에만 가능하며 전체 도구 임의 재사용은 불가능하다."
+          }
+        ],
+        "platform_fields": {
+          "author_association": null,
+          "category": "General",
+          "labels": null,
+          "reactions": null,
+          "state": null,
+          "state_reason": null
+        },
+        "rationale": "도구 간 마스크 재사용 방법과 파이프라인 후속 도구 제한 및 복사/붙여넣기 설명.",
+        "reason_codes": [
+          "ART_TECHNICAL_EXPLANATION"
+        ],
+        "relations": [],
+        "reviewed_by": "Antigravity",
+        "selection_method": "reviewed_snapshot",
+        "thread_sha256": "1784e27b0f03abe6f2761c08aca0bafff22e1d72f49083f8a30ec92b5c3f6ffa",
+        "thread_updated_at": "2026-01-26T17:31:46Z"
+      },
+      "source_id": "D_kwDONWPV1M4Ajzpk",
+      "source_locations": [
+        {
+          "actor": {
+            "api_association": null,
+            "api_login": "agriggio",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "540f38a4657c23cd2ad26019a99b8c8eef3aad6a4953b64bb21e14862af3d394",
+          "created_at": "2026-01-25T14:20:31Z",
+          "database_id": "15597989",
+          "file_sha256": "861fd65f3393475d92fbb0c8bc83dc00b6c1e4af2908284c7f4316a6953fd83f",
+          "ref_id": "discussion-comment:DC_kwDONWPV1M4A7gGl",
+          "snapshot_path": "snapshots/discussion-comments/15597989.json",
+          "source_id": "DC_kwDONWPV1M4A7gGl",
+          "source_kind": "discussion-comment",
+          "source_number": 442,
+          "updated_at": "2026-01-25T14:20:31Z",
+          "url": "https://github.com/artraweditor/ART/discussions/442#discussioncomment-15597989"
+        },
+        {
+          "actor": {
+            "api_association": null,
+            "api_login": "agriggio",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "b0b16d65b5f7bc730a01267cfb7c1e5ac67444e0aba0315091ab159e55e81c49",
+          "created_at": "2026-01-26T08:40:17Z",
+          "database_id": "15603701",
+          "file_sha256": "c12686c323b16578bcd6f171a971f66ec393e9f385f45632cfb6ff94c92705ac",
+          "ref_id": "discussion-comment:DC_kwDONWPV1M4A7hf1",
+          "snapshot_path": "snapshots/discussion-comments/15603701.json",
+          "source_id": "DC_kwDONWPV1M4A7hf1",
+          "source_kind": "discussion-comment",
+          "source_number": 442,
+          "updated_at": "2026-01-26T08:40:17Z",
+          "url": "https://github.com/artraweditor/ART/discussions/442#discussioncomment-15603701"
+        },
+        {
+          "actor": {
+            "api_association": null,
+            "api_login": "sophisticatedDreamer",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "c588d14928e9dcf96ae96e608dc29bef2504a3f9661a9732539a299ddbc894de",
+          "created_at": "2026-01-25T14:05:06Z",
+          "database_id": "9386596",
+          "file_sha256": "aa2c322fe50f453879376c26ee70afc0366ae1732916091a5d88edad3aac6d4a",
+          "ref_id": "discussion:D_kwDONWPV1M4Ajzpk",
+          "snapshot_path": "snapshots/discussions/442.json",
+          "source_id": "D_kwDONWPV1M4Ajzpk",
+          "source_kind": "discussion",
+          "source_number": 442,
+          "updated_at": "2026-01-26T17:31:10Z",
+          "url": "https://github.com/orgs/artraweditor/discussions/442"
+        }
+      ],
+      "source_number": 442,
+      "source_record_key": "discussion:D_kwDONWPV1M4Ajzpk",
+      "source_type": "discussion",
+      "title": "ART newbie: How to reuse the same mask I painted in one tool in one or more other tools?",
+      "url": "https://github.com/orgs/artraweditor/discussions/442"
+    },
+    {
+      "accepted_content": null,
+      "candidate_id": "github:artraweditor/ART:discussion:489",
+      "curated_content": [
+        {
+          "char_end": 217,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "discussion:D_kwDONWPV1M4AmoIs",
+          "role": "context",
+          "text": "Hi, in nature the round shape is more common comparing with rectangular one. I understand that we could do it with the polygonal shape, but it would be useful to get an ellipse mask directly, as the spot in RT. Thanks"
+        },
+        {
+          "char_end": 72,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "discussion-comment:DC_kwDONWPV1M4BBAtC",
+          "role": "guidance",
+          "text": "Hi,\r\nYou can just use a rectangle mask and set roundness to 100%.\r\n\r\nHTH"
+        }
+      ],
+      "metadata": {
+        "accepted_answer_availability": "not_collected",
+        "evidence": [
+          {
+            "content_index": 1,
+            "signal": "ACTIONABLE_GUIDANCE"
+          }
+        ],
+        "field_availability": {
+          "author_association": false,
+          "category": true,
+          "labels": false,
+          "reactions": false,
+          "state": false,
+          "state_reason": false
+        },
+        "knowledge_status": "curated_guidance",
+        "limitations": [
+          {
+            "code": "AS_OF_SOURCE_ONLY",
+            "content_indices": [
+              1
+            ],
+            "note": "타원 마스크를 사각형 마스크의 라운드 100% 설정으로 대체하는 방법이다."
+          }
+        ],
+        "platform_fields": {
+          "author_association": null,
+          "category": "Ideas",
+          "labels": null,
+          "reactions": null,
+          "state": null,
+          "state_reason": null
+        },
+        "rationale": "사각형 마스크 roundness 100%를 통한 타원형 마스크 생성 방법.",
+        "reason_codes": [
+          "ACTIONABLE_GUIDANCE"
+        ],
+        "relations": [],
+        "reviewed_by": "Antigravity",
+        "selection_method": "reviewed_snapshot",
+        "thread_sha256": "b6574a5ad183c0c89d8e1469ddf592d477fcf03217d650fecc8465ce848c0679",
+        "thread_updated_at": "2026-05-24T17:43:18Z"
+      },
+      "source_id": "D_kwDONWPV1M4AmoIs",
+      "source_locations": [
+        {
+          "actor": {
+            "api_association": null,
+            "api_login": "agriggio",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "9fd8468476d9069df6a88a87bf5fc976ab5c1b559dcb43c5b458f4ebc2c7a14a",
+          "created_at": "2026-05-24T17:43:18Z",
+          "database_id": "17042242",
+          "file_sha256": "04dc9ee760432d0a524cb7503c1c05591b7587fb443ac1bb1c4653309f3db61e",
+          "ref_id": "discussion-comment:DC_kwDONWPV1M4BBAtC",
+          "snapshot_path": "snapshots/discussion-comments/17042242.json",
+          "source_id": "DC_kwDONWPV1M4BBAtC",
+          "source_kind": "discussion-comment",
+          "source_number": 489,
+          "updated_at": "2026-05-24T17:43:18Z",
+          "url": "https://github.com/artraweditor/ART/discussions/489#discussioncomment-17042242"
+        },
+        {
+          "actor": {
+            "api_association": null,
+            "api_login": "guynux",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "2b7fbf05e7642f965e0e5c7fe2157f163a171b4a354c7bc3cf3b02fd247ef77e",
+          "created_at": "2026-05-24T13:40:28Z",
+          "database_id": "10125868",
+          "file_sha256": "b2fc71a30a57454a1bc91eb17aedab6287152d5937443ce62ba4012590ae9349",
+          "ref_id": "discussion:D_kwDONWPV1M4AmoIs",
+          "snapshot_path": "snapshots/discussions/489.json",
+          "source_id": "D_kwDONWPV1M4AmoIs",
+          "source_kind": "discussion",
+          "source_number": 489,
+          "updated_at": "2026-05-24T17:43:18Z",
+          "url": "https://github.com/orgs/artraweditor/discussions/489"
+        }
+      ],
+      "source_number": 489,
+      "source_record_key": "discussion:D_kwDONWPV1M4AmoIs",
+      "source_type": "discussion",
+      "title": "Ellipse mask",
+      "url": "https://github.com/orgs/artraweditor/discussions/489"
+    },
+    {
+      "accepted_content": null,
+      "candidate_id": "github:artraweditor/ART:discussion:494",
+      "curated_content": [
+        {
+          "char_end": 173,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "discussion:D_kwDONWPV1M4Am6JE",
+          "role": "context",
+          "text": "I can only access my home directory and pasting the path of files on a local disk drive will not load any files at all. Anyone else got the same problem?\r\nRegards,\r\n\r\nAdrian"
+        },
+        {
+          "char_end": 247,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "discussion-comment:DC_kwDONWPV1M4BBoUd",
+          "role": "reproduction",
+          "text": "Hello,\n\nI am using the flatpack that was suggested by the Fedora Discover package, I am running\nFedora 44, KDE Plasma. The menu does not list internal disk drives and manually enetering the path does nothing at all.\n\nThanks for your help!\n\nAdrian\n"
+        },
+        {
+          "char_end": 195,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "discussion-comment:DC_kwDONWPV1M4BBoVr",
+          "role": "guidance",
+          "text": "Hi,\r\nI have no control over the flatpak, sorry. I think it runs in a sandbox and that might be the reason for this behaviour. Maybe you can try with the appimage that is available here on GitHub?"
+        },
+        {
+          "char_end": 108,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "discussion-comment:DC_kwDONWPV1M4BBpDW",
+          "role": "confirmation",
+          "text": "hi,\nI tried the appimage, it works perfectly :) Thank you for your help!\nbest wishes from Germany\n\nAdrian\n\nS"
+        }
+      ],
+      "metadata": {
+        "accepted_answer_availability": "not_collected",
+        "evidence": [
+          {
+            "confirms_content_index": 2,
+            "content_index": 3,
+            "signal": "USER_CONFIRMED_ACTION"
+          }
+        ],
+        "field_availability": {
+          "author_association": false,
+          "category": true,
+          "labels": false,
+          "reactions": false,
+          "state": false,
+          "state_reason": false
+        },
+        "knowledge_status": "curated_guidance",
+        "limitations": [
+          {
+            "code": "PLATFORM_SPECIFIC",
+            "content_indices": [
+              1,
+              2,
+              3
+            ],
+            "note": "Flatpak 샌드박스 환경과 AppImage 대안 실행에 대한 사례다."
+          },
+          {
+            "code": "HYPOTHESIS",
+            "content_indices": [
+              2
+            ],
+            "note": "샌드박스가 원인이라는 것은 추정이다."
+          }
+        ],
+        "platform_fields": {
+          "author_association": null,
+          "category": "Q&A",
+          "labels": null,
+          "reactions": null,
+          "state": null,
+          "state_reason": null
+        },
+        "rationale": "Fedora Flatpak의 로컬 드라이브 접근 문제에 대한 AppImage 대안 실행 성공 확인.",
+        "reason_codes": [
+          "USER_CONFIRMED_ACTION"
+        ],
+        "relations": [],
+        "reviewed_by": "Antigravity",
+        "selection_method": "reviewed_snapshot",
+        "thread_sha256": "2393373bb6566dd7c5ab8c811c4e6e4828bc75281f9712d8427c8443bb3ca68a",
+        "thread_updated_at": "2026-06-07T10:59:25Z"
+      },
+      "source_id": "D_kwDONWPV1M4Am6JE",
+      "source_locations": [
+        {
+          "actor": {
+            "api_association": null,
+            "api_login": "Stellardetail",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "99a9029c628ec312a5cd2f8f8df6628652f84e783431d87018586058dd8d1132",
+          "created_at": "2026-06-06T18:08:53Z",
+          "database_id": "17204509",
+          "file_sha256": "f3581c3e2cce3e0a47fb51db171b9c597cced4c8ca47409a390e41b821e9f2de",
+          "ref_id": "discussion-comment:DC_kwDONWPV1M4BBoUd",
+          "snapshot_path": "snapshots/discussion-comments/17204509.json",
+          "source_id": "DC_kwDONWPV1M4BBoUd",
+          "source_kind": "discussion-comment",
+          "source_number": 494,
+          "updated_at": "2026-06-06T18:08:53Z",
+          "url": "https://github.com/artraweditor/ART/discussions/494#discussioncomment-17204509"
+        },
+        {
+          "actor": {
+            "api_association": null,
+            "api_login": "agriggio",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "9af1c2cc24c5ddfa09c1df0dee21617c0da0c8e836898929260636f8a2e9a0fd",
+          "created_at": "2026-06-06T18:23:59Z",
+          "database_id": "17204587",
+          "file_sha256": "22a19bfed32257b8ecca0df2f87d978d2ca8a37450b989b2fb45070de1997e42",
+          "ref_id": "discussion-comment:DC_kwDONWPV1M4BBoVr",
+          "snapshot_path": "snapshots/discussion-comments/17204587.json",
+          "source_id": "DC_kwDONWPV1M4BBoVr",
+          "source_kind": "discussion-comment",
+          "source_number": 494,
+          "updated_at": "2026-06-06T18:23:59Z",
+          "url": "https://github.com/artraweditor/ART/discussions/494#discussioncomment-17204587"
+        },
+        {
+          "actor": {
+            "api_association": null,
+            "api_login": "Stellardetail",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "a1504fe8af7a770468ffced8f9f2b063d44ed8114e45a8e90bd112c6b7429feb",
+          "created_at": "2026-06-07T06:54:49Z",
+          "database_id": "17207510",
+          "file_sha256": "a171b1565a4e3640fd93eba452c92c78846938d9e68f06ff9b3d6cbc1585e2bb",
+          "ref_id": "discussion-comment:DC_kwDONWPV1M4BBpDW",
+          "snapshot_path": "snapshots/discussion-comments/17207510.json",
+          "source_id": "DC_kwDONWPV1M4BBpDW",
+          "source_kind": "discussion-comment",
+          "source_number": 494,
+          "updated_at": "2026-06-07T06:54:49Z",
+          "url": "https://github.com/artraweditor/ART/discussions/494#discussioncomment-17207510"
+        },
+        {
+          "actor": {
+            "api_association": null,
+            "api_login": "Stellardetail",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "4af4be51daaf6c13353eb5a1c319d7a9acad3feeb02f669ce6ca9a20532619c4",
+          "created_at": "2026-06-04T18:12:19Z",
+          "database_id": "10199620",
+          "file_sha256": "74127aa40e5c7bd3e4d2c7c52cd3f7dc1272390357a4d98f550ee0b095635a46",
+          "ref_id": "discussion:D_kwDONWPV1M4Am6JE",
+          "snapshot_path": "snapshots/discussions/494.json",
+          "source_id": "D_kwDONWPV1M4Am6JE",
+          "source_kind": "discussion",
+          "source_number": 494,
+          "updated_at": "2026-06-07T10:59:25Z",
+          "url": "https://github.com/orgs/artraweditor/discussions/494"
+        }
+      ],
+      "source_number": 494,
+      "source_record_key": "discussion:D_kwDONWPV1M4Am6JE",
+      "source_type": "discussion",
+      "title": "Accessing local disk  drives",
+      "url": "https://github.com/orgs/artraweditor/discussions/494"
+    },
+    {
+      "accepted_content": null,
+      "candidate_id": "github:artraweditor/ART:issue:477",
+      "curated_content": [
+        {
+          "char_end": 1567,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "issue:477",
+          "role": "context",
+          "text": "## Feature Request: Sony Alpha A7 V Raw Support\n\n### Summary\nRequest for support of Sony Alpha A7 V raw files (.ARW format) in ART.\n\n### Camera Details\n- **Camera model:** Sony Alpha A7 V\n- **Raw format:** Lossless .ARW files\n- **Status:** Currently not supported by ART\n\n### Issue Description\nThe Sony Alpha A7 V is a recently released camera, and ART does not currently recognize or process its raw files. Support depends on LibRaw adding compatibility for this model.\n\nWhen attempting to open lossless .ARW files, ART displays the embedded JPEG preview but exhibits critical issues in edit mode.\n\n### Bugs Observed\n1. **Aberrant tone curve behavior** – Tone curve adjustments produce incorrect tonal results and don't respond as expected\n2. **Black borders on right and bottom edges** – Dark borders appear on the right side and bottom of the image, cutting off valid image data\n\n### Expected Behavior\nOnce LibRaw releases an update with A7 V support, ART should be able to:\n- Open and display Sony A7 V lossless .ARW files correctly\n- Apply tone curves and edits without artifacts\n- Process raw data without border clipping\n\n### Additional Information\n- This is a dependency on LibRaw's underlying raw decoding library\n- Sample .ARW file: https://discuss.pixls.us/uploads/short-url/oqgf2RTjo7LNcUcpKtRWJvAOhLA.ARW\n\n\n\n![image|602x469](https://d2x313g9lpht1q.cloudfront.net/original/3X/e/d/edf903ef7b3bee9c7bad37e4ebd0d318e02cfad0.jpeg)\n![image|690x299](https://d2x313g9lpht1q.cloudfront.net/optimized/3X/e/9/e9a7e4c2d9c2d79739b257476714cba393a89e24_2_690x299.jpeg)"
+        },
+        {
+          "char_end": 72,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "issue-comment:4428738434",
+          "role": "reported_fix",
+          "text": "Hi, thanks for the report! Should work better now with the latest master"
+        },
+        {
+          "char_end": 220,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "issue-comment:4433310082",
+          "role": "confirmation",
+          "text": "@agriggio Great! I built the latest master and the Sony A7 V raw files work perfectly now. 🎉 \nThanks for the quick fix, and thanks for maintaining such a great raw editor! Really appreciate it – really appreciate it! 🙏 \n"
+        }
+      ],
+      "metadata": {
+        "accepted_answer_availability": "not_applicable",
+        "evidence": [
+          {
+            "confirms_content_index": 1,
+            "content_index": 2,
+            "signal": "FIX_VERSION_CONFIRMED"
+          }
+        ],
+        "field_availability": {
+          "author_association": true,
+          "category": false,
+          "labels": true,
+          "reactions": true,
+          "state": true,
+          "state_reason": true
+        },
+        "knowledge_status": "reported_fix",
+        "limitations": [
+          {
+            "code": "VERSION_SPECIFIC",
+            "content_indices": [
+              1,
+              2
+            ],
+            "note": "게시 당시 master 기준 수정이며 정식 릴리스 버전 번호가 아니다."
+          }
+        ],
+        "platform_fields": {
+          "author_association": "NONE",
+          "category": null,
+          "labels": [],
+          "reactions": {
+            "+1": 0,
+            "-1": 0,
+            "confused": 0,
+            "eyes": 0,
+            "heart": 0,
+            "hooray": 0,
+            "laugh": 0,
+            "rocket": 0,
+            "total_count": 0,
+            "url": "https://api.github.com/repos/artraweditor/ART/issues/477/reactions"
+          },
+          "state": "closed",
+          "state_reason": "completed"
+        },
+        "rationale": "Sony Alpha A7 V raw 파일 지원 제안 및 최신 master 빌드에서의 동작 확인.",
+        "reason_codes": [
+          "FIX_VERSION_CONFIRMED"
+        ],
+        "relations": [],
+        "reviewed_by": "Antigravity",
+        "selection_method": "reviewed_snapshot",
+        "thread_sha256": "6997441fd315b9ba0a277e115994a224fffce66632053b876d79c8f38d0c69e9",
+        "thread_updated_at": "2026-05-12T18:02:01Z"
+      },
+      "source_id": "4412619265",
+      "source_locations": [
+        {
+          "actor": {
+            "api_association": "COLLABORATOR",
+            "api_login": "agriggio",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "7ad00e1ca85e4f19384db490e106294dcb85956b866d423ba3e8bbad0f8c62ea",
+          "created_at": "2026-05-12T08:35:18Z",
+          "database_id": "4428738434",
+          "file_sha256": "389052956325358970f93218ac4d17ae341505fc7722737534f4a5ac3ecbdda9",
+          "ref_id": "issue-comment:4428738434",
+          "snapshot_path": "snapshots/issue-comments/4428738434.json",
+          "source_id": "4428738434",
+          "source_kind": "issue-comment",
+          "source_number": 477,
+          "updated_at": "2026-05-12T08:35:18Z",
+          "url": "https://github.com/artraweditor/ART/issues/477#issuecomment-4428738434"
+        },
+        {
+          "actor": {
+            "api_association": "NONE",
+            "api_login": "Atn-D",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "c5480efdff7b7e232a039835940c960d1e42089c6e1c3fdf00a30cdcd92f6442",
+          "created_at": "2026-05-12T18:00:31Z",
+          "database_id": "4433310082",
+          "file_sha256": "f56b2af89440a8d8be71b8b141ff711c9ac32e31e8ae35e9f97dfd27bcf5c24b",
+          "ref_id": "issue-comment:4433310082",
+          "snapshot_path": "snapshots/issue-comments/4433310082.json",
+          "source_id": "4433310082",
+          "source_kind": "issue-comment",
+          "source_number": 477,
+          "updated_at": "2026-05-12T18:02:01Z",
+          "url": "https://github.com/artraweditor/ART/issues/477#issuecomment-4433310082"
+        },
+        {
+          "actor": {
+            "api_association": "NONE",
+            "api_login": "Atn-D",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "563a8e9dba4e9c09918629da79938df70ebc50ad1d12f2b11703265a7e2d6aef",
+          "created_at": "2026-05-09T13:18:00Z",
+          "database_id": "4412619265",
+          "file_sha256": "2faba48ca1b98d6ccc74b615a703006a2d795f15752e310ef12a2df579388c3d",
+          "ref_id": "issue:477",
+          "snapshot_path": "snapshots/issues/477.json",
+          "source_id": "4412619265",
+          "source_kind": "issue",
+          "source_number": 477,
+          "updated_at": "2026-05-12T18:02:01Z",
+          "url": "https://github.com/artraweditor/ART/issues/477"
+        }
+      ],
+      "source_number": 477,
+      "source_record_key": "issue:477",
+      "source_type": "issue",
+      "title": "Feature Request: Sony Alpha A7 V Raw Support",
+      "url": "https://github.com/artraweditor/ART/issues/477"
+    },
+    {
+      "accepted_content": null,
+      "candidate_id": "github:artraweditor/ART:issue:500",
+      "curated_content": [
+        {
+          "char_end": 219,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "issue:500",
+          "role": "context",
+          "text": "Is it right, that there are no export options for jxl and the other export formats?\n\nThe exported quality seems to be good, but i can't see, which options, quality, color-subsampling (4:4:4, 4:2:2) is set ...\n\nThank you"
+        },
+        {
+          "char_end": 67,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "issue-comment:4711197631",
+          "role": "explanation",
+          "text": "Yes, there's no option. The quality is fixed to \"visually lossless\""
+        }
+      ],
+      "metadata": {
+        "accepted_answer_availability": "not_applicable",
+        "evidence": [
+          {
+            "content_index": 1,
+            "signal": "ART_TECHNICAL_EXPLANATION"
+          }
+        ],
+        "field_availability": {
+          "author_association": true,
+          "category": false,
+          "labels": true,
+          "reactions": true,
+          "state": true,
+          "state_reason": true
+        },
+        "knowledge_status": "curated_guidance",
+        "limitations": [
+          {
+            "code": "AS_OF_SOURCE_ONLY",
+            "content_indices": [
+              1
+            ],
+            "note": "게시 당시 동작 설명이며 이후 버전의 보장이 아니다."
+          }
+        ],
+        "platform_fields": {
+          "author_association": "NONE",
+          "category": null,
+          "labels": [],
+          "reactions": {
+            "+1": 0,
+            "-1": 0,
+            "confused": 0,
+            "eyes": 0,
+            "heart": 0,
+            "hooray": 0,
+            "laugh": 0,
+            "rocket": 0,
+            "total_count": 0,
+            "url": "https://api.github.com/repos/artraweditor/ART/issues/500/reactions"
+          },
+          "state": "closed",
+          "state_reason": "completed"
+        },
+        "rationale": "JXL export 품질 설정에 직접 답하는 기술 설명이다.",
+        "reason_codes": [
+          "ART_TECHNICAL_EXPLANATION"
+        ],
+        "relations": [],
+        "reviewed_by": "Antigravity",
+        "selection_method": "reviewed_snapshot",
+        "thread_sha256": "c51769f25343d903c59f612ddb96e8546e038415b3e65933124e587a099ca4c0",
+        "thread_updated_at": "2026-06-16T10:07:18Z"
+      },
+      "source_id": "4667542094",
+      "source_locations": [
+        {
+          "actor": {
+            "api_association": "COLLABORATOR",
+            "api_login": "agriggio",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "1a72636b6373fabc9ebbd0e99ee806d629fcf943837d8059a87a247e14473dc2",
+          "created_at": "2026-06-15T18:41:28Z",
+          "database_id": "4711197631",
+          "file_sha256": "32dcb0afb1e0f5a456a78c7d3e16a4b512ad1d244b58f75af53a1895147d8cad",
+          "ref_id": "issue-comment:4711197631",
+          "snapshot_path": "snapshots/issue-comments/4711197631.json",
+          "source_id": "4711197631",
+          "source_kind": "issue-comment",
+          "source_number": 500,
+          "updated_at": "2026-06-15T18:41:28Z",
+          "url": "https://github.com/artraweditor/ART/issues/500#issuecomment-4711197631"
+        },
+        {
+          "actor": {
+            "api_association": "NONE",
+            "api_login": "hubertmeier",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "590abe7e573eb2a063c3d46872800ad348b60282ff79ed4ee0eb9edbd12bff76",
+          "created_at": "2026-06-15T17:52:56Z",
+          "database_id": "4667542094",
+          "file_sha256": "210e95a36a0726bbb7fbb3ee1949cd8af571367cc44127228c5ea6360506bc8f",
+          "ref_id": "issue:500",
+          "snapshot_path": "snapshots/issues/500.json",
+          "source_id": "4667542094",
+          "source_kind": "issue",
+          "source_number": 500,
+          "updated_at": "2026-06-16T10:07:18Z",
+          "url": "https://github.com/artraweditor/ART/issues/500"
+        }
+      ],
+      "source_number": 500,
+      "source_record_key": "issue:500",
+      "source_type": "issue",
+      "title": "question: absolute no settings for jxl export?",
+      "url": "https://github.com/artraweditor/ART/issues/500"
+    },
+    {
+      "accepted_content": null,
+      "candidate_id": "github:artraweditor/ART:issue:516",
+      "curated_content": [
+        {
+          "char_end": 279,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "issue:516",
+          "role": "context",
+          "text": "Hi, \n\nI have seemingly the exact same issue as in #503 , but with Canon EOS R8. Fwiw I didn't spot an R8 entry in camconst.json\n\nTwo example files:\n- [normal RAW](https://drive.proton.me/urls/XBTNB16ZHG#Zl3KT2nfZDVI)\n- [cRAW](https://drive.proton.me/urls/5XEAGFCQHR#98KyVfcsPC3A)"
+        },
+        {
+          "char_end": 1307,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "issue-comment:5102797884",
+          "role": "reproduction",
+          "text": "Hi & thanks for the response!\n\nI'm building from sources using the bash script built by Morgan Hardwood (I think initially for RawTherapee) which fetches the latest sources and builds. This is on Fedora 44. \n\nI've tried two versions: self-built and the AppImage. \n\n- Self-built shows white thumbnails in browser and and a white image in the editor\n- AppImage shows white in browser, but the actual image in the editor \n\nOn the self-built one the ART about screen shows LibRaw, OpenColorIO and CTL Interpreter to be absent in the build. The latest LibRaw and OpenColorIO are installed on my system:\n\nVersion: e166d439c\nBranch: master\nCommit: e166d439c\nCommit date: 2026-07-26\nCompiler: cc 16.1.1\nProcessor: x86_64\nSystem: Linux\nBit depth: 64\nGtkmm: 3.24.10\nLensfun: 0.3.4.0\nExiv2: 0.28.6\nLCMS2: 2.16\nLibRaw: N/A\nOpenColorIO: N/A\nCTL interpreter: N/A\nBuild type: release\nBuild flags:  -std=c++11 -ffp-contract=off -march=native -Werror=unused-label -fno-math-errno -Wall -Wuninitialized -Wno-deprecated-declarations -Wno-unused-result -fopenmp -Werror=unknown-pragmas -O3 -DNDEBUG -ftree-vectorize\nLink flags:  -march=native\nOpenMP support: ON\nMi-malloc: V2.2\nBuild OS: Linux\nBuild date: 2026-07-27T18:13:22Z\n\nI'm open to troubleshoot if it helps the ART development - I quite like the balance ART strikes. \n "
+        },
+        {
+          "char_end": 305,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "issue-comment:5102851028",
+          "role": "guidance",
+          "text": "Hi,\nThat build script is very outdated, sorry about that. I should remove it from the repo. The app image should work, if you clear the cache also the thumbnail should be fine.\nFor building, I suggest you take a look at the GitHub workflow files, I think it shouldn't be hard to adapt them to fedora.\n\nHTH"
+        },
+        {
+          "char_end": 76,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "issue-comment:5103254495",
+          "role": "confirmation",
+          "text": "Thanks, can confirm cache clearing helped - will use the AppImage going fwd!"
+        }
+      ],
+      "metadata": {
+        "accepted_answer_availability": "not_applicable",
+        "evidence": [
+          {
+            "confirms_content_index": 2,
+            "content_index": 3,
+            "signal": "USER_CONFIRMED_ACTION"
+          }
+        ],
+        "field_availability": {
+          "author_association": true,
+          "category": false,
+          "labels": true,
+          "reactions": true,
+          "state": true,
+          "state_reason": true
+        },
+        "knowledge_status": "curated_guidance",
+        "limitations": [
+          {
+            "code": "PLATFORM_SPECIFIC",
+            "content_indices": [
+              1,
+              2,
+              3
+            ],
+            "note": "Fedora 환경 및 이전 빌드 스크립트의 캐시 문제에 해당하며 독립 문제다."
+          }
+        ],
+        "platform_fields": {
+          "author_association": "NONE",
+          "category": null,
+          "labels": [],
+          "reactions": {
+            "+1": 0,
+            "-1": 0,
+            "confused": 0,
+            "eyes": 0,
+            "heart": 0,
+            "hooray": 0,
+            "laugh": 0,
+            "rocket": 0,
+            "total_count": 0,
+            "url": "https://api.github.com/repos/artraweditor/ART/issues/516/reactions"
+          },
+          "state": "closed",
+          "state_reason": "completed"
+        },
+        "rationale": "Canon EOS R8 흰색 화면 문제에 대한 캐시 삭제 해결 및 AppImage 대안 안내.",
+        "reason_codes": [
+          "USER_CONFIRMED_ACTION"
+        ],
+        "relations": [
+          {
+            "reason": "유사 증상으로 본문에서 언급됨",
+            "relation": "related_to",
+            "target_record_key": "issue:503"
+          }
+        ],
+        "reviewed_by": "Antigravity",
+        "selection_method": "reviewed_snapshot",
+        "thread_sha256": "88e3fc9a4a453d6917c5d220553669202c2e097b53fcd16bca967adb6f324417",
+        "thread_updated_at": "2026-07-28T10:59:48Z"
+      },
+      "source_id": "4991269921",
+      "source_locations": [
+        {
+          "actor": {
+            "api_association": "NONE",
+            "api_login": "aniskanen",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "1f1ba99d682f42d9b98755f7a0f195174aa341dfee0dfa2a96432fc6237b087d",
+          "created_at": "2026-07-28T10:12:18Z",
+          "database_id": "5102797884",
+          "file_sha256": "05d83f0385b3bec5fbc7df33205ccc5ec21448da8417ec5c7d8d0d7ced6d6200",
+          "ref_id": "issue-comment:5102797884",
+          "snapshot_path": "snapshots/issue-comments/5102797884.json",
+          "source_id": "5102797884",
+          "source_kind": "issue-comment",
+          "source_number": 516,
+          "updated_at": "2026-07-28T10:12:18Z",
+          "url": "https://github.com/artraweditor/ART/issues/516#issuecomment-5102797884"
+        },
+        {
+          "actor": {
+            "api_association": "COLLABORATOR",
+            "api_login": "agriggio",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "540894d153b194c0e2326ece36af92413d9d2ddfddd95cb62d86d7b43d8387f5",
+          "created_at": "2026-07-28T10:16:45Z",
+          "database_id": "5102851028",
+          "file_sha256": "cda1f829009ace381da7db1df346a7420c48272560d0746be7c9120258bca928",
+          "ref_id": "issue-comment:5102851028",
+          "snapshot_path": "snapshots/issue-comments/5102851028.json",
+          "source_id": "5102851028",
+          "source_kind": "issue-comment",
+          "source_number": 516,
+          "updated_at": "2026-07-28T10:16:45Z",
+          "url": "https://github.com/artraweditor/ART/issues/516#issuecomment-5102851028"
+        },
+        {
+          "actor": {
+            "api_association": "NONE",
+            "api_login": "aniskanen",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "66b1fdba109e05a365a849e11af6e0559b18e0cb71701d1cbf0a51c366daa86d",
+          "created_at": "2026-07-28T10:59:48Z",
+          "database_id": "5103254495",
+          "file_sha256": "736082dd08fe1f4407016507535fbc7eccb6a1862a1175d2bce61823427801c3",
+          "ref_id": "issue-comment:5103254495",
+          "snapshot_path": "snapshots/issue-comments/5103254495.json",
+          "source_id": "5103254495",
+          "source_kind": "issue-comment",
+          "source_number": 516,
+          "updated_at": "2026-07-28T10:59:48Z",
+          "url": "https://github.com/artraweditor/ART/issues/516#issuecomment-5103254495"
+        },
+        {
+          "actor": {
+            "api_association": "NONE",
+            "api_login": "aniskanen",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "c6f2fbbea69847657b79cc79b20c033d8a8dd82ae925125eb44c2401f9c16b6d",
+          "created_at": "2026-07-27T18:51:23Z",
+          "database_id": "4991269921",
+          "file_sha256": "d93174a2d4a7c1821fa9d1053bfda4cb3d3b2e6dde374a5d1ac4e811b18e68c0",
+          "ref_id": "issue:516",
+          "snapshot_path": "snapshots/issues/516.json",
+          "source_id": "4991269921",
+          "source_kind": "issue",
+          "source_number": 516,
+          "updated_at": "2026-07-28T10:59:48Z",
+          "url": "https://github.com/artraweditor/ART/issues/516"
+        }
+      ],
+      "source_number": 516,
+      "source_record_key": "issue:516",
+      "source_type": "issue",
+      "title": "Canon EOS R8 images fully white",
+      "url": "https://github.com/artraweditor/ART/issues/516"
+    },
+    {
+      "accepted_content": null,
+      "candidate_id": "github:artraweditor/ART:issue:521",
+      "curated_content": [
+        {
+          "char_end": 579,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "issue:521",
+          "role": "context",
+          "text": "Using the latest ART from github on Xubuntu 26.04. \n\nWith a raw file opened, when I activate Lens correction profiles > Auto from database, I do not see any change in the image. Activating the option Manual via database, the Camera and Lens dropsdowns stay gray, ie. I can't choose my camera or lens. \n\nDoing the same in RawTherapee, I see a slight shift of the photo, it always worked like that. \n\nIf I remember well, this used to work the same in ART. \n\nIs it possible that I miss some kind of libraries, like LibRaw of Lensfun? \n\nOr is the thing just broken? \n\nRegards, Paul. "
+        },
+        {
+          "char_end": 130,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "issue-comment:5309120735",
+          "role": "guidance",
+          "text": "Seems like the lensfun db is not found. You might need to adjust the path in the options file, or use one of the prebuilt binaries"
+        },
+        {
+          "char_end": 204,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "issue-comment:5315824799",
+          "role": "confirmation",
+          "text": "Found it. On my system the lensfun db is at /usr/share/lensfun/**version_1**\nAfter setting that path in ARTs option file, everything works as usual and no grayed-out dropdowns any more. \n\nProblem solved! "
+        }
+      ],
+      "metadata": {
+        "accepted_answer_availability": "not_applicable",
+        "evidence": [
+          {
+            "confirms_content_index": 1,
+            "content_index": 2,
+            "signal": "USER_CONFIRMED_ACTION"
+          }
+        ],
+        "field_availability": {
+          "author_association": true,
+          "category": false,
+          "labels": true,
+          "reactions": true,
+          "state": true,
+          "state_reason": true
+        },
+        "knowledge_status": "curated_guidance",
+        "limitations": [
+          {
+            "code": "PLATFORM_SPECIFIC",
+            "content_indices": [
+              2
+            ],
+            "note": "/usr/share/lensfun/version_1 경로는 해당 시스템 기준이며 모든 배포판의 보편 경로가 아니다."
+          }
+        ],
+        "platform_fields": {
+          "author_association": "NONE",
+          "category": null,
+          "labels": [],
+          "reactions": {
+            "+1": 0,
+            "-1": 0,
+            "confused": 0,
+            "eyes": 0,
+            "heart": 0,
+            "hooray": 0,
+            "laugh": 0,
+            "rocket": 0,
+            "total_count": 0,
+            "url": "https://api.github.com/repos/artraweditor/ART/issues/521/reactions"
+          },
+          "state": "closed",
+          "state_reason": "completed"
+        },
+        "rationale": "Lens correction db 경로 설정 문제와 해결 확인.",
+        "reason_codes": [
+          "USER_CONFIRMED_ACTION"
+        ],
+        "relations": [],
+        "reviewed_by": "Antigravity",
+        "selection_method": "reviewed_snapshot",
+        "thread_sha256": "abb42bd78375d5ab1fb4c70167348c8b32a4e895ccf1c918ba0328d7d160bec6",
+        "thread_updated_at": "2026-08-17T18:41:52Z"
+      },
+      "source_id": "5165041757",
+      "source_locations": [
+        {
+          "actor": {
+            "api_association": "COLLABORATOR",
+            "api_login": "agriggio",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "6ba6674648cae52291494b4014a23d14f6cfef3d782b477ea449bb31420ada58",
+          "created_at": "2026-08-16T18:55:42Z",
+          "database_id": "5309120735",
+          "file_sha256": "3115c4f1f354a156b8ece823654fdc157a2886087e1e6f1077f3a4d9d0a031d9",
+          "ref_id": "issue-comment:5309120735",
+          "snapshot_path": "snapshots/issue-comments/5309120735.json",
+          "source_id": "5309120735",
+          "source_kind": "issue-comment",
+          "source_number": 521,
+          "updated_at": "2026-08-16T18:55:42Z",
+          "url": "https://github.com/artraweditor/ART/issues/521#issuecomment-5309120735"
+        },
+        {
+          "actor": {
+            "api_association": "NONE",
+            "api_login": "paulmatthijsse",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "2c9a985b1cd4cce065cc60cf546c9d879a0bb6bb34c828722cd18849334f5225",
+          "created_at": "2026-08-17T12:08:58Z",
+          "database_id": "5315824799",
+          "file_sha256": "55a4ad01f214a571a42ba2669e6e3603d93751de4e4502bffcfc8b17aacfc058",
+          "ref_id": "issue-comment:5315824799",
+          "snapshot_path": "snapshots/issue-comments/5315824799.json",
+          "source_id": "5315824799",
+          "source_kind": "issue-comment",
+          "source_number": 521,
+          "updated_at": "2026-08-17T12:08:58Z",
+          "url": "https://github.com/artraweditor/ART/issues/521#issuecomment-5315824799"
+        },
+        {
+          "actor": {
+            "api_association": "NONE",
+            "api_login": "paulmatthijsse",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "7d5e2d0a5ef6e7e4148aad13d4b12dbe69bc0000d3fbea4cf5b2b01edcc75cde",
+          "created_at": "2026-08-16T15:46:52Z",
+          "database_id": "5165041757",
+          "file_sha256": "15950aa010d1c054aee6310ed5b5a16ee35c5f97c855d32751dd606e95feb3f7",
+          "ref_id": "issue:521",
+          "snapshot_path": "snapshots/issues/521.json",
+          "source_id": "5165041757",
+          "source_kind": "issue",
+          "source_number": 521,
+          "updated_at": "2026-08-17T18:41:52Z",
+          "url": "https://github.com/artraweditor/ART/issues/521"
+        }
+      ],
+      "source_number": 521,
+      "source_record_key": "issue:521",
+      "source_type": "issue",
+      "title": "[Solved] Lens correction profile not working?",
+      "url": "https://github.com/artraweditor/ART/issues/521"
+    },
+    {
+      "accepted_content": null,
+      "candidate_id": "github:artraweditor/ART:issue:524",
+      "curated_content": [
+        {
+          "char_end": 665,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "issue:524",
+          "role": "context",
+          "text": "Many thanks @agriggio for looking at my bug report #510 and making an adjustment to ART for this.  \n\nUnfortunately, the problem is still present in ART 1.26.8.  If I do exactly the same as in bug #510 , ie download the RAW and arp files from https://drive.proton.me/urls/EDB0KYK6NC#nGVKBOuT3qGL open the RAW in ART, apply the arp profile, then zoom into 100% - still ART gets to 10% through the noise reduction, freezes for 20sec then crashes.  \n\nPlease would you mind most awfully having another look at this problem, to see if there is a way to prevent it happening?\n\nAnd if there is any further information I can supply that would be helpful, please let me know."
+        },
+        {
+          "char_end": 1722,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "issue-comment:5648127070",
+          "role": "caveat",
+          "text": "> Hi, can you test the binaries in https://github.com/artraweditor/ART/releases/tag/nightly to see if it's better now?\n\nMany thanks @agriggio for your reply, and for the nightly build to test.  \n\nI have downloaded the ART-165b246-linux64.tar.xz release, and installed it to test.  \n\nFirst I tested by opening the RAW file, applying the arp settings file, and then double-clicking on the image to zoom to 100%.  I did this three times, and each time the progress bar got 10% through the noise reduction (NR), then froze and crashed after 20 seconds.  \n\nThen I tested by opening the RAW file, applying the arp settings file, and clicking on the 1:1 button to zoom in to 100%.  I did this three times:\n\n1st time - the noise reduction got to 100%, then it froze and ART crashed 20sec later.  \n\n2nd time - the NR progress meter flickered a few times, then slowly moved to 100%, and the image rendered at 100% magnification.  I tried moving around the image by dragging it, which worked fine, then clicked Fit to Screen and the view changed back to fit the whole image on the screen.  I then clicked the 1:1 button again, but this time the NR got to 10%, then froze and crashed.  \n\n3rd time - as the 2nd time, the NR progress meter flickered a few times, moved to 100% and the image rendered at 100% magnification.  I tried to move around the image by dragging, but the first time I did this, the NR got stuck at 10% then ART froze and crashed.  \n\nSo I am sorry to have to report that the nightly binary does work occasionally, but not reliably  I'm afraid.  \n\nIs there anything more I can do that would help you find what is causing this problem, please?  For instance, are there any debug outputs of ART that I could upload?  "
+        },
+        {
+          "char_end": 412,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "issue-comment:5655898791",
+          "role": "reported_fix",
+          "text": "Hi,\nI have updated a new nightly, can you please test again when you have the chance?\nAs for the documentation, sorry that page was quite outdated. I have replaced it now with https://artraweditor.github.io/BuildLinux. To get a debug build, just replace `-DCMAKE_BUILD_TYPE=Release` with `-DCMAKE_BUILD_TYPE=Debug` in Step 3 (configure and build ART). But hopefully the new fix works and it won't be necessary..."
+        },
+        {
+          "char_end": 913,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "issue-comment:5670040673",
+          "role": "confirmation",
+          "text": "> Hi, I have updated a new nightly, can you please test again when you have the chance? As for the documentation, sorry that page was quite outdated. I have replaced it now with https://artraweditor.github.io/BuildLinux. To get a debug build, just replace `-DCMAKE_BUILD_TYPE=Release` with `-DCMAKE_BUILD_TYPE=Debug` in Step 3 (configure and build ART). But hopefully the new fix works and it won't be necessary...\n\nThank you @agriggio I have tested the new nightly build b11089b-linux64, and it works fine, I can zoom in to 100% and move around without any freezes or crashes.  Thank you ever so much for resolving this problem :-)  \n\nApart from your fix for this bug, is the b11089b nightly build the same as 1.26.8, please?  I am considering using the b11089b nightly in place of ART 1.26.8 until 1.26.9 is released, but am a bit concerned that b11089b might be unstable in other aspects.  \n\nThank you again!  "
+        },
+        {
+          "char_end": 75,
+          "char_start": 0,
+          "json_pointer": "/body",
+          "ref_id": "issue-comment:5670999476",
+          "role": "explanation",
+          "text": "Good, thanks for testing. I confirm the nightly should be perfectly usable "
+        }
+      ],
+      "metadata": {
+        "accepted_answer_availability": "not_applicable",
+        "evidence": [
+          {
+            "confirms_content_index": 2,
+            "content_index": 3,
+            "signal": "FIX_VERSION_CONFIRMED"
+          }
+        ],
+        "field_availability": {
+          "author_association": true,
+          "category": false,
+          "labels": true,
+          "reactions": true,
+          "state": true,
+          "state_reason": true
+        },
+        "knowledge_status": "reported_fix",
+        "limitations": [
+          {
+            "code": "VERSION_SPECIFIC",
+            "content_indices": [
+              2,
+              3
+            ],
+            "note": "b11089b nightly 수정이며 1.26.8 릴리스 자체의 해결이 아니다."
+          },
+          {
+            "code": "COUNTEREVIDENCE",
+            "content_indices": [
+              1
+            ],
+            "note": "이전 nightly(165b246)에서는 여전히 실패했다."
+          }
+        ],
+        "platform_fields": {
+          "author_association": "NONE",
+          "category": null,
+          "labels": [],
+          "reactions": {
+            "+1": 0,
+            "-1": 0,
+            "confused": 0,
+            "eyes": 0,
+            "heart": 0,
+            "hooray": 0,
+            "laugh": 0,
+            "rocket": 0,
+            "total_count": 0,
+            "url": "https://api.github.com/repos/artraweditor/ART/issues/524/reactions"
+          },
+          "state": "closed",
+          "state_reason": "completed"
+        },
+        "rationale": "Issue #510 재발에 대한 b11089b-linux64 nightly 빌드 수정 및 확인.",
+        "reason_codes": [
+          "FIX_VERSION_CONFIRMED"
+        ],
+        "relations": [
+          {
+            "reason": "#510 재발 및 후속 수정",
+            "relation": "follow_up_to",
+            "target_record_key": "issue:510"
+          }
+        ],
+        "reviewed_by": "Antigravity",
+        "selection_method": "reviewed_snapshot",
+        "thread_sha256": "166aff86123c127288fb0eb26bafe225edbd5a4d035d9e4241791f621faa6dfb",
+        "thread_updated_at": "2026-09-14T21:23:58Z"
+      },
+      "source_id": "5427570842",
+      "source_locations": [
+        {
+          "actor": {
+            "api_association": "NONE",
+            "api_login": "WestCountryW",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "a26d64cc47119a001f1f6da80c8a8d8491a205984f963e478ad7d2c2b931a468",
+          "created_at": "2026-09-12T19:20:16Z",
+          "database_id": "5648127070",
+          "file_sha256": "d7d4c46d954e9fa0aecfd385e6e4518d017b88e6ac242ed2ba60b3f550e5269a",
+          "ref_id": "issue-comment:5648127070",
+          "snapshot_path": "snapshots/issue-comments/5648127070.json",
+          "source_id": "5648127070",
+          "source_kind": "issue-comment",
+          "source_number": 524,
+          "updated_at": "2026-09-12T19:20:16Z",
+          "url": "https://github.com/artraweditor/ART/issues/524#issuecomment-5648127070"
+        },
+        {
+          "actor": {
+            "api_association": "COLLABORATOR",
+            "api_login": "agriggio",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "96174e6fef7754251883941822779f1faa468cd20f5cfdf54629eeacc7898cc4",
+          "created_at": "2026-09-13T20:26:25Z",
+          "database_id": "5655898791",
+          "file_sha256": "604f0a52d94969bf5231aca8524cc89aa0ca6457f0ee7130a01d01d92feca92f",
+          "ref_id": "issue-comment:5655898791",
+          "snapshot_path": "snapshots/issue-comments/5655898791.json",
+          "source_id": "5655898791",
+          "source_kind": "issue-comment",
+          "source_number": 524,
+          "updated_at": "2026-09-13T20:26:25Z",
+          "url": "https://github.com/artraweditor/ART/issues/524#issuecomment-5655898791"
+        },
+        {
+          "actor": {
+            "api_association": "NONE",
+            "api_login": "WestCountryW",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "84087ae3125422715db5d28edd9b761fec09455e5dedb0f571523e7e77eddd42",
+          "created_at": "2026-09-14T20:03:00Z",
+          "database_id": "5670040673",
+          "file_sha256": "e8b866bc7b37a8e34ae7c0e830da7a14bed82cad274b33c65020d254e5168d3a",
+          "ref_id": "issue-comment:5670040673",
+          "snapshot_path": "snapshots/issue-comments/5670040673.json",
+          "source_id": "5670040673",
+          "source_kind": "issue-comment",
+          "source_number": 524,
+          "updated_at": "2026-09-14T20:03:00Z",
+          "url": "https://github.com/artraweditor/ART/issues/524#issuecomment-5670040673"
+        },
+        {
+          "actor": {
+            "api_association": "COLLABORATOR",
+            "api_login": "agriggio",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "de7018d2b49170a69e71f3bffc60c947ea416a235c2e09734859506801421883",
+          "created_at": "2026-09-14T21:23:19Z",
+          "database_id": "5670999476",
+          "file_sha256": "67bda402d7643731cb4e6b6af2d857fae28fafc6e88eb598afc7a9e4a80b7c24",
+          "ref_id": "issue-comment:5670999476",
+          "snapshot_path": "snapshots/issue-comments/5670999476.json",
+          "source_id": "5670999476",
+          "source_kind": "issue-comment",
+          "source_number": 524,
+          "updated_at": "2026-09-14T21:23:19Z",
+          "url": "https://github.com/artraweditor/ART/issues/524#issuecomment-5670999476"
+        },
+        {
+          "actor": {
+            "api_association": "NONE",
+            "api_login": "WestCountryW",
+            "origin": "native",
+            "original_association": null,
+            "original_bitbucket_login": null,
+            "original_display_name": null,
+            "original_github_login": null
+          },
+          "body_sha256": "12dd719852066d718cbb11b201c353cb3e2c02425af41fcdb0922694deb93e37",
+          "created_at": "2026-09-11T18:09:56Z",
+          "database_id": "5427570842",
+          "file_sha256": "040d89a6da723ec8237bcfded57380e9b1545a6c91aaad7f8fee1c6abab282e3",
+          "ref_id": "issue:524",
+          "snapshot_path": "snapshots/issues/524.json",
+          "source_id": "5427570842",
+          "source_kind": "issue",
+          "source_number": 524,
+          "updated_at": "2026-09-14T21:23:58Z",
+          "url": "https://github.com/artraweditor/ART/issues/524"
+        }
+      ],
+      "source_number": 524,
+      "source_record_key": "issue:524",
+      "source_type": "issue",
+      "title": "[BUG] #510 still present in ART 1.26.8 - ART still freezing and crashing when enabling spot removal then zooming in to 100%",
+      "url": "https://github.com/artraweditor/ART/issues/524"
+    }
+  ],
+  "input_manifest": {
+    "curation_sha256": "e7925afe3a9cd5041d492f318bebf9c7bdc627023d29e5008713630e4d2a430e",
+    "last_synced_at": "2026-09-28T02:06:12Z",
+    "snapshot_count": 3080,
+    "snapshot_manifest_sha256": "52b6cdf587e1f5ed12d80570a41a476ef02dd6e2118c9a9c09a871e7889d01c5",
+    "sync_state_sha256": "0c2c0440ee63795103217495bfc651980f26170e024774b29bf3cc66aa464187",
+    "thread_count": 495
+  },
+  "repository": "artraweditor/ART",
+  "rules_version": "t10-2a-v1",
+  "schema_version": 1
+}

@@ -1,0 +1,725 @@
+{
+  "repository": "artraweditor/ART",
+  "rules_version": "t10-2a-v1",
+  "schema_version": 1,
+  "threads": {
+    "discussion:D_kwDONWPV1M4Ai6_I": {
+      "curated_content": [
+        {
+          "char_end": 2122,
+          "char_start": 0,
+          "record_key": "discussion:D_kwDONWPV1M4Ai6_I",
+          "role": "context"
+        },
+        {
+          "char_end": 273,
+          "char_start": 0,
+          "record_key": "discussion-comment:DC_kwDONWPV1M4A5PbN",
+          "role": "explanation"
+        }
+      ],
+      "disposition": "include",
+      "evidence": [
+        {
+          "content_index": 0,
+          "signal": "SELF_CONTAINED_TECHNICAL_GUIDE"
+        }
+      ],
+      "knowledge_status": "curated_guidance",
+      "limitations": [
+        {
+          "code": "PLATFORM_SPECIFIC",
+          "content_indices": [
+            0,
+            1
+          ],
+          "note": "Windows MSYS2 빌드 절차이며 Linux나 macOS에는 적용되지 않는다."
+        }
+      ],
+      "rationale": "Windows MSYS2 기반 개발 및 빌드 환경 단계별 가이드.",
+      "reason_codes": [
+        "SELF_CONTAINED_TECHNICAL_GUIDE"
+      ],
+      "relations": [],
+      "reviewed_by": "Antigravity",
+      "thread_sha256": "9d176d0165c005b537aefa743b0750a4e9c1c02d167d94d856ff561b2e5c7e05"
+    },
+    "discussion:D_kwDONWPV1M4AjNbf": {
+      "curated_content": [
+        {
+          "char_end": 440,
+          "char_start": 0,
+          "record_key": "discussion:D_kwDONWPV1M4AjNbf",
+          "role": "context"
+        },
+        {
+          "char_end": 515,
+          "char_start": 0,
+          "record_key": "discussion-comment:DC_kwDONWPV1M4A6DN4",
+          "role": "guidance"
+        }
+      ],
+      "disposition": "include",
+      "evidence": [
+        {
+          "content_index": 1,
+          "signal": "ACTIONABLE_GUIDANCE"
+        }
+      ],
+      "knowledge_status": "curated_guidance",
+      "limitations": [
+        {
+          "code": "PLATFORM_SPECIFIC",
+          "content_indices": [
+            1
+          ],
+          "note": "Flatpak 환경의 래퍼 셸 스크립트 구성 가이드다."
+        }
+      ],
+      "rationale": "외부 편집기(PhotoGIMP/GIMP Flatpak) 연동 래퍼 스크립트 작성 및 preferences 설정 방법.",
+      "reason_codes": [
+        "ACTIONABLE_GUIDANCE"
+      ],
+      "relations": [],
+      "reviewed_by": "Antigravity",
+      "thread_sha256": "4b0ef30bf0ade9c449288a4ed6bf4a6820791dd70e63f45a45d5bec56e0d8f68"
+    },
+    "discussion:D_kwDONWPV1M4AjV4v": {
+      "curated_content": [
+        {
+          "char_end": 406,
+          "char_start": 0,
+          "record_key": "discussion:D_kwDONWPV1M4AjV4v",
+          "role": "context"
+        },
+        {
+          "char_end": 932,
+          "char_start": 0,
+          "record_key": "discussion-comment:DC_kwDONWPV1M4A6YYd",
+          "role": "explanation"
+        }
+      ],
+      "disposition": "include",
+      "evidence": [
+        {
+          "content_index": 1,
+          "signal": "ART_TECHNICAL_EXPLANATION"
+        }
+      ],
+      "knowledge_status": "curated_guidance",
+      "limitations": [
+        {
+          "code": "AS_OF_SOURCE_ONLY",
+          "content_indices": [
+            1
+          ],
+          "note": "ART의 LUT 처리 방식과 Smoothing 도구 구성에 대한 기술 설명이다."
+        }
+      ],
+      "rationale": "LUT 점단위 제약과 Local Editing -> Smoothing의 Halation/Add noise 사용 설명.",
+      "reason_codes": [
+        "ART_TECHNICAL_EXPLANATION"
+      ],
+      "relations": [],
+      "reviewed_by": "Antigravity",
+      "thread_sha256": "371e701a77641d52bb473085cdc864ed158a8a34131bd7eca2ec284de18233c6"
+    },
+    "discussion:D_kwDONWPV1M4AjwVK": {
+      "curated_content": [],
+      "disposition": "review",
+      "evidence": [],
+      "knowledge_status": null,
+      "limitations": [],
+      "rationale": "nightly 링크, 404, 서로 다른 빌드 시험이 혼재하여 추가 검토 필요.",
+      "reason_codes": [
+        "INSUFFICIENT_EVIDENCE"
+      ],
+      "relations": [],
+      "reviewed_by": "Antigravity",
+      "thread_sha256": "6de89f9ed8ccfeb59ddc9432836c4cb04a0cae79af9f20cf09131f1c2fa9bf0a"
+    },
+    "discussion:D_kwDONWPV1M4AjyUw": {
+      "curated_content": [
+        {
+          "char_end": 628,
+          "char_start": 0,
+          "record_key": "discussion:D_kwDONWPV1M4AjyUw",
+          "role": "context"
+        },
+        {
+          "char_end": 54,
+          "char_start": 0,
+          "record_key": "discussion-comment:DC_kwDONWPV1M4A7c93",
+          "role": "guidance"
+        },
+        {
+          "char_end": 1277,
+          "char_start": 0,
+          "record_key": "discussion-comment:DC_kwDONWPV1M4A7ehG",
+          "role": "confirmation"
+        }
+      ],
+      "disposition": "include",
+      "evidence": [
+        {
+          "confirms_content_index": 1,
+          "content_index": 2,
+          "signal": "USER_CONFIRMED_ACTION"
+        }
+      ],
+      "knowledge_status": "curated_guidance",
+      "limitations": [
+        {
+          "code": "AS_OF_SOURCE_ONLY",
+          "content_indices": [
+            2
+          ],
+          "note": "Rename을 통한 이동 동작 확인이며 XMP 동반 이동 등 미구현 사항이 있다."
+        }
+      ],
+      "rationale": "Rename 메뉴를 통한 파일 이동 동작 안내와 사용자 확인.",
+      "reason_codes": [
+        "USER_CONFIRMED_ACTION"
+      ],
+      "relations": [],
+      "reviewed_by": "Antigravity",
+      "thread_sha256": "fb28ae284e630aae18b38eed7495339859e182fefd751c515006c71e18d9cd52"
+    },
+    "discussion:D_kwDONWPV1M4Ajzpk": {
+      "curated_content": [
+        {
+          "char_end": 607,
+          "char_start": 0,
+          "record_key": "discussion:D_kwDONWPV1M4Ajzpk",
+          "role": "context"
+        },
+        {
+          "char_end": 464,
+          "char_start": 0,
+          "record_key": "discussion-comment:DC_kwDONWPV1M4A7gGl",
+          "role": "guidance"
+        },
+        {
+          "char_end": 541,
+          "char_start": 0,
+          "record_key": "discussion-comment:DC_kwDONWPV1M4A7hf1",
+          "role": "caveat"
+        }
+      ],
+      "disposition": "include",
+      "evidence": [
+        {
+          "content_index": 1,
+          "signal": "ART_TECHNICAL_EXPLANATION"
+        }
+      ],
+      "knowledge_status": "curated_guidance",
+      "limitations": [
+        {
+          "code": "AS_OF_SOURCE_ONLY",
+          "content_indices": [
+            1,
+            2
+          ],
+          "note": "마스크 재사용은 파이프라인 후속 도구에만 가능하며 전체 도구 임의 재사용은 불가능하다."
+        }
+      ],
+      "rationale": "도구 간 마스크 재사용 방법과 파이프라인 후속 도구 제한 및 복사/붙여넣기 설명.",
+      "reason_codes": [
+        "ART_TECHNICAL_EXPLANATION"
+      ],
+      "relations": [],
+      "reviewed_by": "Antigravity",
+      "thread_sha256": "1784e27b0f03abe6f2761c08aca0bafff22e1d72f49083f8a30ec92b5c3f6ffa"
+    },
+    "discussion:D_kwDONWPV1M4Am6JE": {
+      "curated_content": [
+        {
+          "char_end": 173,
+          "char_start": 0,
+          "record_key": "discussion:D_kwDONWPV1M4Am6JE",
+          "role": "context"
+        },
+        {
+          "char_end": 247,
+          "char_start": 0,
+          "record_key": "discussion-comment:DC_kwDONWPV1M4BBoUd",
+          "role": "reproduction"
+        },
+        {
+          "char_end": 195,
+          "char_start": 0,
+          "record_key": "discussion-comment:DC_kwDONWPV1M4BBoVr",
+          "role": "guidance"
+        },
+        {
+          "char_end": 108,
+          "char_start": 0,
+          "record_key": "discussion-comment:DC_kwDONWPV1M4BBpDW",
+          "role": "confirmation"
+        }
+      ],
+      "disposition": "include",
+      "evidence": [
+        {
+          "confirms_content_index": 2,
+          "content_index": 3,
+          "signal": "USER_CONFIRMED_ACTION"
+        }
+      ],
+      "knowledge_status": "curated_guidance",
+      "limitations": [
+        {
+          "code": "PLATFORM_SPECIFIC",
+          "content_indices": [
+            1,
+            2,
+            3
+          ],
+          "note": "Flatpak 샌드박스 환경과 AppImage 대안 실행에 대한 사례다."
+        },
+        {
+          "code": "HYPOTHESIS",
+          "content_indices": [
+            2
+          ],
+          "note": "샌드박스가 원인이라는 것은 추정이다."
+        }
+      ],
+      "rationale": "Fedora Flatpak의 로컬 드라이브 접근 문제에 대한 AppImage 대안 실행 성공 확인.",
+      "reason_codes": [
+        "USER_CONFIRMED_ACTION"
+      ],
+      "relations": [],
+      "reviewed_by": "Antigravity",
+      "thread_sha256": "2393373bb6566dd7c5ab8c811c4e6e4828bc75281f9712d8427c8443bb3ca68a"
+    },
+    "discussion:D_kwDONWPV1M4AmoIs": {
+      "curated_content": [
+        {
+          "char_end": 217,
+          "char_start": 0,
+          "record_key": "discussion:D_kwDONWPV1M4AmoIs",
+          "role": "context"
+        },
+        {
+          "char_end": 72,
+          "char_start": 0,
+          "record_key": "discussion-comment:DC_kwDONWPV1M4BBAtC",
+          "role": "guidance"
+        }
+      ],
+      "disposition": "include",
+      "evidence": [
+        {
+          "content_index": 1,
+          "signal": "ACTIONABLE_GUIDANCE"
+        }
+      ],
+      "knowledge_status": "curated_guidance",
+      "limitations": [
+        {
+          "code": "AS_OF_SOURCE_ONLY",
+          "content_indices": [
+            1
+          ],
+          "note": "타원 마스크를 사각형 마스크의 라운드 100% 설정으로 대체하는 방법이다."
+        }
+      ],
+      "rationale": "사각형 마스크 roundness 100%를 통한 타원형 마스크 생성 방법.",
+      "reason_codes": [
+        "ACTIONABLE_GUIDANCE"
+      ],
+      "relations": [],
+      "reviewed_by": "Antigravity",
+      "thread_sha256": "b6574a5ad183c0c89d8e1469ddf592d477fcf03217d650fecc8465ce848c0679"
+    },
+    "discussion:D_kwDONWPV1M4AnA3-": {
+      "curated_content": [],
+      "disposition": "review",
+      "evidence": [],
+      "knowledge_status": null,
+      "limitations": [],
+      "rationale": "댓글이 없는 기능 요청 질문으로 답변 없음.",
+      "reason_codes": [
+        "UNANSWERED_QUESTION"
+      ],
+      "relations": [],
+      "reviewed_by": "Antigravity",
+      "thread_sha256": "af7a608b5cd16ea01047784adadfff99e8bf60420be81ef5643f179ce2efa7bb"
+    },
+    "issue:1": {
+      "curated_content": [],
+      "disposition": "review",
+      "evidence": [],
+      "knowledge_status": null,
+      "limitations": [],
+      "rationale": "Bitbucket 이관 머리말의 보고자 주장(Gaaned92)이며 관리자 검증 답변이 아님.",
+      "reason_codes": [
+        "INSUFFICIENT_EVIDENCE"
+      ],
+      "relations": [],
+      "reviewed_by": "Antigravity",
+      "thread_sha256": "60deda3a42583a1a4e661d8555092b7cc9c35795ee4b4d5da289db5ed333261f"
+    },
+    "issue:477": {
+      "curated_content": [
+        {
+          "char_end": 1567,
+          "char_start": 0,
+          "record_key": "issue:477",
+          "role": "context"
+        },
+        {
+          "char_end": 72,
+          "char_start": 0,
+          "record_key": "issue-comment:4428738434",
+          "role": "reported_fix"
+        },
+        {
+          "char_end": 220,
+          "char_start": 0,
+          "record_key": "issue-comment:4433310082",
+          "role": "confirmation"
+        }
+      ],
+      "disposition": "include",
+      "evidence": [
+        {
+          "confirms_content_index": 1,
+          "content_index": 2,
+          "signal": "FIX_VERSION_CONFIRMED"
+        }
+      ],
+      "knowledge_status": "reported_fix",
+      "limitations": [
+        {
+          "code": "VERSION_SPECIFIC",
+          "content_indices": [
+            1,
+            2
+          ],
+          "note": "게시 당시 master 기준 수정이며 정식 릴리스 버전 번호가 아니다."
+        }
+      ],
+      "rationale": "Sony Alpha A7 V raw 파일 지원 제안 및 최신 master 빌드에서의 동작 확인.",
+      "reason_codes": [
+        "FIX_VERSION_CONFIRMED"
+      ],
+      "relations": [],
+      "reviewed_by": "Antigravity",
+      "thread_sha256": "6997441fd315b9ba0a277e115994a224fffce66632053b876d79c8f38d0c69e9"
+    },
+    "issue:493": {
+      "curated_content": [],
+      "disposition": "review",
+      "evidence": [],
+      "knowledge_status": null,
+      "limitations": [],
+      "rationale": "Should be fixed now 발언 외에 구체적인 수정 버전 및 시험 검증 부족.",
+      "reason_codes": [
+        "INSUFFICIENT_EVIDENCE"
+      ],
+      "relations": [],
+      "reviewed_by": "Antigravity",
+      "thread_sha256": "fc628f2b3df66941a3634612b7fe52b04d0a96ba515e897941432d262f92f480"
+    },
+    "issue:497": {
+      "curated_content": [],
+      "disposition": "review",
+      "evidence": [],
+      "knowledge_status": null,
+      "limitations": [],
+      "rationale": "tar.gz 대안 제안과 감사 인사만으로 ART-cli 실행 문제 해결 확인 불가.",
+      "reason_codes": [
+        "INSUFFICIENT_EVIDENCE"
+      ],
+      "relations": [],
+      "reviewed_by": "Antigravity",
+      "thread_sha256": "8fb76edf01837d7ab9b13f81340034f09b16c389321fa52d6b7bffbbf1097bc4"
+    },
+    "issue:500": {
+      "curated_content": [
+        {
+          "char_end": 219,
+          "char_start": 0,
+          "record_key": "issue:500",
+          "role": "context"
+        },
+        {
+          "char_end": 67,
+          "char_start": 0,
+          "record_key": "issue-comment:4711197631",
+          "role": "explanation"
+        }
+      ],
+      "disposition": "include",
+      "evidence": [
+        {
+          "content_index": 1,
+          "signal": "ART_TECHNICAL_EXPLANATION"
+        }
+      ],
+      "knowledge_status": "curated_guidance",
+      "limitations": [
+        {
+          "code": "AS_OF_SOURCE_ONLY",
+          "content_indices": [
+            1
+          ],
+          "note": "게시 당시 동작 설명이며 이후 버전의 보장이 아니다."
+        }
+      ],
+      "rationale": "JXL export 품질 설정에 직접 답하는 기술 설명이다.",
+      "reason_codes": [
+        "ART_TECHNICAL_EXPLANATION"
+      ],
+      "relations": [],
+      "reviewed_by": "Antigravity",
+      "thread_sha256": "c51769f25343d903c59f612ddb96e8546e038415b3e65933124e587a099ca4c0"
+    },
+    "issue:503": {
+      "curated_content": [],
+      "disposition": "review",
+      "evidence": [],
+      "knowledge_status": null,
+      "limitations": [],
+      "rationale": "latest master에서 수정됐을 것이라는 추정만 있고 구체적 버전 특정 없음.",
+      "reason_codes": [
+        "INSUFFICIENT_EVIDENCE"
+      ],
+      "relations": [],
+      "reviewed_by": "Antigravity",
+      "thread_sha256": "881e61ac5902ebf59dc99d7f6dfd85b227be3e45adc10d966a1ffeb5de8f324a"
+    },
+    "issue:510": {
+      "curated_content": [],
+      "disposition": "review",
+      "evidence": [],
+      "knowledge_status": null,
+      "limitations": [],
+      "rationale": "closed/completed 상태지만 향후 조사 약속만 있고 확정된 해결책 없음.",
+      "reason_codes": [
+        "INSUFFICIENT_EVIDENCE"
+      ],
+      "relations": [],
+      "reviewed_by": "Antigravity",
+      "thread_sha256": "2fd9784e7f66534feec712a4f5ed650ebe53b6ff0e6879877b84de07b7b11c10"
+    },
+    "issue:511": {
+      "curated_content": [],
+      "disposition": "review",
+      "evidence": [],
+      "knowledge_status": null,
+      "limitations": [],
+      "rationale": "Mode=0 우회 보고 이후 재현 불가 및 미해결 유지로 상충 증거 잔존.",
+      "reason_codes": [
+        "CONFLICTING_EVIDENCE"
+      ],
+      "relations": [],
+      "reviewed_by": "Antigravity",
+      "thread_sha256": "e04b5a3b76827a80eb1d5259228cb40de9dfa93b6f4c9f1398ef95e50f260213"
+    },
+    "issue:516": {
+      "curated_content": [
+        {
+          "char_end": 279,
+          "char_start": 0,
+          "record_key": "issue:516",
+          "role": "context"
+        },
+        {
+          "char_end": 1307,
+          "char_start": 0,
+          "record_key": "issue-comment:5102797884",
+          "role": "reproduction"
+        },
+        {
+          "char_end": 305,
+          "char_start": 0,
+          "record_key": "issue-comment:5102851028",
+          "role": "guidance"
+        },
+        {
+          "char_end": 76,
+          "char_start": 0,
+          "record_key": "issue-comment:5103254495",
+          "role": "confirmation"
+        }
+      ],
+      "disposition": "include",
+      "evidence": [
+        {
+          "confirms_content_index": 2,
+          "content_index": 3,
+          "signal": "USER_CONFIRMED_ACTION"
+        }
+      ],
+      "knowledge_status": "curated_guidance",
+      "limitations": [
+        {
+          "code": "PLATFORM_SPECIFIC",
+          "content_indices": [
+            1,
+            2,
+            3
+          ],
+          "note": "Fedora 환경 및 이전 빌드 스크립트의 캐시 문제에 해당하며 독립 문제다."
+        }
+      ],
+      "rationale": "Canon EOS R8 흰색 화면 문제에 대한 캐시 삭제 해결 및 AppImage 대안 안내.",
+      "reason_codes": [
+        "USER_CONFIRMED_ACTION"
+      ],
+      "relations": [
+        {
+          "reason": "유사 증상으로 본문에서 언급됨",
+          "relation": "related_to",
+          "target_record_key": "issue:503"
+        }
+      ],
+      "reviewed_by": "Antigravity",
+      "thread_sha256": "88e3fc9a4a453d6917c5d220553669202c2e097b53fcd16bca967adb6f324417"
+    },
+    "issue:517": {
+      "curated_content": [],
+      "disposition": "review",
+      "evidence": [],
+      "knowledge_status": null,
+      "limitations": [],
+      "rationale": "Discussion #519와의 전환 가능성 제안 보존.",
+      "reason_codes": [
+        "NOT_REVIEWED"
+      ],
+      "relations": [
+        {
+          "reason": "Discussion #519와 동일 본문이나 공식 변환 이벤트 없음",
+          "relation": "possible_conversion",
+          "target_record_key": "discussion:D_kwDONWPV1M4Aoba5"
+        }
+      ],
+      "reviewed_by": "Antigravity",
+      "thread_sha256": "3a74795f178ba441673ca1235c4c834afccef2c598eb2103923e5c1af7ff07bf"
+    },
+    "issue:521": {
+      "curated_content": [
+        {
+          "char_end": 579,
+          "char_start": 0,
+          "record_key": "issue:521",
+          "role": "context"
+        },
+        {
+          "char_end": 130,
+          "char_start": 0,
+          "record_key": "issue-comment:5309120735",
+          "role": "guidance"
+        },
+        {
+          "char_end": 204,
+          "char_start": 0,
+          "record_key": "issue-comment:5315824799",
+          "role": "confirmation"
+        }
+      ],
+      "disposition": "include",
+      "evidence": [
+        {
+          "confirms_content_index": 1,
+          "content_index": 2,
+          "signal": "USER_CONFIRMED_ACTION"
+        }
+      ],
+      "knowledge_status": "curated_guidance",
+      "limitations": [
+        {
+          "code": "PLATFORM_SPECIFIC",
+          "content_indices": [
+            2
+          ],
+          "note": "/usr/share/lensfun/version_1 경로는 해당 시스템 기준이며 모든 배포판의 보편 경로가 아니다."
+        }
+      ],
+      "rationale": "Lens correction db 경로 설정 문제와 해결 확인.",
+      "reason_codes": [
+        "USER_CONFIRMED_ACTION"
+      ],
+      "relations": [],
+      "reviewed_by": "Antigravity",
+      "thread_sha256": "abb42bd78375d5ab1fb4c70167348c8b32a4e895ccf1c918ba0328d7d160bec6"
+    },
+    "issue:524": {
+      "curated_content": [
+        {
+          "char_end": 665,
+          "char_start": 0,
+          "record_key": "issue:524",
+          "role": "context"
+        },
+        {
+          "char_end": 1722,
+          "char_start": 0,
+          "record_key": "issue-comment:5648127070",
+          "role": "caveat"
+        },
+        {
+          "char_end": 412,
+          "char_start": 0,
+          "record_key": "issue-comment:5655898791",
+          "role": "reported_fix"
+        },
+        {
+          "char_end": 913,
+          "char_start": 0,
+          "record_key": "issue-comment:5670040673",
+          "role": "confirmation"
+        },
+        {
+          "char_end": 75,
+          "char_start": 0,
+          "record_key": "issue-comment:5670999476",
+          "role": "explanation"
+        }
+      ],
+      "disposition": "include",
+      "evidence": [
+        {
+          "confirms_content_index": 2,
+          "content_index": 3,
+          "signal": "FIX_VERSION_CONFIRMED"
+        }
+      ],
+      "knowledge_status": "reported_fix",
+      "limitations": [
+        {
+          "code": "VERSION_SPECIFIC",
+          "content_indices": [
+            2,
+            3
+          ],
+          "note": "b11089b nightly 수정이며 1.26.8 릴리스 자체의 해결이 아니다."
+        },
+        {
+          "code": "COUNTEREVIDENCE",
+          "content_indices": [
+            1
+          ],
+          "note": "이전 nightly(165b246)에서는 여전히 실패했다."
+        }
+      ],
+      "rationale": "Issue #510 재발에 대한 b11089b-linux64 nightly 빌드 수정 및 확인.",
+      "reason_codes": [
+        "FIX_VERSION_CONFIRMED"
+      ],
+      "relations": [
+        {
+          "reason": "#510 재발 및 후속 수정",
+          "relation": "follow_up_to",
+          "target_record_key": "issue:510"
+        }
+      ],
+      "reviewed_by": "Antigravity",
+      "thread_sha256": "166aff86123c127288fb0eb26bafe225edbd5a4d035d9e4241791f621faa6dfb"
+    }
+  }
+}

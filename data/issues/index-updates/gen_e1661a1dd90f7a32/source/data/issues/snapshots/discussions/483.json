@@ -1,0 +1,16 @@
+{
+  "author": {
+    "login": "carafife"
+  },
+  "body": "\r\n\r\nHello, I'm having a problem with ART 1.26.4. I've tried entering all possible paths for the external editor, but ART consistently displays \"Please enter the path in the preferences tab\"... Any ideas? Thanks in advance for your help! \r\nps: I use Fedora 44",
+  "category": {
+    "name": "General"
+  },
+  "createdAt": "2026-05-13T10:03:39Z",
+  "databaseId": 10056815,
+  "id": "D_kwDONWPV1M4AmXRv",
+  "number": 483,
+  "title": "paths for the external editor",
+  "updatedAt": "2026-05-13T15:49:48Z",
+  "url": "https://github.com/orgs/artraweditor/discussions/483"
+}

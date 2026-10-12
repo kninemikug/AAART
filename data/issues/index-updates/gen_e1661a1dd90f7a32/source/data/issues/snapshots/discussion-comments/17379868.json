@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "krotname"
+  },
+  "body": "From the current code, LCP profiles are not auto-matched by lens metadata.\n\nThe auto path is only the Lensfun mode: `LensProfilePanel::read()` / `onCorrModeChanged()` call `LFDatabase::findCamera(metadata->getMake(), metadata->getModel())` and `LFDatabase::findLens(..., metadata->getLens())` for the Lensfun auto-match radio button.\n\nThe LCP path is separate. The UI has a file chooser filtered to `*.lcp`, `write()` stores the selected filename in `pp->lensProf.lcpFile`, and processing later loads exactly that path with:\n\n```cpp\nLCPStore::getInstance()->getProfile(params->lensProf.lcpFile)\n```\n\nSo a user-side alias file like `EXIF lens name -> .lcp path` is not something ART currently reads.\n\nThe practical options today are:\n\n1. keep using `LCP file` mode and save the selected `.lcp` in a processing profile/preset for that lens;\n2. add or update the lens in the Lensfun database, then use `Automatic (Lensfun)`;\n3. open this as a feature request for an LCP alias/mapping table. The implementation would need to map `metadata->getLens()` to an LCP filename before `lensProf.lcpFile` is used, because the processing side currently only receives a concrete file path.",
+  "createdAt": "2026-06-21T07:42:52Z",
+  "databaseId": 17379868,
+  "id": "DC_kwDONWPV1M4BCTIc",
+  "updatedAt": "2026-06-21T07:42:52Z",
+  "url": "https://github.com/artraweditor/ART/discussions/502#discussioncomment-17379868"
+}

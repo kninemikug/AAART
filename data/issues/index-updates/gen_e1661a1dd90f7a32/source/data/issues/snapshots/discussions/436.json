@@ -1,0 +1,16 @@
+{
+  "author": {
+    "login": "agriggio"
+  },
+  "body": "Hi,\r\nI've put some experimental AppImages for Linux x86_64 and aarch64 in https://github.com/artraweditor/ART/releases/tag/nightly. \r\nIt would be great to test them on as many (reasonably recent) Linux distributions as possible. People who are willing to do that can let me know in this thread. Thanks in advance!",
+  "category": {
+    "name": "Announcements"
+  },
+  "createdAt": "2026-01-21T21:02:25Z",
+  "databaseId": 9373002,
+  "id": "D_kwDONWPV1M4AjwVK",
+  "number": 436,
+  "title": "AppImages for x86_64 and aarch64 available as nightly builds",
+  "updatedAt": "2026-05-09T10:29:07Z",
+  "url": "https://github.com/orgs/artraweditor/discussions/436"
+}

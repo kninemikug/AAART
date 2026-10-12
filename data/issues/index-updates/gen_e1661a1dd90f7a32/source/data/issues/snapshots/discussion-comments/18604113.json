@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "Elcolor"
+  },
+  "body": "Hello Alberto, when editing a photo I generate Snapshots for each version, but if I go to \"Processing profile operations\" and \"clear\", the Snapshots disappear. Is there any method that warns that those Snapshots are going to be deleted?.\r\nWhat I do at the moment is generate a Snapshot of the original photo before I start editing, and then I keep making the others according to the versions, and that way I don't use the \"clear\" option.",
+  "createdAt": "2026-09-25T18:48:35Z",
+  "databaseId": 18604113,
+  "id": "DC_kwDONWPV1M4BG-BR",
+  "updatedAt": "2026-09-25T18:48:35Z",
+  "url": "https://github.com/artraweditor/ART/discussions/473#discussioncomment-18604113"
+}

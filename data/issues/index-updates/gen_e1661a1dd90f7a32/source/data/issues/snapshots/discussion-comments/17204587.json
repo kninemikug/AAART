@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "agriggio"
+  },
+  "body": "Hi,\r\nI have no control over the flatpak, sorry. I think it runs in a sandbox and that might be the reason for this behaviour. Maybe you can try with the appimage that is available here on GitHub?",
+  "createdAt": "2026-06-06T18:23:59Z",
+  "databaseId": 17204587,
+  "id": "DC_kwDONWPV1M4BBoVr",
+  "updatedAt": "2026-06-06T18:23:59Z",
+  "url": "https://github.com/artraweditor/ART/discussions/494#discussioncomment-17204587"
+}

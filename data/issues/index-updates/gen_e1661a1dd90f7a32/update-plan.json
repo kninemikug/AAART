@@ -1,0 +1,199 @@
+{
+  "schema_version": 1,
+  "generation_id": "gen_e1661a1dd90f7a32",
+  "repository": "artraweditor/ART",
+  "input_manifest": "52b6cdf587e1f5ed12d80570a41a476ef02dd6e2118c9a9c09a871e7889d01c5",
+  "source_root": "/Users/user/orca/workspaces/AAART/T10-2c-update/data/issues/index-updates/gen_e1661a1dd90f7a32/source",
+  "base_generation": "gen_e1661a1dd90f7a32",
+  "base_state_sha256": "823e7f04d34ef4b383df8287f0ea47069dca149e418182368014e09659f85f2c",
+  "store": {
+    "persist_dir": "/Users/user/orca/workspaces/AAART/T10-2c-update/data/vector-store/t09",
+    "collection_name": "art_retrieval_t09_v1",
+    "reference_sha256": "2c7081ba6a7c37b00735b0be2ef362f5b0c2a86cd41fe97bbb2a3b5ebdc195bc",
+    "protocol_sha256": "3694eb3cb0a8b8e989e6bc828adf1f067b4f988f9be0a04a4d43507850412dc5",
+    "contract_fingerprint": "G-C-curated-group-t1024-o64:pooled-common-256:chunk_window_mean_v2:5c38ec7c405ec4b44b94cc5a9bb96e735b38267a"
+  },
+  "operations": [
+    {
+      "candidate_id": "github:artraweditor/ART:discussion:412",
+      "record_key": "discussion:D_kwDONWPV1M4Ai6_I",
+      "thread_sha256": "9d176d0165c005b537aefa743b0750a4e9c1c02d167d94d856ff561b2e5c7e05",
+      "disposition": "include",
+      "reason_codes": [],
+      "action": "noop",
+      "candidate_sha256": "72fcfad918a6fae8382f2e46eee6ca6d814ef0c923c9df4fd8e44e098d092faf",
+      "existing_payload_fingerprint": "7b41233087edb25b91cf5a7b9c04249e1a39583604e1d344cfaf2baa4fdbc78d",
+      "chunk_ids": [
+        "t08c:v1:github:G-C-curated-group-t1024-o64:0dbb079e6ca76d293bb8598c71f8a90d283ff187f27483268b0ed760a40294f0"
+      ],
+      "chunks_payload_sha256": "08a37e40e0268989533161dc1a1b26362b7dcc3ed1a3e48c667857e65ee64c74",
+      "t09_operation_fingerprint": "08a37e40e0268989533161dc1a1b26362b7dcc3ed1a3e48c667857e65ee64c74"
+    },
+    {
+      "candidate_id": "github:artraweditor/ART:discussion:420",
+      "record_key": "discussion:D_kwDONWPV1M4AjNbf",
+      "thread_sha256": "4b0ef30bf0ade9c449288a4ed6bf4a6820791dd70e63f45a45d5bec56e0d8f68",
+      "disposition": "include",
+      "reason_codes": [],
+      "action": "noop",
+      "candidate_sha256": "45b79d4004c51e81318b218c7c5e4cf93b4f95769a8fcabd6e9a97e3f67431bf",
+      "existing_payload_fingerprint": "4251d267fe5f9faa6ffa73d68d242bd69d2be9b2ab6008a624ee26803160e1e0",
+      "chunk_ids": [
+        "t08c:v1:github:G-C-curated-group-t1024-o64:9df27ed8e656ada3cd5cfa28104519fcdd6bf0b9dafe2c08f5300abb9acf8492"
+      ],
+      "chunks_payload_sha256": "c320d4e27e439b2e548b2807c37bb630e84ae694001e7bb2c06c8f7b70f75dfe",
+      "t09_operation_fingerprint": "c320d4e27e439b2e548b2807c37bb630e84ae694001e7bb2c06c8f7b70f75dfe"
+    },
+    {
+      "candidate_id": "github:artraweditor/ART:discussion:424",
+      "record_key": "discussion:D_kwDONWPV1M4AjV4v",
+      "thread_sha256": "371e701a77641d52bb473085cdc864ed158a8a34131bd7eca2ec284de18233c6",
+      "disposition": "include",
+      "reason_codes": [],
+      "action": "noop",
+      "candidate_sha256": "d36d99d1ad87aef60e3401c6cdd1de1a27fb7e4594c19ae055ae69f5aea3c9f9",
+      "existing_payload_fingerprint": "349c127af8c05a2867a24e4a7d83ab107b68cb692d54fd49b71a0c2889941fbb",
+      "chunk_ids": [
+        "t08c:v1:github:G-C-curated-group-t1024-o64:fc1a98c07a3b1878d1342edfc0a9ad6df26cc191547540cb6ee86c3de9f4e5bf"
+      ],
+      "chunks_payload_sha256": "db9e315ccec3322f1be748fae2fcd5b3cc2687260e718ccb1e0665551d2526b4",
+      "t09_operation_fingerprint": "db9e315ccec3322f1be748fae2fcd5b3cc2687260e718ccb1e0665551d2526b4"
+    },
+    {
+      "candidate_id": "github:artraweditor/ART:discussion:440",
+      "record_key": "discussion:D_kwDONWPV1M4AjyUw",
+      "thread_sha256": "fb28ae284e630aae18b38eed7495339859e182fefd751c515006c71e18d9cd52",
+      "disposition": "include",
+      "reason_codes": [],
+      "action": "noop",
+      "candidate_sha256": "4b10bc5776a90d6860866445cf6874656ac57a30d2cf07ea8e1a2f54ecab7b38",
+      "existing_payload_fingerprint": "f1ade2a09ff4d207f2ba4427d8a549386ea9e5884f9f7518b087f615b30d053a",
+      "chunk_ids": [
+        "t08c:v1:github:G-C-curated-group-t1024-o64:f2597d8de6587c1912847ff1f6933805f8737c09bb3da4a9390caa6534cc3285"
+      ],
+      "chunks_payload_sha256": "6a40881d4c950004bfec11c2278c191b73813954cf4033750a83f4bdd9be2007",
+      "t09_operation_fingerprint": "6a40881d4c950004bfec11c2278c191b73813954cf4033750a83f4bdd9be2007"
+    },
+    {
+      "candidate_id": "github:artraweditor/ART:discussion:442",
+      "record_key": "discussion:D_kwDONWPV1M4Ajzpk",
+      "thread_sha256": "1784e27b0f03abe6f2761c08aca0bafff22e1d72f49083f8a30ec92b5c3f6ffa",
+      "disposition": "include",
+      "reason_codes": [],
+      "action": "noop",
+      "candidate_sha256": "346540578075a22b24d6cbb9160a81eefc810fe68bc5ad2fbb9cfedf725cc94c",
+      "existing_payload_fingerprint": "e8c07c2ead91f258b71df58d17b6d0baffd91c0c1ef68c6b5ddab8241b11f952",
+      "chunk_ids": [
+        "t08c:v1:github:G-C-curated-group-t1024-o64:4cb06213fc5316741243f776bb3af1dd405278574fd2df19a9e96786cd8d6c15"
+      ],
+      "chunks_payload_sha256": "80fc3d39daf5cb67c9fad288536230896ee399c32d370d8676a004025f42efc0",
+      "t09_operation_fingerprint": "80fc3d39daf5cb67c9fad288536230896ee399c32d370d8676a004025f42efc0"
+    },
+    {
+      "candidate_id": "github:artraweditor/ART:discussion:489",
+      "record_key": "discussion:D_kwDONWPV1M4AmoIs",
+      "thread_sha256": "b6574a5ad183c0c89d8e1469ddf592d477fcf03217d650fecc8465ce848c0679",
+      "disposition": "include",
+      "reason_codes": [],
+      "action": "noop",
+      "candidate_sha256": "4afcb3aea4256f9706a1873f55090ba9ea2306b30554e4a3a6da53a667b32e75",
+      "existing_payload_fingerprint": "fc392227e219a28b8e6f2f5e99f6687feb3f7884bb8317adfbe41574b8b2a931",
+      "chunk_ids": [
+        "t08c:v1:github:G-C-curated-group-t1024-o64:36630262b765f3b514f3a376c84738c0472446666079b5a8907e8a75173e738a"
+      ],
+      "chunks_payload_sha256": "46f01a855dfac55a17d5841a0d8d1b3190e7fd7f241b9b4bf1e5cca07c8bb015",
+      "t09_operation_fingerprint": "46f01a855dfac55a17d5841a0d8d1b3190e7fd7f241b9b4bf1e5cca07c8bb015"
+    },
+    {
+      "candidate_id": "github:artraweditor/ART:discussion:494",
+      "record_key": "discussion:D_kwDONWPV1M4Am6JE",
+      "thread_sha256": "2393373bb6566dd7c5ab8c811c4e6e4828bc75281f9712d8427c8443bb3ca68a",
+      "disposition": "include",
+      "reason_codes": [],
+      "action": "noop",
+      "candidate_sha256": "610dab6c6de6a9334f8ed5392e438c29e77c8a6a258762210dde2df7e407eb59",
+      "existing_payload_fingerprint": "04572dc9f443410fae7019d7025cd0114929314284e6e94df294f08d04de3146",
+      "chunk_ids": [
+        "t08c:v1:github:G-C-curated-group-t1024-o64:69b288e5ac3a77ce3acb1d7fb56695a126ec6c6816a54eb33123d7ce7adf3309"
+      ],
+      "chunks_payload_sha256": "c0d25ecf262126448b42ba16b2bceb7b0cce5f9ba9cb1e0e628671f54114a557",
+      "t09_operation_fingerprint": "c0d25ecf262126448b42ba16b2bceb7b0cce5f9ba9cb1e0e628671f54114a557"
+    },
+    {
+      "candidate_id": "github:artraweditor/ART:issue:477",
+      "record_key": "issue:477",
+      "thread_sha256": "6997441fd315b9ba0a277e115994a224fffce66632053b876d79c8f38d0c69e9",
+      "disposition": "include",
+      "reason_codes": [],
+      "action": "noop",
+      "candidate_sha256": "10f87e285f796f138b19fcd8241fb5ece0c4b8fbb2a30973f63f6f0f4cc3e955",
+      "existing_payload_fingerprint": "e18ecf4e43f8197e16bb7ee6b1106f20d972d87b7429c9615518ceb420424d65",
+      "chunk_ids": [
+        "t08c:v1:github:G-C-curated-group-t1024-o64:9964b23659018d5dd8039877d33f90d99b7a41db96e9e9d0bb4135a3a0877a24"
+      ],
+      "chunks_payload_sha256": "7ca04a1c7c66c3abe42d330155816ce45f87c7c3a14b8e73ddd1f6753f150292",
+      "t09_operation_fingerprint": "7ca04a1c7c66c3abe42d330155816ce45f87c7c3a14b8e73ddd1f6753f150292"
+    },
+    {
+      "candidate_id": "github:artraweditor/ART:issue:500",
+      "record_key": "issue:500",
+      "thread_sha256": "c51769f25343d903c59f612ddb96e8546e038415b3e65933124e587a099ca4c0",
+      "disposition": "include",
+      "reason_codes": [],
+      "action": "noop",
+      "candidate_sha256": "8a4910f794178607aa1a81d93420d397032bb9e0603df4ac94aadd7b0cd1cdaa",
+      "existing_payload_fingerprint": "fee923bde10bca19c3eb61944c44d90855d3aedc7ff57a089f2b9410ed15469a",
+      "chunk_ids": [
+        "t08c:v1:github:G-C-curated-group-t1024-o64:f0d4ebf4be63574f2027696d2883397d06976c917176226a342dde4c46c09891"
+      ],
+      "chunks_payload_sha256": "e61ef7c95ca9b83663792bd34f1ee228f60ffd22393f7b9c46336740ddbd448b",
+      "t09_operation_fingerprint": "e61ef7c95ca9b83663792bd34f1ee228f60ffd22393f7b9c46336740ddbd448b"
+    },
+    {
+      "candidate_id": "github:artraweditor/ART:issue:516",
+      "record_key": "issue:516",
+      "thread_sha256": "88e3fc9a4a453d6917c5d220553669202c2e097b53fcd16bca967adb6f324417",
+      "disposition": "include",
+      "reason_codes": [],
+      "action": "noop",
+      "candidate_sha256": "86cb026e2004c4b0f90c8d8ba73c0ea0a98aba411a2149b03a1facaa12446eb9",
+      "existing_payload_fingerprint": "8ef33b8327b3fdc9219e66a4d5ad3b80f8dafb09a41ee9e75a22c3087b49efc0",
+      "chunk_ids": [
+        "t08c:v1:github:G-C-curated-group-t1024-o64:d7bd1493d744c336bf0dd4f58f66cf98775fc3c01cbb0e69e18617d8f0a62ad5"
+      ],
+      "chunks_payload_sha256": "ca12cbad1af30720180536a3156a3c6539c830105c09284538103ca49bd300cb",
+      "t09_operation_fingerprint": "ca12cbad1af30720180536a3156a3c6539c830105c09284538103ca49bd300cb"
+    },
+    {
+      "candidate_id": "github:artraweditor/ART:issue:521",
+      "record_key": "issue:521",
+      "thread_sha256": "abb42bd78375d5ab1fb4c70167348c8b32a4e895ccf1c918ba0328d7d160bec6",
+      "disposition": "include",
+      "reason_codes": [],
+      "action": "noop",
+      "candidate_sha256": "28bbe17ad550948d9c0f687cd9786abaf0b67db1ad720c9bc2e0ac8c173e7d56",
+      "existing_payload_fingerprint": "30ed17ca12e86e3a875a742c2cd51e620c65e325949f957bce6aa7df034a5bb7",
+      "chunk_ids": [
+        "t08c:v1:github:G-C-curated-group-t1024-o64:afd172cca89b55e2176e9d06c306eb66406bb0b230e5aa6dec32b6b25da9b273"
+      ],
+      "chunks_payload_sha256": "cfb94f2230b42afaf64fec171af25174ec603fec5cc161ccc8b9d69303c560d4",
+      "t09_operation_fingerprint": "cfb94f2230b42afaf64fec171af25174ec603fec5cc161ccc8b9d69303c560d4"
+    },
+    {
+      "candidate_id": "github:artraweditor/ART:issue:524",
+      "record_key": "issue:524",
+      "thread_sha256": "166aff86123c127288fb0eb26bafe225edbd5a4d035d9e4241791f621faa6dfb",
+      "disposition": "include",
+      "reason_codes": [],
+      "action": "noop",
+      "candidate_sha256": "5128c2d270948a54ce346411754f268be18ad90e3ba2f79d574d7c5ed43e086d",
+      "existing_payload_fingerprint": "7b60d8ebf08339576ca7ab185dfd24717c48b9d71df070e6ad5f9f26378f5d96",
+      "chunk_ids": [
+        "t08c:v1:github:G-C-curated-group-t1024-o64:1185e250d0503cf246f6dac3bcd3fb89945d2b080570df6ae876ef4ca0e638e6",
+        "t08c:v1:github:G-C-curated-group-t1024-o64:b2a82db5d4aa6adad7a7e3ab470b3573cd178fd151a72bfbd94e7b6b4629810b"
+      ],
+      "chunks_payload_sha256": "daf75b7660a0c1c0b219778739e06ca953cc45e57ff7930ac56a35ea2dff4f2c",
+      "t09_operation_fingerprint": "daf75b7660a0c1c0b219778739e06ca953cc45e57ff7930ac56a35ea2dff4f2c"
+    }
+  ]
+}

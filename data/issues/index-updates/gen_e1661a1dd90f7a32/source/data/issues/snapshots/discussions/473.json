@@ -1,0 +1,16 @@
+{
+  "author": {
+    "login": "elias3433"
+  },
+  "body": "I've been using Art for several months now. For me, it's the best RAW processing software, and even more. I tested many others when I was developing my photos on a Mac (iRidient, DxO, Capture One, and others).\r\n\r\nI'd like to request a feature, if possible.\r\n\r\nThere's a tool for removing dust spots, but I find it too slow if there are many.\r\n\r\nFor example, when processing film scans or if a sensor is very dirty due to harsh weather conditions.\r\n\r\nWould it be possible to create a tool that removes dust spots automatically?\r\n\r\nI'm thinking of the possibility of clicking on dust spots and having them removed by developing their surrounding area. Of course, this would only work on simple areas like skies or flat areas. I've attached screenshots illustrating the issue.\r\n\r\nSince I'm not very good at programming, I don't know if it's possible, but I'm putting the idea out there.\r\n\r\n<img width=\"666\" height=\"500\" alt=\"shot\" src=\"https://github.com/user-attachments/assets/183f1201-1f66-4c10-859e-de082d9b00f2\" />\r\n",
+  "category": {
+    "name": "Ideas"
+  },
+  "createdAt": "2026-05-01T09:46:33Z",
+  "databaseId": 9987169,
+  "id": "D_kwDONWPV1M4AmGRh",
+  "number": 473,
+  "title": "question to Alberto",
+  "updatedAt": "2026-09-27T20:46:00Z",
+  "url": "https://github.com/orgs/artraweditor/discussions/473"
+}

@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "Elcolor"
+  },
+  "body": "Hi, it would help, and to avoid removing the \"clear\" option, I would add a warning that all settings are going to be deleted.\r\nFor \"Reset to default,\" have it ask if you want to delete the snapshots.\r\nThat way we would have the three configurations:\r\nApply-Neutral (leaves the snapshots)\r\nReset to default (with the option to delete them or not)\r\nClear: Warns that all the photo settings are going to be deleted and reset.\r\n\r\n<img width=\"549\" height=\"549\" alt=\"ART, Snapshots\" src=\"https://github.com/user-attachments/assets/64ef2ae1-081e-4526-aa30-9b9fcb776299\" />\r\n",
+  "createdAt": "2026-09-27T20:46:00Z",
+  "databaseId": 18628779,
+  "id": "DC_kwDONWPV1M4BHECr",
+  "updatedAt": "2026-09-27T20:46:00Z",
+  "url": "https://github.com/artraweditor/ART/discussions/473#discussioncomment-18628779"
+}

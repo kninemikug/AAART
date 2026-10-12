@@ -1,0 +1,16 @@
+{
+  "author": {
+    "login": "caugustin"
+  },
+  "body": "Hi,\r\n\r\nI'm new here, and I have no idea which category would be appropriate (there's no \"bug report\" category or the like), and I think this omission might not be intentional, thus decided to use \"General\":\r\n\r\nWhen using the context menu, there's no file operation \"Move\", only \"Delete\" and \"Copy to\".\r\n\r\nRT does have the Move command, and it is actually a core feature of file operations (I would actually need it to cull my images, as I don't want to delete images, but move them to a subfolder \"_trash\" or the like, or might even want to move images \"out of the way\" by moving them to specific subfolders).\r\n\r\nBest, Christian",
+  "category": {
+    "name": "General"
+  },
+  "createdAt": "2026-01-23T19:46:02Z",
+  "databaseId": 9381168,
+  "id": "D_kwDONWPV1M4AjyUw",
+  "number": 440,
+  "title": "File operation \"Move\" missing in context menu",
+  "updatedAt": "2026-01-24T16:02:17Z",
+  "url": "https://github.com/orgs/artraweditor/discussions/440"
+}

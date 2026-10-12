@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "agriggio"
+  },
+  "body": "Hi, I can't seem to reproduce your problem, but I notice that you are using a custom DCP profile. Would it be possible to share that too? Also, it might just be that the DCP might be designed with a ProPhoto working profile in mind.",
+  "createdAt": "2026-05-19T06:55:43Z",
+  "databaseId": 16971855,
+  "id": "DC_kwDONWPV1M4BAvhP",
+  "updatedAt": "2026-05-19T06:55:43Z",
+  "url": "https://github.com/artraweditor/ART/discussions/487#discussioncomment-16971855"
+}

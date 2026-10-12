@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "agriggio"
+  },
+  "body": "I've just tried again on my mac and I still can't reproduce.\r\nBut it would be good if you managed to reduce the number of modules used in your arp files, and in particular if you could remove any external CTL scripts so that I can test on a \"plain\" ART installation. This should make it easier to identify the culprit.\r\n\r\nThanks!",
+  "createdAt": "2026-05-25T06:48:02Z",
+  "databaseId": 17046805,
+  "id": "DC_kwDONWPV1M4BBB0V",
+  "updatedAt": "2026-05-25T06:48:02Z",
+  "url": "https://github.com/artraweditor/ART/discussions/487#discussioncomment-17046805"
+}

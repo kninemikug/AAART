@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "agriggio"
+  },
+  "body": "Got it, thanks. But I don't see anything strange to be honest, although it's quite hard to judge if there are issues with the color matrix since the image is essentially monochrome.\nBut regarding noise, I think silkypix does noise reduction by default (as well as sharpening it seems), whereas ART doesn't. But just turn on \"automatic chrominance correction\" and you should get reasonably close. Here are the two versions for reference.\n\n![Image](https://github.com/user-attachments/assets/ecc7cb3f-bcc2-47b9-be0f-f54b79b377f9)\n![Image](https://github.com/user-attachments/assets/3f7069e5-7ea0-40ef-9624-7b40a8a0c32f)",
+  "createdAt": "2026-03-05T14:00:25Z",
+  "databaseId": 16012587,
+  "id": "DC_kwDONWPV1M4A9FUr",
+  "updatedAt": "2026-03-05T14:00:25Z",
+  "url": "https://github.com/artraweditor/ART/discussions/451#discussioncomment-16012587"
+}

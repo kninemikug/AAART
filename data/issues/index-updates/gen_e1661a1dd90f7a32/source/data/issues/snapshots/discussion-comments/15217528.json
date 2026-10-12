@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "agriggio"
+  },
+  "body": "Hi, try with a wrapper shell script, something like this:\r\n\r\n```bash\r\n#!/bin/sh\r\n\r\n/usr/bin/flatpak run --branch=stable --arch=x86_64 --command=gimp-3.0 --file-forwarding org.gimp.GIMP \"$1\"\r\n```\r\n\r\nIf you call the script e.g.  `photogimp.sh`, then simply specify its path in the preferences (and make sure that the script is actually executable):\r\n\r\n<img width=\"565\" height=\"221\" alt=\"Screenshot 2025-12-10 at 10 09 48\" src=\"https://github.com/user-attachments/assets/0d5641a3-48e1-418b-b4f9-02a754a1ab00\" />\r\n\r\nHTH",
+  "createdAt": "2025-12-10T09:10:44Z",
+  "databaseId": 15217528,
+  "id": "DC_kwDONWPV1M4A6DN4",
+  "updatedAt": "2025-12-10T09:10:44Z",
+  "url": "https://github.com/artraweditor/ART/discussions/420#discussioncomment-15217528"
+}

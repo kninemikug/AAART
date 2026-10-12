@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "sophisticatedDreamer"
+  },
+  "body": "Thank you so much for your fast reply and the short video. It led me one step further!\r\n\r\nIs there a chance that in future development these masks can be reused _\"everywhere\"?_ In darktable, we can re-use a mask created in any tool of choice also in all(!) other tools.\r\n\r\n**Example:**\r\n\r\nMy _bird_ was fine tuned in `[Local editing] > [Texture Boost / Sharpening]` and re-used in `... > [Local Contrast]` which appears below. But when I now decide to tweak `[Local editing] > [Color/Tone Correction]` I cannot re-use that same mask .... though it is also placed below the `[Local editing]` tab.\r\n\r\nThis behaviour implies the need to create a mask _always_ in the top tool, even when I  do not intend to use it at all. But later I may realize it would be good to use it _now_ ... but then I can't re-use a mask created below.",
+  "createdAt": "2026-01-26T07:40:52Z",
+  "databaseId": 15603154,
+  "id": "DC_kwDONWPV1M4A7hXS",
+  "updatedAt": "2026-01-26T07:40:52Z",
+  "url": "https://github.com/artraweditor/ART/discussions/442#discussioncomment-15603154"
+}
