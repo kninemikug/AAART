@@ -191,9 +191,9 @@ T09 입력 지문은 `chunk_id` 순으로 정렬한 `chunk_id/document/serialize
 | 같은 세대의 `apply-report.json` | 작업별 pending/success/failed/noop·IndexReport·검증 결과·실패 단계와 배치 완료 여부 |
 | `data/issues/vector-state.json` | 스키마 1의 저장소 식별 정보·후보별 마지막 성공값·전체 완료 세대. raw sync 상태와 분리 |
 
-`generation_id`는 저장소 식별값, 입력 state/원문 매니페스트/curation SHA, 정제 규칙, 청킹 구현·규칙 지문, reference/protocol SHA의 canonical digest다. 실행 시각과 무작위 UUID는 식별값에 넣지 않는다. 같은 입력·대상에는 같은 세대를 재사용하고 기존 파일의 SHA를 확인한다. 입력이 다른데 같은 세대 파일을 덮어쓰지 않는다.
+`input_generation_id`는 저장소 식별값, 입력 state/원문 매니페스트/curation SHA, 정제 규칙, 청킹 구현·규칙 지문, reference/protocol SHA의 canonical digest다. `generation_id`는 이 입력 식별값과 준비 시점의 `base_generation`으로 결정한다. 기준 세대가 없는 최초 실행은 입력 식별값을 그대로 사용한다. 실행 시각과 무작위 UUID는 식별값에 넣지 않는다. 같은 입력·기준 세대의 미완료 작업은 같은 계획으로 복구하며, 현재 완료 세대와 입력이 같으면 해당 완료 계획을 재사용한다. 포함 A → 제외 B → 동일 바이트의 A 복원은 B를 기준으로 새 계획을 만든다. 과거 A 계획은 변경하지 않고 직접 적용하면 오래된 계획으로 거부한다. 체크포인트로 바뀌는 `base_state_sha256`는 적용 검증에 사용하며 세대 식별값에는 넣지 않는다. 기존 입력 지문 방식의 계획은 현재 완료 계획이거나 기준 세대가 맞는 경우에만 재사용하고 파일 SHA를 검증한다.
 
-`update-plan.json`은 `schema_version`, `generation_id`, `repository`, `input_manifest`, `source_root`, `base_generation`, `base_state_sha256`, `store` 및 `operations`를 가진다. `store`에는 persist 절대 경로·컬렉션·reference/protocol SHA와 계약 지문을, 각 operation에는 `candidate_id`, 부모 `record_key`, `thread_sha256`, `disposition`, `reason_codes`, `action`, `candidate_sha256`, 기존 payload 지문, 전체 새 `chunk_ids`, 청크 payload SHA와 T09 작업 지문을 둔다. 정제 결과·반영 대상·재시도 입력을 각각 역추적할 수 있어야 한다.
+`update-plan.json`은 `schema_version`, `generation_id`, `input_generation_id`, `repository`, `input_manifest`, `source_root`, `base_generation`, `base_state_sha256`, `store` 및 `operations`를 가진다. `store`에는 persist 절대 경로·컬렉션·reference/protocol SHA와 계약 지문을, 각 operation에는 `candidate_id`, 부모 `record_key`, `thread_sha256`, `disposition`, `reason_codes`, `action`, `candidate_sha256`, 기존 payload 지문, 전체 새 `chunk_ids`, 청크 payload SHA와 T09 작업 지문을 둔다. 정제 결과·반영 대상·재시도 입력을 각각 역추적할 수 있어야 한다.
 
 `vector-state.json`의 항목 키는 `candidate_id`다. 각 항목의 성공 기록은 `applied_generation`, `applied_input_manifest`, `thread_sha256`, `candidate_sha256`, 정제 판정·이유, 청크 ID·payload SHA, `active/excluded/never_indexed`, 동결 `source_root`, `applied_at`을 보존한다. 제외 항목도 tombstone으로 유지해 재포함·반복 제외를 추적한다. 아직 검증되지 않은 목표값과 실패 정보는 실행 계획·보고서에 두고 이전 applied를 바꾸지 않는다. 서로 다른 DB의 상태 파일을 재사용하면 오류다.
 

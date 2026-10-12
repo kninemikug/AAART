@@ -7,7 +7,7 @@ T09 Chroma 저장소에 멱등적으로 반영·제외하고 vector-state.json�
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -54,10 +54,12 @@ def now_iso_utc() -> str:
 
 
 def save_json_atomic(path: Path, data: Any) -> None:
-    """JSON 데이터를 파일에 원자적으로 저장 (임시 파일 작성 후 교체)."""
+    """내용이 바뀐 JSON만 원자적으로 저장하고 무변경 파일의 시각을 보존."""
+    content = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+    if path.is_file() and path.read_bytes() == content.encode("utf-8"):
+        return
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = path.with_suffix(path.suffix + ".tmp")
-    content = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
     tmp_path.write_text(content, encoding="utf-8")
     os.replace(tmp_path, path)
 
@@ -72,7 +74,7 @@ def compute_generation_id(
     reference_sha256: str,
     protocol_sha256: str,
 ) -> str:
-    """동결 입력 및 계약 지문들로부터 결정론적 generation_id 계산."""
+    """동결 입력 및 계약 지문들로부터 결정론적 입력 내용 식별값 계산."""
     payload = {
         "curation_sha256": curation_sha256,
         "filter_rules_version": filter_rules_version,
@@ -379,6 +381,52 @@ def records_match_chunks(
     return True
 
 
+def _validate_generation_manifest(
+    gen_dir: Path, plan_doc: dict[str, Any],
+) -> dict[str, Any]:
+    """불변 세대의 모든 필수 파일과 식별값을 쓰기 전에 검증."""
+    manifest_path = gen_dir / "generation-manifest.json"
+    if not manifest_path.is_file():
+        raise ValueError(f"generation-manifest.json 누락: {manifest_path}")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(manifest, dict) or manifest.get("schema_version") != 1:
+        raise ValueError("generation-manifest 스키마 버전 불일치")
+    if manifest.get("generation_id") != plan_doc.get("generation_id"):
+        raise ValueError("generation-manifest 세대 식별값 불일치")
+    if "input_generation_id" in plan_doc and (
+        manifest.get("input_generation_id") != plan_doc["input_generation_id"]
+    ):
+        raise ValueError("generation-manifest 입력 내용 식별값 불일치")
+    if manifest.get("inventory_manifest_sha256") != plan_doc.get("input_manifest"):
+        raise ValueError("generation-manifest 원문 매니페스트 불일치")
+    files_sha = manifest.get("files")
+    if not isinstance(files_sha, dict):
+        raise ValueError("generation-manifest의 files가 객체 형식이 아닙니다.")
+    required_files = (
+        "update-plan.json", "chunks.jsonl", "search-candidates.json",
+        "filter-report.json", "source/data/issues/sync-state.json",
+        "source/data/issues/curation-decisions.json",
+    )
+    for name in required_files:
+        expected_sha = files_sha.get(name)
+        if (
+            not isinstance(expected_sha, str) or len(expected_sha) != 64
+            or any(char not in "0123456789abcdef" for char in expected_sha)
+        ):
+            raise ValueError(f"generation-manifest 필수 SHA 누락/손상: {name}")
+        path = gen_dir / name
+        if not path.is_file() or sha256_bytes(path.read_bytes()) != expected_sha:
+            raise ValueError(f"{name} 파일이 manifest와 불일치합니다.")
+    for name in ("include_candidate_ids", "include_operation_ids", "chunk_doc_ids"):
+        ids = manifest.get(name)
+        if (
+            not isinstance(ids, list) or any(not isinstance(cid, str) or not cid for cid in ids)
+            or len(ids) != len(set(ids))
+        ):
+            raise ValueError(f"generation-manifest ID 집합 누락/손상: {name}")
+    return manifest
+
+
 def validate_plan_preflight(
     plan_doc: dict[str, Any],
     plan_path: Path,
@@ -391,6 +439,8 @@ def validate_plan_preflight(
     gen_id = plan_doc.get("generation_id")
     if not gen_id:
         raise ValueError("계획에 generation_id가 누락되었습니다.")
+    gen_dir = plan_path.parent
+    gen_manifest = _validate_generation_manifest(gen_dir, plan_doc)
 
     source_root = Path(plan_doc.get("source_root", "")).resolve()
     if not source_root.is_dir():
@@ -419,16 +469,6 @@ def validate_plan_preflight(
             f"동결 입력 매니페스트 불일치: 실제 {frozen_inv.snapshot_manifest_sha256} != 기대 {plan_doc.get('input_manifest')}"
         )
 
-    # 1. 불변 manifest 파일 검증 (임의 계획 수정 차단)
-    gen_dir = plan_path.parent
-    manifest_path = gen_dir / "generation-manifest.json"
-    if manifest_path.is_file():
-        gen_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        files_sha = gen_manifest.get("files", {})
-        plan_bytes = plan_path.read_bytes()
-        if files_sha.get("update-plan.json") and sha256_bytes(plan_bytes) != files_sha["update-plan.json"]:
-            raise ValueError("계획 문서(update-plan.json)가 manifest와 불일치합니다 (임의 수정 감지).")
-
     # chunks.jsonl 파일 무결성 및 SHA 대조
     chunks_jsonl_path = gen_dir / "chunks.jsonl"
     if not chunks_jsonl_path.is_file():
@@ -438,9 +478,6 @@ def validate_plan_preflight(
     expected_chunks_sha = plan_doc.get("chunks_sha256")
     if expected_chunks_sha and sha256_bytes(chunks_bytes) != expected_chunks_sha:
         raise ValueError("chunks.jsonl 파일 SHA256 불일치")
-    if manifest_path.is_file():
-        if files_sha.get("chunks.jsonl") and sha256_bytes(chunks_bytes) != files_sha["chunks.jsonl"]:
-            raise ValueError("chunks.jsonl 파일이 manifest와 불일치합니다.")
 
     chunks_by_cand: dict[str, list[T09Chunk]] = {}
     for line in chunks_bytes.decode("utf-8").splitlines():
@@ -472,6 +509,20 @@ def validate_plan_preflight(
             raise ValueError(f"지원하지 않는 작업 action 감지: {act}")
         if not op.get("candidate_id"):
             raise ValueError("작업에 candidate_id가 누락되었습니다.")
+        disposition = op.get("disposition")
+        if disposition not in {"include", "exclude", "review"}:
+            raise ValueError(f"지원하지 않는 정제 판정: {disposition}")
+        if (act in {"create", "update"} and disposition != "include") or (
+            act == "exclude" and disposition == "include"
+        ):
+            raise ValueError("작업 action과 정제 판정이 불일치합니다.")
+        required = (
+            "record_key", "thread_sha256", "candidate_sha256", "reason_codes",
+            "base_payload_fingerprint", "target_payload_fingerprint",
+            "t09_operation_fingerprint",
+        )
+        if any(name not in op for name in required):
+            raise ValueError("계획 작업의 필수 필드가 누락되었습니다.")
 
     # include 후보 ID, include 작업 ID, 청크 doc_id 집합 일치 검사
     include_op_ids = {op["candidate_id"] for op in operations if op.get("disposition") == "include"}
@@ -481,13 +532,12 @@ def validate_plan_preflight(
             f"include 작업 ID 집합과 청크 doc_id 집합이 불일치합니다: 작업({len(include_op_ids)}) != 청크({len(chunk_doc_ids)})"
         )
 
-    if manifest_path.is_file():
-        manifest_include_cands = set(gen_manifest.get("include_candidate_ids", []))
-        manifest_include_ops = set(gen_manifest.get("include_operation_ids", []))
-        if include_op_ids != manifest_include_ops or include_op_ids != manifest_include_cands:
-            raise ValueError(
-                "계획의 include 작업 ID 집합이 generation-manifest와 불일치합니다 (누락/임의변경 감지)."
-            )
+    candidates_doc = json.loads((gen_dir / "search-candidates.json").read_text(encoding="utf-8"))
+    candidate_ids = {candidate["candidate_id"] for candidate in candidates_doc["candidates"]}
+    if any(include_op_ids != set(gen_manifest[name]) for name in (
+        "include_candidate_ids", "include_operation_ids", "chunk_doc_ids",
+    )) or include_op_ids != candidate_ids:
+        raise ValueError("계획의 include 작업 ID 집합이 generation-manifest/정제 후보와 불일치합니다.")
 
     for op in operations:
         if op.get("disposition") == "include":
@@ -501,6 +551,17 @@ def validate_plan_preflight(
             actual_payload = compute_chunks_payload_sha256(cand_chunks, spec)
             if actual_payload != op.get("chunks_payload_sha256"):
                 raise ValueError(f"청크 payload SHA256 불일치: {cid}")
+            if compute_chunks_canonical_fingerprint(cand_chunks, spec) != op["target_payload_fingerprint"]:
+                raise ValueError(f"목표 payload 지문 불일치: {cid}")
+            for chunk in cand_chunks:
+                validate_provenance(chunk, source_root=source_root)
+            expected_operation_fp = actual_payload
+        else:
+            expected_operation_fp = sha256_str(canonical_json_str({
+                "source_type": "github", "source_group_id": op["candidate_id"],
+            }))
+        if op["t09_operation_fingerprint"] != expected_operation_fp:
+            raise ValueError(f"T09 작업 지문 불일치: {op['candidate_id']}")
 
     return source_root, chunks_by_cand
 
@@ -508,6 +569,38 @@ def validate_plan_preflight(
 # ---------------------------------------------------------------------------
 # Prepare 동작
 # ---------------------------------------------------------------------------
+
+
+def _select_generation_id(
+    input_generation_id: str, base_generation: Optional[str], output_dir: Path,
+) -> str:
+    """현재 완료 계획과 같은 기준의 미완료 계획만 재사용하고 새 적용은 구분."""
+    generations = output_dir / "index-updates"
+    if base_generation is not None:
+        completed_plan = generations / base_generation / "update-plan.json"
+        if completed_plan.is_file():
+            completed = json.loads(completed_plan.read_text(encoding="utf-8"))
+            completed_input = completed.get("input_generation_id", completed.get("generation_id"))
+            if completed_input == input_generation_id:
+                return base_generation
+
+    # 내용 지문을 세대 ID로 사용한 기존 계획도 기준 세대가 맞으면 복구·재사용.
+    legacy_dir = generations / input_generation_id
+    legacy_plan = legacy_dir / "update-plan.json"
+    if legacy_dir.exists():
+        if not legacy_plan.is_file():
+            return input_generation_id  # 기존 세대 검증에서 누락을 거부한다.
+        legacy = json.loads(legacy_plan.read_text(encoding="utf-8"))
+        if legacy.get("base_generation") == base_generation:
+            return input_generation_id
+
+    if base_generation is None:
+        return input_generation_id
+    digest = sha256_bytes(canonical_json_bytes({
+        "input_generation_id": input_generation_id,
+        "base_generation": base_generation,
+    }))
+    return f"gen_{digest[:16]}"
 
 
 def prepare_generation(
@@ -520,7 +613,8 @@ def prepare_generation(
 ) -> dict[str, Any]:
     """완료 원문 입력을 검증·동결하고 정제·청킹하여 세대별 실행 계획 update-plan.json 생성.
     
-    동일 입력에 대한 재실행 시 기존 계획 및 청크 파일을 덮어쓰지 않고 재사용하며,
+    같은 기준의 재시도 및 현재 완료 입력 재실행은 기존 계획을 재사용하며,
+    다른 세대 이후 같은 입력으로 복원하면 현재 기준으로 새 계획을 만든다.
     손상된 기존 세대 발견 시 덮어쓰지 않고 즉시 오류로 중단한다.
     """
     input_dir = Path(input_dir).resolve()
@@ -554,7 +648,7 @@ def prepare_generation(
     )
     store_identifier = f"{spec.collection_name}:{spec.model_id}:{spec.dimension}"
 
-    gen_id = compute_generation_id(
+    input_generation_id = compute_generation_id(
         store_identifier=store_identifier,
         sync_state_sha256=sync_state_sha256,
         snapshot_manifest_sha256=snapshot_manifest_sha256,
@@ -564,6 +658,24 @@ def prepare_generation(
         reference_sha256=spec.reference_sha256,
         protocol_sha256=spec.protocol_sha256,
     )
+
+    plan_store = {
+        "persist_dir": str(persist_dir),
+        "collection_name": spec.collection_name,
+        "reference_sha256": spec.reference_sha256,
+        "protocol_sha256": spec.protocol_sha256,
+        "contract_fingerprint": rule_fingerprint,
+    }
+    vector_state_path = output_dir / "vector-state.json"
+    vector_state_data: Optional[dict[str, Any]] = None
+    base_state_sha256 = None
+    if vector_state_path.is_file():
+        state_bytes = vector_state_path.read_bytes()
+        vector_state_data = json.loads(state_bytes.decode("utf-8"))
+        validate_store_matching(persist_dir, plan_store, vector_state_data.get("store"), spec)
+        base_state_sha256 = sha256_bytes(state_bytes)
+    base_generation = vector_state_data.get("last_completed_generation") if vector_state_data else None
+    gen_id = _select_generation_id(input_generation_id, base_generation, output_dir)
 
     gen_dir = output_dir / "index-updates" / gen_id
     plan_path = gen_dir / "update-plan.json"
@@ -580,6 +692,10 @@ def prepare_generation(
             )
         try:
             existing_plan = json.loads(plan_path.read_text(encoding="utf-8"))
+            if existing_plan.get("generation_id") != gen_id:
+                raise ValueError("기존 세대의 generation_id 불일치")
+            if existing_plan.get("input_generation_id", input_generation_id) != input_generation_id:
+                raise ValueError("기존 세대의 입력 내용 식별값 불일치")
             # 계획의 핵심 SHA 및 매니페스트 대조
             if existing_plan.get("input_manifest") != snapshot_manifest_sha256:
                 raise ValueError("기존 세대의 input_manifest 불일치")
@@ -598,6 +714,8 @@ def prepare_generation(
             frozen_inv = load_sources(frozen_issues_dir)
             if frozen_inv.snapshot_manifest_sha256 != snapshot_manifest_sha256:
                 raise ValueError("기존 동결본의 snapshot_manifest_sha256 불일치")
+            validate_store_matching(persist_dir, existing_plan["store"], None, spec)
+            validate_plan_preflight(existing_plan, plan_path, spec)
 
             # 정상 세대 재사용: 파일 덮어쓰기 없이 기존 요약 반환
             ops = existing_plan.get("operations", [])
@@ -672,20 +790,7 @@ def prepare_generation(
     chunks_jsonl_path.write_bytes(chunks_content)
     chunks_sha256 = sha256_bytes(chunks_content)
 
-    # 5. 기존 vector-state.json 및 Chroma 저장소 상태 읽기
-    vector_state_path = output_dir / "vector-state.json"
-    vector_state_data: Optional[dict[str, Any]] = None
-    if vector_state_path.is_file():
-        try:
-            vector_state_data = json.loads(vector_state_path.read_text(encoding="utf-8"))
-        except Exception:
-            vector_state_data = None
-
-    base_generation = vector_state_data.get("last_completed_generation") if vector_state_data else None
-    base_state_sha256 = (
-        sha256_bytes(vector_state_path.read_bytes()) if vector_state_path.is_file() else None
-    )
-
+    # 5. 현재 기준 세대의 Chroma 저장소 상태 읽기
     existing_stored_github = get_existing_github_records(store)
     existing_items: dict[str, dict[str, Any]] = (
         vector_state_data.get("items", {}) if vector_state_data else {}
@@ -826,6 +931,7 @@ def prepare_generation(
     plan_doc = {
         "schema_version": PLAN_SCHEMA_VERSION,
         "generation_id": gen_id,
+        "input_generation_id": input_generation_id,
         "repository": str(inventory.state.get("repository", "artraweditor/ART")),
         "sync_state_sha256": sync_state_sha256,
         "input_manifest": snapshot_manifest_sha256,
@@ -834,13 +940,7 @@ def prepare_generation(
         "source_root": str(frozen_source_root.resolve()),
         "base_generation": base_generation,
         "base_state_sha256": base_state_sha256,
-        "store": {
-            "persist_dir": str(persist_dir.resolve()),
-            "collection_name": spec.collection_name,
-            "reference_sha256": spec.reference_sha256,
-            "protocol_sha256": spec.protocol_sha256,
-            "contract_fingerprint": rule_fingerprint,
-        },
+        "store": plan_store,
         "operations": operations,
     }
 
@@ -859,6 +959,7 @@ def prepare_generation(
     manifest_doc = {
         "schema_version": 1,
         "generation_id": gen_id,
+        "input_generation_id": input_generation_id,
         "created_at": now_iso_utc(),
         "files": {
             "update-plan.json": sha256_bytes(plan_path.read_bytes()),
@@ -891,99 +992,169 @@ def prepare_generation(
 # ---------------------------------------------------------------------------
 
 
-def apply_plan(
-    plan_path: Path,
-    persist_dir: Path,
-    reference_path: Path,
-) -> dict[str, Any]:
-    """저장된 update-plan.json을 읽고 Chroma 저장소에 갱신/제외를 반영 후 vector-state.json 확정.
-    
-    중단 복구(updating API 호출 및 ready 검증), 대상 저장소 검증, 오래된 계획 차단,
-    정제만 변경 시 임베딩 생략 및 실제 무변경 재실행 보존을 전수 보장한다.
-    """
-    plan_path = Path(plan_path).resolve()
-    persist_dir = Path(persist_dir).resolve()
-    reference_path = Path(reference_path).resolve()
+@dataclass(frozen=True)
+class _PreparedOperation:
+    operation: dict[str, Any]
+    chunks: list[T09Chunk]
+    stored_entry: dict[str, Any]
+    target_matched: bool
+    needs_recovery: bool
 
-    if not plan_path.is_file():
-        raise FileNotFoundError(f"실행 계획 파일을 찾을 수 없습니다: {plan_path}")
-    if not reference_path.is_file():
-        raise FileNotFoundError(f"인계 참조 파일을 찾을 수 없습니다: {reference_path}")
 
-    spec = load_spec(reference_path)
-    plan_doc = json.loads(plan_path.read_text(encoding="utf-8"))
+def _read_stored_group(store: RetrievalStore, candidate_id: str) -> dict[str, Any]:
+    records = store.collection.get(
+        where={"$and": [{"source_type": "github"}, {"source_group_id": candidate_id}]},
+        include=["documents", "metadatas"],
+    )
+    metadatas = records.get("metadatas") or []
+    return {
+        "chunk_ids": records.get("ids", []),
+        "documents": records.get("documents") or [],
+        "metadatas": metadatas,
+        "all_excluded": all(meta.get("excluded") is True for meta in metadatas),
+        "any_excluded": any(meta.get("excluded") is True for meta in metadatas),
+    }
 
-    # [1. 사전 전수 검증]: 계획 문서, 동결 원문 매니페스트, 계약 및 chunks.jsonl 검증
-    frozen_source_root, chunks_by_cand = validate_plan_preflight(plan_doc, plan_path, spec)
 
-    # [2. 대상 저장소 계약 및 사전 유효성 검증]: 계획·실행인자 대조
-    plan_store = plan_doc.get("store", {})
-    validate_store_matching(persist_dir, plan_store, None, spec)
+def _matches_target(
+    op: dict[str, Any], entry: dict[str, Any],
+    chunks: list[T09Chunk], spec: RetrievalSpec,
+) -> bool:
+    if compute_stored_records_canonical_fingerprint(entry) != op["target_payload_fingerprint"]:
+        return False
+    if op["disposition"] == "include":
+        return bool(chunks) and records_match_chunks(entry, chunks, spec)
+    return entry["all_excluded"]
 
-    gen_id = plan_doc["generation_id"]
-    gen_dir = plan_path.parent
-    output_dir = gen_dir.parent.parent
-    vector_state_path = output_dir / "vector-state.json"
 
-    # [3. 오래된 계획 차단 및 vector-state 검증]
-    vector_state_doc: dict[str, Any] = {}
-    if vector_state_path.is_file():
-        vector_state_bytes = vector_state_path.read_bytes()
-        curr_state_sha = sha256_bytes(vector_state_bytes)
-        vector_state_doc = json.loads(vector_state_bytes.decode("utf-8"))
+def _prepare_store_operations(
+    store: RetrievalStore, operations: list[dict[str, Any]],
+    chunks_by_cand: dict[str, list[T09Chunk]], spec: RetrievalSpec,
+) -> list[_PreparedOperation]:
+    """모든 그룹의 기준/목표를 쓰기 전에 검증하고 중단 작업을 맨 앞에 배치."""
+    state = store._get_store_state()
+    if state not in {"ready", "updating"}:
+        raise RuntimeError(f"저장소가 준비되지 않았습니다. 현재 상태: {state}")
 
-        # vector-state의 저장소 정보 대조
-        validate_store_matching(persist_dir, plan_store, vector_state_doc.get("store"), spec)
-
-        curr_last_gen = vector_state_doc.get("last_completed_generation")
-        base_gen = plan_doc.get("base_generation")
-        base_sha = plan_doc.get("base_state_sha256")
-
-        is_reexecution = (curr_last_gen == gen_id)
-        is_partial_retry = False
-        if curr_last_gen == base_gen:
-            # 같은 세대의 부분 성공 작업이 존재하는지 확인
-            for item in vector_state_doc.get("items", {}).values():
-                if item.get("applied_generation") == gen_id:
-                    is_partial_retry = True
-                    break
-
-        is_fresh_apply = (curr_last_gen == base_gen and (base_sha is None or base_sha == curr_state_sha))
-
-        if not (is_reexecution or is_partial_retry or is_fresh_apply):
-            raise RuntimeError(
-                f"오래된 계획 거부: 현재 저장소 완료 세대({curr_last_gen})가 계획의 기준 세대({base_gen})와 다르거나, "
-                f"외부 실행에 의해 이미 갱신되었습니다. 현재 레코드를 보존하고 거부합니다."
+    pending_id = None
+    if state == "updating":
+        metadata = store._current_collection().metadata or {}
+        pending = next((
+            op for op in operations
+            if op["candidate_id"] == metadata.get("source_group_id")
+            and metadata.get("source_type") == "github"
+            and op["t09_operation_fingerprint"] == metadata.get("input_fingerprint")
+            and metadata.get("operation") == (
+                "replace_source" if op["disposition"] == "include" else "exclude_source"
             )
+        ), None)
+        if pending is None:
+            raise RuntimeError(
+                "미완료 updating 상태와 일치하는 계획 작업이 없습니다. 중단합니다."
+            )
+        pending_id = pending["candidate_id"]
 
-    store = validate_store_before_access(persist_dir, spec, require_rawpedia_count=True)
-    session = load_encoder(spec)
-
-    # [4. 중단 복구 사전 확인 (T09 updating 상태 감지)]
-    initial_store_state = store._get_store_state()
-    updating_target_cand = None
-    if initial_store_state == "updating":
-        meta = store._current_collection().metadata or {}
-        updating_op = meta.get("operation")
-        updating_fp = meta.get("input_fingerprint")
-        updating_group = meta.get("source_group_id")
-        # 계획에 해당 작업이 존재하는지 대조
-        matched_op = next(
-            (op for op in plan_doc.get("operations", [])
-             if op["candidate_id"] == updating_group and op.get("t09_operation_fingerprint") == updating_fp),
-            None
+    prepared = []
+    for op in operations:
+        cid = op["candidate_id"]
+        entry = _read_stored_group(store, cid)
+        chunks = chunks_by_cand.get(cid, [])
+        needs_recovery = cid == pending_id
+        target_matched = _matches_target(op, entry, chunks, spec)
+        base_matched = (
+            compute_stored_records_canonical_fingerprint(entry)
+            == op["base_payload_fingerprint"]
         )
-        if not matched_op:
+        # 동일 T09 작업만 중간 upsert/delete 상태를 복구할 수 있다.
+        if not needs_recovery and not (target_matched or base_matched):
             raise RuntimeError(
-                f"완료되지 않은 미완료 updating 상태({updating_op}, {updating_group})와 일치하는 계획 작업이 없습니다. 중단합니다."
+                f"오래된 계획 거부: 저장소 레코드 지문이 준비 시점의 기준/목표 상태와 "
+                f"불일치합니다 ({cid}). 최신 레코드를 보존하고 쓰기 전 거부합니다."
             )
-        updating_target_cand = updating_group
+        if op["action"] == "noop" and not target_matched and not needs_recovery:
+            raise RuntimeError(f"noop/목표 상태 읽기 검증 실패 ({cid})")
+        prepared.append(_PreparedOperation(op, chunks, entry, target_matched, needs_recovery))
 
-    if not vector_state_doc:
-        vector_state_doc = {
+    return sorted(prepared, key=lambda item: not item.needs_recovery)
+
+
+def _apply_prepared_operation(
+    prepared: _PreparedOperation, store: RetrievalStore,
+    session: EncoderSession, source_root: Path, spec: RetrievalSpec,
+) -> tuple[Optional[IndexReport], dict[str, Any]]:
+    """필요한 그룹만 T09 API로 반영하고 저장된 목표 상태를 읽어 검증."""
+    op = prepared.operation
+    if prepared.target_matched and not prepared.needs_recovery:
+        return None, prepared.stored_entry
+
+    cid = op["candidate_id"]
+    key = SourceKey("github", cid)
+    if op["disposition"] == "include":
+        report = store.replace_source(
+            key=key, chunks=prepared.chunks, session=session, source_root=source_root,
+        )
+    else:
+        report = store.exclude_source(key)
+    if report.status != "success":
+        raise RuntimeError(f"Chroma 작업 실패: {cid}")
+    if store._get_store_state() != "ready":
+        raise RuntimeError(f"Chroma 작업 후 저장소 상태가 ready가 아닙니다: {cid}")
+
+    entry = _read_stored_group(store, cid)
+    if not _matches_target(op, entry, prepared.chunks, spec):
+        raise RuntimeError(f"Chroma 저장 후 목표 레코드 검증 실패: {cid}")
+    return report, entry
+
+
+def _checkpoint_applied_item(
+    state_path: Path, state_doc: dict[str, Any], op: dict[str, Any],
+    stored_entry: dict[str, Any], plan_doc: dict[str, Any],
+    source_root: Path, applied_at: str,
+) -> bool:
+    """검증된 항목만 확정하며 기존 성공 기록과 제외 tombstone을 보존."""
+    cid = op["candidate_id"]
+    if op["disposition"] == "include":
+        status = "active"
+    else:
+        status = "excluded" if stored_entry["chunk_ids"] else "never_indexed"
+    core = {
+        "candidate_id": cid,
+        "record_key": op["record_key"],
+        "thread_sha256": op["thread_sha256"],
+        "candidate_sha256": op["candidate_sha256"],
+        "disposition": op["disposition"],
+        "reason_codes": op["reason_codes"],
+        "status": status,
+        "chunk_ids": op.get("chunk_ids", []),
+        "chunks_payload_sha256": op.get("chunks_payload_sha256"),
+    }
+    items = state_doc.get("items", {})
+    previous = items.get(cid)
+    if previous is not None and all(previous.get(name) == value for name, value in core.items()):
+        return False
+
+    item = {
+        **core,
+        "applied_generation": plan_doc["generation_id"],
+        "applied_input_manifest": plan_doc["input_manifest"],
+        "source_root": str(source_root),
+        "applied_at": applied_at,
+    }
+    next_state = {**state_doc, "items": {**items, cid: item}}
+    save_json_atomic(state_path, next_state)
+    # 디스크 체크포인트가 성공한 경우에만 메모리 상태도 전진한다.
+    state_doc.update(next_state)
+    return True
+
+
+def _load_vector_state(
+    state_path: Path, plan_doc: dict[str, Any], persist_dir: Path, spec: RetrievalSpec,
+) -> dict[str, Any]:
+    if not state_path.is_file():
+        return {
             "schema_version": STATE_SCHEMA_VERSION,
             "store": {
-                "persist_dir": str(persist_dir.resolve()),
+                "persist_dir": str(persist_dir),
                 "collection_name": spec.collection_name,
                 "reference_sha256": spec.reference_sha256,
                 "protocol_sha256": spec.protocol_sha256,
@@ -993,326 +1164,147 @@ def apply_plan(
             "items": {},
         }
 
-    items_state = vector_state_doc.setdefault("items", {})
-
-    operations = plan_doc.get("operations", [])
-    op_results: list[dict[str, Any]] = []
-
-    count_created = 0
-    count_updated = 0
-    count_excluded = 0
-    count_unchanged = 0
-    count_failed = 0
-
-    now_ts = now_iso_utc()
-    failed_index: Optional[int] = None
-
-    for idx, op in enumerate(operations):
-        cand_id = op["candidate_id"]
-        action = op["action"]
-        record_key = op["record_key"]
-        thread_sha256 = op["thread_sha256"]
-        cand_sha256 = op["candidate_sha256"]
-        disp = op["disposition"]
-        reason_codes = op["reason_codes"]
-        chunk_ids = op.get("chunk_ids", [])
-        payload_sha256 = op.get("chunks_payload_sha256")
-        base_fp = op.get("base_payload_fingerprint") or op.get("existing_payload_fingerprint")
-        target_fp = op.get("target_payload_fingerprint")
-
-        is_recovery_candidate = (updating_target_cand == cand_id)
-
-        # 현재 저장된 레코드 조회
-        stored_col = store.collection.get(
-            where={"$and": [{"source_type": "github"}, {"source_group_id": cand_id}]},
-            include=["documents", "metadatas"],
+    state_bytes = state_path.read_bytes()
+    state = json.loads(state_bytes.decode("utf-8"))
+    validate_store_matching(persist_dir, plan_doc["store"], state.get("store"), spec)
+    generation = plan_doc["generation_id"]
+    current = state.get("last_completed_generation")
+    base = plan_doc.get("base_generation")
+    base_sha = plan_doc.get("base_state_sha256")
+    partial_retry = current == base and any(
+        item.get("applied_generation") == generation for item in state.get("items", {}).values()
+    )
+    fresh_apply = current == base and (
+        base_sha is None or base_sha == sha256_bytes(state_bytes)
+    )
+    if current != generation and not partial_retry and not fresh_apply:
+        raise RuntimeError(
+            f"오래된 계획 거부: 현재 저장소 완료 세대({current})가 계획의 기준 세대({base})와 "
+            "다르거나 외부 실행에 의해 이미 갱신되었습니다. 현재 레코드를 보존하고 거부합니다."
         )
-        stored_entry = {
-            "chunk_ids": stored_col.get("ids", []),
-            "documents": stored_col.get("documents", []),
-            "metadatas": stored_col.get("metadatas", []),
-            "all_excluded": all(m.get("excluded", False) for m in stored_col.get("metadatas", [])) if stored_col.get("metadatas") else True,
-            "any_excluded": any(m.get("excluded", False) for m in stored_col.get("metadatas", [])),
-        }
-        current_fp = compute_stored_records_canonical_fingerprint(stored_entry)
+    return state
 
-        # [지문 검증 및 복구 분기 (Codex 리뷰 2항)]
-        cand_chunks = chunks_by_cand.get(cand_id, [])
-        is_target_matched = False
 
-        if not is_recovery_candidate:
-            # updating 상태가 아닌 일반 작업: 다른 미완료 작업이 남아있는지 확인
-            if store._get_store_state() == "updating":
-                raise RuntimeError(
-                    f"저장소가 다른 작업으로 갱신 중입니다. 작업을 진행할 수 없습니다 ({cand_id})"
+def apply_plan(
+    plan_path: Path,
+    persist_dir: Path,
+    reference_path: Path,
+) -> dict[str, Any]:
+    """전수 검증 → 중단 작업 우선 복구 → 순차 반영/체크포인트 → 완료 확정."""
+    plan_path = Path(plan_path).resolve()
+    persist_dir = Path(persist_dir).resolve()
+    reference_path = Path(reference_path).resolve()
+    if not plan_path.is_file():
+        raise FileNotFoundError(f"실행 계획 파일을 찾을 수 없습니다: {plan_path}")
+    if not reference_path.is_file():
+        raise FileNotFoundError(f"인계 참조 파일을 찾을 수 없습니다: {reference_path}")
+
+    spec = load_spec(reference_path)
+    plan_doc = json.loads(plan_path.read_text(encoding="utf-8"))
+    source_root, chunks_by_cand = validate_plan_preflight(plan_doc, plan_path, spec)
+    validate_store_matching(persist_dir, plan_doc["store"], None, spec)
+    gen_dir = plan_path.parent
+    state_path = gen_dir.parent.parent / "vector-state.json"
+    operations = plan_doc["operations"]
+    now_ts = now_iso_utc()
+    counts = {"created": 0, "updated": 0, "excluded": 0, "unchanged": 0}
+    results: dict[str, dict[str, Any]] = {}
+    completion_error = None
+
+    store = validate_store_before_access(persist_dir, spec, require_rawpedia_count=True)
+    # T09와 동일한 저장소 잠금 아래 사전 검증과 반영을 연속 수행한다.
+    with store._lock:
+        state_doc = _load_vector_state(state_path, plan_doc, persist_dir, spec)
+        prepared_ops = _prepare_store_operations(store, operations, chunks_by_cand, spec)
+        session = load_encoder(spec)
+        failed_id = None
+        for prepared in prepared_ops:
+            op = prepared.operation
+            cid = op["candidate_id"]
+            try:
+                report, entry = _apply_prepared_operation(
+                    prepared, store, session, source_root, spec,
                 )
-
-            # A. 동계획 목표 일치 여부 확인 (동계획 목표일치시 읽기검증후 완료)
-            if disp == "include":
-                if (target_fp and current_fp == target_fp) or (cand_chunks and records_match_chunks(stored_entry, cand_chunks, spec)):
-                    is_target_matched = True
-            else:
-                if (stored_entry["all_excluded"] or not stored_entry["chunk_ids"]) and (target_fp is None or current_fp == target_fp):
-                    is_target_matched = True
-
-            # B. 기준값 일치 여부 확인 (현재 payload가 기준값과 같으면 정상 적용)
-            is_base_matched = (current_fp == base_fp)
-
-            if not is_target_matched and not is_base_matched:
-                # C. 외 변경 쓰기전 거부 (오래된 계획 차단)
-                raise RuntimeError(
-                    f"오래된 계획 거부: 저장소 레코드 지문이 준비 시점의 기준/목표 상태와 불일치합니다 ({cand_id}). "
-                    f"최신 레코드를 보존하고 쓰기 전 거부합니다."
+                had_checkpoint = cid in state_doc.get("items", {})
+                checkpoint_changed = _checkpoint_applied_item(
+                    state_path, state_doc, op, entry, plan_doc, source_root, now_ts,
                 )
-        else:
-            # is_recovery_candidate: "기준 지문 불일치만으로 동일 작업 복구를 차단하지 않는다"
-            # 기준 지문 대조를 건너뛰고 T09 복구 API 호출을 수행
-            is_target_matched = False
-
-        try:
-            if is_target_matched or (action == "noop" and not is_recovery_candidate):
-                # [동계획 목표 일치 또는 noop]: 읽기 검증 후 완료 확정 (Chroma 쓰기 없음)
-                if disp == "include":
-                    if not cand_chunks or not records_match_chunks(stored_entry, cand_chunks, spec):
-                        raise RuntimeError(f"noop/목표 청크셋 읽기 검증 실패 ({cand_id})")
-                elif disp in ("exclude", "review"):
-                    active_stored = store.collection.get(
-                        where={"$and": [{"source_type": "github"}, {"source_group_id": cand_id}, {"excluded": False}]},
-                        include=[],
-                    )
-                    if len(active_stored.get("ids", [])) > 0:
-                        raise RuntimeError(f"noop/목표 제외 상태 읽기 검증 실패 ({cand_id})")
-
-                existing_item = items_state.get(cand_id, {})
-                is_exact_same = (
-                    existing_item.get("candidate_sha256") == cand_sha256
-                    and existing_item.get("thread_sha256") == thread_sha256
-                    and existing_item.get("disposition") == disp
-                    and existing_item.get("reason_codes") == reason_codes
-                    and existing_item.get("applied_generation") == gen_id
-                )
-                if is_exact_same or action == "noop":
-                    count_unchanged += 1
-                    applied_time = existing_item.get("applied_at", now_ts)
-                    status_name = "noop"
+                if report is not None:
+                    status = "success"
+                    report_data = asdict(report)
+                    if op["disposition"] != "include":
+                        counts["excluded"] += 1
+                    elif op["action"] == "create":
+                        counts["created"] += 1
+                    else:
+                        counts["updated"] += 1
+                elif checkpoint_changed and had_checkpoint:
+                    status = "metadata_only"
+                    report_data = {"skipped_embedding": True}
+                    counts["updated"] += 1
                 else:
-                    count_updated += 1
-                    applied_time = now_ts
-                    status_name = "metadata_only"
-
-                status_str = "active" if disp == "include" else "never_indexed"
-                items_state[cand_id] = {
-                    "candidate_id": cand_id,
-                    "record_key": record_key,
-                    "thread_sha256": thread_sha256,
-                    "candidate_sha256": cand_sha256,
-                    "disposition": disp,
-                    "reason_codes": reason_codes,
-                    "status": status_str,
-                    "chunk_ids": chunk_ids,
-                    "chunks_payload_sha256": payload_sha256,
-                    "applied_generation": gen_id,
-                    "applied_input_manifest": plan_doc["input_manifest"],
-                    "source_root": str(frozen_source_root),
-                    "applied_at": applied_time,
+                    status = "noop"
+                    report_data = {}
+                    counts["unchanged"] += 1
+                results[cid] = {
+                    "candidate_id": cid, "action": op["action"],
+                    "status": status, "report": report_data,
+                    "verification": True, "error": None,
                 }
-                save_json_atomic(vector_state_path, vector_state_doc)
-
-                op_results.append({
-                    "candidate_id": cand_id,
-                    "action": action,
-                    "status": status_name,
-                    "report": {"skipped_embedding": True} if status_name == "metadata_only" else {},
-                    "verification": True,
-                    "error": None,
-                })
-
-            elif action in ("create", "update") or (is_recovery_candidate and disp == "include"):
-                if not cand_chunks:
-                    raise ValueError(f"후보 {cand_id}의 청크를 chunks.jsonl에서 찾을 수 없습니다.")
-
-                # provenance 전수 검증
-                for c in cand_chunks:
-                    validate_provenance(c, source_root=frozen_source_root)
-
-                source_key = SourceKey("github", cand_id)
-                # T09 갱신 및 복구 API 호출 (복구 상황인 경우 T09가 스스로 ready로 전환)
-                report = store.replace_source(
-                    key=source_key,
-                    chunks=cand_chunks,
-                    session=session,
-                    source_root=frozen_source_root,
-                )
-                if report.status != "success":
-                    raise RuntimeError(f"Chroma replace_source 실패: {cand_id}")
-
-                # 복구 후 저장소 상태가 ready인지 확인
-                if store._get_store_state() != "ready":
-                    raise RuntimeError(f"Chroma 갱신 후 저장소 상태가 ready가 아닙니다: {store._get_store_state()}")
-
-                # 저장 후 레코드 검증
-                check_col = store.collection.get(
-                    where={"$and": [{"source_type": "github"}, {"source_group_id": cand_id}]},
-                    include=["documents", "metadatas"],
-                )
-                check_entry = {
-                    "chunk_ids": check_col.get("ids", []),
-                    "documents": check_col.get("documents", []),
-                    "metadatas": check_col.get("metadatas", []),
-                    "any_excluded": any(m.get("excluded", False) for m in check_col.get("metadatas", [])),
+            except Exception as error:
+                failed_id = cid
+                results[cid] = {
+                    "candidate_id": cid, "action": op["action"],
+                    "status": "failed", "report": {},
+                    "verification": False, "error": str(error),
                 }
-                if not records_match_chunks(check_entry, cand_chunks, spec):
-                    raise RuntimeError(f"Chroma 저장 후 레코드 검증 실패: {cand_id}")
+                break
 
-                if action == "create":
-                    count_created += 1
-                else:
-                    count_updated += 1
-
-                items_state[cand_id] = {
-                    "candidate_id": cand_id,
-                    "record_key": record_key,
-                    "thread_sha256": thread_sha256,
-                    "candidate_sha256": cand_sha256,
-                    "disposition": disp,
-                    "reason_codes": reason_codes,
-                    "status": "active",
-                    "chunk_ids": chunk_ids,
-                    "chunks_payload_sha256": payload_sha256,
-                    "applied_generation": gen_id,
-                    "applied_input_manifest": plan_doc["input_manifest"],
-                    "source_root": str(frozen_source_root),
-                    "applied_at": now_ts,
+        # 보고서는 계획 순서로 유지하고, 복구 우선 처리 후 미실행 항목도 집계한다.
+        for op in operations:
+            cid = op["candidate_id"]
+            if cid not in results:
+                results[cid] = {
+                    "candidate_id": cid, "action": op["action"],
+                    "status": "unapplied", "report": {}, "verification": False,
+                    "error": f"선행 작업({failed_id}) 실패로 인해 실행되지 않음",
                 }
-                save_json_atomic(vector_state_path, vector_state_doc)
+        unapplied = sum(not result["verification"] for result in results.values())
+        if unapplied == 0:
+            try:
+                final_state = store._get_store_state()
+                if final_state != "ready":
+                    raise RuntimeError(f"배치 완료 후 저장소 상태가 ready가 아닙니다: {final_state}")
+                store.search("test search query", session=session)
+                if state_doc.get("last_completed_generation") != plan_doc["generation_id"]:
+                    completed_state = {
+                        **state_doc,
+                        "last_completed_generation": plan_doc["generation_id"],
+                        "last_completed_at": now_ts,
+                    }
+                    save_json_atomic(state_path, completed_state)
+                    state_doc.update(completed_state)
+            except Exception as error:
+                completion_error = str(error)
+        total_active = store._active_count()
 
-                op_results.append({
-                    "candidate_id": cand_id,
-                    "action": action,
-                    "status": "success",
-                    "report": asdict(report) if hasattr(report, "__dataclass_fields__") else vars(report),
-                    "verification": True,
-                    "error": None,
-                })
-
-            elif action == "exclude" or (is_recovery_candidate and disp in ("exclude", "review")):
-                source_key = SourceKey("github", cand_id)
-                report = store.exclude_source(source_key)
-                if report.status != "success":
-                    raise RuntimeError(f"Chroma exclude_source 실패: {cand_id}")
-
-                # 복구 후 저장소 상태가 ready인지 확인
-                if store._get_store_state() != "ready":
-                    raise RuntimeError(f"Chroma 제외 후 저장소 상태가 ready가 아닙니다: {store._get_store_state()}")
-
-                stored_col = store.collection.get(
-                    where={"$and": [{"source_type": "github"}, {"source_group_id": cand_id}]},
-                    include=["metadatas"],
-                )
-                if stored_col["ids"] and not all(m.get("excluded") is True for m in stored_col["metadatas"]):
-                    raise RuntimeError(f"Chroma exclude 검증 실패: 미제외 청크 잔류 in {cand_id}")
-
-                count_excluded += 1
-                items_state[cand_id] = {
-                    "candidate_id": cand_id,
-                    "record_key": record_key,
-                    "thread_sha256": thread_sha256,
-                    "candidate_sha256": cand_sha256,
-                    "disposition": disp,
-                    "reason_codes": reason_codes,
-                    "status": "excluded",
-                    "chunk_ids": [],
-                    "chunks_payload_sha256": None,
-                    "applied_generation": gen_id,
-                    "applied_input_manifest": plan_doc["input_manifest"],
-                    "source_root": str(frozen_source_root),
-                    "applied_at": now_ts,
-                }
-                save_json_atomic(vector_state_path, vector_state_doc)
-
-                op_results.append({
-                    "candidate_id": cand_id,
-                    "action": action,
-                    "status": "success",
-                    "report": asdict(report) if hasattr(report, "__dataclass_fields__") else vars(report),
-                    "verification": True,
-                    "error": None,
-                })
-
-        except Exception as e:
-            count_failed += 1
-            failed_index = idx
-            op_results.append({
-                "candidate_id": cand_id,
-                "action": action,
-                "status": "failed",
-                "report": {},
-                "verification": False,
-                "error": str(e),
-            })
-            # 순차 처리 중단: 실패 시 상태 전진을 멈춤
-            break
-
-    # [미반영에 실패 뒤 미실행 포함]: 실패 이후 남은 작업들을 unapplied로 기록
-    count_unapplied_skipped = 0
-    if failed_index is not None:
-        for rem_op in operations[failed_index + 1:]:
-            count_unapplied_skipped += 1
-            op_results.append({
-                "candidate_id": rem_op["candidate_id"],
-                "action": rem_op["action"],
-                "status": "unapplied",
-                "report": {},
-                "verification": False,
-                "error": f"선행 작업({operations[failed_index]['candidate_id']}) 실패로 인해 실행되지 않음",
-            })
-
-    total_unapplied = count_failed + count_unapplied_skipped
-    total_active = store._active_count()
-
-    overall_status = "success" if total_unapplied == 0 else "partial"
-    if total_unapplied == 0:
-        # 최종 상태 ready 및 검색 가능 확인
-        final_state = store._get_store_state()
-        if final_state != "ready":
-            raise RuntimeError(f"배치 완료 후 저장소 상태가 ready가 아닙니다: {final_state}")
-        # 검색 가능 검증
-        store.search("test search query", session=session)
-
-        # [성공 시각 덮어쓰기 금지]: 이미 동일 세대로 완료된 상태라면 기존 completed_at 유지
-        if vector_state_doc.get("last_completed_generation") != gen_id:
-            vector_state_doc["last_completed_generation"] = gen_id
-            vector_state_doc["last_completed_at"] = now_ts
-            save_json_atomic(vector_state_path, vector_state_doc)
-
-    apply_report_doc = {
+    status = "success" if unapplied == 0 and completion_error is None else "partial"
+    summary = {**counts, "unapplied": unapplied, "total_active": total_active}
+    apply_report = {
         "schema_version": REPORT_SCHEMA_VERSION,
-        "generation_id": gen_id,
+        "generation_id": plan_doc["generation_id"],
         "plan_path": str(plan_path),
         "applied_at": now_ts,
-        "status": overall_status,
-        "summary": {
-            "created": count_created,
-            "updated": count_updated,
-            "excluded": count_excluded,
-            "unchanged": count_unchanged,
-            "unapplied": total_unapplied,
-            "total_active": total_active,
-        },
-        "operations": op_results,
+        "status": status,
+        "summary": summary,
+        "operations": [results[op["candidate_id"]] for op in operations],
     }
-
-    apply_report_path = gen_dir / "apply-report.json"
-    save_json_atomic(apply_report_path, apply_report_doc)
-
+    if completion_error is not None:
+        apply_report["completion_error"] = completion_error
+    save_json_atomic(gen_dir / "apply-report.json", apply_report)
     return {
-        "generation_id": gen_id,
+        "generation_id": plan_doc["generation_id"],
         "plan_path": str(plan_path),
-        "status": overall_status,
-        "created": count_created,
-        "updated": count_updated,
-        "excluded": count_excluded,
-        "unchanged": count_unchanged,
-        "unapplied": total_unapplied,
-        "total_active": total_active,
+        "status": status,
+        **summary,
     }

@@ -22,6 +22,7 @@ from transformers import AutoTokenizer
 
 from artagent.chunking import TokenizerBundle
 from artagent.issue_filter import compute_canonical_manifest_sha256, compute_file_sha256, load_sources
+from artagent import issue_update
 from artagent.issue_update import (
     apply_plan,
     compute_candidate_sha256,
@@ -77,6 +78,74 @@ def t09_store_dir(tmp_path: Path) -> Path:
     store_dir = tmp_path / "t09_store"
     shutil.copytree(REAL_STORE_DIR, store_dir)
     return store_dir
+
+
+@pytest.fixture
+def mutable_issue_inputs(tmp_path: Path) -> tuple[Path, Path]:
+    """원문 및 정제 규칙을 운영 데이터와 분리해 수정할 수 있는 입력 복사본."""
+    corpus = tmp_path / "mutable-corpus"
+    curation = tmp_path / "mutable-curation.json"
+    shutil.copytree(FIXTURE_CORPUS, corpus)
+    shutil.copy2(FIXTURE_CURATION, curation)
+    return corpus, curation
+
+
+def rewrite_issue_body(
+    corpus: Path,
+    curation: Path,
+    number: int,
+    *,
+    prefix: str = "",
+    suffix: str = "",
+    select_entire_body: bool = False,
+) -> None:
+    """수집 SHA와 검토된 정제 SHA를 함께 갱신하되 선택 범위는 명시적으로만 확장."""
+    record_key = f"issue:{number}"
+    snapshot = corpus / "snapshots" / "issues" / f"{number}.json"
+    raw = json.loads(snapshot.read_text(encoding="utf-8"))
+    raw["body"] = prefix + raw["body"] + suffix
+    snapshot.write_text(json.dumps(raw, ensure_ascii=False), encoding="utf-8")
+    sync_path = corpus / "sync-state.json"
+    sync = json.loads(sync_path.read_text(encoding="utf-8"))
+    sync["records"][record_key]["file_sha256"] = compute_file_sha256(snapshot.read_bytes())
+    sync_path.write_text(json.dumps(sync, ensure_ascii=False), encoding="utf-8")
+    inventory = load_sources(corpus)
+    thread = next(t for t in inventory.threads if t.record_key == record_key)
+    curated = json.loads(curation.read_text(encoding="utf-8"))
+    curated["threads"][record_key]["thread_sha256"] = thread.thread_sha256
+    if select_entire_body:
+        span = next(
+            item for item in curated["threads"][record_key]["curated_content"]
+            if item["record_key"] == record_key
+        )
+        span["char_end"] = len(raw["body"])
+    curation.write_text(json.dumps(curated, ensure_ascii=False), encoding="utf-8")
+
+
+def snapshot_store_records(store: RetrievalStore) -> dict[str, object]:
+    """반환 순서에 의존하지 않고 본문·메타데이터·임베딩과 컬렉션 상태를 비교."""
+    result = store.collection.get(include=["documents", "metadatas", "embeddings"])
+    records = {
+        chunk_id: {
+            "document": result["documents"][index],
+            "metadata": result["metadatas"][index],
+            "embedding": result["embeddings"][index].tolist(),
+        }
+        for index, chunk_id in enumerate(result["ids"])
+    }
+    return {
+        "records": records,
+        "collection_metadata": dict(store._current_collection().metadata or {}),
+    }
+
+
+def forbid_chroma_writes(monkeypatch: pytest.MonkeyPatch, store: RetrievalStore) -> None:
+    """무변경 재실행에서는 Chroma에 실제 쓰기를 시도하는 것도 오류로 취급."""
+    def fail_write(*args, **kwargs):
+        pytest.fail("무변경 재실행 중 Chroma 쓰기가 발생했습니다")
+
+    for method in ("add", "upsert", "update", "delete", "modify"):
+        monkeypatch.setattr(type(store.collection), method, fail_write)
 
 
 # ---------------------------------------------------------------------------
@@ -609,7 +678,9 @@ def test_exclude_and_reinclude_lifecycle(tmp_path: Path, t09_store_dir: Path, sp
 # ---------------------------------------------------------------------------
 
 
-def test_regression_a_chunk_id_change_reexecution_success(tmp_path: Path, t09_store_dir: Path, spec: RetrievalSpec):
+def test_regression_a_chunk_id_change_reexecution_success(
+    tmp_path: Path, t09_store_dir: Path, spec: RetrievalSpec, monkeypatch: pytest.MonkeyPatch
+):
     """A. 청크 ID 변경 -> 구 청크 삭제·교체 및 재실행 성공 검증."""
     output_dir = tmp_path / "output"
     custom_corpus = tmp_path / "corpus"
@@ -680,6 +751,21 @@ def test_regression_a_chunk_id_change_reexecution_success(tmp_path: Path, t09_st
     current_ids = set(col_after["ids"])
     assert current_ids == new_chunk_ids
     assert not (old_chunk_ids & current_ids)
+
+    # 완료된 변경 세대의 동일 계획 재실행은 레코드·상태 파일을 다시 쓰지 않는다.
+    state_path = output_dir / "vector-state.json"
+    os.utime(state_path, ns=(1_700_000_000_000_000_000, 1_700_000_000_000_000_000))
+    state_bytes = state_path.read_bytes()
+    state_mtime = state_path.stat().st_mtime_ns
+    stored_records = snapshot_store_records(store)
+    forbid_chroma_writes(monkeypatch, store)
+
+    reexecution = apply_plan(Path(prep2["plan_path"]), t09_store_dir, REFERENCE_PATH)
+    assert reexecution["status"] == "success"
+    assert reexecution["unapplied"] == 0
+    assert snapshot_store_records(store) == stored_records
+    assert state_path.read_bytes() == state_bytes
+    assert state_path.stat().st_mtime_ns == state_mtime
 
 
 def test_regression_b_interrupted_after_payload_write_recovery_to_ready_and_searchable(
@@ -845,3 +931,783 @@ def test_regression_d_plan_operations_mutation_rejection_without_writes(
     assert after_count == initial_count
     assert not (output_dir / "vector-state.json").exists()
 
+
+@pytest.mark.parametrize("failure_stage", ["before_delete", "before_ready", "checkpoint"])
+def test_later_group_payload_write_failure_recovers_before_noop_groups(
+    tmp_path: Path,
+    t09_store_dir: Path,
+    spec: RetrievalSpec,
+    mutable_issue_inputs: tuple[Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
+    failure_stage: str,
+):
+    """중간 issue 500의 실제 쓰기 후 중단돼도 앞쪽 noop보다 먼저 동일 작업을 복구."""
+    corpus, curation = mutable_issue_inputs
+    rewrite_issue_body(
+        corpus, curation, 500,
+        prefix="Recovery must complete after a later issue write.\n",
+        select_entire_body=True,
+    )
+    output_dir = tmp_path / "output"
+    prepared = prepare_generation(
+        source_root=ROOT, input_dir=corpus, curation_path=curation,
+        reference_path=REFERENCE_PATH, persist_dir=t09_store_dir, output_dir=output_dir,
+    )
+    plan_path = Path(prepared["plan_path"])
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    candidate_id = "github:artraweditor/ART:issue:500"
+    target = next(op for op in plan["operations"] if op["candidate_id"] == candidate_id)
+    assert plan["operations"][0]["action"] == "noop"
+    assert plan["operations"].index(target) > 0
+    assert target["action"] == "update"
+
+    store = open_store(t09_store_dir, spec)
+    before = snapshot_store_records(store)
+    original_set_state = RetrievalStore._set_store_state
+    original_delete = type(store.collection).delete
+    original_save = issue_update.save_json_atomic
+    old_ids = {
+        cid for cid, record in before["records"].items()
+        if record["metadata"].get("source_group_id") == candidate_id
+    }
+    obsolete_ids = old_ids - set(target["chunk_ids"])
+    assert obsolete_ids
+    failed = False
+
+    def fail_after_issue_500_payload(self, state, **kwargs):
+        nonlocal failed
+        current = self._current_collection().metadata or {}
+        if state == "ready" and current.get("source_group_id") == candidate_id and not failed:
+            failed = True
+            raise RuntimeError("CRASH_AFTER_ISSUE_500_PAYLOAD_WRITE")
+        return original_set_state(self, state, **kwargs)
+
+    def fail_before_old_chunk_delete(self, *args, **kwargs):
+        nonlocal failed
+        if set(kwargs.get("ids", [])) & obsolete_ids and not failed:
+            failed = True
+            raise RuntimeError("CRASH_BEFORE_OLD_CHUNK_DELETE")
+        return original_delete(self, *args, **kwargs)
+
+    def fail_issue_500_checkpoint(path, data):
+        nonlocal failed
+        item = data.get("items", {}).get(candidate_id, {})
+        if (
+            path.name == "vector-state.json"
+            and item.get("applied_generation") == prepared["generation_id"]
+            and not failed
+        ):
+            failed = True
+            raise OSError("CRASH_DURING_ISSUE_500_CHECKPOINT")
+        return original_save(path, data)
+
+    with monkeypatch.context() as failure_patch:
+        if failure_stage == "before_delete":
+            failure_patch.setattr(type(store.collection), "delete", fail_before_old_chunk_delete)
+        elif failure_stage == "before_ready":
+            failure_patch.setattr(RetrievalStore, "_set_store_state", fail_after_issue_500_payload)
+        else:
+            failure_patch.setattr(issue_update, "save_json_atomic", fail_issue_500_checkpoint)
+        interrupted = apply_plan(plan_path, t09_store_dir, REFERENCE_PATH)
+
+    assert failed
+    assert interrupted["status"] == "partial"
+    if failure_stage != "checkpoint":
+        assert store._get_store_state() == "updating"
+        pending = store._current_collection().metadata or {}
+        assert pending["source_group_id"] == candidate_id
+        assert pending["input_fingerprint"] == target["t09_operation_fingerprint"]
+    else:
+        assert store._get_store_state() == "ready"
+    interrupted_state = json.loads((output_dir / "vector-state.json").read_text(encoding="utf-8"))
+    assert interrupted_state["last_completed_generation"] is None
+    assert candidate_id not in interrupted_state["items"]
+    written = store.collection.get(
+        where={"$and": [{"source_type": "github"}, {"source_group_id": candidate_id}]},
+        include=["documents", "metadatas"],
+    )
+    expected_ids = set(target["chunk_ids"])
+    if failure_stage == "before_delete":
+        expected_ids |= old_ids
+    assert set(written["ids"]) == expected_ids
+    assert any("Recovery must complete" in doc for doc in written["documents"])
+    session = load_encoder(spec)
+    if failure_stage != "checkpoint":
+        with pytest.raises(RuntimeError, match="저장소가 준비되지 않았습니다"):
+            store.search("Recovery must complete", session=session)
+
+    with monkeypatch.context() as retry_patch:
+        if failure_stage == "checkpoint":
+            forbid_chroma_writes(retry_patch, store)
+        retried = apply_plan(plan_path, t09_store_dir, REFERENCE_PATH)
+    assert retried["status"] == "success"
+    assert retried["unapplied"] == 0
+    assert store._get_store_state() == "ready"
+    assert store.search("RAW crop ratio", session=session)
+    after = snapshot_store_records(store)
+    other_before = {
+        key: value for key, value in before["records"].items()
+        if value["metadata"].get("source_group_id") != candidate_id
+    }
+    other_after = {
+        key: value for key, value in after["records"].items()
+        if value["metadata"].get("source_group_id") != candidate_id
+    }
+    assert other_after == other_before
+    state = json.loads((output_dir / "vector-state.json").read_text(encoding="utf-8"))
+    assert state["last_completed_generation"] == prepared["generation_id"]
+    assert state["items"][candidate_id]["status"] == "active"
+    assert set(state["items"][candidate_id]["chunk_ids"]) == set(target["chunk_ids"])
+
+
+def test_batch_stale_preflight_rejects_before_any_earlier_group_or_state_write(
+    tmp_path: Path, t09_store_dir: Path, spec: RetrievalSpec,
+):
+    """앞쪽 477이 갱신 대상이어도 뒤쪽 500의 외부 변경을 첫 쓰기 전에 검출."""
+    old_corpus = tmp_path / "old-corpus"
+    new_corpus = tmp_path / "new-corpus"
+    old_curation = tmp_path / "old-curation.json"
+    new_curation = tmp_path / "new-curation.json"
+    for corpus, curation in ((old_corpus, old_curation), (new_corpus, new_curation)):
+        shutil.copytree(FIXTURE_CORPUS, corpus)
+        shutil.copy2(FIXTURE_CURATION, curation)
+
+    rewrite_issue_body(
+        old_corpus, old_curation, 477,
+        prefix="This older plan must not update issue 477.\n", select_entire_body=True,
+    )
+    old_output = tmp_path / "old-output"
+    old = prepare_generation(
+        source_root=ROOT, input_dir=old_corpus, curation_path=old_curation,
+        reference_path=REFERENCE_PATH, persist_dir=t09_store_dir, output_dir=old_output,
+    )
+    old_plan_path = Path(old["plan_path"])
+    old_plan = json.loads(old_plan_path.read_text(encoding="utf-8"))
+    ordered_ids = [op["candidate_id"] for op in old_plan["operations"]]
+    assert ordered_ids.index("github:artraweditor/ART:issue:477") < ordered_ids.index("github:artraweditor/ART:issue:500")
+
+    # 선택되지 않은 끝부분만 바꿔 청크 ID·본문은 유지하면서 원문 지문 metadata를 변경.
+    rewrite_issue_body(
+        new_corpus, new_curation, 500,
+        suffix="\nUnselected later source update; preserve its metadata.",
+    )
+    new_output = tmp_path / "new-output"
+    new = prepare_generation(
+        source_root=ROOT, input_dir=new_corpus, curation_path=new_curation,
+        reference_path=REFERENCE_PATH, persist_dir=t09_store_dir, output_dir=new_output,
+    )
+    new_plan = json.loads(Path(new["plan_path"]).read_text(encoding="utf-8"))
+    old_500 = next(op for op in old_plan["operations"] if op["candidate_id"].endswith("issue:500"))
+    new_500 = next(op for op in new_plan["operations"] if op["candidate_id"].endswith("issue:500"))
+    assert old_500["chunk_ids"] == new_500["chunk_ids"]
+    assert old_500["target_payload_fingerprint"] != new_500["target_payload_fingerprint"]
+    assert apply_plan(Path(new["plan_path"]), t09_store_dir, REFERENCE_PATH)["status"] == "success"
+
+    store = open_store(t09_store_dir, spec)
+    latest_records = snapshot_store_records(store)
+    new_state_path = new_output / "vector-state.json"
+    latest_state = new_state_path.read_bytes()
+    latest_mtime = new_state_path.stat().st_mtime_ns
+    with pytest.raises(RuntimeError, match="오래된 계획 거부"):
+        apply_plan(old_plan_path, t09_store_dir, REFERENCE_PATH)
+
+    assert snapshot_store_records(store) == latest_records
+    assert not (old_output / "vector-state.json").exists()
+    assert new_state_path.read_bytes() == latest_state
+    assert new_state_path.stat().st_mtime_ns == latest_mtime
+
+
+@pytest.mark.parametrize("corruption", [
+    "missing_manifest_and_exclusion", "malformed_manifest", "wrong_schema", "wrong_generation",
+    "missing_plan_sha", "empty_plan_sha", "incorrect_plan_sha", "missing_chunks_sha",
+    "incorrect_chunks_sha", "missing_candidates_sha", "missing_report_sha", "missing_sync_sha",
+    "missing_curation_sha",
+])
+def test_manifest_missing_or_invalid_rejects_before_store_and_state_writes(
+    tmp_path: Path, t09_store_dir: Path, spec: RetrievalSpec,
+    mutable_issue_inputs: tuple[Path, Path], corruption: str,
+):
+    """제외 작업이 누락돼도 manifest 검증을 우회할 수 없고 모든 필수 SHA를 검증."""
+    corpus, curation = mutable_issue_inputs
+    output_dir = tmp_path / "output"
+    baseline = prepare_generation(
+        source_root=ROOT, input_dir=corpus, curation_path=curation,
+        reference_path=REFERENCE_PATH, persist_dir=t09_store_dir, output_dir=output_dir,
+    )
+    assert apply_plan(Path(baseline["plan_path"]), t09_store_dir, REFERENCE_PATH)["status"] == "success"
+    decisions = json.loads(curation.read_text(encoding="utf-8"))
+    decisions["threads"]["issue:500"]["disposition"] = "exclude"
+    decisions["threads"]["issue:500"]["reason_codes"] = ["MANUAL_EXCLUSION"]
+    curation.write_text(json.dumps(decisions), encoding="utf-8")
+    prepared = prepare_generation(
+        source_root=ROOT, input_dir=corpus, curation_path=curation,
+        reference_path=REFERENCE_PATH, persist_dir=t09_store_dir, output_dir=output_dir,
+    )
+    assert prepared["excluded"] == 1
+    plan_path = Path(prepared["plan_path"])
+    manifest_path = plan_path.parent / "generation-manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if corruption == "missing_manifest_and_exclusion":
+        manifest_path.unlink()
+        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+        plan["operations"] = [op for op in plan["operations"] if op["action"] != "exclude"]
+        plan_path.write_text(json.dumps(plan), encoding="utf-8")
+    elif corruption == "malformed_manifest":
+        manifest_path.write_text("{malformed", encoding="utf-8")
+    else:
+        file_by_corruption = {
+            "missing_plan_sha": "update-plan.json", "empty_plan_sha": "update-plan.json",
+            "incorrect_plan_sha": "update-plan.json", "missing_chunks_sha": "chunks.jsonl",
+            "incorrect_chunks_sha": "chunks.jsonl", "missing_candidates_sha": "search-candidates.json",
+            "missing_report_sha": "filter-report.json", "missing_sync_sha": "source/data/issues/sync-state.json",
+            "missing_curation_sha": "source/data/issues/curation-decisions.json",
+        }
+        if corruption == "wrong_schema":
+            manifest["schema_version"] = 999
+        elif corruption == "wrong_generation":
+            manifest["generation_id"] = "gen_from_another_generation"
+        elif corruption.startswith("missing_"):
+            manifest["files"].pop(file_by_corruption[corruption])
+        elif corruption == "empty_plan_sha":
+            manifest["files"][file_by_corruption[corruption]] = ""
+        else:
+            manifest["files"][file_by_corruption[corruption]] = "0" * 64
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    store = open_store(t09_store_dir, spec)
+    stored_before = snapshot_store_records(store)
+    state_path = output_dir / "vector-state.json"
+    state_before = state_path.read_bytes()
+    mtime_before = state_path.stat().st_mtime_ns
+    with pytest.raises((ValueError, FileNotFoundError)):
+        apply_plan(plan_path, t09_store_dir, REFERENCE_PATH)
+
+    assert snapshot_store_records(store) == stored_before
+    assert state_path.read_bytes() == state_before
+    assert state_path.stat().st_mtime_ns == mtime_before
+    assert not (plan_path.parent / "apply-report.json").exists()
+
+
+def test_excluded_generation_replay_preserves_tombstone_and_state_file(
+    tmp_path: Path, t09_store_dir: Path, spec: RetrievalSpec,
+    mutable_issue_inputs: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch,
+):
+    """include→exclude 완료 후 재실행은 excluded 상태 및 상태 파일 bytes·mtime을 보존."""
+    corpus, curation = mutable_issue_inputs
+    output_dir = tmp_path / "output"
+    baseline = prepare_generation(
+        source_root=ROOT, input_dir=corpus, curation_path=curation,
+        reference_path=REFERENCE_PATH, persist_dir=t09_store_dir, output_dir=output_dir,
+    )
+    assert apply_plan(Path(baseline["plan_path"]), t09_store_dir, REFERENCE_PATH)["status"] == "success"
+    decisions = json.loads(curation.read_text(encoding="utf-8"))
+    decisions["threads"]["issue:500"]["disposition"] = "exclude"
+    decisions["threads"]["issue:500"]["reason_codes"] = ["MANUAL_EXCLUSION"]
+    curation.write_text(json.dumps(decisions), encoding="utf-8")
+    excluded = prepare_generation(
+        source_root=ROOT, input_dir=corpus, curation_path=curation,
+        reference_path=REFERENCE_PATH, persist_dir=t09_store_dir, output_dir=output_dir,
+    )
+    excluded_path = Path(excluded["plan_path"])
+    assert apply_plan(excluded_path, t09_store_dir, REFERENCE_PATH)["status"] == "success"
+
+    state_path = output_dir / "vector-state.json"
+    os.utime(state_path, ns=(1_700_000_000_000_000_000, 1_700_000_000_000_000_000))
+    before_bytes = state_path.read_bytes()
+    before_mtime = state_path.stat().st_mtime_ns
+    before_state = json.loads(before_bytes)
+    assert before_state["items"]["github:artraweditor/ART:issue:500"]["status"] == "excluded"
+    store = open_store(t09_store_dir, spec)
+    before_records = snapshot_store_records(store)
+    forbid_chroma_writes(monkeypatch, store)
+
+    replay = apply_plan(excluded_path, t09_store_dir, REFERENCE_PATH)
+    assert replay["status"] == "success"
+    assert replay["unapplied"] == 0
+    assert snapshot_store_records(store) == before_records
+    assert state_path.read_bytes() == before_bytes
+    assert state_path.stat().st_mtime_ns == before_mtime
+    after_state = json.loads(state_path.read_bytes())
+    assert after_state["items"]["github:artraweditor/ART:issue:500"]["status"] == "excluded"
+
+
+def test_missing_manifest_cannot_be_recreated_by_prepare(
+    tmp_path: Path, t09_store_dir: Path, spec: RetrievalSpec,
+):
+    output_dir = tmp_path / "output"
+    arguments = dict(
+        source_root=ROOT, input_dir=FIXTURE_CORPUS, curation_path=FIXTURE_CURATION,
+        reference_path=REFERENCE_PATH, persist_dir=t09_store_dir, output_dir=output_dir,
+    )
+    prepared = prepare_generation(**arguments)
+    generation_dir = Path(prepared["plan_path"]).parent
+    (generation_dir / "generation-manifest.json").unlink()
+    before_files = {
+        str(path.relative_to(generation_dir)): path.read_bytes()
+        for path in generation_dir.rglob("*") if path.is_file()
+    }
+    store = open_store(t09_store_dir, spec)
+    before_store = snapshot_store_records(store)
+
+    with pytest.raises(ValueError, match="generation-manifest.json 누락"):
+        prepare_generation(**arguments)
+
+    after_files = {
+        str(path.relative_to(generation_dir)): path.read_bytes()
+        for path in generation_dir.rglob("*") if path.is_file()
+    }
+    assert after_files == before_files
+    assert snapshot_store_records(store) == before_store
+    assert not (output_dir / "vector-state.json").exists()
+
+
+def test_exclusion_write_failure_recovers_before_earlier_noop_groups(
+    tmp_path: Path, t09_store_dir: Path, spec: RetrievalSpec,
+    mutable_issue_inputs: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch,
+):
+    corpus, curation = mutable_issue_inputs
+    decisions = json.loads(curation.read_text(encoding="utf-8"))
+    decisions["threads"]["issue:500"]["disposition"] = "exclude"
+    curation.write_text(json.dumps(decisions), encoding="utf-8")
+    output_dir = tmp_path / "output"
+    prepared = prepare_generation(
+        source_root=ROOT, input_dir=corpus, curation_path=curation,
+        reference_path=REFERENCE_PATH, persist_dir=t09_store_dir, output_dir=output_dir,
+    )
+    plan_path = Path(prepared["plan_path"])
+    candidate_id = "github:artraweditor/ART:issue:500"
+    original_set_state = RetrievalStore._set_store_state
+
+    def fail_exclusion_ready(self, state, **kwargs):
+        current = self._current_collection().metadata or {}
+        if state == "ready" and current.get("source_group_id") == candidate_id:
+            assert current["operation"] == "exclude_source"
+            raise RuntimeError("CRASH_AFTER_EXCLUSION_WRITE")
+        return original_set_state(self, state, **kwargs)
+
+    with monkeypatch.context() as failure_patch:
+        failure_patch.setattr(RetrievalStore, "_set_store_state", fail_exclusion_ready)
+        interrupted = apply_plan(plan_path, t09_store_dir, REFERENCE_PATH)
+    assert interrupted["status"] == "partial"
+    store = open_store(t09_store_dir, spec)
+    assert store._get_store_state() == "updating"
+    stored = store.collection.get(
+        where={"$and": [{"source_type": "github"}, {"source_group_id": candidate_id}]},
+        include=["metadatas"],
+    )
+    assert stored["ids"]
+    assert all(meta["excluded"] is True for meta in stored["metadatas"])
+    interrupted_state = json.loads((output_dir / "vector-state.json").read_text(encoding="utf-8"))
+    assert candidate_id not in interrupted_state["items"]
+
+    retried = apply_plan(plan_path, t09_store_dir, REFERENCE_PATH)
+    assert retried["status"] == "success"
+    assert store._get_store_state() == "ready"
+    session = load_encoder(spec)
+    assert store.search("RAW crop ratio", session=session)
+    assert store.search("RAW crop ratio", session=session, source_key=SourceKey("github", candidate_id)) == []
+    state = json.loads((output_dir / "vector-state.json").read_text(encoding="utf-8"))
+    assert state["items"][candidate_id]["status"] == "excluded"
+    assert state["last_completed_generation"] == prepared["generation_id"]
+
+
+def test_completion_checkpoint_failure_retries_without_chroma_writes(
+    tmp_path: Path, t09_store_dir: Path, spec: RetrievalSpec, monkeypatch: pytest.MonkeyPatch,
+):
+    output_dir = tmp_path / "output"
+    prepared = prepare_generation(
+        source_root=ROOT, input_dir=FIXTURE_CORPUS, curation_path=FIXTURE_CURATION,
+        reference_path=REFERENCE_PATH, persist_dir=t09_store_dir, output_dir=output_dir,
+    )
+    plan_path = Path(prepared["plan_path"])
+    original_save = issue_update.save_json_atomic
+
+    def fail_completion_checkpoint(path, data):
+        if path.name == "vector-state.json" and data.get("last_completed_generation") is not None:
+            raise OSError("CRASH_DURING_COMPLETION_CHECKPOINT")
+        return original_save(path, data)
+
+    with monkeypatch.context() as failure_patch:
+        failure_patch.setattr(issue_update, "save_json_atomic", fail_completion_checkpoint)
+        interrupted = apply_plan(plan_path, t09_store_dir, REFERENCE_PATH)
+    assert interrupted["status"] == "partial"
+    assert interrupted["unapplied"] == 0  # 그룹은 완료됐지만 배치 완료 기록은 미확정.
+    report = json.loads((plan_path.parent / "apply-report.json").read_text(encoding="utf-8"))
+    assert report["completion_error"] == "CRASH_DURING_COMPLETION_CHECKPOINT"
+    state_path = output_dir / "vector-state.json"
+    interrupted_state = json.loads(state_path.read_text(encoding="utf-8"))
+    assert interrupted_state["last_completed_generation"] is None
+    assert len(interrupted_state["items"]) == 12
+    store = open_store(t09_store_dir, spec)
+    before_store = snapshot_store_records(store)
+
+    forbid_chroma_writes(monkeypatch, store)
+    retried = apply_plan(plan_path, t09_store_dir, REFERENCE_PATH)
+    assert retried["status"] == "success"
+    assert snapshot_store_records(store) == before_store
+    final_state = json.loads(state_path.read_text(encoding="utf-8"))
+    assert final_state["items"] == interrupted_state["items"]
+    assert final_state["last_completed_generation"] == prepared["generation_id"]
+
+
+def test_identical_input_bytes_can_cycle_include_exclude_without_reusing_historical_plan(
+    tmp_path: Path, t09_store_dir: Path, spec: RetrievalSpec,
+    mutable_issue_inputs: tuple[Path, Path],
+):
+    """A→B→A→B 입력 복원은 각 현재 기준에서 새 계획으로 적용하고 과거 산출물을 보존."""
+    corpus, curation = mutable_issue_inputs
+    include_bytes = curation.read_bytes()
+    excluded = json.loads(include_bytes)
+    excluded["threads"]["issue:500"]["disposition"] = "exclude"
+    excluded["threads"]["issue:500"]["reason_codes"] = ["MANUAL_EXCLUSION"]
+    exclude_bytes = json.dumps(excluded, ensure_ascii=False).encode("utf-8")
+    source_files = {path: path.read_bytes() for path in corpus.rglob("*.json")}
+    output_dir = tmp_path / "output"
+    store = open_store(t09_store_dir, spec)
+    candidate_id = "github:artraweditor/ART:issue:500"
+    prior_generation = None
+    preserved_files: dict[Path, tuple[bytes, int]] = {}
+    prior_plans: set[Path] = set()
+    original_records = snapshot_store_records(store)
+
+    for input_bytes, expected_status, expected_active in (
+        (include_bytes, "active", 154),
+        (exclude_bytes, "excluded", 153),
+        (include_bytes, "active", 154),
+        (exclude_bytes, "excluded", 153),
+    ):
+        curation.write_bytes(input_bytes)
+        prepared = prepare_generation(
+            source_root=ROOT, input_dir=corpus, curation_path=curation,
+            reference_path=REFERENCE_PATH, persist_dir=t09_store_dir, output_dir=output_dir,
+        )
+        plan_path = Path(prepared["plan_path"])
+        assert plan_path not in prior_plans, "현재 상태로의 전환에 과거 계획을 재사용했습니다"
+        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+        assert plan["base_generation"] == prior_generation
+        applied = apply_plan(plan_path, t09_store_dir, REFERENCE_PATH)
+        assert applied["status"] == "success"
+        assert applied["unapplied"] == 0
+        assert applied["total_active"] == expected_active
+        assert store._get_store_state() == "ready"
+        current = snapshot_store_records(store)
+        expected_records = copy.deepcopy(original_records)
+        for record in expected_records["records"].values():
+            if record["metadata"].get("source_group_id") == candidate_id:
+                record["metadata"]["excluded"] = expected_status == "excluded"
+        assert current == expected_records
+        state = json.loads((output_dir / "vector-state.json").read_text(encoding="utf-8"))
+        assert state["last_completed_generation"] == prepared["generation_id"]
+        assert state["items"][candidate_id]["status"] == expected_status
+        assert curation.read_bytes() == input_bytes
+        assert all(path.read_bytes() == content for path, content in source_files.items())
+        for artifact, (content, mtime) in preserved_files.items():
+            assert artifact.read_bytes() == content
+            assert artifact.stat().st_mtime_ns == mtime
+        for artifact in (plan_path, plan_path.parent / "generation-manifest.json"):
+            preserved_files[artifact] = (artifact.read_bytes(), artifact.stat().st_mtime_ns)
+        prior_plans.add(plan_path)
+        prior_generation = prepared["generation_id"]
+
+
+@pytest.mark.parametrize("disposition", ["include", "exclude"])
+def test_completed_input_prepare_reuses_current_plan_without_store_or_state_writes(
+    tmp_path: Path, t09_store_dir: Path, spec: RetrievalSpec,
+    mutable_issue_inputs: tuple[Path, Path], disposition: str,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """완료된 현재 입력의 prepare/apply 재실행은 같은 계획과 상태 bytes·mtime을 유지."""
+    corpus, curation = mutable_issue_inputs
+    output_dir = tmp_path / "output"
+    prepared = prepare_generation(
+        source_root=ROOT, input_dir=corpus, curation_path=curation,
+        reference_path=REFERENCE_PATH, persist_dir=t09_store_dir, output_dir=output_dir,
+    )
+    assert apply_plan(Path(prepared["plan_path"]), t09_store_dir, REFERENCE_PATH)["status"] == "success"
+    if disposition == "exclude":
+        decisions = json.loads(curation.read_bytes())
+        decisions["threads"]["issue:500"]["disposition"] = "exclude"
+        decisions["threads"]["issue:500"]["reason_codes"] = ["MANUAL_EXCLUSION"]
+        curation.write_text(json.dumps(decisions), encoding="utf-8")
+        prepared = prepare_generation(
+            source_root=ROOT, input_dir=corpus, curation_path=curation,
+            reference_path=REFERENCE_PATH, persist_dir=t09_store_dir, output_dir=output_dir,
+        )
+        assert apply_plan(Path(prepared["plan_path"]), t09_store_dir, REFERENCE_PATH)["status"] == "success"
+
+    plan_path = Path(prepared["plan_path"])
+    artifacts = {
+        path: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in (plan_path, plan_path.parent / "generation-manifest.json")
+    }
+    state_path = output_dir / "vector-state.json"
+    os.utime(state_path, ns=(1_700_000_000_000_000_000, 1_700_000_000_000_000_000))
+    state_bytes = state_path.read_bytes()
+    state_mtime = state_path.stat().st_mtime_ns
+    store = open_store(t09_store_dir, spec)
+    records = snapshot_store_records(store)
+    forbid_chroma_writes(monkeypatch, store)
+
+    repeated = prepare_generation(
+        source_root=ROOT, input_dir=corpus, curation_path=curation,
+        reference_path=REFERENCE_PATH, persist_dir=t09_store_dir, output_dir=output_dir,
+    )
+    assert Path(repeated["plan_path"]) == plan_path
+    assert repeated["generation_id"] == prepared["generation_id"]
+    applied = apply_plan(Path(repeated["plan_path"]), t09_store_dir, REFERENCE_PATH)
+    assert applied["status"] == "success"
+    assert applied["unapplied"] == 0
+    assert snapshot_store_records(store) == records
+    assert state_path.read_bytes() == state_bytes
+    assert state_path.stat().st_mtime_ns == state_mtime
+    for path, (content, mtime) in artifacts.items():
+        assert path.read_bytes() == content
+        assert path.stat().st_mtime_ns == mtime
+
+
+def test_restored_input_prepare_reuses_interrupted_plan_and_recovers_real_write(
+    tmp_path: Path, t09_store_dir: Path, spec: RetrievalSpec,
+    mutable_issue_inputs: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch,
+):
+    """A 복원 쓰기 후 중단되면 동일 입력 prepare는 그 실패 계획을 재사용하고 복구."""
+    corpus, curation = mutable_issue_inputs
+    include_bytes = curation.read_bytes()
+    output_dir = tmp_path / "output"
+    original = prepare_generation(
+        source_root=ROOT, input_dir=corpus, curation_path=curation,
+        reference_path=REFERENCE_PATH, persist_dir=t09_store_dir, output_dir=output_dir,
+    )
+    assert apply_plan(Path(original["plan_path"]), t09_store_dir, REFERENCE_PATH)["status"] == "success"
+    decisions = json.loads(include_bytes)
+    decisions["threads"]["issue:500"]["disposition"] = "exclude"
+    decisions["threads"]["issue:500"]["reason_codes"] = ["MANUAL_EXCLUSION"]
+    curation.write_text(json.dumps(decisions), encoding="utf-8")
+    excluded = prepare_generation(
+        source_root=ROOT, input_dir=corpus, curation_path=curation,
+        reference_path=REFERENCE_PATH, persist_dir=t09_store_dir, output_dir=output_dir,
+    )
+    assert apply_plan(Path(excluded["plan_path"]), t09_store_dir, REFERENCE_PATH)["status"] == "success"
+    curation.write_bytes(include_bytes)
+    restored = prepare_generation(
+        source_root=ROOT, input_dir=corpus, curation_path=curation,
+        reference_path=REFERENCE_PATH, persist_dir=t09_store_dir, output_dir=output_dir,
+    )
+    restored_path = Path(restored["plan_path"])
+    assert restored_path != Path(original["plan_path"])
+    restored_plan = json.loads(restored_path.read_bytes())
+    assert restored_plan["base_generation"] == excluded["generation_id"]
+    candidate_id = "github:artraweditor/ART:issue:500"
+    store = open_store(t09_store_dir, spec)
+    original_set_state = RetrievalStore._set_store_state
+    injected = False
+
+    def crash_after_restore_write(self, state, **kwargs):
+        nonlocal injected
+        current = self._current_collection().metadata or {}
+        if state == "ready" and current.get("source_group_id") == candidate_id and not injected:
+            injected = True
+            raise RuntimeError("CRASH_AFTER_REINCLUDE_PAYLOAD_WRITE")
+        return original_set_state(self, state, **kwargs)
+
+    with monkeypatch.context() as fail_patch:
+        fail_patch.setattr(RetrievalStore, "_set_store_state", crash_after_restore_write)
+        interrupted = apply_plan(restored_path, t09_store_dir, REFERENCE_PATH)
+    assert injected
+    assert interrupted["status"] == "partial"
+    assert store._get_store_state() == "updating"
+    written = store.collection.get(
+        where={"$and": [{"source_type": "github"}, {"source_group_id": candidate_id}]},
+        include=["metadatas"],
+    )
+    assert written["ids"]
+    assert all(metadata["excluded"] is False for metadata in written["metadatas"])
+    preserved = {
+        path: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in (restored_path, restored_path.parent / "generation-manifest.json")
+    }
+    state_path = output_dir / "vector-state.json"
+    state_bytes = state_path.read_bytes()
+    state_mtime = state_path.stat().st_mtime_ns
+    with monkeypatch.context() as no_write_patch:
+        forbid_chroma_writes(no_write_patch, store)
+        repeated = prepare_generation(
+            source_root=ROOT, input_dir=corpus, curation_path=curation,
+            reference_path=REFERENCE_PATH, persist_dir=t09_store_dir, output_dir=output_dir,
+        )
+    assert Path(repeated["plan_path"]) == restored_path
+    assert repeated["generation_id"] == restored["generation_id"]
+    assert state_path.read_bytes() == state_bytes
+    assert state_path.stat().st_mtime_ns == state_mtime
+    for path, (content, mtime) in preserved.items():
+        assert path.read_bytes() == content
+        assert path.stat().st_mtime_ns == mtime
+    recovered = apply_plan(restored_path, t09_store_dir, REFERENCE_PATH)
+    assert recovered["status"] == "success"
+    assert recovered["unapplied"] == 0
+    assert recovered["total_active"] == 154
+    assert store._get_store_state() == "ready"
+    assert store.search("RAW crop ratio", session=load_encoder(spec))
+    state = json.loads(state_path.read_bytes())
+    assert state["last_completed_generation"] == restored["generation_id"]
+    assert state["items"][candidate_id]["status"] == "active"
+
+
+def test_historical_include_plan_rejected_after_restored_input_generation(
+    tmp_path: Path, t09_store_dir: Path, spec: RetrievalSpec,
+    mutable_issue_inputs: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch,
+):
+    """입력 A를 새 기준에서 복원해도 보존된 최초 A 계획의 직접 적용은 거부."""
+    corpus, curation = mutable_issue_inputs
+    include_bytes = curation.read_bytes()
+    decisions = json.loads(include_bytes)
+    decisions["threads"]["issue:500"]["disposition"] = "exclude"
+    decisions["threads"]["issue:500"]["reason_codes"] = ["MANUAL_EXCLUSION"]
+    exclude_bytes = json.dumps(decisions).encode("utf-8")
+    output_dir = tmp_path / "output"
+    applied_plans = []
+    for input_bytes in (include_bytes, exclude_bytes, include_bytes):
+        curation.write_bytes(input_bytes)
+        prepared = prepare_generation(
+            source_root=ROOT, input_dir=corpus, curation_path=curation,
+            reference_path=REFERENCE_PATH, persist_dir=t09_store_dir, output_dir=output_dir,
+        )
+        plan_path = Path(prepared["plan_path"])
+        assert apply_plan(plan_path, t09_store_dir, REFERENCE_PATH)["status"] == "success"
+        applied_plans.append(plan_path)
+    assert applied_plans[0] != applied_plans[2]
+    original_plan = applied_plans[0]
+    plan_bytes = original_plan.read_bytes()
+    plan_mtime = original_plan.stat().st_mtime_ns
+    manifest_path = original_plan.parent / "generation-manifest.json"
+    manifest_bytes = manifest_path.read_bytes()
+    manifest_mtime = manifest_path.stat().st_mtime_ns
+    store = open_store(t09_store_dir, spec)
+    records = snapshot_store_records(store)
+    state_path = output_dir / "vector-state.json"
+    state_bytes = state_path.read_bytes()
+    state_mtime = state_path.stat().st_mtime_ns
+    forbid_chroma_writes(monkeypatch, store)
+
+    with pytest.raises(RuntimeError, match="오래된 계획 거부"):
+        apply_plan(original_plan, t09_store_dir, REFERENCE_PATH)
+    assert snapshot_store_records(store) == records
+    assert state_path.read_bytes() == state_bytes
+    assert state_path.stat().st_mtime_ns == state_mtime
+    assert original_plan.read_bytes() == plan_bytes
+    assert original_plan.stat().st_mtime_ns == plan_mtime
+    assert manifest_path.read_bytes() == manifest_bytes
+    assert manifest_path.stat().st_mtime_ns == manifest_mtime
+
+
+def test_legacy_interrupted_generation_is_reused_and_recovered_without_rewriting_files(
+    tmp_path: Path, t09_store_dir: Path, spec: RetrievalSpec,
+    mutable_issue_inputs: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch,
+):
+    """내용 지문만 generation_id로 쓰던 옛 계획도 prepare 재사용 후 실제 중단을 복구."""
+    corpus, curation = mutable_issue_inputs
+    output_dir = tmp_path / "output"
+    included = prepare_generation(
+        source_root=ROOT, input_dir=corpus, curation_path=curation,
+        reference_path=REFERENCE_PATH, persist_dir=t09_store_dir, output_dir=output_dir,
+    )
+    include_path = Path(included["plan_path"])
+    include_plan = json.loads(include_path.read_bytes())
+    assert include_plan["base_generation"] is None
+    assert include_plan["generation_id"] == include_plan.pop("input_generation_id")
+    include_path.write_text(json.dumps(include_plan), encoding="utf-8")
+    include_manifest_path = include_path.parent / "generation-manifest.json"
+    include_manifest = json.loads(include_manifest_path.read_bytes())
+    include_manifest.pop("input_generation_id")
+    include_manifest["files"]["update-plan.json"] = compute_file_sha256(include_path.read_bytes())
+    include_manifest_path.write_text(json.dumps(include_manifest), encoding="utf-8")
+    assert apply_plan(include_path, t09_store_dir, REFERENCE_PATH)["status"] == "success"
+
+    decisions = json.loads(curation.read_bytes())
+    decisions["threads"]["issue:500"]["disposition"] = "exclude"
+    decisions["threads"]["issue:500"]["reason_codes"] = ["MANUAL_EXCLUSION"]
+    curation.write_text(json.dumps(decisions), encoding="utf-8")
+    excluded = prepare_generation(
+        source_root=ROOT, input_dir=corpus, curation_path=curation,
+        reference_path=REFERENCE_PATH, persist_dir=t09_store_dir, output_dir=output_dir,
+    )
+    new_exclude_path = Path(excluded["plan_path"])
+    exclude_plan = json.loads(new_exclude_path.read_bytes())
+    legacy_generation = exclude_plan.pop("input_generation_id")
+    legacy_dir = new_exclude_path.parent.parent / legacy_generation
+    assert not legacy_dir.exists()
+    new_exclude_path.parent.rename(legacy_dir)
+    legacy_path = legacy_dir / "update-plan.json"
+    exclude_plan["generation_id"] = legacy_generation
+    exclude_plan["source_root"] = str((legacy_dir / "source").resolve())
+    legacy_path.write_text(json.dumps(exclude_plan), encoding="utf-8")
+    legacy_manifest_path = legacy_dir / "generation-manifest.json"
+    legacy_manifest = json.loads(legacy_manifest_path.read_bytes())
+    legacy_manifest.pop("input_generation_id")
+    legacy_manifest["generation_id"] = legacy_generation
+    legacy_manifest["files"]["update-plan.json"] = compute_file_sha256(legacy_path.read_bytes())
+    legacy_manifest_path.write_text(json.dumps(legacy_manifest), encoding="utf-8")
+    validate_plan_preflight(exclude_plan, legacy_path, spec)
+
+    candidate_id = "github:artraweditor/ART:issue:500"
+    original_set_state = RetrievalStore._set_store_state
+    injected = False
+
+    def crash_after_legacy_exclusion_write(self, state, **kwargs):
+        nonlocal injected
+        current = self._current_collection().metadata or {}
+        if state == "ready" and current.get("source_group_id") == candidate_id and not injected:
+            assert current["operation"] == "exclude_source"
+            injected = True
+            raise RuntimeError("CRASH_AFTER_LEGACY_EXCLUSION_WRITE")
+        return original_set_state(self, state, **kwargs)
+
+    with monkeypatch.context() as fail_patch:
+        fail_patch.setattr(RetrievalStore, "_set_store_state", crash_after_legacy_exclusion_write)
+        interrupted = apply_plan(legacy_path, t09_store_dir, REFERENCE_PATH)
+    assert injected
+    assert interrupted["status"] == "partial"
+    store = open_store(t09_store_dir, spec)
+    assert store._get_store_state() == "updating"
+    written = store.collection.get(
+        where={"$and": [{"source_type": "github"}, {"source_group_id": candidate_id}]},
+        include=["metadatas"],
+    )
+    assert written["ids"]
+    assert all(metadata["excluded"] is True for metadata in written["metadatas"])
+    state_path = output_dir / "vector-state.json"
+    state_bytes = state_path.read_bytes()
+    state_mtime = state_path.stat().st_mtime_ns
+    interrupted_records = snapshot_store_records(store)
+    preserved = {
+        path: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in (include_path, include_manifest_path, legacy_path, legacy_manifest_path)
+    }
+    with monkeypatch.context() as no_write_patch:
+        forbid_chroma_writes(no_write_patch, store)
+        repeated = prepare_generation(
+            source_root=ROOT, input_dir=corpus, curation_path=curation,
+            reference_path=REFERENCE_PATH, persist_dir=t09_store_dir, output_dir=output_dir,
+        )
+    assert Path(repeated["plan_path"]) == legacy_path
+    assert repeated["generation_id"] == legacy_generation
+    assert snapshot_store_records(store) == interrupted_records
+    assert state_path.read_bytes() == state_bytes
+    assert state_path.stat().st_mtime_ns == state_mtime
+    for path, (content, mtime) in preserved.items():
+        assert path.read_bytes() == content
+        assert path.stat().st_mtime_ns == mtime
+
+    recovered = apply_plan(legacy_path, t09_store_dir, REFERENCE_PATH)
+    assert recovered["status"] == "success"
+    assert recovered["unapplied"] == 0
+    assert recovered["total_active"] == 153
+    assert store._get_store_state() == "ready"
+    session = load_encoder(spec)
+    assert store.search("RAW crop ratio", session=session)
+    assert store.search("RAW crop ratio", session=session, source_key=SourceKey("github", candidate_id)) == []
+    state = json.loads(state_path.read_bytes())
+    assert state["last_completed_generation"] == legacy_generation
+    assert state["items"][candidate_id]["status"] == "excluded"
+    for path, (content, mtime) in preserved.items():
+        assert path.read_bytes() == content
+        assert path.stat().st_mtime_ns == mtime
