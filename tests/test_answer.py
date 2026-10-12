@@ -7,7 +7,11 @@ from unittest.mock import patch
 import pytest
 
 from artagent.answer import (
+    DEFAULT_QUERY_SET_PATH,
+    DEFAULT_REFERENCE_PATH,
+    DEFAULT_SOURCE_ROOT,
     NORMALIZATION_RULE_VERSION,
+    GenerationError,
     build_prompt_and_citations,
     check_input_matched,
     generate_llm_response,
@@ -271,77 +275,277 @@ def test_codex_runner_metadata_null():
         assert record["generation"]["usage"] == {"total_tokens": 120}
 
 
-def test_pipeline_record_path_rejection_before_execution():
+def test_record_path_external_source_root_without_env_var_rejected():
     ref_path = Path("docs/T08_2_t9_handoff_reference.json").resolve()
     persist_dir = Path("data/vector-store").resolve()
+    query_set_path = DEFAULT_QUERY_SET_PATH
 
-    # Prohibited corpus path
+    with patch.dict("os.environ", {}, clear=True):
+        # 1. External rawpedia file without T09_SOURCE_ROOT env var
+        ext_rawpedia = DEFAULT_SOURCE_ROOT / "data/rawpedia/Exposure.md"
+        with pytest.raises(ValueError, match="보호된 디렉터리"):
+            validate_record_path(ext_rawpedia, ref_path, persist_dir, query_set_path)
+
+        # 2. External issues existing or non-existing file
+        ext_issues_nonexist = DEFAULT_SOURCE_ROOT / "data/issues/comments_99999.jsonl"
+        with pytest.raises(ValueError, match="보호된 디렉터리"):
+            validate_record_path(ext_issues_nonexist, ref_path, persist_dir, query_set_path)
+
+
+def test_record_path_custom_t09_source_root_both_protected(tmp_path):
+    ref_path = Path("docs/T08_2_t9_handoff_reference.json").resolve()
+    persist_dir = Path("data/vector-store").resolve()
+    query_set_path = DEFAULT_QUERY_SET_PATH
+
+    custom_root = tmp_path / "custom_root"
+    custom_root.mkdir()
+    (custom_root / "data" / "rawpedia").mkdir(parents=True)
+
+    with patch.dict("os.environ", {"T09_SOURCE_ROOT": str(custom_root)}):
+        # Default external root still protected
+        ext_rawpedia = DEFAULT_SOURCE_ROOT / "data/rawpedia/Exposure.md"
+        with pytest.raises(ValueError, match="보호된 디렉터리"):
+            validate_record_path(ext_rawpedia, ref_path, persist_dir, query_set_path)
+
+        # Custom root also protected
+        custom_rawpedia = custom_root / "data/rawpedia/NewDoc.md"
+        with pytest.raises(ValueError, match="보호된 디렉터리"):
+            validate_record_path(custom_rawpedia, ref_path, persist_dir, query_set_path)
+
+
+def test_record_path_inputs_and_custom_persist_rejected(tmp_path):
+    custom_ref = tmp_path / "my_ref.json"
+    custom_ref.write_text("{}", encoding="utf-8")
+    custom_persist = tmp_path / "my_persist_db"
+    custom_persist.mkdir()
+    custom_qset = tmp_path / "my_qset.json"
+    custom_qset.write_text("{}", encoding="utf-8")
+
+    # Default external reference & query set rejected
+    with pytest.raises(ValueError, match="보호된"):
+        validate_record_path(DEFAULT_REFERENCE_PATH, custom_ref, custom_persist, custom_qset)
+    with pytest.raises(ValueError, match="보호된"):
+        validate_record_path(DEFAULT_QUERY_SET_PATH, custom_ref, custom_persist, custom_qset)
+
+    # Custom inputs rejected
+    with pytest.raises(ValueError, match="보호된"):
+        validate_record_path(custom_ref, custom_ref, custom_persist, custom_qset)
+    with pytest.raises(ValueError, match="보호된"):
+        validate_record_path(custom_qset, custom_ref, custom_persist, custom_qset)
+
+    # File inside custom persist dir rejected
     with pytest.raises(ValueError, match="보호된 디렉터리"):
-        run_pipeline(
-            query_original="Test query",
-            reference_path=ref_path,
-            persist_dir=persist_dir,
-            record_path=Path("data/rawpedia/forbidden.jsonl"),
-        )
-
-    # Directory path
-    with pytest.raises(ValueError, match="디렉터리입니다"):
-        run_pipeline(
-            query_original="Test query",
-            reference_path=ref_path,
-            persist_dir=persist_dir,
-            record_path=Path("docs"),
-        )
+        validate_record_path(custom_persist / "sqlite3.db", custom_ref, custom_persist, custom_qset)
 
 
-def test_codex_event_log_tool_call_rejected(tmp_path):
-    mock_events = [
-        json.dumps({"type": "thread.started"}),
-        json.dumps({"type": "turn.started"}),
-        json.dumps({"type": "item.completed", "item": {"type": "command_execution", "command": "ls"}}),
-        json.dumps({"type": "turn.completed", "usage": {"input_tokens": 50, "output_tokens": 10}}),
-    ]
-    stdout_content = "\n".join(mock_events)
+def test_record_path_symlink_to_protected_rejected(tmp_path):
+    ref_path = Path("docs/T08_2_t9_handoff_reference.json").resolve()
+    persist_dir = Path("data/vector-store").resolve()
+    query_set_path = DEFAULT_QUERY_SET_PATH
 
-    class MockCompletedProcess:
-        returncode = 0
-        stdout = stdout_content
-        stderr = ""
+    symlink_file = tmp_path / "sneaky_symlink.jsonl"
+    target_prohibited = DEFAULT_SOURCE_ROOT / "data/rawpedia/Exposure.md"
+    symlink_file.symlink_to(target_prohibited)
 
-    # Prepare temp output file that codex exec writes to
+    with pytest.raises(ValueError, match="보호된 디렉터리"):
+        validate_record_path(symlink_file, ref_path, persist_dir, query_set_path)
+
+
+def test_safe_temporary_record_path_allowed(tmp_path):
+    ref_path = Path("docs/T08_2_t9_handoff_reference.json").resolve()
+    persist_dir = Path("data/vector-store").resolve()
+    query_set_path = DEFAULT_QUERY_SET_PATH
+
+    safe_path = tmp_path / "safe_record.jsonl"
+    validate_record_path(safe_path, ref_path, persist_dir, query_set_path)
+
+
+def test_prohibited_record_path_stops_before_calls_in_run_pipeline_and_cli():
+    ref_path = Path("docs/T08_2_t9_handoff_reference.json").resolve()
+    persist_dir = Path("data/vector-store").resolve()
+    prohibited = DEFAULT_SOURCE_ROOT / "data/rawpedia/Exposure.md"
+
+    with patch("artagent.answer.load_spec") as mock_load_spec, \
+         patch("artagent.answer.open_store") as mock_open_store, \
+         patch("artagent.answer.generate_llm_response") as mock_gen:
+
+        # 1. run_pipeline direct call
+        with pytest.raises(ValueError, match="보호된 디렉터리"):
+            run_pipeline("test query", ref_path, persist_dir, record_path=prohibited)
+        assert mock_load_spec.call_count == 0
+        assert mock_open_store.call_count == 0
+        assert mock_gen.call_count == 0
+
+        # 2. main() CLI call
+        with patch("sys.argv", ["artagent-answer", "test query", "--record", str(prohibited)]):
+            ret = main()
+            assert ret == 2
+        assert mock_load_spec.call_count == 0
+        assert mock_open_store.call_count == 0
+        assert mock_gen.call_count == 0
+
+
+def _make_mock_completed_proc(stdout: str, stderr: str = "", returncode: int = 0):
+    class MockProc:
+        pass
+    p = MockProc()
+    p.stdout = stdout
+    p.stderr = stderr
+    p.returncode = returncode
+    return p
+
+
+def test_codex_empty_stdout_rejected(tmp_path):
     def mock_subprocess_run(cmd, **kwargs):
-        # Find -o <path>
-        out_idx = cmd.index("-o") + 1
-        out_p = Path(cmd[out_idx])
-        out_p.write_text(json.dumps({"answer": "test", "citation_ids": []}), encoding="utf-8")
-        return MockCompletedProcess()
+        if "-o" in cmd:
+            out_p = Path(cmd[cmd.index("-o") + 1])
+            out_p.write_text(json.dumps({"answer": "ans", "citation_ids": []}), encoding="utf-8")
+        return _make_mock_completed_proc(stdout="", returncode=0)
 
     with patch.dict("os.environ", {"LLM_PROVIDER": "codex"}):
         with patch("shutil.which", return_value="/usr/bin/codex"):
             with patch("subprocess.run", side_effect=mock_subprocess_run):
-                with pytest.raises(RuntimeError, match="추가 도구 사용\\(command_execution\\)이 감지되어"):
+                with pytest.raises(GenerationError) as exc_info:
                     generate_llm_response("sys", "user", {}, "q")
+                err = exc_info.value
+                assert "이벤트 로그가 비어 있습니다" in str(err)
+                assert err.trace is not None
+                assert err.trace["trace_schema"] == "t11-codex-trace-v1"
+                assert err.trace["validation"]["status"] == "rejected"
 
 
-def test_codex_event_log_success_usage_parsing(tmp_path):
-    mock_events = [
+def test_codex_broken_json_and_non_json_lines_rejected(tmp_path):
+    events = [
         json.dumps({"type": "thread.started"}),
-        json.dumps({"type": "turn.started"}),
-        json.dumps({"type": "item.completed", "item": {"type": "agent_message"}}),
-        json.dumps({"type": "turn.completed", "usage": {"input_tokens": 120, "output_tokens": 30}}),
+        "THIS IS NOT JSON",
+        json.dumps({"type": "turn.completed"}),
     ]
-    stdout_content = "\n".join(mock_events)
-
-    class MockCompletedProcess:
-        returncode = 0
-        stdout = stdout_content
-        stderr = ""
+    stdout_content = "\n".join(events)
 
     def mock_subprocess_run(cmd, **kwargs):
-        out_idx = cmd.index("-o") + 1
-        out_p = Path(cmd[out_idx])
-        out_p.write_text(json.dumps({"answer": "답변 [C1S1]", "citation_ids": ["C1S1"]}), encoding="utf-8")
-        return MockCompletedProcess()
+        if "-o" in cmd:
+            out_p = Path(cmd[cmd.index("-o") + 1])
+            out_p.write_text(json.dumps({"answer": "ans", "citation_ids": []}), encoding="utf-8")
+        return _make_mock_completed_proc(stdout=stdout_content, returncode=0)
+
+    with patch.dict("os.environ", {"LLM_PROVIDER": "codex"}):
+        with patch("shutil.which", return_value="/usr/bin/codex"):
+            with patch("subprocess.run", side_effect=mock_subprocess_run):
+                with pytest.raises(GenerationError) as exc_info:
+                    generate_llm_response("sys", "user", {}, "q")
+                err = exc_info.value
+                assert "JSON 파싱 실패" in str(err)
+                assert err.trace["validation"]["status"] == "rejected"
+                assert "THIS IS NOT JSON" in err.trace["stdout_jsonl"]
+
+
+def test_codex_lifecycle_incomplete_or_failed_rejected(tmp_path):
+    # Missing turn.completed
+    events = [
+        json.dumps({"type": "thread.started"}),
+        json.dumps({"type": "turn.started"}),
+        json.dumps({"type": "item.completed", "item": {"type": "agent_message", "text": json.dumps({"answer": "ans", "citation_ids": []})}}),
+    ]
+    stdout_content = "\n".join(events)
+
+    def mock_subprocess_run(cmd, **kwargs):
+        if "-o" in cmd:
+            out_p = Path(cmd[cmd.index("-o") + 1])
+            out_p.write_text(json.dumps({"answer": "ans", "citation_ids": []}), encoding="utf-8")
+        return _make_mock_completed_proc(stdout=stdout_content, returncode=0)
+
+    with patch.dict("os.environ", {"LLM_PROVIDER": "codex"}):
+        with patch("shutil.which", return_value="/usr/bin/codex"):
+            with patch("subprocess.run", side_effect=mock_subprocess_run):
+                with pytest.raises(GenerationError) as exc_info:
+                    generate_llm_response("sys", "user", {}, "q")
+                assert "이벤트 생명주기 불일치" in str(exc_info.value)
+
+
+def test_codex_tool_item_in_item_updated_rejected(tmp_path):
+    events = [
+        json.dumps({"type": "thread.started"}),
+        json.dumps({"type": "turn.started"}),
+        json.dumps({"type": "item.updated", "item": {"type": "web_search"}}),
+        json.dumps({"type": "item.completed", "item": {"type": "agent_message", "text": json.dumps({"answer": "ans", "citation_ids": []})}}),
+        json.dumps({"type": "turn.completed", "usage": {"input_tokens": 10, "output_tokens": 5}}),
+    ]
+    stdout_content = "\n".join(events)
+
+    def mock_subprocess_run(cmd, **kwargs):
+        if "-o" in cmd:
+            out_p = Path(cmd[cmd.index("-o") + 1])
+            out_p.write_text(json.dumps({"answer": "ans", "citation_ids": []}), encoding="utf-8")
+        return _make_mock_completed_proc(stdout=stdout_content, returncode=0)
+
+    with patch.dict("os.environ", {"LLM_PROVIDER": "codex"}):
+        with patch("shutil.which", return_value="/usr/bin/codex"):
+            with patch("subprocess.run", side_effect=mock_subprocess_run):
+                with pytest.raises(GenerationError) as exc_info:
+                    generate_llm_response("sys", "user", {}, "q")
+                assert "web_search" in str(exc_info.value)
+                assert exc_info.value.trace["validation"]["additional_tool_count"] == 1
+
+
+def test_codex_content_mismatch_with_output_file_rejected(tmp_path):
+    event_payload = {"answer": "Event Answer [C1S1]", "citation_ids": ["C1S1"]}
+    file_payload = {"answer": "Different File Answer [C1S1]", "citation_ids": ["C1S1"]}
+    events = [
+        json.dumps({"type": "thread.started"}),
+        json.dumps({"type": "turn.started"}),
+        json.dumps({"type": "item.completed", "item": {"type": "agent_message", "text": json.dumps(event_payload)}}),
+        json.dumps({"type": "turn.completed", "usage": {"input_tokens": 10, "output_tokens": 5}}),
+    ]
+    stdout_content = "\n".join(events)
+
+    def mock_subprocess_run(cmd, **kwargs):
+        if "-o" in cmd:
+            out_p = Path(cmd[cmd.index("-o") + 1])
+            out_p.write_text(json.dumps(file_payload), encoding="utf-8")
+        return _make_mock_completed_proc(stdout=stdout_content, returncode=0)
+
+    with patch.dict("os.environ", {"LLM_PROVIDER": "codex"}):
+        with patch("shutil.which", return_value="/usr/bin/codex"):
+            with patch("subprocess.run", side_effect=mock_subprocess_run):
+                with pytest.raises(GenerationError) as exc_info:
+                    generate_llm_response("sys", "user", {}, "q")
+                assert "일치하지 않습니다" in str(exc_info.value)
+
+
+def test_codex_process_failure_and_partial_trace_preserved(tmp_path):
+    partial_stdout = json.dumps({"type": "thread.started"}) + "\n"
+    partial_stderr = "Fatal error in codex exec"
+
+    def mock_subprocess_run(cmd, **kwargs):
+        return _make_mock_completed_proc(stdout=partial_stdout, stderr=partial_stderr, returncode=1)
+
+    with patch.dict("os.environ", {"LLM_PROVIDER": "codex"}):
+        with patch("shutil.which", return_value="/usr/bin/codex"):
+            with patch("subprocess.run", side_effect=mock_subprocess_run):
+                with pytest.raises(GenerationError) as exc_info:
+                    generate_llm_response("sys", "user", {}, "q")
+                err = exc_info.value
+                assert "비정상 종료" in str(err)
+                assert err.trace["process_returncode"] == 1
+                assert err.trace["stderr"] == partial_stderr
+                assert err.trace["validation"]["status"] == "rejected"
+
+
+def test_codex_success_trace_verified(tmp_path):
+    ans_obj = {"answer": "정상 답변 [C1S1]", "citation_ids": ["C1S1"]}
+    events = [
+        json.dumps({"type": "thread.started", "thread_id": "th-123"}),
+        json.dumps({"type": "turn.started"}),
+        json.dumps({"type": "item.completed", "item": {"type": "agent_message", "text": json.dumps(ans_obj)}}),
+        json.dumps({"type": "turn.completed", "usage": {"input_tokens": 100, "output_tokens": 20}}),
+    ]
+    stdout_content = "\n".join(events)
+
+    def mock_subprocess_run(cmd, **kwargs):
+        if "-o" in cmd:
+            out_p = Path(cmd[cmd.index("-o") + 1])
+            out_p.write_text(json.dumps(ans_obj), encoding="utf-8")
+        return _make_mock_completed_proc(stdout=stdout_content, returncode=0)
 
     with patch.dict("os.environ", {"LLM_PROVIDER": "codex"}):
         with patch("shutil.which", return_value="/usr/bin/codex"):
@@ -349,9 +553,81 @@ def test_codex_event_log_success_usage_parsing(tmp_path):
                 raw_resp, usage, meta = generate_llm_response(
                     "sys", "user", {"C1S1": {"display_name": "Doc", "target_url": "http://doc"}}, "q"
                 )
-                assert usage == {"input_tokens": 120, "output_tokens": 30, "total_tokens": 150}
-                assert meta["llm_provider"] == "codex-cli"
-                assert meta["generation_config"]["temperature"] is None
-                assert meta["_finish_reason"] is None
+                trace = meta["_trace"]
+                assert trace is not None
+                assert trace["trace_schema"] == "t11-codex-trace-v1"
+                assert trace["validation"]["status"] == "verified"
+                assert trace["validation"]["thread_id"] == "th-123"
+                assert trace["validation"]["additional_tool_count"] == 0
+                assert trace["validation"]["turn_started_count"] == 1
+                assert trace["validation"]["turn_completed_count"] == 1
+
+
+def test_cli_failure_event_recorded_in_safe_jsonl_with_trace(tmp_path):
+    record_file = tmp_path / "cli_fail_run.jsonl"
+    events = [
+        json.dumps({"type": "thread.started"}),
+        json.dumps({"type": "turn.started"}),
+        json.dumps({"type": "item.completed", "item": {"type": "command_execution", "command": "whoami"}}),
+        json.dumps({"type": "turn.completed", "usage": {"input_tokens": 10, "output_tokens": 5}}),
+    ]
+    stdout_content = "\n".join(events)
+
+    def mock_subprocess_run(cmd, **kwargs):
+        if "-o" in cmd:
+            out_p = Path(cmd[cmd.index("-o") + 1])
+            out_p.write_text(json.dumps({"answer": "ans", "citation_ids": []}), encoding="utf-8")
+        return _make_mock_completed_proc(stdout=stdout_content, returncode=0)
+
+    class MockSpec:
+        reference_sha256 = "ref_sha"
+        protocol_sha256 = "proto_sha"
+        collection_name = "col"
+        model_id = "mod"
+        dimension = 384
+        space = "cosine"
+        rawpedia_rule = "rr"
+        github_rule = "gr"
+
+    class MockHit:
+        rank = 1
+        chunk_id = "c1"
+        source_type = "rawpedia"
+        doc_id = "doc1"
+        source_group_id = "doc1"
+        section_title = "Sec"
+        content = "Content"
+        content_sha256 = "sha"
+        source_segments = [{"doc_id": "doc1", "target_url": "http://doc1"}]
+        original_metadata = {}
+        distance = 0.1
+        distance_text = "0.1"
+
+    class MockStore:
+        class collection:
+            @staticmethod
+            def count():
+                return 10
+        @staticmethod
+        def search(q, sess):
+            return [MockHit()]
+
+    with patch.dict("os.environ", {"LLM_PROVIDER": "codex"}):
+        with patch("shutil.which", return_value="/usr/bin/codex"):
+            with patch("subprocess.run", side_effect=mock_subprocess_run):
+                with patch("artagent.answer.load_spec", return_value=MockSpec()), \
+                     patch("artagent.answer.load_encoder", return_value=None), \
+                     patch("artagent.answer.open_store", return_value=MockStore()):
+                    with patch("sys.argv", ["artagent-answer", "test query", "--record", str(record_file)]):
+                        ret = main()
+                        assert ret == 1
+
+    assert record_file.is_file()
+    rec = json.loads(record_file.read_text(encoding="utf-8").strip())
+    assert rec["execution"]["status"] == "error"
+    assert rec["execution"]["failed_step"] == "generation"
+    assert rec["output"]["stdout"] == ""
+    assert rec["generation"]["trace"]["validation"]["status"] == "rejected"
+    assert rec["generation"]["trace"]["validation"]["additional_tool_count"] == 1
 
 

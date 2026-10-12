@@ -38,6 +38,26 @@ DEFAULT_REFERENCE_PATH = Path("/Users/user/orca/workspaces/AAART/T08-2-chunking-
 DEFAULT_QUERY_SET_PATH = Path("/Users/user/orca/workspaces/AAART/T08-2-chunking-embedding/docs/search_eval_queries.json")
 DEFAULT_PERSIST_DIR = Path("data/vector-store/t09")
 
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+DEFAULT_SOURCE_ROOT = Path("/Users/user/orca/workspaces/AAART/T08-2-chunking-embedding").resolve()
+
+
+def get_source_root() -> Path:
+    env_sr = os.getenv("T09_SOURCE_ROOT")
+    if env_sr:
+        return Path(env_sr).resolve()
+    return DEFAULT_SOURCE_ROOT
+
+
+def get_protected_roots() -> list[Path]:
+    roots = [REPO_ROOT, DEFAULT_SOURCE_ROOT]
+    env_sr = os.getenv("T09_SOURCE_ROOT")
+    if env_sr:
+        p = Path(env_sr).resolve()
+        if p not in roots:
+            roots.append(p)
+    return roots
+
 
 def normalize_query(query: str) -> str:
     """3.1 쿼리 정규화: Unicode NFC, strip, 연속 공백 정리.
@@ -94,34 +114,32 @@ def validate_record_path(
     if target.is_dir():
         raise ValueError(f"--record 경로가 디렉터리입니다: {record_path}")
 
+    roots = get_protected_roots()
+
     # 1. 보호 대상 단일 파일
     protected_files = [
         reference_path.resolve(),
         query_set_path.resolve(),
-        Path("docs/search_eval_queries.json").resolve(),
-        Path("docs/T08_2_t9_handoff_reference.json").resolve(),
-        Path("docs/T11_execution_plan.md").resolve(),
+        DEFAULT_REFERENCE_PATH.resolve(),
+        DEFAULT_QUERY_SET_PATH.resolve(),
     ]
+    for r in roots:
+        protected_files.extend([
+            (r / "docs/search_eval_queries.json").resolve(),
+            (r / "docs/T08_2_t9_handoff_reference.json").resolve(),
+            (r / "docs/T11_execution_plan.md").resolve(),
+            (r / "docs/T11_fix_plan.md").resolve(),
+        ])
 
     # 2. 보호 대상 디렉터리 (내부 파일 및 하위 경로 포함)
     protected_dirs = [
         persist_dir.resolve(),
-        Path("data/vector-store").resolve(),
-        Path("data/rawpedia").resolve(),
-        Path("data/issues").resolve(),
     ]
-    env_source_root = os.getenv("T09_SOURCE_ROOT")
-    if env_source_root:
-        sr = Path(env_source_root).resolve()
-        protected_files.extend([
-            (sr / "docs/search_eval_queries.json").resolve(),
-            (sr / "docs/T08_2_t9_handoff_reference.json").resolve(),
-            (sr / "docs/T11_execution_plan.md").resolve(),
-        ])
+    for r in roots:
         protected_dirs.extend([
-            (sr / "data/rawpedia").resolve(),
-            (sr / "data/issues").resolve(),
-            (sr / "data/vector-store").resolve(),
+            (r / "data/vector-store").resolve(),
+            (r / "data/rawpedia").resolve(),
+            (r / "data/issues").resolve(),
         ])
 
     for pf in protected_files:
@@ -283,6 +301,240 @@ def _validate_llm_json_obj(obj: Any) -> None:
         raise ValueError("'citation_ids'가 리스트 형식이 아닙니다.")
 
 
+class GenerationError(RuntimeError):
+    """LLM 생성 단계 오류. trace와 raw_response를 보존하여 기록으로 전달."""
+
+    def __init__(
+        self,
+        message: str,
+        trace: Optional[dict[str, Any]] = None,
+        raw_response: str = "",
+        runtime_meta: Optional[dict[str, Any]] = None,
+    ):
+        super().__init__(message)
+        self.trace = trace
+        self.raw_response = raw_response
+        self.runtime_meta = runtime_meta
+
+
+def _get_codex_version(codex_bin: str) -> str:
+    try:
+        res = subprocess.run([codex_bin, "--version"], capture_output=True, text=True, timeout=5)
+        if res.returncode == 0 and res.stdout.strip():
+            return res.stdout.strip()
+    except Exception:
+        pass
+    return "codex-cli"
+
+
+KNOWN_EVENT_TYPES = {
+    "thread.started",
+    "turn.started",
+    "turn.completed",
+    "item.started",
+    "item.updated",
+    "item.completed",
+    "turn.failed",
+    "error",
+}
+ALLOWED_ITEM_TYPES = {"agent_message", "reasoning"}
+
+
+def validate_codex_execution(
+    stdout_raw: str,
+    stderr_raw: str,
+    process_returncode: Optional[int],
+    out_file_content: Optional[str],
+    model_id: str,
+    cli_version: str,
+) -> Tuple[dict[str, Any], Optional[dict[str, Any]], dict[str, Any]]:
+    """Codex 이벤트 로그와 출력 파일을 엄격히 검증하고 (parsed_obj, usage, trace) 반환.
+    
+    실패 시 GenerationError 발생 (trace 포함).
+    """
+    execution_policy = {
+        "model_id": model_id,
+        "workdir_mode": "ephemeral_temp",
+        "sandbox": "read-only",
+        "ignore_user_config": True,
+        "tools_enabled": False,
+    }
+
+    event_lines = [line.strip() for line in (stdout_raw or "").splitlines() if line.strip()]
+
+    thread_id: Optional[str] = None
+    turn_started_count = 0
+    turn_completed_count = 0
+    observed_item_types: list[str] = []
+    additional_tool_count = 0
+    events: list[dict[str, Any]] = []
+    lifecycle_events: list[str] = []
+
+    def build_trace(status: str, err: Optional[str]) -> dict[str, Any]:
+        return {
+            "trace_schema": "t11-codex-trace-v1",
+            "cli_version": cli_version,
+            "process_returncode": process_returncode,
+            "execution_policy": execution_policy,
+            "stdout_jsonl": stdout_raw or "",
+            "stderr": stderr_raw or "",
+            "validation": {
+                "status": status,
+                "event_count": len(events),
+                "thread_id": thread_id,
+                "turn_started_count": turn_started_count,
+                "turn_completed_count": turn_completed_count,
+                "observed_item_types": observed_item_types,
+                "additional_tool_count": additional_tool_count,
+                "error_reason": err,
+            },
+        }
+
+    # 1. 비어 있는 로그 검증
+    if not event_lines:
+        status = "unavailable" if process_returncode is None else "rejected"
+        err = "이벤트 로그가 비어 있습니다 (stdout 비어 있음)."
+        trace = build_trace(status, err)
+        raise GenerationError(err, trace=trace, raw_response=out_file_content or "")
+
+    # 2. 모든 줄이 유효한 JSON이고 'type' 필드가 있는지 검증
+    for idx, line in enumerate(event_lines):
+        try:
+            ev = json.loads(line)
+        except Exception as ex:
+            err = f"이벤트 로그 {idx + 1}번째 줄의 JSON 파싱 실패: {ex} (내용: {line[:100]})"
+            trace = build_trace("rejected", err)
+            raise GenerationError(err, trace=trace, raw_response=out_file_content or "")
+
+        if not isinstance(ev, dict) or "type" not in ev:
+            err = f"이벤트 로그 {idx + 1}번째 줄이 JSON 객체가 아니거나 'type' 필드가 없음: {line[:100]}"
+            trace = build_trace("rejected", err)
+            raise GenerationError(err, trace=trace, raw_response=out_file_content or "")
+
+        ev_type = ev.get("type")
+        if ev_type not in KNOWN_EVENT_TYPES:
+            err = f"알 수 없는 이벤트 유형({ev_type})이 감지되었습니다."
+            events.append(ev)
+            trace = build_trace("rejected", err)
+            raise GenerationError(err, trace=trace, raw_response=out_file_content or "")
+
+        events.append(ev)
+
+    # 3. 프로세스 비정상 종료 확인
+    if process_returncode != 0:
+        err = f"codex exec 프로세스 비정상 종료 (종료 코드 {process_returncode}): {stderr_raw.strip() or stdout_raw.strip()}"
+        trace = build_trace("rejected", err)
+        raise GenerationError(err, trace=trace, raw_response=out_file_content or "")
+
+    # 4. 생명주기 및 항목 검사
+    completed_agent_messages = []
+    for ev in events:
+        ev_type = ev.get("type")
+        if ev_type == "thread.started":
+            thread_id = ev.get("thread_id")
+            lifecycle_events.append(ev_type)
+        elif ev_type == "turn.started":
+            turn_started_count += 1
+            lifecycle_events.append(ev_type)
+        elif ev_type == "turn.completed":
+            turn_completed_count += 1
+            lifecycle_events.append(ev_type)
+        elif ev_type in ("turn.failed", "error"):
+            err = f"실패/오류 이벤트({ev_type}) 수신: {ev}"
+            trace = build_trace("rejected", err)
+            raise GenerationError(err, trace=trace, raw_response=out_file_content or "")
+
+        if ev_type in ("item.started", "item.updated", "item.completed"):
+            item = ev.get("item")
+            if not isinstance(item, dict):
+                err = f"{ev_type} 이벤트에 'item' 객체가 없습니다."
+                trace = build_trace("rejected", err)
+                raise GenerationError(err, trace=trace, raw_response=out_file_content or "")
+            itype = item.get("type")
+            if not itype:
+                err = f"{ev_type} 이벤트의 item에 'type' 필드가 없습니다."
+                trace = build_trace("rejected", err)
+                raise GenerationError(err, trace=trace, raw_response=out_file_content or "")
+            if itype not in observed_item_types:
+                observed_item_types.append(itype)
+            if itype not in ALLOWED_ITEM_TYPES:
+                additional_tool_count += 1
+                err = f"허용되지 않은 항목/추가 도구 사용({itype})이 감지되어 실행을 성공으로 인정할 수 없습니다."
+                trace = build_trace("rejected", err)
+                raise GenerationError(err, trace=trace, raw_response=out_file_content or "")
+            if ev_type == "item.completed" and itype == "agent_message":
+                completed_agent_messages.append(item)
+
+    if turn_started_count != 1 or turn_completed_count != 1 or lifecycle_events != ["thread.started", "turn.started", "turn.completed"]:
+        err = f"이벤트 생명주기 불일치 (기대 turn 1회, 실제 시작 {turn_started_count}회, 완료 {turn_completed_count}회, 생명주기: {lifecycle_events})"
+        trace = build_trace("rejected", err)
+        raise GenerationError(err, trace=trace, raw_response=out_file_content or "")
+
+    # 5. 최종 agent_message 추출 및 -o 파일 대조
+    if not completed_agent_messages:
+        err = "완료된 agent_message 항목이 이벤트에 없습니다."
+        trace = build_trace("rejected", err)
+        raise GenerationError(err, trace=trace, raw_response=out_file_content or "")
+
+    final_agent_item = completed_agent_messages[-1]
+    event_text = final_agent_item.get("text") or final_agent_item.get("content") or ""
+    if not event_text or not isinstance(event_text, str):
+        err = "완료된 agent_message 항목에 유효한 텍스트가 없습니다."
+        trace = build_trace("rejected", err)
+        raise GenerationError(err, trace=trace, raw_response=out_file_content or "")
+
+    try:
+        parsed_from_event = json.loads(_extract_json_text(event_text))
+        _validate_llm_json_obj(parsed_from_event)
+    except Exception as e:
+        err = f"agent_message 텍스트의 JSON 파싱/검증 실패: {e}"
+        trace = build_trace("rejected", err)
+        raise GenerationError(err, trace=trace, raw_response=out_file_content or "")
+
+    if not out_file_content:
+        err = "출력(-o) 파일이 비어 있거나 존재하지 않습니다."
+        trace = build_trace("rejected", err)
+        raise GenerationError(err, trace=trace, raw_response="")
+
+    try:
+        parsed_from_file = json.loads(_extract_json_text(out_file_content))
+        _validate_llm_json_obj(parsed_from_file)
+    except Exception as e:
+        err = f"출력(-o) 파일의 JSON 파싱/검증 실패: {e}"
+        trace = build_trace("rejected", err)
+        raise GenerationError(err, trace=trace, raw_response=out_file_content)
+
+    if (
+        parsed_from_event.get("answer") != parsed_from_file.get("answer")
+        or parsed_from_event.get("citation_ids") != parsed_from_file.get("citation_ids")
+    ):
+        err = "이벤트의 최종 agent_message 내용과 -o 파일의 답변/인용이 일치하지 않습니다."
+        trace = build_trace("rejected", err)
+        raise GenerationError(err, trace=trace, raw_response=out_file_content)
+
+    # 6. 토큰 사용량 확인
+    usage: Optional[dict[str, Any]] = None
+    for ev in events:
+        if ev.get("type") == "turn.completed":
+            u = ev.get("usage")
+            if isinstance(u, dict):
+                in_tok = u.get("input_tokens", 0)
+                out_tok = u.get("output_tokens", 0)
+                usage = {
+                    "input_tokens": in_tok,
+                    "output_tokens": out_tok,
+                    "total_tokens": in_tok + out_tok,
+                }
+                for k in ("cached_input_tokens", "reasoning_output_tokens"):
+                    if k in u:
+                        usage[k] = u[k]
+                break
+
+    # 성공 trace 생성
+    trace = build_trace("verified", None)
+    return parsed_from_file, usage, trace
+
+
 def generate_llm_response(
     system_instruction: str,
     user_prompt: str,
@@ -306,6 +558,8 @@ def generate_llm_response(
         if not codex_bin:
             raise RuntimeError("LLM_PROVIDER='codex'이나 'codex' 실행 파일을 PATH에서 찾을 수 없습니다.")
 
+        cli_version = _get_codex_version(codex_bin)
+
         full_prompt = (
             f"{system_instruction}\n\n"
             f"{user_prompt}\n\n"
@@ -318,68 +572,39 @@ def generate_llm_response(
                 codex_bin, "exec",
                 "-m", model_id,
                 "-C", empty_workdir,
+                "--sandbox", "read-only",
+                "--ignore-user-config",
                 "--skip-git-repo-check",
                 "--ephemeral",
                 "--json",
                 "-o", str(out_path),
                 full_prompt,
             ]
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-            if proc.returncode != 0:
-                err_msg = proc.stderr.strip() or proc.stdout.strip()
-                raise RuntimeError(f"codex exec 실패 (종료 코드 {proc.returncode}): {err_msg}")
+            try:
+                proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+                proc_ret = proc.returncode
+                proc_stdout = proc.stdout
+                proc_stderr = proc.stderr
+            except subprocess.TimeoutExpired as te:
+                proc_ret = None
+                proc_stdout = te.stdout or "" if isinstance(te.stdout, str) else ""
+                proc_stderr = te.stderr or "" if isinstance(te.stderr, str) else ""
 
-            if not out_path.is_file():
-                raise RuntimeError(f"codex exec 실행 후 출력 파일이 생성되지 않았습니다: {out_path}")
-
-            raw_content = out_path.read_text(encoding="utf-8").strip()
-
-        # 이벤트 로그 파싱 및 검증
-        events = []
-        for line in proc.stdout.splitlines():
-            line = line.strip()
-            if line.startswith("{") and line.endswith("}"):
+            raw_file_content = None
+            if out_path.is_file():
                 try:
-                    events.append(json.loads(line))
+                    raw_file_content = out_path.read_text(encoding="utf-8").strip()
                 except Exception:
                     pass
 
-        # 추가 도구/명령어 사용 감지 시 실패 처리 (추가 도구 사용 실행은 성공으로 인정하지 않음)
-        for ev in events:
-            ev_type = ev.get("type")
-            if ev_type in ("item.completed", "item.started"):
-                item = ev.get("item", {})
-                itype = item.get("type")
-                if itype and itype not in ("agent_message", "reasoning", "thought"):
-                    raise RuntimeError(f"추가 도구 사용({itype})이 감지되어 실행을 성공으로 인정할 수 없습니다.")
-
-        cleaned = _extract_json_text(raw_content)
-        parsed = json.loads(cleaned)
-        _validate_llm_json_obj(parsed)
-
-        # 토큰 사용량 확인 (이벤트 로그의 turn.completed usage 우선)
-        usage = None
-        for ev in events:
-            if ev.get("type") == "turn.completed":
-                u = ev.get("usage")
-                if isinstance(u, dict):
-                    in_tok = u.get("input_tokens", 0)
-                    out_tok = u.get("output_tokens", 0)
-                    usage = {
-                        "input_tokens": in_tok,
-                        "output_tokens": out_tok,
-                        "total_tokens": in_tok + out_tok,
-                    }
-                    break
-
-        if usage is None:
-            token_match = re.search(r"tokens used\s*([\d,]+)", proc.stdout)
-            if token_match:
-                try:
-                    tokens_count = int(token_match.group(1).replace(",", ""))
-                    usage = {"total_tokens": tokens_count}
-                except Exception:
-                    usage = None
+        parsed, usage, trace = validate_codex_execution(
+            stdout_raw=proc_stdout,
+            stderr_raw=proc_stderr,
+            process_returncode=proc_ret,
+            out_file_content=raw_file_content,
+            model_id=model_id,
+            cli_version=cli_version,
+        )
 
         runtime_meta = {
             "llm_provider": "codex-cli",
@@ -390,6 +615,7 @@ def generate_llm_response(
                 "prompt_version": PROMPT_VERSION,
             },
             "_finish_reason": None,  # CLI에서 미제공된 finish_reason은 null
+            "_trace": trace,
         }
         return json.dumps(parsed, ensure_ascii=False), usage, runtime_meta
 
@@ -427,6 +653,7 @@ def generate_llm_response(
                 "endpoint": api_url.split("?")[0],
                 "generation_config": {"temperature": 0.0, "prompt_version": PROMPT_VERSION},
                 "_finish_reason": finish_reason,
+                "_trace": None,
             }
             cleaned = _extract_json_text(raw_content)
             parsed = json.loads(cleaned)
@@ -584,7 +811,7 @@ def run_pipeline(
         "persist_dir": str(persist_dir.resolve()),
         "collection_name": spec.collection_name,
         "active_count": store.collection.count(),
-        "source_root": "/Users/user/orca/workspaces/AAART/T08-2-chunking-embedding",
+        "source_root": str(get_source_root()),
         "retrieval_spec": {
             "model_id": spec.model_id,
             "dimension": spec.dimension,
@@ -675,14 +902,57 @@ def run_pipeline(
     runtime_meta = None
     usage = None
     finish_reason = None
+    trace = None
     try:
         raw_response, usage, runtime_meta = generate_llm_response(
             SYSTEM_INSTRUCTION, user_prompt, context_citations, query_normalized
         )
         finish_reason = runtime_meta.pop("_finish_reason", None) if runtime_meta else None
+        trace = runtime_meta.pop("_trace", None) if runtime_meta else None
         parsed_obj = json.loads(raw_response)
         raw_answer = parsed_obj["answer"]
         parsed_citation_ids = parsed_obj["citation_ids"]
+    except GenerationError as e:
+        durations["generation"] = round((time.perf_counter() - t0) * 1000, 2)
+        durations["total"] = round((time.perf_counter() - t_start) * 1000, 2)
+        return {
+            "record_schema": RECORD_SCHEMA,
+            "run_id": run_id,
+            "query_id": query_id,
+            "started_at": started_at,
+            "query_set": query_set_info,
+            "input": {
+                "query_original": query_original,
+                "query_normalized": query_normalized,
+                "normalization_rule": NORMALIZATION_RULE_VERSION,
+            },
+            "runtime": {
+                "code_commit": get_git_commit(),
+                "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+                **(e.runtime_meta or {}),
+            },
+            "retrieval_config": retrieval_config,
+            "retrieval": retrieval_data,
+            "prompt": prompt_data,
+            "generation": {
+                "call_count": 1,
+                "raw_response": str(e.raw_response or ""),
+                "parsed_answer": "",
+                "parsed_citation_ids": [],
+                "usage": None,
+                "finish_reason": "error",
+                "trace": e.trace,
+            },
+            "citations": [],
+            "output": {"final_answer": "", "stdout": "", "stderr": f"[generation] {e}", "exit_code": 1},
+            "execution": {
+                "status": "error",
+                "failed_step": "generation",
+                "error_message": str(e),
+                "durations_ms": durations,
+            },
+            "verification": {"input_matched": input_matched, "gold_reached": False, "citations_valid": False, "manual_review": "pending", "notes": ""},
+        }
     except Exception as e:
         durations["generation"] = round((time.perf_counter() - t0) * 1000, 2)
         durations["total"] = round((time.perf_counter() - t_start) * 1000, 2)
@@ -705,7 +975,15 @@ def run_pipeline(
             "retrieval_config": retrieval_config,
             "retrieval": retrieval_data,
             "prompt": prompt_data,
-            "generation": {"call_count": 1, "raw_response": str(raw_response), "parsed_answer": "", "parsed_citation_ids": [], "usage": None, "finish_reason": "error"},
+            "generation": {
+                "call_count": 1,
+                "raw_response": str(raw_response or ""),
+                "parsed_answer": "",
+                "parsed_citation_ids": [],
+                "usage": None,
+                "finish_reason": "error",
+                "trace": trace,
+            },
             "citations": [],
             "output": {"final_answer": "", "stdout": "", "stderr": f"[generation] {e}", "exit_code": 1},
             "execution": {
@@ -754,6 +1032,7 @@ def run_pipeline(
                 "parsed_citation_ids": parsed_citation_ids,
                 "usage": usage,
                 "finish_reason": finish_reason,
+                "trace": trace,
             },
             "citations": [],
             "output": {"final_answer": "", "stdout": "", "stderr": f"[citation_validation] {e}", "exit_code": 1},
@@ -813,6 +1092,7 @@ def run_pipeline(
             "parsed_citation_ids": parsed_citation_ids,
             "usage": usage,
             "finish_reason": finish_reason,
+            "trace": trace,
         },
         "citations": used_citations,
         "output": {
