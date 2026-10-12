@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+import subprocess
 import tempfile
 from unittest.mock import patch
 import pytest
@@ -22,6 +23,43 @@ from artagent.answer import (
     validate_record_path,
 )
 from artagent.retrieval.types import SearchHit
+
+
+class MockSpec:
+    reference_sha256 = "ref_sha"
+    protocol_sha256 = "proto_sha"
+    collection_name = "col"
+    model_id = "mod"
+    dimension = 384
+    space = "cosine"
+    rawpedia_rule = "rr"
+    github_rule = "gr"
+
+
+class MockHit:
+    rank = 1
+    chunk_id = "c1"
+    source_type = "rawpedia"
+    doc_id = "doc1"
+    source_group_id = "doc1"
+    section_title = "Sec"
+    content = "Content"
+    content_sha256 = "sha"
+    source_segments = [{"doc_id": "doc1", "target_url": "http://doc1"}]
+    original_metadata = {}
+    distance = 0.1
+    distance_text = "0.1"
+
+
+class MockStore:
+    class collection:
+        @staticmethod
+        def count():
+            return 10
+
+    @staticmethod
+    def search(q, sess):
+        return [MockHit()]
 
 
 def test_normalize_query_success():
@@ -121,10 +159,13 @@ def test_validate_and_format_citations_missing_metadata_fails():
 
 
 def test_run_pipeline_generation_failure_recording():
-    ref_path = Path("/Users/user/orca/workspaces/AAART/T08-2-chunking-embedding/docs/T08_2_t9_handoff_reference.json")
-    persist_dir = Path("data/vector-store/t09")
+    ref_path = Path("docs/T08_2_t9_handoff_reference.json").resolve()
+    persist_dir = Path("data/vector-store/t09").resolve()
 
-    with patch("artagent.answer.generate_llm_response", side_effect=RuntimeError("API connection timeout")):
+    with patch("artagent.answer.load_spec", return_value=MockSpec()), \
+         patch("artagent.answer.load_encoder", return_value=None), \
+         patch("artagent.answer.open_store", return_value=MockStore()), \
+         patch("artagent.answer.generate_llm_response", side_effect=RuntimeError("API connection timeout")):
         record = run_pipeline(
             query_original="Auto Levels",
             reference_path=ref_path,
@@ -140,14 +181,17 @@ def test_run_pipeline_generation_failure_recording():
 
 
 def test_record_isolation():
-    ref_path = Path("/Users/user/orca/workspaces/AAART/T08-2-chunking-embedding/docs/T08_2_t9_handoff_reference.json")
-    persist_dir = Path("data/vector-store/t09")
+    ref_path = Path("docs/T08_2_t9_handoff_reference.json").resolve()
+    persist_dir = Path("data/vector-store/t09").resolve()
 
     with tempfile.NamedTemporaryFile("w+", suffix=".jsonl") as tmp_file:
         tmp_record_path = Path(tmp_file.name)
         # Mocking generation to return a valid grounded JSON response
         mock_response = json.dumps({"answer": "결과 [C1S1]", "citation_ids": ["C1S1"]})
-        with patch("artagent.answer.generate_llm_response", return_value=(mock_response, None, {"llm_provider": "mock"})):
+        with patch("artagent.answer.load_spec", return_value=MockSpec()), \
+             patch("artagent.answer.load_encoder", return_value=None), \
+             patch("artagent.answer.open_store", return_value=MockStore()), \
+             patch("artagent.answer.generate_llm_response", return_value=(mock_response, None, {"llm_provider": "mock"})):
             record = run_pipeline(
                 query_original="Exposure compensation",
                 reference_path=ref_path,
@@ -249,8 +293,8 @@ def test_check_input_matched():
 
 
 def test_codex_runner_metadata_null():
-    ref_path = Path("/Users/user/orca/workspaces/AAART/T08-2-chunking-embedding/docs/T08_2_t9_handoff_reference.json")
-    persist_dir = Path("data/vector-store/t09")
+    ref_path = Path("docs/T08_2_t9_handoff_reference.json").resolve()
+    persist_dir = Path("data/vector-store/t09").resolve()
 
     mock_resp = json.dumps({"answer": "Auto Levels 설명 [C1S1]", "citation_ids": ["C1S1"]})
     mock_meta = {
@@ -261,7 +305,10 @@ def test_codex_runner_metadata_null():
         "_finish_reason": None,
     }
 
-    with patch("artagent.answer.generate_llm_response", return_value=(mock_resp, {"total_tokens": 120}, mock_meta)):
+    with patch("artagent.answer.load_spec", return_value=MockSpec()), \
+         patch("artagent.answer.load_encoder", return_value=None), \
+         patch("artagent.answer.open_store", return_value=MockStore()), \
+         patch("artagent.answer.generate_llm_response", return_value=(mock_resp, {"total_tokens": 120}, mock_meta)):
         record = run_pipeline(
             query_original="Auto Levels",
             reference_path=ref_path,
@@ -629,5 +676,197 @@ def test_cli_failure_event_recorded_in_safe_jsonl_with_trace(tmp_path):
     assert rec["output"]["stdout"] == ""
     assert rec["generation"]["trace"]["validation"]["status"] == "rejected"
     assert rec["generation"]["trace"]["validation"]["additional_tool_count"] == 1
+
+
+def test_codex_command_args_and_policy_match(tmp_path):
+    captured_cmd = []
+    ans_obj = {"answer": "정상 답변 [C1S1]", "citation_ids": ["C1S1"]}
+    events = [
+        json.dumps({"type": "thread.started", "thread_id": "th-args"}),
+        json.dumps({"type": "turn.started"}),
+        json.dumps({"type": "item.completed", "item": {"type": "agent_message", "text": json.dumps(ans_obj)}}),
+        json.dumps({"type": "turn.completed", "usage": {"input_tokens": 10, "output_tokens": 5}}),
+    ]
+    stdout_content = "\n".join(events)
+
+    def mock_subprocess_run(cmd, **kwargs):
+        captured_cmd.extend(cmd)
+        if "-o" in cmd:
+            out_p = Path(cmd[cmd.index("-o") + 1])
+            out_p.write_text(json.dumps(ans_obj), encoding="utf-8")
+        return _make_mock_completed_proc(stdout=stdout_content, returncode=0)
+
+    with patch.dict("os.environ", {"LLM_PROVIDER": "codex"}):
+        with patch("shutil.which", return_value="/usr/bin/codex"):
+            with patch("subprocess.run", side_effect=mock_subprocess_run):
+                raw_resp, usage, meta = generate_llm_response(
+                    "sys", "user", {"C1S1": {"display_name": "Doc", "target_url": "http://doc"}}, "q"
+                )
+                trace = meta["_trace"]
+                # 1. Verify actual command arguments
+                assert "-c" in captured_cmd
+                assert "features.shell_tool=false" in captured_cmd
+                assert "features.unified_exec=false" in captured_cmd
+                assert 'web_search="disabled"' in captured_cmd
+
+                # 2. Verify policy matches command
+                policy = trace["execution_policy"]
+                assert policy["tools_enabled"] is False
+                assert policy["config_source"] == "cli_args"
+                assert policy["config_overrides"]["features.shell_tool"] == "false"
+                assert policy["config_overrides"]["features.unified_exec"] == "false"
+                assert policy["config_overrides"]["web_search"] == '"disabled"'
+                assert trace["validation"]["status"] == "verified"
+
+
+def test_codex_unsupported_option_failure_preserved(tmp_path):
+    def mock_subprocess_run(cmd, **kwargs):
+        return _make_mock_completed_proc(
+            stdout="",
+            stderr="error: unsupported configuration option 'features.shell_tool'",
+            returncode=2,
+        )
+
+    with patch.dict("os.environ", {"LLM_PROVIDER": "codex"}):
+        with patch("shutil.which", return_value="/usr/bin/codex"):
+            with patch("subprocess.run", side_effect=mock_subprocess_run):
+                with pytest.raises(GenerationError) as exc_info:
+                    generate_llm_response("sys", "user", {}, "q")
+                err = exc_info.value
+                assert "비정상 종료" in str(err)
+                assert err.trace["process_returncode"] == 2
+                assert "unsupported configuration option" in err.trace["stderr"]
+                assert err.trace["validation"]["status"] == "rejected"
+                assert err.trace["execution_policy"]["tools_enabled"] is False
+
+
+def test_codex_timeout_with_bytes_output_preserved(tmp_path):
+    def mock_subprocess_run(cmd, **kwargs):
+        raise subprocess.TimeoutExpired(
+            cmd=cmd,
+            timeout=120,
+            output=b'{"type": "thread.started", "thread_id": "th-to"}\n',
+            stderr=b"process timed out after 120 seconds\n",
+        )
+
+    with patch.dict("os.environ", {"LLM_PROVIDER": "codex"}):
+        with patch("shutil.which", return_value="/usr/bin/codex"):
+            with patch("subprocess.run", side_effect=mock_subprocess_run):
+                with pytest.raises(GenerationError) as exc_info:
+                    generate_llm_response("sys", "user", {}, "q")
+                err = exc_info.value
+                assert "시간 초과" in str(err)
+                assert err.trace["process_returncode"] is None
+                assert err.trace["process_error"] == {"kind": "timeout", "timeout_seconds": 120}
+                assert err.trace["stdout_jsonl"] == '{"type": "thread.started", "thread_id": "th-to"}\n'
+                assert err.trace["stderr"] == "process timed out after 120 seconds\n"
+                assert err.trace["validation"]["status"] == "rejected"
+                assert "시간 초과" in err.trace["validation"]["error_reason"]
+
+
+def test_codex_timeout_with_none_output(tmp_path):
+    def mock_subprocess_run(cmd, **kwargs):
+        raise subprocess.TimeoutExpired(cmd=cmd, timeout=120, output=None, stderr=None)
+
+    with patch.dict("os.environ", {"LLM_PROVIDER": "codex"}):
+        with patch("shutil.which", return_value="/usr/bin/codex"):
+            with patch("subprocess.run", side_effect=mock_subprocess_run):
+                with pytest.raises(GenerationError) as exc_info:
+                    generate_llm_response("sys", "user", {}, "q")
+                err = exc_info.value
+                assert "시간 초과" in str(err)
+                assert err.trace["process_returncode"] is None
+                assert err.trace["process_error"] == {"kind": "timeout", "timeout_seconds": 120}
+                assert err.trace["stdout_jsonl"] == ""
+                assert err.trace["stderr"] == ""
+                assert err.trace["validation"]["status"] == "unavailable"
+                assert "시간 초과" in err.trace["validation"]["error_reason"]
+
+
+def test_codex_timeout_with_truncated_utf8_bytes(tmp_path):
+    def mock_subprocess_run(cmd, **kwargs):
+        # Truncated UTF-8 in stdout and invalid byte in stderr
+        raise subprocess.TimeoutExpired(
+            cmd=cmd,
+            timeout=120,
+            output=b'{"type": "turn.started", "text": "\xed\x95\x9c\xea',
+            stderr=b"bad byte: \xff",
+        )
+
+    with patch.dict("os.environ", {"LLM_PROVIDER": "codex"}):
+        with patch("shutil.which", return_value="/usr/bin/codex"):
+            with patch("subprocess.run", side_effect=mock_subprocess_run):
+                with pytest.raises(GenerationError) as exc_info:
+                    generate_llm_response("sys", "user", {}, "q")
+                err = exc_info.value
+                assert "시간 초과" in str(err)
+                assert "\ufffd" in err.trace["stdout_jsonl"]
+                assert "\ufffd" in err.trace["stderr"]
+                assert err.trace["validation"]["status"] == "rejected"
+
+
+def test_codex_timeout_with_completed_events_and_file_still_fails(tmp_path):
+    ans_obj = {"answer": "정상 답변 [C1S1]", "citation_ids": ["C1S1"]}
+    events = [
+        json.dumps({"type": "thread.started"}),
+        json.dumps({"type": "turn.started"}),
+        json.dumps({"type": "item.completed", "item": {"type": "agent_message", "text": json.dumps(ans_obj)}}),
+        json.dumps({"type": "turn.completed", "usage": {"input_tokens": 10, "output_tokens": 5}}),
+    ]
+    stdout_bytes = "\n".join(events).encode("utf-8")
+
+    def mock_subprocess_run(cmd, **kwargs):
+        if "-o" in cmd:
+            out_p = Path(cmd[cmd.index("-o") + 1])
+            out_p.write_text(json.dumps(ans_obj), encoding="utf-8")
+        raise subprocess.TimeoutExpired(cmd=cmd, timeout=120, output=stdout_bytes, stderr=b"")
+
+    with patch.dict("os.environ", {"LLM_PROVIDER": "codex"}):
+        with patch("shutil.which", return_value="/usr/bin/codex"):
+            with patch("subprocess.run", side_effect=mock_subprocess_run):
+                with pytest.raises(GenerationError) as exc_info:
+                    generate_llm_response("sys", "user", {}, "q")
+                err = exc_info.value
+                assert "시간 초과" in str(err)
+                assert err.trace["process_returncode"] is None
+                assert err.trace["process_error"]["kind"] == "timeout"
+                assert err.trace["validation"]["status"] == "rejected"
+                assert "시간 초과" in err.trace["validation"]["error_reason"]
+
+
+def test_cli_timeout_bytes_recorded_in_safe_jsonl_with_trace(tmp_path):
+    record_file = tmp_path / "cli_timeout_run.jsonl"
+
+    def mock_subprocess_run(cmd, **kwargs):
+        raise subprocess.TimeoutExpired(
+            cmd=cmd,
+            timeout=120,
+            output=b'{"type": "thread.started"}\n{"type": "turn.started"}\n',
+            stderr=b"timeout after 120s\n",
+        )
+
+    with patch.dict("os.environ", {"LLM_PROVIDER": "codex"}):
+        with patch("shutil.which", return_value="/usr/bin/codex"):
+            with patch("subprocess.run", side_effect=mock_subprocess_run):
+                with patch("artagent.answer.load_spec", return_value=MockSpec()), \
+                     patch("artagent.answer.load_encoder", return_value=None), \
+                     patch("artagent.answer.open_store", return_value=MockStore()):
+                    with patch("sys.argv", ["artagent-answer", "test query", "--record", str(record_file)]):
+                        ret = main()
+                        assert ret == 1
+
+    assert record_file.is_file()
+    rec = json.loads(record_file.read_text(encoding="utf-8").strip())
+    assert rec["execution"]["status"] == "error"
+    assert rec["execution"]["failed_step"] == "generation"
+    assert rec["generation"]["call_count"] == 1
+    assert rec["output"]["stdout"] == ""
+    trace = rec["generation"]["trace"]
+    assert trace["process_returncode"] is None
+    assert trace["process_error"] == {"kind": "timeout", "timeout_seconds": 120}
+    assert trace["stdout_jsonl"] == '{"type": "thread.started"}\n{"type": "turn.started"}\n'
+    assert trace["stderr"] == "timeout after 120s\n"
+    assert trace["validation"]["status"] == "rejected"
+    assert "시간 초과" in trace["validation"]["error_reason"]
 
 

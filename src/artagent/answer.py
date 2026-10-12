@@ -340,26 +340,47 @@ KNOWN_EVENT_TYPES = {
 ALLOWED_ITEM_TYPES = {"agent_message", "reasoning"}
 
 
+def build_codex_execution_policy(model_id: str) -> dict[str, Any]:
+    """Codex 실행 정책 생성. 실제 CLI 인자와 trace에 동일하게 반영된다."""
+    return {
+        "model_id": model_id,
+        "workdir_mode": "ephemeral_temp",
+        "sandbox": "read-only",
+        "ignore_user_config": True,
+        "config_overrides": {
+            "features.shell_tool": "false",
+            "features.unified_exec": "false",
+            "web_search": '"disabled"',
+        },
+        "config_source": "cli_args",
+        "tools_enabled": False,
+    }
+
+
+def normalize_process_output(raw: Any) -> str:
+    """str, bytes, None 출력을 안전하게 정규화하여 문자열로 변환."""
+    if raw is None:
+        return ""
+    if isinstance(raw, str):
+        return raw
+    if isinstance(raw, bytes):
+        return raw.decode("utf-8", errors="replace")
+    return str(raw)
+
+
 def validate_codex_execution(
     stdout_raw: str,
     stderr_raw: str,
     process_returncode: Optional[int],
     out_file_content: Optional[str],
-    model_id: str,
+    execution_policy: dict[str, Any],
     cli_version: str,
+    process_error: Optional[dict[str, Any]] = None,
 ) -> Tuple[dict[str, Any], Optional[dict[str, Any]], dict[str, Any]]:
     """Codex 이벤트 로그와 출력 파일을 엄격히 검증하고 (parsed_obj, usage, trace) 반환.
     
     실패 시 GenerationError 발생 (trace 포함).
     """
-    execution_policy = {
-        "model_id": model_id,
-        "workdir_mode": "ephemeral_temp",
-        "sandbox": "read-only",
-        "ignore_user_config": True,
-        "tools_enabled": False,
-    }
-
     event_lines = [line.strip() for line in (stdout_raw or "").splitlines() if line.strip()]
 
     thread_id: Optional[str] = None
@@ -378,6 +399,7 @@ def validate_codex_execution(
             "execution_policy": execution_policy,
             "stdout_jsonl": stdout_raw or "",
             "stderr": stderr_raw or "",
+            "process_error": process_error,
             "validation": {
                 "status": status,
                 "event_count": len(events),
@@ -390,14 +412,30 @@ def validate_codex_execution(
             },
         }
 
-    # 1. 비어 있는 로그 검증
+    # 1. 프로세스 시간 초과 검사 (답변 파일 또는 완료 이벤트 유무와 관계없이 실패)
+    if process_error and process_error.get("kind") == "timeout":
+        has_logs = bool((stdout_raw and stdout_raw.strip()) or (stderr_raw and stderr_raw.strip()))
+        status = "rejected" if has_logs else "unavailable"
+        timeout_sec = process_error.get("timeout_seconds", 120)
+        err = f"프로세스 실행 시간 초과 ({timeout_sec}초 초과)"
+        trace = build_trace(status, err)
+        raise GenerationError(err, trace=trace, raw_response=out_file_content or "")
+
+    # 2. 프로세스 비정상 종료 확인 (종료 코드가 0이 아닌 경우 즉시 실패)
+    if process_returncode is not None and process_returncode != 0:
+        err = f"codex exec 프로세스 비정상 종료 (종료 코드 {process_returncode}): {stderr_raw.strip() or stdout_raw.strip()}"
+        trace = build_trace("rejected", err)
+        raise GenerationError(err, trace=trace, raw_response=out_file_content or "")
+
+    # 3. 비어 있는 로그 검증
     if not event_lines:
-        status = "unavailable" if process_returncode is None else "rejected"
+        has_stderr = bool(stderr_raw and stderr_raw.strip())
+        status = "rejected" if (process_returncode is not None or has_stderr) else "unavailable"
         err = "이벤트 로그가 비어 있습니다 (stdout 비어 있음)."
         trace = build_trace(status, err)
         raise GenerationError(err, trace=trace, raw_response=out_file_content or "")
 
-    # 2. 모든 줄이 유효한 JSON이고 'type' 필드가 있는지 검증
+    # 4. 모든 줄이 유효한 JSON이고 'type' 필드가 있는지 검증
     for idx, line in enumerate(event_lines):
         try:
             ev = json.loads(line)
@@ -420,13 +458,7 @@ def validate_codex_execution(
 
         events.append(ev)
 
-    # 3. 프로세스 비정상 종료 확인
-    if process_returncode != 0:
-        err = f"codex exec 프로세스 비정상 종료 (종료 코드 {process_returncode}): {stderr_raw.strip() or stdout_raw.strip()}"
-        trace = build_trace("rejected", err)
-        raise GenerationError(err, trace=trace, raw_response=out_file_content or "")
-
-    # 4. 생명주기 및 항목 검사
+    # 5. 생명주기 및 항목 검사
     completed_agent_messages = []
     for ev in events:
         ev_type = ev.get("type")
@@ -470,7 +502,7 @@ def validate_codex_execution(
         trace = build_trace("rejected", err)
         raise GenerationError(err, trace=trace, raw_response=out_file_content or "")
 
-    # 5. 최종 agent_message 추출 및 -o 파일 대조
+    # 6. 최종 agent_message 추출 및 -o 파일 대조
     if not completed_agent_messages:
         err = "완료된 agent_message 항목이 이벤트에 없습니다."
         trace = build_trace("rejected", err)
@@ -512,7 +544,7 @@ def validate_codex_execution(
         trace = build_trace("rejected", err)
         raise GenerationError(err, trace=trace, raw_response=out_file_content)
 
-    # 6. 토큰 사용량 확인
+    # 7. 토큰 사용량 확인
     usage: Optional[dict[str, Any]] = None
     for ev in events:
         if ev.get("type") == "turn.completed":
@@ -559,6 +591,7 @@ def generate_llm_response(
             raise RuntimeError("LLM_PROVIDER='codex'이나 'codex' 실행 파일을 PATH에서 찾을 수 없습니다.")
 
         cli_version = _get_codex_version(codex_bin)
+        execution_policy = build_codex_execution_policy(model_id)
 
         full_prompt = (
             f"{system_instruction}\n\n"
@@ -570,25 +603,35 @@ def generate_llm_response(
             out_path = Path(empty_workdir) / "last_message.json"
             cmd = [
                 codex_bin, "exec",
-                "-m", model_id,
+                "-m", execution_policy["model_id"],
                 "-C", empty_workdir,
-                "--sandbox", "read-only",
+                "--sandbox", execution_policy["sandbox"],
                 "--ignore-user-config",
                 "--skip-git-repo-check",
                 "--ephemeral",
                 "--json",
+            ]
+            for k, v in execution_policy["config_overrides"].items():
+                cmd.extend(["-c", f"{k}={v}"])
+            cmd.extend([
                 "-o", str(out_path),
                 full_prompt,
-            ]
+            ])
+
+            process_error = None
             try:
                 proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
                 proc_ret = proc.returncode
-                proc_stdout = proc.stdout
-                proc_stderr = proc.stderr
+                proc_stdout = normalize_process_output(proc.stdout)
+                proc_stderr = normalize_process_output(proc.stderr)
             except subprocess.TimeoutExpired as te:
                 proc_ret = None
-                proc_stdout = te.stdout or "" if isinstance(te.stdout, str) else ""
-                proc_stderr = te.stderr or "" if isinstance(te.stderr, str) else ""
+                proc_stdout = normalize_process_output(getattr(te, "stdout", None) or getattr(te, "output", None))
+                proc_stderr = normalize_process_output(getattr(te, "stderr", None))
+                process_error = {
+                    "kind": "timeout",
+                    "timeout_seconds": 120,
+                }
 
             raw_file_content = None
             if out_path.is_file():
@@ -602,8 +645,9 @@ def generate_llm_response(
             stderr_raw=proc_stderr,
             process_returncode=proc_ret,
             out_file_content=raw_file_content,
-            model_id=model_id,
+            execution_policy=execution_policy,
             cli_version=cli_version,
+            process_error=process_error,
         )
 
         runtime_meta = {
