@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generation_id": "gen_e1661a1dd90f7a32",
   "plan_path": "/Users/user/orca/workspaces/AAART/T10-2c-update/data/issues/index-updates/gen_e1661a1dd90f7a32/update-plan.json",
-  "applied_at": "2026-10-12T05:35:14Z",
+  "applied_at": "2026-10-12T07:11:35Z",
   "status": "success",
   "summary": {
     "created": 0,
@@ -10,7 +10,7 @@
     "excluded": 0,
     "unchanged": 12,
     "unapplied": 0,
-    "total_active": 13
+    "total_active": 154
   },
   "operations": [
     {
