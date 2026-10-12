@@ -91,12 +91,16 @@ def validate_record_path(
     """기록 대상이 질문셋·reference·코퍼스·DB 파일/디렉터리인지 검사하여 거부."""
     target = record_path.resolve()
 
+    if target.is_dir():
+        raise ValueError(f"--record 경로가 디렉터리입니다: {record_path}")
+
     # 1. 보호 대상 단일 파일
     protected_files = [
         reference_path.resolve(),
         query_set_path.resolve(),
         Path("docs/search_eval_queries.json").resolve(),
         Path("docs/T08_2_t9_handoff_reference.json").resolve(),
+        Path("docs/T11_execution_plan.md").resolve(),
     ]
 
     # 2. 보호 대상 디렉터리 (내부 파일 및 하위 경로 포함)
@@ -112,6 +116,7 @@ def validate_record_path(
         protected_files.extend([
             (sr / "docs/search_eval_queries.json").resolve(),
             (sr / "docs/T08_2_t9_handoff_reference.json").resolve(),
+            (sr / "docs/T11_execution_plan.md").resolve(),
         ])
         protected_dirs.extend([
             (sr / "data/rawpedia").resolve(),
@@ -315,6 +320,7 @@ def generate_llm_response(
                 "-C", empty_workdir,
                 "--skip-git-repo-check",
                 "--ephemeral",
+                "--json",
                 "-o", str(out_path),
                 full_prompt,
             ]
@@ -328,19 +334,52 @@ def generate_llm_response(
 
             raw_content = out_path.read_text(encoding="utf-8").strip()
 
+        # 이벤트 로그 파싱 및 검증
+        events = []
+        for line in proc.stdout.splitlines():
+            line = line.strip()
+            if line.startswith("{") and line.endswith("}"):
+                try:
+                    events.append(json.loads(line))
+                except Exception:
+                    pass
+
+        # 추가 도구/명령어 사용 감지 시 실패 처리 (추가 도구 사용 실행은 성공으로 인정하지 않음)
+        for ev in events:
+            ev_type = ev.get("type")
+            if ev_type in ("item.completed", "item.started"):
+                item = ev.get("item", {})
+                itype = item.get("type")
+                if itype and itype not in ("agent_message", "reasoning", "thought"):
+                    raise RuntimeError(f"추가 도구 사용({itype})이 감지되어 실행을 성공으로 인정할 수 없습니다.")
+
         cleaned = _extract_json_text(raw_content)
         parsed = json.loads(cleaned)
         _validate_llm_json_obj(parsed)
 
-        # 토큰 사용량 확인 (이벤트 로그 출력에서 tokens used 추출)
+        # 토큰 사용량 확인 (이벤트 로그의 turn.completed usage 우선)
         usage = None
-        token_match = re.search(r"tokens used\s*([\d,]+)", proc.stdout)
-        if token_match:
-            try:
-                tokens_count = int(token_match.group(1).replace(",", ""))
-                usage = {"total_tokens": tokens_count}
-            except Exception:
-                usage = None
+        for ev in events:
+            if ev.get("type") == "turn.completed":
+                u = ev.get("usage")
+                if isinstance(u, dict):
+                    in_tok = u.get("input_tokens", 0)
+                    out_tok = u.get("output_tokens", 0)
+                    usage = {
+                        "input_tokens": in_tok,
+                        "output_tokens": out_tok,
+                        "total_tokens": in_tok + out_tok,
+                    }
+                    break
+
+        if usage is None:
+            token_match = re.search(r"tokens used\s*([\d,]+)", proc.stdout)
+            if token_match:
+                try:
+                    tokens_count = int(token_match.group(1).replace(",", ""))
+                    usage = {"total_tokens": tokens_count}
+                except Exception:
+                    usage = None
 
         runtime_meta = {
             "llm_provider": "codex-cli",
@@ -469,10 +508,20 @@ def run_pipeline(
     persist_dir: Path,
     query_id: Optional[str] = None,
     query_set_path: Path = DEFAULT_QUERY_SET_PATH,
+    record_path: Optional[Path] = None,
 ) -> dict[str, Any]:
     """직선 파이프라인 4단계 실행 및 전체 완결 기록 구성."""
     started_at = datetime.now(timezone.utc).astimezone().isoformat()
     run_id = f"run_{int(time.time())}_{uuid.uuid4().hex[:8]}"
+
+    # 0. 금지 경로는 검색·LLM 호출·파일 쓰기 전에 거부
+    if record_path is not None:
+        validate_record_path(
+            record_path=record_path,
+            reference_path=reference_path,
+            persist_dir=persist_dir,
+            query_set_path=query_set_path,
+        )
 
     durations: dict[str, float] = {}
     t_start = time.perf_counter()
@@ -822,6 +871,7 @@ def main() -> int:
         persist_dir=persist_dir,
         query_id=args.query_id,
         query_set_path=args.query_set,
+        record_path=args.record,
     )
 
     # JSONL 기록

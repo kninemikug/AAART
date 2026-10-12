@@ -270,3 +270,88 @@ def test_codex_runner_metadata_null():
         assert record["generation"]["finish_reason"] is None
         assert record["generation"]["usage"] == {"total_tokens": 120}
 
+
+def test_pipeline_record_path_rejection_before_execution():
+    ref_path = Path("docs/T08_2_t9_handoff_reference.json").resolve()
+    persist_dir = Path("data/vector-store").resolve()
+
+    # Prohibited corpus path
+    with pytest.raises(ValueError, match="보호된 디렉터리"):
+        run_pipeline(
+            query_original="Test query",
+            reference_path=ref_path,
+            persist_dir=persist_dir,
+            record_path=Path("data/rawpedia/forbidden.jsonl"),
+        )
+
+    # Directory path
+    with pytest.raises(ValueError, match="디렉터리입니다"):
+        run_pipeline(
+            query_original="Test query",
+            reference_path=ref_path,
+            persist_dir=persist_dir,
+            record_path=Path("docs"),
+        )
+
+
+def test_codex_event_log_tool_call_rejected(tmp_path):
+    mock_events = [
+        json.dumps({"type": "thread.started"}),
+        json.dumps({"type": "turn.started"}),
+        json.dumps({"type": "item.completed", "item": {"type": "command_execution", "command": "ls"}}),
+        json.dumps({"type": "turn.completed", "usage": {"input_tokens": 50, "output_tokens": 10}}),
+    ]
+    stdout_content = "\n".join(mock_events)
+
+    class MockCompletedProcess:
+        returncode = 0
+        stdout = stdout_content
+        stderr = ""
+
+    # Prepare temp output file that codex exec writes to
+    def mock_subprocess_run(cmd, **kwargs):
+        # Find -o <path>
+        out_idx = cmd.index("-o") + 1
+        out_p = Path(cmd[out_idx])
+        out_p.write_text(json.dumps({"answer": "test", "citation_ids": []}), encoding="utf-8")
+        return MockCompletedProcess()
+
+    with patch.dict("os.environ", {"LLM_PROVIDER": "codex"}):
+        with patch("shutil.which", return_value="/usr/bin/codex"):
+            with patch("subprocess.run", side_effect=mock_subprocess_run):
+                with pytest.raises(RuntimeError, match="추가 도구 사용\\(command_execution\\)이 감지되어"):
+                    generate_llm_response("sys", "user", {}, "q")
+
+
+def test_codex_event_log_success_usage_parsing(tmp_path):
+    mock_events = [
+        json.dumps({"type": "thread.started"}),
+        json.dumps({"type": "turn.started"}),
+        json.dumps({"type": "item.completed", "item": {"type": "agent_message"}}),
+        json.dumps({"type": "turn.completed", "usage": {"input_tokens": 120, "output_tokens": 30}}),
+    ]
+    stdout_content = "\n".join(mock_events)
+
+    class MockCompletedProcess:
+        returncode = 0
+        stdout = stdout_content
+        stderr = ""
+
+    def mock_subprocess_run(cmd, **kwargs):
+        out_idx = cmd.index("-o") + 1
+        out_p = Path(cmd[out_idx])
+        out_p.write_text(json.dumps({"answer": "답변 [C1S1]", "citation_ids": ["C1S1"]}), encoding="utf-8")
+        return MockCompletedProcess()
+
+    with patch.dict("os.environ", {"LLM_PROVIDER": "codex"}):
+        with patch("shutil.which", return_value="/usr/bin/codex"):
+            with patch("subprocess.run", side_effect=mock_subprocess_run):
+                raw_resp, usage, meta = generate_llm_response(
+                    "sys", "user", {"C1S1": {"display_name": "Doc", "target_url": "http://doc"}}, "q"
+                )
+                assert usage == {"input_tokens": 120, "output_tokens": 30, "total_tokens": 150}
+                assert meta["llm_provider"] == "codex-cli"
+                assert meta["generation_config"]["temperature"] is None
+                assert meta["_finish_reason"] is None
+
+
