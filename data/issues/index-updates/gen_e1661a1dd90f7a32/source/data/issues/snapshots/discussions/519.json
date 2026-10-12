@@ -1,0 +1,16 @@
+{
+  "author": {
+    "login": "paulmatthijsse"
+  },
+  "body": "Hello Alberto, \n\nI revised the Dutch translation of ART and noticed that at the end of the file Nederlands, there's a line that says:\n\"added with automatic translation\",\nfollowed by some 60 auto translations (which still have to be edited). \n\nIt's also present in the French language file, only 10 auto translations. \n\nQuestion: who added those automatic translations, where do they come from? \n\nRegards, Paul. ",
+  "category": {
+    "name": "General"
+  },
+  "createdAt": "2026-08-11T09:41:59Z",
+  "databaseId": 10598073,
+  "id": "D_kwDONWPV1M4Aoba5",
+  "number": 519,
+  "title": "Language files: # added with automatic translation",
+  "updatedAt": "2026-08-12T09:26:07Z",
+  "url": "https://github.com/orgs/artraweditor/discussions/519"
+}

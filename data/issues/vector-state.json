@@ -1,0 +1,218 @@
+{
+  "schema_version": 1,
+  "store": {
+    "persist_dir": "/Users/user/orca/workspaces/AAART/T10-2c-update/data/vector-store/t09",
+    "collection_name": "art_retrieval_t09_v1",
+    "reference_sha256": "2c7081ba6a7c37b00735b0be2ef362f5b0c2a86cd41fe97bbb2a3b5ebdc195bc",
+    "protocol_sha256": "3694eb3cb0a8b8e989e6bc828adf1f067b4f988f9be0a04a4d43507850412dc5"
+  },
+  "last_completed_generation": "gen_e1661a1dd90f7a32",
+  "last_completed_at": "2026-10-12T05:35:14Z",
+  "items": {
+    "github:artraweditor/ART:discussion:412": {
+      "candidate_id": "github:artraweditor/ART:discussion:412",
+      "record_key": "discussion:D_kwDONWPV1M4Ai6_I",
+      "thread_sha256": "9d176d0165c005b537aefa743b0750a4e9c1c02d167d94d856ff561b2e5c7e05",
+      "candidate_sha256": "72fcfad918a6fae8382f2e46eee6ca6d814ef0c923c9df4fd8e44e098d092faf",
+      "disposition": "include",
+      "reason_codes": [],
+      "status": "active",
+      "chunk_ids": [
+        "t08c:v1:github:G-C-curated-group-t1024-o64:0dbb079e6ca76d293bb8598c71f8a90d283ff187f27483268b0ed760a40294f0"
+      ],
+      "chunks_payload_sha256": "08a37e40e0268989533161dc1a1b26362b7dcc3ed1a3e48c667857e65ee64c74",
+      "applied_generation": "gen_e1661a1dd90f7a32",
+      "applied_input_manifest": "52b6cdf587e1f5ed12d80570a41a476ef02dd6e2118c9a9c09a871e7889d01c5",
+      "source_root": "/Users/user/orca/workspaces/AAART/T10-2c-update/data/issues/index-updates/gen_e1661a1dd90f7a32/source",
+      "applied_at": "2026-10-12T05:30:59Z"
+    },
+    "github:artraweditor/ART:discussion:420": {
+      "candidate_id": "github:artraweditor/ART:discussion:420",
+      "record_key": "discussion:D_kwDONWPV1M4AjNbf",
+      "thread_sha256": "4b0ef30bf0ade9c449288a4ed6bf4a6820791dd70e63f45a45d5bec56e0d8f68",
+      "candidate_sha256": "45b79d4004c51e81318b218c7c5e4cf93b4f95769a8fcabd6e9a97e3f67431bf",
+      "disposition": "include",
+      "reason_codes": [],
+      "status": "active",
+      "chunk_ids": [
+        "t08c:v1:github:G-C-curated-group-t1024-o64:9df27ed8e656ada3cd5cfa28104519fcdd6bf0b9dafe2c08f5300abb9acf8492"
+      ],
+      "chunks_payload_sha256": "c320d4e27e439b2e548b2807c37bb630e84ae694001e7bb2c06c8f7b70f75dfe",
+      "applied_generation": "gen_e1661a1dd90f7a32",
+      "applied_input_manifest": "52b6cdf587e1f5ed12d80570a41a476ef02dd6e2118c9a9c09a871e7889d01c5",
+      "source_root": "/Users/user/orca/workspaces/AAART/T10-2c-update/data/issues/index-updates/gen_e1661a1dd90f7a32/source",
+      "applied_at": "2026-10-12T05:30:59Z"
+    },
+    "github:artraweditor/ART:discussion:424": {
+      "candidate_id": "github:artraweditor/ART:discussion:424",
+      "record_key": "discussion:D_kwDONWPV1M4AjV4v",
+      "thread_sha256": "371e701a77641d52bb473085cdc864ed158a8a34131bd7eca2ec284de18233c6",
+      "candidate_sha256": "d36d99d1ad87aef60e3401c6cdd1de1a27fb7e4594c19ae055ae69f5aea3c9f9",
+      "disposition": "include",
+      "reason_codes": [],
+      "status": "active",
+      "chunk_ids": [
+        "t08c:v1:github:G-C-curated-group-t1024-o64:fc1a98c07a3b1878d1342edfc0a9ad6df26cc191547540cb6ee86c3de9f4e5bf"
+      ],
+      "chunks_payload_sha256": "db9e315ccec3322f1be748fae2fcd5b3cc2687260e718ccb1e0665551d2526b4",
+      "applied_generation": "gen_e1661a1dd90f7a32",
+      "applied_input_manifest": "52b6cdf587e1f5ed12d80570a41a476ef02dd6e2118c9a9c09a871e7889d01c5",
+      "source_root": "/Users/user/orca/workspaces/AAART/T10-2c-update/data/issues/index-updates/gen_e1661a1dd90f7a32/source",
+      "applied_at": "2026-10-12T05:30:59Z"
+    },
+    "github:artraweditor/ART:discussion:440": {
+      "candidate_id": "github:artraweditor/ART:discussion:440",
+      "record_key": "discussion:D_kwDONWPV1M4AjyUw",
+      "thread_sha256": "fb28ae284e630aae18b38eed7495339859e182fefd751c515006c71e18d9cd52",
+      "candidate_sha256": "4b10bc5776a90d6860866445cf6874656ac57a30d2cf07ea8e1a2f54ecab7b38",
+      "disposition": "include",
+      "reason_codes": [],
+      "status": "active",
+      "chunk_ids": [
+        "t08c:v1:github:G-C-curated-group-t1024-o64:f2597d8de6587c1912847ff1f6933805f8737c09bb3da4a9390caa6534cc3285"
+      ],
+      "chunks_payload_sha256": "6a40881d4c950004bfec11c2278c191b73813954cf4033750a83f4bdd9be2007",
+      "applied_generation": "gen_e1661a1dd90f7a32",
+      "applied_input_manifest": "52b6cdf587e1f5ed12d80570a41a476ef02dd6e2118c9a9c09a871e7889d01c5",
+      "source_root": "/Users/user/orca/workspaces/AAART/T10-2c-update/data/issues/index-updates/gen_e1661a1dd90f7a32/source",
+      "applied_at": "2026-10-12T05:30:59Z"
+    },
+    "github:artraweditor/ART:discussion:442": {
+      "candidate_id": "github:artraweditor/ART:discussion:442",
+      "record_key": "discussion:D_kwDONWPV1M4Ajzpk",
+      "thread_sha256": "1784e27b0f03abe6f2761c08aca0bafff22e1d72f49083f8a30ec92b5c3f6ffa",
+      "candidate_sha256": "346540578075a22b24d6cbb9160a81eefc810fe68bc5ad2fbb9cfedf725cc94c",
+      "disposition": "include",
+      "reason_codes": [],
+      "status": "active",
+      "chunk_ids": [
+        "t08c:v1:github:G-C-curated-group-t1024-o64:4cb06213fc5316741243f776bb3af1dd405278574fd2df19a9e96786cd8d6c15"
+      ],
+      "chunks_payload_sha256": "80fc3d39daf5cb67c9fad288536230896ee399c32d370d8676a004025f42efc0",
+      "applied_generation": "gen_e1661a1dd90f7a32",
+      "applied_input_manifest": "52b6cdf587e1f5ed12d80570a41a476ef02dd6e2118c9a9c09a871e7889d01c5",
+      "source_root": "/Users/user/orca/workspaces/AAART/T10-2c-update/data/issues/index-updates/gen_e1661a1dd90f7a32/source",
+      "applied_at": "2026-10-12T05:30:59Z"
+    },
+    "github:artraweditor/ART:discussion:489": {
+      "candidate_id": "github:artraweditor/ART:discussion:489",
+      "record_key": "discussion:D_kwDONWPV1M4AmoIs",
+      "thread_sha256": "b6574a5ad183c0c89d8e1469ddf592d477fcf03217d650fecc8465ce848c0679",
+      "candidate_sha256": "4afcb3aea4256f9706a1873f55090ba9ea2306b30554e4a3a6da53a667b32e75",
+      "disposition": "include",
+      "reason_codes": [],
+      "status": "active",
+      "chunk_ids": [
+        "t08c:v1:github:G-C-curated-group-t1024-o64:36630262b765f3b514f3a376c84738c0472446666079b5a8907e8a75173e738a"
+      ],
+      "chunks_payload_sha256": "46f01a855dfac55a17d5841a0d8d1b3190e7fd7f241b9b4bf1e5cca07c8bb015",
+      "applied_generation": "gen_e1661a1dd90f7a32",
+      "applied_input_manifest": "52b6cdf587e1f5ed12d80570a41a476ef02dd6e2118c9a9c09a871e7889d01c5",
+      "source_root": "/Users/user/orca/workspaces/AAART/T10-2c-update/data/issues/index-updates/gen_e1661a1dd90f7a32/source",
+      "applied_at": "2026-10-12T05:30:59Z"
+    },
+    "github:artraweditor/ART:discussion:494": {
+      "candidate_id": "github:artraweditor/ART:discussion:494",
+      "record_key": "discussion:D_kwDONWPV1M4Am6JE",
+      "thread_sha256": "2393373bb6566dd7c5ab8c811c4e6e4828bc75281f9712d8427c8443bb3ca68a",
+      "candidate_sha256": "610dab6c6de6a9334f8ed5392e438c29e77c8a6a258762210dde2df7e407eb59",
+      "disposition": "include",
+      "reason_codes": [],
+      "status": "active",
+      "chunk_ids": [
+        "t08c:v1:github:G-C-curated-group-t1024-o64:69b288e5ac3a77ce3acb1d7fb56695a126ec6c6816a54eb33123d7ce7adf3309"
+      ],
+      "chunks_payload_sha256": "c0d25ecf262126448b42ba16b2bceb7b0cce5f9ba9cb1e0e628671f54114a557",
+      "applied_generation": "gen_e1661a1dd90f7a32",
+      "applied_input_manifest": "52b6cdf587e1f5ed12d80570a41a476ef02dd6e2118c9a9c09a871e7889d01c5",
+      "source_root": "/Users/user/orca/workspaces/AAART/T10-2c-update/data/issues/index-updates/gen_e1661a1dd90f7a32/source",
+      "applied_at": "2026-10-12T05:30:59Z"
+    },
+    "github:artraweditor/ART:issue:477": {
+      "candidate_id": "github:artraweditor/ART:issue:477",
+      "record_key": "issue:477",
+      "thread_sha256": "6997441fd315b9ba0a277e115994a224fffce66632053b876d79c8f38d0c69e9",
+      "candidate_sha256": "10f87e285f796f138b19fcd8241fb5ece0c4b8fbb2a30973f63f6f0f4cc3e955",
+      "disposition": "include",
+      "reason_codes": [],
+      "status": "active",
+      "chunk_ids": [
+        "t08c:v1:github:G-C-curated-group-t1024-o64:9964b23659018d5dd8039877d33f90d99b7a41db96e9e9d0bb4135a3a0877a24"
+      ],
+      "chunks_payload_sha256": "7ca04a1c7c66c3abe42d330155816ce45f87c7c3a14b8e73ddd1f6753f150292",
+      "applied_generation": "gen_e1661a1dd90f7a32",
+      "applied_input_manifest": "52b6cdf587e1f5ed12d80570a41a476ef02dd6e2118c9a9c09a871e7889d01c5",
+      "source_root": "/Users/user/orca/workspaces/AAART/T10-2c-update/data/issues/index-updates/gen_e1661a1dd90f7a32/source",
+      "applied_at": "2026-10-12T05:30:59Z"
+    },
+    "github:artraweditor/ART:issue:500": {
+      "candidate_id": "github:artraweditor/ART:issue:500",
+      "record_key": "issue:500",
+      "thread_sha256": "c51769f25343d903c59f612ddb96e8546e038415b3e65933124e587a099ca4c0",
+      "candidate_sha256": "8a4910f794178607aa1a81d93420d397032bb9e0603df4ac94aadd7b0cd1cdaa",
+      "disposition": "include",
+      "reason_codes": [],
+      "status": "active",
+      "chunk_ids": [
+        "t08c:v1:github:G-C-curated-group-t1024-o64:f0d4ebf4be63574f2027696d2883397d06976c917176226a342dde4c46c09891"
+      ],
+      "chunks_payload_sha256": "e61ef7c95ca9b83663792bd34f1ee228f60ffd22393f7b9c46336740ddbd448b",
+      "applied_generation": "gen_e1661a1dd90f7a32",
+      "applied_input_manifest": "52b6cdf587e1f5ed12d80570a41a476ef02dd6e2118c9a9c09a871e7889d01c5",
+      "source_root": "/Users/user/orca/workspaces/AAART/T10-2c-update/data/issues/index-updates/gen_e1661a1dd90f7a32/source",
+      "applied_at": "2026-10-12T05:30:59Z"
+    },
+    "github:artraweditor/ART:issue:516": {
+      "candidate_id": "github:artraweditor/ART:issue:516",
+      "record_key": "issue:516",
+      "thread_sha256": "88e3fc9a4a453d6917c5d220553669202c2e097b53fcd16bca967adb6f324417",
+      "candidate_sha256": "86cb026e2004c4b0f90c8d8ba73c0ea0a98aba411a2149b03a1facaa12446eb9",
+      "disposition": "include",
+      "reason_codes": [],
+      "status": "active",
+      "chunk_ids": [
+        "t08c:v1:github:G-C-curated-group-t1024-o64:d7bd1493d744c336bf0dd4f58f66cf98775fc3c01cbb0e69e18617d8f0a62ad5"
+      ],
+      "chunks_payload_sha256": "ca12cbad1af30720180536a3156a3c6539c830105c09284538103ca49bd300cb",
+      "applied_generation": "gen_e1661a1dd90f7a32",
+      "applied_input_manifest": "52b6cdf587e1f5ed12d80570a41a476ef02dd6e2118c9a9c09a871e7889d01c5",
+      "source_root": "/Users/user/orca/workspaces/AAART/T10-2c-update/data/issues/index-updates/gen_e1661a1dd90f7a32/source",
+      "applied_at": "2026-10-12T05:30:59Z"
+    },
+    "github:artraweditor/ART:issue:521": {
+      "candidate_id": "github:artraweditor/ART:issue:521",
+      "record_key": "issue:521",
+      "thread_sha256": "abb42bd78375d5ab1fb4c70167348c8b32a4e895ccf1c918ba0328d7d160bec6",
+      "candidate_sha256": "28bbe17ad550948d9c0f687cd9786abaf0b67db1ad720c9bc2e0ac8c173e7d56",
+      "disposition": "include",
+      "reason_codes": [],
+      "status": "active",
+      "chunk_ids": [
+        "t08c:v1:github:G-C-curated-group-t1024-o64:afd172cca89b55e2176e9d06c306eb66406bb0b230e5aa6dec32b6b25da9b273"
+      ],
+      "chunks_payload_sha256": "cfb94f2230b42afaf64fec171af25174ec603fec5cc161ccc8b9d69303c560d4",
+      "applied_generation": "gen_e1661a1dd90f7a32",
+      "applied_input_manifest": "52b6cdf587e1f5ed12d80570a41a476ef02dd6e2118c9a9c09a871e7889d01c5",
+      "source_root": "/Users/user/orca/workspaces/AAART/T10-2c-update/data/issues/index-updates/gen_e1661a1dd90f7a32/source",
+      "applied_at": "2026-10-12T05:30:59Z"
+    },
+    "github:artraweditor/ART:issue:524": {
+      "candidate_id": "github:artraweditor/ART:issue:524",
+      "record_key": "issue:524",
+      "thread_sha256": "166aff86123c127288fb0eb26bafe225edbd5a4d035d9e4241791f621faa6dfb",
+      "candidate_sha256": "5128c2d270948a54ce346411754f268be18ad90e3ba2f79d574d7c5ed43e086d",
+      "disposition": "include",
+      "reason_codes": [],
+      "status": "active",
+      "chunk_ids": [
+        "t08c:v1:github:G-C-curated-group-t1024-o64:1185e250d0503cf246f6dac3bcd3fb89945d2b080570df6ae876ef4ca0e638e6",
+        "t08c:v1:github:G-C-curated-group-t1024-o64:b2a82db5d4aa6adad7a7e3ab470b3573cd178fd151a72bfbd94e7b6b4629810b"
+      ],
+      "chunks_payload_sha256": "daf75b7660a0c1c0b219778739e06ca953cc45e57ff7930ac56a35ea2dff4f2c",
+      "applied_generation": "gen_e1661a1dd90f7a32",
+      "applied_input_manifest": "52b6cdf587e1f5ed12d80570a41a476ef02dd6e2118c9a9c09a871e7889d01c5",
+      "source_root": "/Users/user/orca/workspaces/AAART/T10-2c-update/data/issues/index-updates/gen_e1661a1dd90f7a32/source",
+      "applied_at": "2026-10-12T05:30:59Z"
+    }
+  }
+}

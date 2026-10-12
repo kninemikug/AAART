@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "agriggio"
+  },
+  "body": "Hi,\r\nThanks for the contribution! FYI some information about the building steps can be extracted from the GitHub actions, e.g. [windows.yml](https://github.com/artraweditor/ART/blob/d1bb6c0f15eb0a2a1ed4e1c369aed214500398b5/.github/workflows/windows.yml) for windows.\r\n\r\nHTH",
+  "createdAt": "2025-11-18T21:15:32Z",
+  "databaseId": 15005389,
+  "id": "DC_kwDONWPV1M4A5PbN",
+  "updatedAt": "2025-11-18T21:15:33Z",
+  "url": "https://github.com/artraweditor/ART/discussions/412#discussioncomment-15005389"
+}

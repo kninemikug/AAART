@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "generation_id": "gen_e1661a1dd90f7a32",
+  "created_at": "2026-10-12T08:37:31Z",
+  "files": {
+    "update-plan.json": "fe9e1ef32fd2e3d292cabdae1b6c32e62342e1a499b25e1e8130ffa1cd0e1699",
+    "chunks.jsonl": "7f8943d6bed8a482e7f34602099ade665a99c341a8870a16ed32da2196512571",
+    "search-candidates.json": "c2074548354406b6bd2e886259ca8eea4a02813dead57fba77e0bf1a5bf86344",
+    "filter-report.json": "db50d42f4ec8545e50db183c723c9b3272e15acfc8fed7ab122f0ccbafa10b46",
+    "source/data/issues/sync-state.json": "0c2c0440ee63795103217495bfc651980f26170e024774b29bf3cc66aa464187",
+    "source/data/issues/curation-decisions.json": "e7925afe3a9cd5041d492f318bebf9c7bdc627023d29e5008713630e4d2a430e"
+  },
+  "inventory_manifest_sha256": "52b6cdf587e1f5ed12d80570a41a476ef02dd6e2118c9a9c09a871e7889d01c5",
+  "include_candidate_ids": [
+    "github:artraweditor/ART:discussion:412",
+    "github:artraweditor/ART:discussion:420",
+    "github:artraweditor/ART:discussion:424",
+    "github:artraweditor/ART:discussion:440",
+    "github:artraweditor/ART:discussion:442",
+    "github:artraweditor/ART:discussion:489",
+    "github:artraweditor/ART:discussion:494",
+    "github:artraweditor/ART:issue:477",
+    "github:artraweditor/ART:issue:500",
+    "github:artraweditor/ART:issue:516",
+    "github:artraweditor/ART:issue:521",
+    "github:artraweditor/ART:issue:524"
+  ],
+  "include_operation_ids": [
+    "github:artraweditor/ART:discussion:412",
+    "github:artraweditor/ART:discussion:420",
+    "github:artraweditor/ART:discussion:424",
+    "github:artraweditor/ART:discussion:440",
+    "github:artraweditor/ART:discussion:442",
+    "github:artraweditor/ART:discussion:489",
+    "github:artraweditor/ART:discussion:494",
+    "github:artraweditor/ART:issue:477",
+    "github:artraweditor/ART:issue:500",
+    "github:artraweditor/ART:issue:516",
+    "github:artraweditor/ART:issue:521",
+    "github:artraweditor/ART:issue:524"
+  ],
+  "chunk_doc_ids": [
+    "github:artraweditor/ART:discussion:412",
+    "github:artraweditor/ART:discussion:420",
+    "github:artraweditor/ART:discussion:424",
+    "github:artraweditor/ART:discussion:440",
+    "github:artraweditor/ART:discussion:442",
+    "github:artraweditor/ART:discussion:489",
+    "github:artraweditor/ART:discussion:494",
+    "github:artraweditor/ART:issue:477",
+    "github:artraweditor/ART:issue:500",
+    "github:artraweditor/ART:issue:516",
+    "github:artraweditor/ART:issue:521",
+    "github:artraweditor/ART:issue:524"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "topoldo"
+  },
+  "body": "Today I have retried using ART 1.26.5, spektrafilm (as updated until yesterday) and your tools **ART_spektrafilm.json** and **spektrafilm_mklut.py** (version lreleased 4 days ago).\r\nNow it works!\r\nBut, before being successfull, I had to restart ART **twice** after removing all the caches.\r\nSo what I suspect is that your cache maintained spektrafilm working previously, while - as I reinstalled ART from scratch - I noticed the problem.\r\n\r\nThx!\r\nTopoldo\r\n",
+  "createdAt": "2026-06-03T12:01:19Z",
+  "databaseId": 17165051,
+  "id": "DC_kwDONWPV1M4BBer7",
+  "updatedAt": "2026-06-03T12:01:19Z",
+  "url": "https://github.com/artraweditor/ART/discussions/481#discussioncomment-17165051"
+}

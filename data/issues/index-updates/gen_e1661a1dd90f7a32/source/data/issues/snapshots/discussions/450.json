@@ -1,0 +1,16 @@
+{
+  "author": {
+    "login": "Megabound"
+  },
+  "body": "Hey all!\r\n\r\nI've been working on modifying Film Scan Converter to make an integration into ART possible as I'm trying to consolidate my workflow a bit. I've got a fork of FSC [up here](https://github.com/Megabound/Film-Scan-Converter) with the added CLI arguments and ART User Commands as well as a short video on the install and use [over here](https://www.youtube.com/watch?v=8uGc7bAjnsI).\r\n\r\nHope someone finds this useful!",
+  "category": {
+    "name": "Show and tell"
+  },
+  "createdAt": "2026-03-02T22:28:53Z",
+  "databaseId": 9562190,
+  "id": "D_kwDONWPV1M4AkehO",
+  "number": 450,
+  "title": "Film Scan Converter Integration",
+  "updatedAt": "2026-03-03T09:25:02Z",
+  "url": "https://github.com/orgs/artraweditor/discussions/450"
+}

@@ -1,0 +1,16 @@
+{
+  "author": {
+    "login": "sophisticatedDreamer"
+  },
+  "body": "Hi all and please excuse my ignorance:\r\n\r\nI painted a mask over a beautiful bird sitting on an branch.\r\nI used some fine contrast to be applied only to this masked bird - it works as expected.\r\n\r\n**My question:**\r\n\r\nNow I want to reuse this same mask elsewhere ... but I don't see / find a way how to refer to it. How can I achieve the intended reuse?\r\n\r\n**_NB:_** I used to use _darktable_ for years but find it's GUI and tools behaviour much less than comfortable. Thus I currently investigate **ART** .... having already left _RawTherapee_ behind due to the lack of advanced selective retouching options.",
+  "category": {
+    "name": "General"
+  },
+  "createdAt": "2026-01-25T14:05:06Z",
+  "databaseId": 9386596,
+  "id": "D_kwDONWPV1M4Ajzpk",
+  "number": 442,
+  "title": "ART newbie: How to reuse the same mask I painted in one tool in one or more other tools?",
+  "updatedAt": "2026-01-26T17:31:10Z",
+  "url": "https://github.com/orgs/artraweditor/discussions/442"
+}

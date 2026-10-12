@@ -1,0 +1,16 @@
+{
+  "author": {
+    "login": "art-rasa"
+  },
+  "body": "Hello all,\r\n\r\nI installed the ART editor but found I cannot seem to change to the light mode. I have difficulties seeing the user interface because it is too dark and lacks contrast. When I choose the theme \"TooWaGrey - Average surround (deprecated)\" from settings, the UI becomes only very slightly lighter. Is there some add-on theme available with light mode?\r\n\r\nIdeally a WGAC 2.2 compliant light theme would be ideal.\r\nhttps://www.w3.org/TR/WCAG22/#contrast-minimum\r\n\r\n_The intent of this success criterion is to provide enough contrast between text and its background, so that it can be read by people with moderately low vision or impaired contrast perception, without the use of contrast-enhancing assistive technology._ \r\nhttps://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html\r\n\r\nHere is a screenshot of the UI.\r\n<img width=\"1680\" height=\"1050\" alt=\"kuva\" src=\"https://github.com/user-attachments/assets/b90ed037-d22d-4023-a1d5-0245f859beee\" />\r\n\r\nThanks!",
+  "category": {
+    "name": "General"
+  },
+  "createdAt": "2026-04-30T18:33:24Z",
+  "databaseId": 9984373,
+  "id": "D_kwDONWPV1M4AmFl1",
+  "number": 472,
+  "title": "Cannot change to Light mode",
+  "updatedAt": "2026-05-01T05:16:17Z",
+  "url": "https://github.com/orgs/artraweditor/discussions/472"
+}

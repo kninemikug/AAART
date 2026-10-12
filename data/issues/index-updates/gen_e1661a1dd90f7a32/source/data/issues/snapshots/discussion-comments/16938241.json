@@ -1,0 +1,11 @@
+{
+  "author": {
+    "login": "agriggio"
+  },
+  "body": "Hi,\r\nI have no plans, but I don't see this as urgent. \r\nRealistically, I would do it with an agent too if I really had to. But at that point probably it would be nicer to have an intermediate layer that decouples from the specific UI toolkit. But this is just wishful thinking at the moment.",
+  "createdAt": "2026-05-16T06:27:25Z",
+  "databaseId": 16938241,
+  "id": "DC_kwDONWPV1M4BAnUB",
+  "updatedAt": "2026-05-16T06:27:25Z",
+  "url": "https://github.com/artraweditor/ART/discussions/485#discussioncomment-16938241"
+}
