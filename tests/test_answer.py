@@ -21,6 +21,7 @@ from artagent.answer import (
     run_pipeline,
     validate_and_format_citations,
     validate_record_path,
+    validate_saved_trace,
 )
 from artagent.retrieval.types import SearchHit
 
@@ -457,7 +458,7 @@ def test_codex_empty_stdout_rejected(tmp_path):
                 err = exc_info.value
                 assert "이벤트 로그가 비어 있습니다" in str(err)
                 assert err.trace is not None
-                assert err.trace["trace_schema"] == "t11-codex-trace-v1"
+                assert err.trace["trace_schema"] in ("t11-codex-trace-v1", "t11-codex-trace-v2")
                 assert err.trace["validation"]["status"] == "rejected"
 
 
@@ -602,12 +603,16 @@ def test_codex_success_trace_verified(tmp_path):
                 )
                 trace = meta["_trace"]
                 assert trace is not None
-                assert trace["trace_schema"] == "t11-codex-trace-v1"
+                assert trace["trace_schema"] in ("t11-codex-trace-v1", "t11-codex-trace-v2")
                 assert trace["validation"]["status"] == "verified"
+                assert trace["validation"]["summary_status"] == "complete"
+                assert trace["validation"]["summary_error"] is None
                 assert trace["validation"]["thread_id"] == "th-123"
                 assert trace["validation"]["additional_tool_count"] == 0
                 assert trace["validation"]["turn_started_count"] == 1
                 assert trace["validation"]["turn_completed_count"] == 1
+                assert trace["execution_policy"]["application_status"] == "confirmed"
+                assert trace["execution_policy"]["tools_enabled"] is False
 
 
 def test_cli_failure_event_recorded_in_safe_jsonl_with_trace(tmp_path):
@@ -710,13 +715,17 @@ def test_codex_command_args_and_policy_match(tmp_path):
                 assert 'web_search="disabled"' in captured_cmd
 
                 # 2. Verify policy matches command
+                assert trace["trace_schema"] == "t11-codex-trace-v2"
                 policy = trace["execution_policy"]
+                assert policy["application_status"] == "confirmed"
                 assert policy["tools_enabled"] is False
                 assert policy["config_source"] == "cli_args"
                 assert policy["config_overrides"]["features.shell_tool"] == "false"
                 assert policy["config_overrides"]["features.unified_exec"] == "false"
                 assert policy["config_overrides"]["web_search"] == '"disabled"'
                 assert trace["validation"]["status"] == "verified"
+                assert trace["validation"]["summary_status"] == "complete"
+                assert trace["validation"]["summary_error"] is None
 
 
 def test_codex_unsupported_option_failure_preserved(tmp_path):
@@ -737,7 +746,10 @@ def test_codex_unsupported_option_failure_preserved(tmp_path):
                 assert err.trace["process_returncode"] == 2
                 assert "unsupported configuration option" in err.trace["stderr"]
                 assert err.trace["validation"]["status"] == "rejected"
-                assert err.trace["execution_policy"]["tools_enabled"] is False
+                assert err.trace["validation"]["summary_status"] == "unavailable"
+                assert err.trace["validation"]["additional_tool_count"] is None
+                assert err.trace["execution_policy"]["tools_enabled"] is None
+                assert err.trace["execution_policy"]["application_status"] == "unconfirmed"
 
 
 def test_codex_timeout_with_bytes_output_preserved(tmp_path):
@@ -868,5 +880,253 @@ def test_cli_timeout_bytes_recorded_in_safe_jsonl_with_trace(tmp_path):
     assert trace["stderr"] == "timeout after 120s\n"
     assert trace["validation"]["status"] == "rejected"
     assert "시간 초과" in trace["validation"]["error_reason"]
+
+
+def test_codex_failure_aggregation_with_timeout(tmp_path):
+    events = [
+        json.dumps({"type": "thread.started", "thread_id": "th-to-3"}),
+        json.dumps({"type": "turn.started"}),
+        json.dumps({"type": "item.updated", "item": {"type": "web_search"}}),
+    ]
+    stdout_bytes = "\n".join(events).encode("utf-8")
+
+    def mock_subprocess_run(cmd, **kwargs):
+        raise subprocess.TimeoutExpired(
+            cmd=cmd,
+            timeout=120,
+            output=stdout_bytes,
+            stderr=b"timeout 120s\n",
+        )
+
+    with patch.dict("os.environ", {"LLM_PROVIDER": "codex"}):
+        with patch("shutil.which", return_value="/usr/bin/codex"):
+            with patch("subprocess.run", side_effect=mock_subprocess_run):
+                with pytest.raises(GenerationError) as exc_info:
+                    generate_llm_response("sys", "user", {}, "q")
+                err = exc_info.value
+                assert "시간 초과" in str(err)
+                val = err.trace["validation"]
+                assert val["status"] == "rejected"
+                assert val["summary_status"] == "complete"
+                assert val["summary_error"] is None
+                assert val["event_count"] == 3
+                assert val["thread_id"] == "th-to-3"
+                assert val["turn_started_count"] == 1
+                assert val["turn_completed_count"] == 0
+                assert val["additional_tool_count"] == 1
+                assert val["observed_item_types"] == ["web_search"]
+                assert err.trace["process_returncode"] is None
+                assert err.trace["process_error"] == {"kind": "timeout", "timeout_seconds": 120}
+                assert err.trace["execution_policy"]["application_status"] == "unconfirmed"
+                assert err.trace["execution_policy"]["tools_enabled"] is None
+
+
+def test_codex_failure_aggregation_with_exit_code_2(tmp_path):
+    events = [
+        json.dumps({"type": "thread.started", "thread_id": "th-exit-3"}),
+        json.dumps({"type": "turn.started"}),
+        json.dumps({"type": "item.updated", "item": {"type": "web_search"}}),
+    ]
+    stdout_str = "\n".join(events)
+
+    def mock_subprocess_run(cmd, **kwargs):
+        return _make_mock_completed_proc(stdout=stdout_str, stderr="fatal error", returncode=2)
+
+    with patch.dict("os.environ", {"LLM_PROVIDER": "codex"}):
+        with patch("shutil.which", return_value="/usr/bin/codex"):
+            with patch("subprocess.run", side_effect=mock_subprocess_run):
+                with pytest.raises(GenerationError) as exc_info:
+                    generate_llm_response("sys", "user", {}, "q")
+                err = exc_info.value
+                assert "비정상 종료" in str(err)
+                val = err.trace["validation"]
+                assert val["status"] == "rejected"
+                assert val["summary_status"] == "complete"
+                assert val["summary_error"] is None
+                assert val["event_count"] == 3
+                assert val["thread_id"] == "th-exit-3"
+                assert val["turn_started_count"] == 1
+                assert val["turn_completed_count"] == 0
+                assert val["additional_tool_count"] == 1
+                assert val["observed_item_types"] == ["web_search"]
+                assert err.trace["process_returncode"] == 2
+                assert err.trace["execution_policy"]["application_status"] == "unconfirmed"
+                assert err.trace["execution_policy"]["tools_enabled"] is None
+
+
+def test_codex_partial_summary_with_corrupted_line_and_timeout(tmp_path):
+    events = [
+        json.dumps({"type": "thread.started", "thread_id": "th-corrupt"}),
+        "MALFORMED_JSON_LINE_HERE",
+    ]
+    stdout_bytes = "\n".join(events).encode("utf-8")
+
+    def mock_subprocess_run(cmd, **kwargs):
+        raise subprocess.TimeoutExpired(
+            cmd=cmd,
+            timeout=120,
+            output=stdout_bytes,
+            stderr=b"timeout\n",
+        )
+
+    with patch.dict("os.environ", {"LLM_PROVIDER": "codex"}):
+        with patch("shutil.which", return_value="/usr/bin/codex"):
+            with patch("subprocess.run", side_effect=mock_subprocess_run):
+                with pytest.raises(GenerationError) as exc_info:
+                    generate_llm_response("sys", "user", {}, "q")
+                err = exc_info.value
+                val = err.trace["validation"]
+                assert val["status"] == "rejected"
+                assert val["summary_status"] == "partial"
+                assert val["summary_error"] is not None
+                assert "JSON 파싱 실패" in val["summary_error"]
+                assert val["event_count"] is None
+                assert val["additional_tool_count"] is None
+                assert val["turn_started_count"] is None
+                assert err.trace["process_error"]["kind"] == "timeout"
+                assert err.trace["execution_policy"]["application_status"] == "unconfirmed"
+                assert err.trace["execution_policy"]["tools_enabled"] is None
+
+
+def test_codex_stderr_only_unavailable_summary(tmp_path):
+    def mock_subprocess_run(cmd, **kwargs):
+        return _make_mock_completed_proc(stdout="", stderr="some warning on stderr", returncode=2)
+
+    with patch.dict("os.environ", {"LLM_PROVIDER": "codex"}):
+        with patch("shutil.which", return_value="/usr/bin/codex"):
+            with patch("subprocess.run", side_effect=mock_subprocess_run):
+                with pytest.raises(GenerationError) as exc_info:
+                    generate_llm_response("sys", "user", {}, "q")
+                err = exc_info.value
+                val = err.trace["validation"]
+                assert val["status"] == "rejected"
+                assert val["summary_status"] == "unavailable"
+                assert val["summary_error"] is None
+                assert val["event_count"] is None
+                assert val["additional_tool_count"] is None
+                assert err.trace["stderr"] == "some warning on stderr"
+
+
+def test_codex_completed_events_with_exit_code_2_fails(tmp_path):
+    ans_obj = {"answer": "답변 [C1S1]", "citation_ids": ["C1S1"]}
+    events = [
+        json.dumps({"type": "thread.started"}),
+        json.dumps({"type": "turn.started"}),
+        json.dumps({"type": "item.completed", "item": {"type": "agent_message", "text": json.dumps(ans_obj)}}),
+        json.dumps({"type": "turn.completed", "usage": {"input_tokens": 10, "output_tokens": 5}}),
+    ]
+    stdout_str = "\n".join(events)
+
+    def mock_subprocess_run(cmd, **kwargs):
+        if "-o" in cmd:
+            out_p = Path(cmd[cmd.index("-o") + 1])
+            out_p.write_text(json.dumps(ans_obj), encoding="utf-8")
+        return _make_mock_completed_proc(stdout=stdout_str, stderr="segfault after finish", returncode=2)
+
+    with patch.dict("os.environ", {"LLM_PROVIDER": "codex"}):
+        with patch("shutil.which", return_value="/usr/bin/codex"):
+            with patch("subprocess.run", side_effect=mock_subprocess_run):
+                with pytest.raises(GenerationError) as exc_info:
+                    generate_llm_response("sys", "user", {}, "q")
+                err = exc_info.value
+                assert "비정상 종료" in str(err)
+                val = err.trace["validation"]
+                assert val["summary_status"] == "complete"
+                assert err.trace["process_returncode"] == 2
+                assert err.trace["execution_policy"]["application_status"] == "unconfirmed"
+                assert err.trace["execution_policy"]["tools_enabled"] is None
+
+
+def test_cli_unsupported_option_and_tool_event_saved_in_record(tmp_path):
+    # 1. Unsupported option CLI record
+    rec_file1 = tmp_path / "cli_unsupported.jsonl"
+    def mock_subprocess_run1(cmd, **kwargs):
+        return _make_mock_completed_proc(stdout="", stderr="unknown option", returncode=2)
+
+    with patch.dict("os.environ", {"LLM_PROVIDER": "codex"}):
+        with patch("shutil.which", return_value="/usr/bin/codex"):
+            with patch("subprocess.run", side_effect=mock_subprocess_run1):
+                with patch("artagent.answer.load_spec", return_value=MockSpec()), \
+                     patch("artagent.answer.load_encoder", return_value=None), \
+                     patch("artagent.answer.open_store", return_value=MockStore()):
+                    with patch("sys.argv", ["artagent-answer", "test query", "--record", str(rec_file1)]):
+                        ret = main()
+                        assert ret == 1
+
+    rec1 = json.loads(rec_file1.read_text(encoding="utf-8").strip())
+    assert rec1["execution"]["status"] == "error"
+    trace1 = rec1["generation"]["trace"]
+    assert trace1["execution_policy"]["application_status"] == "unconfirmed"
+    assert trace1["execution_policy"]["tools_enabled"] is None
+    assert trace1["validation"]["summary_status"] == "unavailable"
+    assert trace1["validation"]["additional_tool_count"] is None
+
+    # 2. Tool event CLI record
+    rec_file2 = tmp_path / "cli_tool_event.jsonl"
+    events2 = [
+        json.dumps({"type": "thread.started", "thread_id": "th-cli"}),
+        json.dumps({"type": "turn.started"}),
+        json.dumps({"type": "item.updated", "item": {"type": "web_search"}}),
+    ]
+    def mock_subprocess_run2(cmd, **kwargs):
+        return _make_mock_completed_proc(stdout="\n".join(events2), stderr="", returncode=0)
+
+    with patch.dict("os.environ", {"LLM_PROVIDER": "codex"}):
+        with patch("shutil.which", return_value="/usr/bin/codex"):
+            with patch("subprocess.run", side_effect=mock_subprocess_run2):
+                with patch("artagent.answer.load_spec", return_value=MockSpec()), \
+                     patch("artagent.answer.load_encoder", return_value=None), \
+                     patch("artagent.answer.open_store", return_value=MockStore()):
+                    with patch("sys.argv", ["artagent-answer", "test query", "--record", str(rec_file2)]):
+                        ret = main()
+                        assert ret == 1
+
+    rec2 = json.loads(rec_file2.read_text(encoding="utf-8").strip())
+    assert rec2["execution"]["status"] == "error"
+    trace2 = rec2["generation"]["trace"]
+    assert trace2["execution_policy"]["application_status"] == "unconfirmed"
+    assert trace2["execution_policy"]["tools_enabled"] is None
+    assert trace2["validation"]["summary_status"] == "complete"
+    assert trace2["validation"]["additional_tool_count"] == 1
+    assert trace2["validation"]["observed_item_types"] == ["web_search"]
+
+
+def test_validate_saved_trace_v1_and_v2_compatibility():
+    records_path = Path("docs/T11_execution_records.jsonl")
+    assert records_path.is_file()
+    lines = records_path.read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 15
+
+    for line in lines:
+        r = json.loads(line)
+        trace = r["generation"]["trace"]
+        summary = validate_saved_trace(trace)
+        assert summary["trace_schema"] == "t11-codex-trace-v1"
+        assert summary["status"] == "verified"
+        assert summary["additional_tool_count"] == 0
+        assert summary["application_status"] == "unconfirmed"
+        assert summary["tools_enabled"] is False
+
+    synth_v2 = {
+        "trace_schema": "t11-codex-trace-v2",
+        "cli_version": "1.0",
+        "process_returncode": 0,
+        "execution_policy": {
+            "application_status": "confirmed",
+            "tools_enabled": False,
+        },
+        "validation": {
+            "status": "verified",
+            "summary_status": "complete",
+            "summary_error": None,
+            "event_count": 4,
+            "additional_tool_count": 0,
+        },
+    }
+    summary_v2 = validate_saved_trace(synth_v2)
+    assert summary_v2["trace_schema"] == "t11-codex-trace-v2"
+    assert summary_v2["application_status"] == "confirmed"
+    assert summary_v2["tools_enabled"] is False
+    assert summary_v2["summary_status"] == "complete"
 
 

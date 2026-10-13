@@ -353,7 +353,8 @@ def build_codex_execution_policy(model_id: str) -> dict[str, Any]:
             "web_search": '"disabled"',
         },
         "config_source": "cli_args",
-        "tools_enabled": False,
+        "application_status": "unconfirmed",
+        "tools_enabled": None,
     }
 
 
@@ -383,26 +384,110 @@ def validate_codex_execution(
     """
     event_lines = [line.strip() for line in (stdout_raw or "").splitlines() if line.strip()]
 
+    summary_status: str
+    summary_error: Optional[str] = None
+    event_count: Optional[int] = None
     thread_id: Optional[str] = None
-    turn_started_count = 0
-    turn_completed_count = 0
-    observed_item_types: list[str] = []
-    additional_tool_count = 0
+    turn_started_count: Optional[int] = None
+    turn_completed_count: Optional[int] = None
+    observed_item_types: Optional[list[str]] = None
+    additional_tool_count: Optional[int] = None
     events: list[dict[str, Any]] = []
     lifecycle_events: list[str] = []
+    completed_agent_messages: list[dict[str, Any]] = []
 
-    def build_trace(status: str, err: Optional[str]) -> dict[str, Any]:
+    if not event_lines:
+        summary_status = "unavailable"
+    else:
+        parsed_events: list[dict[str, Any]] = []
+        parse_ok = True
+        parse_err_msg: Optional[str] = None
+
+        for idx, line in enumerate(event_lines):
+            try:
+                ev = json.loads(line)
+            except Exception as ex:
+                parse_ok = False
+                parse_err_msg = f"이벤트 로그 {idx + 1}번째 줄의 JSON 파싱 실패: {ex} (내용: {line[:100]})"
+                break
+
+            if not isinstance(ev, dict) or "type" not in ev:
+                parse_ok = False
+                parse_err_msg = f"이벤트 로그 {idx + 1}번째 줄이 JSON 객체가 아니거나 'type' 필드가 없음: {line[:100]}"
+                break
+
+            ev_type = ev.get("type")
+            if ev_type not in KNOWN_EVENT_TYPES:
+                parse_ok = False
+                parse_err_msg = f"알 수 없는 이벤트 유형({ev_type})이 감지되었습니다."
+                break
+
+            if ev_type in ("item.started", "item.updated", "item.completed"):
+                item = ev.get("item")
+                if not isinstance(item, dict) or not item.get("type"):
+                    parse_ok = False
+                    parse_err_msg = f"{ev_type} 이벤트의 item 객체 또는 'type' 필드가 유효하지 않습니다."
+                    break
+
+            parsed_events.append(ev)
+
+        if not parse_ok:
+            summary_status = "partial"
+            summary_error = parse_err_msg
+        else:
+            summary_status = "complete"
+            events = parsed_events
+            event_count = len(events)
+            turn_started_count = 0
+            turn_completed_count = 0
+            observed_item_types = []
+            additional_tool_count = 0
+
+            for ev in events:
+                ev_type = ev.get("type")
+                if ev_type == "thread.started":
+                    if thread_id is None:
+                        thread_id = ev.get("thread_id")
+                    lifecycle_events.append(ev_type)
+                elif ev_type == "turn.started":
+                    turn_started_count += 1
+                    lifecycle_events.append(ev_type)
+                elif ev_type == "turn.completed":
+                    turn_completed_count += 1
+                    lifecycle_events.append(ev_type)
+
+                if ev_type in ("item.started", "item.updated", "item.completed"):
+                    item = ev.get("item", {})
+                    itype = item.get("type")
+                    if itype and itype not in observed_item_types:
+                        observed_item_types.append(itype)
+                    if itype not in ALLOWED_ITEM_TYPES:
+                        additional_tool_count += 1
+                    if ev_type == "item.completed" and itype == "agent_message":
+                        completed_agent_messages.append(item)
+
+    def build_trace(status: str, err: Optional[str], is_success: bool = False) -> dict[str, Any]:
+        policy_copy = dict(execution_policy)
+        if is_success:
+            policy_copy["application_status"] = "confirmed"
+            policy_copy["tools_enabled"] = False
+        else:
+            policy_copy["application_status"] = "unconfirmed"
+            policy_copy["tools_enabled"] = None
+
         return {
-            "trace_schema": "t11-codex-trace-v1",
+            "trace_schema": "t11-codex-trace-v2",
             "cli_version": cli_version,
             "process_returncode": process_returncode,
-            "execution_policy": execution_policy,
+            "execution_policy": policy_copy,
             "stdout_jsonl": stdout_raw or "",
             "stderr": stderr_raw or "",
             "process_error": process_error,
             "validation": {
                 "status": status,
-                "event_count": len(events),
+                "summary_status": summary_status,
+                "summary_error": summary_error,
+                "event_count": event_count,
                 "thread_id": thread_id,
                 "turn_started_count": turn_started_count,
                 "turn_completed_count": turn_completed_count,
@@ -435,74 +520,37 @@ def validate_codex_execution(
         trace = build_trace(status, err)
         raise GenerationError(err, trace=trace, raw_response=out_file_content or "")
 
-    # 4. 모든 줄이 유효한 JSON이고 'type' 필드가 있는지 검증
-    for idx, line in enumerate(event_lines):
-        try:
-            ev = json.loads(line)
-        except Exception as ex:
-            err = f"이벤트 로그 {idx + 1}번째 줄의 JSON 파싱 실패: {ex} (내용: {line[:100]})"
-            trace = build_trace("rejected", err)
-            raise GenerationError(err, trace=trace, raw_response=out_file_content or "")
+    # 4. 이벤트 파싱/구조 오류 검증
+    if summary_status == "partial":
+        err = summary_error or "이벤트 로그 분석 실패"
+        trace = build_trace("rejected", err)
+        raise GenerationError(err, trace=trace, raw_response=out_file_content or "")
 
-        if not isinstance(ev, dict) or "type" not in ev:
-            err = f"이벤트 로그 {idx + 1}번째 줄이 JSON 객체가 아니거나 'type' 필드가 없음: {line[:100]}"
-            trace = build_trace("rejected", err)
-            raise GenerationError(err, trace=trace, raw_response=out_file_content or "")
-
-        ev_type = ev.get("type")
-        if ev_type not in KNOWN_EVENT_TYPES:
-            err = f"알 수 없는 이벤트 유형({ev_type})이 감지되었습니다."
-            events.append(ev)
-            trace = build_trace("rejected", err)
-            raise GenerationError(err, trace=trace, raw_response=out_file_content or "")
-
-        events.append(ev)
-
-    # 5. 생명주기 및 항목 검사
-    completed_agent_messages = []
+    # 5. 실패/오류 이벤트 검사
     for ev in events:
         ev_type = ev.get("type")
-        if ev_type == "thread.started":
-            thread_id = ev.get("thread_id")
-            lifecycle_events.append(ev_type)
-        elif ev_type == "turn.started":
-            turn_started_count += 1
-            lifecycle_events.append(ev_type)
-        elif ev_type == "turn.completed":
-            turn_completed_count += 1
-            lifecycle_events.append(ev_type)
-        elif ev_type in ("turn.failed", "error"):
+        if ev_type in ("turn.failed", "error"):
             err = f"실패/오류 이벤트({ev_type}) 수신: {ev}"
             trace = build_trace("rejected", err)
             raise GenerationError(err, trace=trace, raw_response=out_file_content or "")
 
-        if ev_type in ("item.started", "item.updated", "item.completed"):
-            item = ev.get("item")
-            if not isinstance(item, dict):
-                err = f"{ev_type} 이벤트에 'item' 객체가 없습니다."
-                trace = build_trace("rejected", err)
-                raise GenerationError(err, trace=trace, raw_response=out_file_content or "")
-            itype = item.get("type")
-            if not itype:
-                err = f"{ev_type} 이벤트의 item에 'type' 필드가 없습니다."
-                trace = build_trace("rejected", err)
-                raise GenerationError(err, trace=trace, raw_response=out_file_content or "")
-            if itype not in observed_item_types:
-                observed_item_types.append(itype)
-            if itype not in ALLOWED_ITEM_TYPES:
-                additional_tool_count += 1
-                err = f"허용되지 않은 항목/추가 도구 사용({itype})이 감지되어 실행을 성공으로 인정할 수 없습니다."
-                trace = build_trace("rejected", err)
-                raise GenerationError(err, trace=trace, raw_response=out_file_content or "")
-            if ev_type == "item.completed" and itype == "agent_message":
-                completed_agent_messages.append(item)
+    # 6. 추가 도구 사용 검사
+    if additional_tool_count and additional_tool_count > 0:
+        err = f"허용되지 않은 항목/추가 도구 사용이 감지되어 실행을 성공으로 인정할 수 없습니다. (발견된 도구 항목 수: {additional_tool_count}, 유형: {observed_item_types})"
+        trace = build_trace("rejected", err)
+        raise GenerationError(err, trace=trace, raw_response=out_file_content or "")
 
-    if turn_started_count != 1 or turn_completed_count != 1 or lifecycle_events != ["thread.started", "turn.started", "turn.completed"]:
+    # 7. 생명주기 검사
+    if (
+        turn_started_count != 1
+        or turn_completed_count != 1
+        or lifecycle_events != ["thread.started", "turn.started", "turn.completed"]
+    ):
         err = f"이벤트 생명주기 불일치 (기대 turn 1회, 실제 시작 {turn_started_count}회, 완료 {turn_completed_count}회, 생명주기: {lifecycle_events})"
         trace = build_trace("rejected", err)
         raise GenerationError(err, trace=trace, raw_response=out_file_content or "")
 
-    # 6. 최종 agent_message 추출 및 -o 파일 대조
+    # 8. 최종 agent_message 추출 및 -o 파일 대조
     if not completed_agent_messages:
         err = "완료된 agent_message 항목이 이벤트에 없습니다."
         trace = build_trace("rejected", err)
@@ -544,7 +592,7 @@ def validate_codex_execution(
         trace = build_trace("rejected", err)
         raise GenerationError(err, trace=trace, raw_response=out_file_content)
 
-    # 7. 토큰 사용량 확인
+    # 9. 토큰 사용량 확인
     usage: Optional[dict[str, Any]] = None
     for ev in events:
         if ev.get("type") == "turn.completed":
@@ -563,8 +611,42 @@ def validate_codex_execution(
                 break
 
     # 성공 trace 생성
-    trace = build_trace("verified", None)
+    trace = build_trace("verified", None, is_success=True)
     return parsed_from_file, usage, trace
+
+
+def validate_saved_trace(trace: dict[str, Any]) -> dict[str, Any]:
+    """저장된 trace (v1 또는 v2)를 읽고 검증된 필드 요약 반환.
+    
+    v1 레거시 trace의 경우 누락된 v2 필드(application_status, summary_status 등)를
+    unconfirmed / null로 안전하게 해석한다.
+    """
+    schema = trace.get("trace_schema")
+    if schema not in ("t11-codex-trace-v1", "t11-codex-trace-v2"):
+        raise ValueError(f"지원되지 않는 trace_schema: {schema}")
+
+    policy = trace.get("execution_policy", {})
+    val = trace.get("validation", {})
+
+    app_status = policy.get("application_status")
+    if app_status is None and schema == "t11-codex-trace-v1":
+        app_status = "unconfirmed"
+
+    return {
+        "trace_schema": schema,
+        "status": val.get("status"),
+        "application_status": app_status,
+        "tools_enabled": policy.get("tools_enabled"),
+        "summary_status": val.get("summary_status"),
+        "summary_error": val.get("summary_error"),
+        "event_count": val.get("event_count"),
+        "thread_id": val.get("thread_id"),
+        "turn_started_count": val.get("turn_started_count"),
+        "turn_completed_count": val.get("turn_completed_count"),
+        "observed_item_types": val.get("observed_item_types"),
+        "additional_tool_count": val.get("additional_tool_count"),
+        "error_reason": val.get("error_reason"),
+    }
 
 
 def generate_llm_response(
