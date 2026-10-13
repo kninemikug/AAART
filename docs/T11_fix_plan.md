@@ -2,11 +2,11 @@
 
 ## 1. 목적과 기준
 
-최신 검토 기준 커밋은 `68e8a4799fe3beaa47a64e95943d24c4d9943c49`이다. [T11 실행 플랜](T11_execution_plan.md), R01~R29의 요구와 C01~C09의 검증 범위를 고정한다. 이번 보완은 요구의 의미를 구현 검사와 테스트의 기대값으로 연결하는 §8.4의 반례 명세이며, 새로운 기능·평가 임계값을 추가하지 않는다. 후속 수정의 완료 여부는 표 전체로 판정한다. Task 11 및 CP2의 원래 완료 기준은 `tasks/todo.md`를 따른다.
+§1~§8은 `68e8a4799fe3beaa47a64e95943d24c4d9943c49` 검토 당시의 수정 계약과 반례 명세다. [T11 실행 플랜](T11_execution_plan.md), R01~R29의 요구와 C01~C09의 검증 범위를 고정하며 새로운 기능·평가 임계값을 추가하지 않는다. `8d2dbae44da8743ea7641d2ae038753a593f4c25` 이후 직접 수정한 결과와 최신 검증 증거는 §9에 기록한다. Task 11 및 CP2의 원래 완료 기준은 `tasks/todo.md`를 따른다.
 
 직선 파이프라인은 **정규화 → T09 top5 검색 → 생성 1회 → 인용 검증**으로 유지한다. 후속 구현 대상은 `src/artagent/answer.py`와 `tests/test_answer.py`의 미충족 계약과 회귀 테스트다. 기존 15개 성공 실행 기록은 보존한다. 이번 계획 보완은 이 문서 1건만 수정하며 코드·테스트 구현은 수행하지 않는다.
 
-| 현재 상태 | 검토에서 확인한 사실 | 후속 완료 조건 |
+| 68e8a4799 검토 당시 상태 | 당시 확인한 사실 | 후속 완료 조건 |
 | --- | --- | --- |
 | 통과: 외부 원문 보호 | 기본 외부 루트가 환경변수 없이도 보호되고 CLI·직접 호출 모두 검색·생성 전에 거부함 | §3의 계약과 회귀 테스트 유지 |
 | 확인: 이벤트 검증과 구조 오류 보존 | 배열형 type·item.type도 안전한 오류와 trace로 기록함. 중복 turn·error/turn.failed 등의 일부 동작은 별도 모의 검토로 확인했으나 저장된 회귀는 부족함 | C03의 모든 지정 사례를 실제 단언에 연결 |
@@ -457,4 +457,50 @@ load_spec/load_encoder/open_store 실패는 실패 함수 하나만 예외로 �
 
 후속 구현자는 먼저 F03 반례의 실패 출력과 양성 대조 결과를 확보하고 준비 검사만 수정한다. 이어 누락된 B13·B14의 모델 오류, B17의 str/빈 bytes, B07·B08의 검색 경계와 나머지 기존 사례를 저장된 회귀에 연결한다. 보고의 각 행에는 `R ID / B 사례·매개변수 / 실제 테스트 함수·단언 / 결과·실패 원인`을 남긴다. 양성 대조까지 확인하여 모든 입력을 거부하는 구현이 통과하지 못하게 한다.
 
-최종 검증은 §5의 지정 명령을 테스트 내부 모의 경계만으로 실행한 뒤 C08의 기존 기록·원문·지문을 대조한다. R01~R29의 빈칸·미검증, §8.4.1의 판정 불일치, 반례를 실행하지 않은 주석만 남은 경우에는 전체 완료를 보고하지 않는다. 이번 문서 보완은 이 명세의 작성·연결 확인이며 실제 회귀 테스트 작성이나 코드 수정 완료를 뜻하지 않는다.
+최종 검증은 §5의 지정 명령을 테스트 내부 모의 경계만으로 실행한 뒤 C08의 기존 기록·원문·지문을 대조한다. R01~R29의 빈칸·미검증, §8.4.1의 판정 불일치, 반례를 실행하지 않은 주석만 남은 경우에는 전체 완료를 보고하지 않는다. §8까지는 사전 명세이며 실제 수정과 검증 결과는 다음 절에서 구별한다.
+
+## 9. 직접 수정 및 검증 결과 — 2026-10-13
+
+수정 전 기준은 `8d2dbae44da8743ea7641d2ae038753a593f4c25`다. 그 커밋에서 준비 판정 자체는 수정됐지만, C05의 open_store 실패 검사가 실제 인코더를 호출하고 저장된 회귀 단언이 부족했다. 테스트 내부에 외부 의존성 차단 fixture를 먼저 추가하여 이 실패를 재현한 뒤 비실패 의존성을 정상 모의 객체로 고쳤다. 예외가 파이프라인에서 흡수돼도 fixture 종료 시 외부 호출 시도를 검사하므로 격리 위반이 테스트 성공으로 숨지 않는다.
+
+`answer.py`는 준비 검사에서 반환한 활성 건수를 그대로 사용한다. 미확인 결과를 물리 `collection.count()`로 대신 기록하던 분기를 제거했고 SQL 줄 끝 공백을 수정했다. 모델·생성 명령·검색·프롬프트·답변 동작은 유지했다. 아래 회귀는 실제 생성 함수·CLI를 모의 경계로 실행하며, 기존 15개 기록은 실제 실행의 별도 증거로 보존한다.
+
+### 9.1 검증 명령과 개별 증거
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src /Users/user/Workspace/Programming/Projects/AAART/venv/bin/python -m pytest -p no:cacheprovider tests/test_answer.py -q
+```
+
+지정 명령 단독 실행 결과: **149 passed, 1 warning, 4.24s**. 제외·skip·xfail 없이 실행했다. 경고는 기존 Chroma의 `asyncio.iscoroutinefunction` 사용에 관한 Python 폐기 예정 알림이다. 테스트 밖의 추가 patch, 실제 임베딩 모델·Chroma 클라이언트·Codex·답변 API 호출은 없다. SQLite는 테스트별 임시 위치의 합성 DB만 허용한다.
+
+| 요구 / 사례 | 실제 테스트 또는 원문 근거 | 확인한 단언·결과 |
+| --- | --- | --- |
+| R01·R04·R07·R08·R09 / B01·B04·B07~B09 | `test_c09_normalization_and_retrieval_boundaries`, C08 | NFC·도구명·50%·부정 표현 보존, 직접/CLI 빈 입력의 후속 로드·생성 0; hit 0·1·5개, 호출 1·인자·전체 필드·순서 보존. 길이/무결성 오류는 전달 질문 미절단·검색 1·생성 0. 생성 인자에 전체 본문·URL이 있고 GOLD_ONLY/LABEL_ONLY/질문 ID는 없음 |
+| R02·R25 / B02·B25 | `test_check_input_matched`, `test_c08_existing_15_records_and_fingerprints_immutability` | 지정 외부 절대경로·질문 원문·질문셋 SHA; 고정 15개 순서·유일 run ID·실제 제공처/모델·검색/생성 각 1 확인. 최종 기록 파일 SHA를 고정하여 변경된 기록을 완료 증거로 수용하지 않음 |
+| R03 / B03 | `test_record_path_external_source_root_without_env_var_rejected`, `test_record_path_custom_t09_source_root_both_protected`, `test_record_path_inputs_and_custom_persist_rejected`, `test_record_path_symlink_to_protected_rejected`, `test_prohibited_record_path_stops_before_calls_in_run_pipeline_and_cli` | 기본/추가 루트·입력·persist·링크 거부, CLI 종료 2와 직접 호출 예외, 후속 호출·쓰기가 없음. 안전한 임시 JSONL은 허용 |
+| R05 / B05 | `test_c05_storage_readiness_counterexamples`의 12개 매개변수 | mixed=154·partly-excluded=152를 직접/CLI 기록에서 확인. 단일 출처·전체 제외·각 출처 제외·미존재 경로/DB/컬렉션·미준비·빈 컬렉션은 각기 거부. 모든 음성 사례의 후속 4개 호출 0·종료 1·stdout 없음·JSONL 1개·DB 지문/파일 목록 보존 |
+| R06 / B06 | `test_c05_storage_readiness_and_prep_isolation`의 load_spec/load_encoder/open_store | 비실패 T09 의존성은 정상 모의 객체. 실제 실패 함수 원인과 retrieval 오류 JSONL 1개·검색/생성 0·미실행 generation·종료 1 보존 |
+| R10·R11 / B10·B11 | `test_codex_command_args_and_policy_match`, `test_codex_unsupported_option_failure_preserved`, `test_c01_policy_application_status_and_offline_immutability` | 실제 생성 인자 캡처와 요청 정책 일치; 정상 생성만 confirmed·false, 실패 unconfirmed·null. 오프라인 검증은 subprocess 0·전달 상태 보존·원본 불변 |
+| R12 / B12 | `test_c06_answer_json_type_contracts_and_rejections`, `test_c06_schema_rejected_in_agent_and_output_file` | 14개 잘못된 answer/citation_ids/누락 키 × agent/file 양쪽 28개 생성 검사. GenerationError·원응답/로그·정책 미확인 보존; null 답변은 CLI에서도 generation 오류 |
+| R13~R16 / B13~B16 | `test_c02_structural_event_and_item_errors_safe_trace_parameterized`의 14개 구조 × 3개 프로세스 조건, `test_c03_turn_lifecycle_and_forbidden_tool_detection`, `test_c03_final_message_and_output_file_rejections` | 중복 시작/완료·완료 누락·순서·error/turn.failed 거부. 금지 유형 5개 × started/updated/completed 15개 위치 검출. 최종 메시지/파일 누락·텍스트·JSON·답변/인용 불일치 7개 거부와 원본 trace 보존 |
+| R17~R20 / B17~B20 | `test_c04_cli_timeout_stream_types`의 str/bytes/none/empty-bytes/truncated-utf8, `test_c04_aggregation_and_output_preservation`, 기존 실패 집계·완료 이벤트 실패 테스트 | 스트림과 시간 초과 원인·null 종료 코드·미확인 정책을 CLI JSONL까지 대조. 정상 출력 파일이 있어도 실패. 유효한 3개 이벤트의 3·1·0·1 집계, 금지 이벤트 3회 집계, partial/unavailable의 null 유지 |
+| R21·R22 / B21·B22 | 인용 검증 기존 테스트, `test_c07_citation_deduplication_and_multiple_segments_preserved`, C08 | 반복 ID 1개, 같은 chunk/doc/ref의 다른 세그먼트 2개를 직접/CLI에서 보존. 표식 불일치는 citation_validation 오류. 댓글 앵커·원응답·stdout·citations 대조 |
+| R23·R24 / B23·B24 | C04·C05·C07의 CLI JSONL, `test_validate_saved_trace_v1_and_v2_compatibility`, C01·C08 | 정상/준비/생성/인용 오류의 JSONL 1개·단계·횟수·출력 확인. v1은 누락 상태를 미확인으로 읽고 15개 원본 로그를 독립 재검증하여 답변·usage·기존 관찰 필드·전달 정책을 대조. 기록 파일에 새 상태를 덧쓰지 않음 |
+| R26~R28 / B26~B28 | `test_c08_existing_15_records_and_fingerprints_immutability`, 기존 실제 수동 검토 메모 | 75개 hit·93개 세그먼트·62개 파일·17개 인용의 본문/파일/구간 SHA·byte/char 범위·프롬프트·원응답·최종 답변·stdout 재현. 골드의 실제 원문 범위 대조, 수동/CP2 7개 메모의 현재 run ID 확인. Q044·Q086 골드 미도달 및 한계 안내와 Q096 반증 답변 보존 |
+| R29 / B29 | 아래 §9.2의 기존 벤치마크 §1·§2·§6.3·§7 및 T9 인계 계약 | 선정 이유가 명시된 문서를 식별하고 실제 reference·15개 기록의 모델/두 청킹 규칙/protocol에 연결 |
+
+원문·질문셋·T09 코드·실제 벡터 저장소를 변경하지 않았다. 변경 파일은 `src/artagent/answer.py`, `tests/test_answer.py`, 이 문서다. `git diff --check`와 직전 커밋의 줄 끝 공백을 포함한 `git diff HEAD^ --check`도 통과했다. 신규 실제 LLM 실행은 없으며 15개 기존 성공 기록의 입력·프롬프트·원응답·출력 동일성을 검증했다.
+
+### 9.2 CP2 스파이크 선정 근거 연결
+
+CP2의 초기 검색 스택 선정 근거로 참조할 기존 문서는 다음과 같다. 이번에 선정 실험을 새로 만들거나 실행 성공만으로 근거를 대신하지 않았다.
+
+- [T08-2 벤치마크 결과](/Users/user/orca/workspaces/AAART/T08-2-chunking-embedding/docs/chunking_embedding_benchmark.md): §1의 선정 근거는 비반올림 complex FullEvidence@5와 비용이다. §2는 공통 검색 조건의 정책 대조군, §6.3은 RawPedia 헤딩 경계 보존과 GitHub 토론 다중 세그먼트 보존의 비교 이유, §7은 최종 선정값과 T9 적용 설정을 명시한다. SHA-256: `8b2959e14faff71461721a3d24d2eeaf6dfb42ed9153cdba6e73ff2f07e50d1f`.
+- [T08-2 → T9 재현 인계](/Users/user/orca/workspaces/AAART/T08-2-chunking-embedding/docs/T08_2_t9_handoff.md): 재현 절차와 T9 적용 계약을 명시한다. 문서에 기록된 독립 재현 결과는 RawPedia 141개·GitHub 13개, Macro MRR@5=`0.8192708333333334`, Macro Hit@5=`0.8708333333333333`이다. 이 재현을 이번 수정에서 다시 실행했다고 주장하지 않는다. SHA-256: `f0d641fc8dbefbf03db117e2c8b64ff13e796b8298d46ad55e1a3c04e497a7c0`.
+- [T09 인계 reference](/Users/user/orca/workspaces/AAART/T08-2-chunking-embedding/docs/T08_2_t9_handoff_reference.json): selected의 MiniLM revision `1110a243fdf4706b3f48f1d95db1a4f5529b4d41`, RawPedia `R-C-heading-window-t8192-o64`, GitHub `G-C-curated-group-t1024-o64`를 위 문서와 대조했다. 15개 기록의 모델·두 규칙·protocol SHA도 reference와 일치한다. 파일 SHA-256: `2c7081ba6a7c37b00735b0be2ef362f5b0c2a86cd41fe97bbb2a3b5ebdc195bc`.
+
+이는 T9 초기 검색 기준의 선정 근거다. 답변·인용 품질을 포함한 최종 스택 비교는 기존 벤치마크 §7에 따라 T11·T15·T17 이후 별도 게이트로 유지한다. 이번 수정에서 런타임 모델 비교나 스택 교체를 수행하지 않았다.
+
+CP2 양성 E2E 표본은 기존 Q001(`run_1791816326_4bfaeb47`), Q004(`run_1791816339_875dc379`), Q014(`run_1791816351_d2dbbd3e`), Q054(`run_1791816400_e0962d23`), Q063(`run_1791816410_4f4a35ba`)다. 각 기록의 원문 위치·인용·기존 검토 메모를 보존했다. 수동 3개에는 Q001 외에 Q086(`run_1791816457_7032ccae`)과 Q096(`run_1791816494_ebbb5582`)가 포함된다. Q086은 검색 한계 표본이며 Q096은 반증 표본이므로 이 둘을 CP2 양성 5개에 포함하지 않는다.
+
+질문셋 `/Users/user/orca/workspaces/AAART/T08-2-chunking-embedding/docs/search_eval_queries.json` SHA-256은 `91b7fb50b23c0514d3e3d24579cad32a07dc6dcc3c8a40774b9e2e9da0fa14e8`, 기존 `docs/T11_execution_records.jsonl` SHA-256은 `5d3d9a7df432cbfac741d479c554aae69a6dfbc8039ed166331d7f5a8d1b64b7`로 유지됐다.

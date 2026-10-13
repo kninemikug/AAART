@@ -1,10 +1,13 @@
 """Task 11 Slice 1 answer.py 단위 및 회귀 테스트."""
 
 import json
+import sqlite3
+from dataclasses import asdict
 from pathlib import Path
 import subprocess
 import tempfile
 from unittest.mock import patch
+from urllib.parse import unquote, urlparse
 import pytest
 
 from artagent.answer import (
@@ -12,6 +15,7 @@ from artagent.answer import (
     DEFAULT_REFERENCE_PATH,
     DEFAULT_SOURCE_ROOT,
     NORMALIZATION_RULE_VERSION,
+    SYSTEM_INSTRUCTION,
     GenerationError,
     _validate_llm_json_obj,
     build_codex_execution_policy,
@@ -28,6 +32,46 @@ from artagent.answer import (
     verify_store_ready,
 )
 from artagent.retrieval.types import SearchHit
+
+
+@pytest.fixture(autouse=True)
+def isolate_external_dependencies(tmp_path, monkeypatch):
+    """단위 테스트가 실제 모델·Chroma·생성 서비스에 접근하면 실패한다."""
+    blocked_calls = []
+
+    def forbidden(*args, **kwargs):
+        blocked_calls.append("외부 의존성")
+        raise AssertionError("단위 테스트에서 실제 외부 의존성을 호출했습니다")
+
+    monkeypatch.setattr("artagent.retrieval.embedding.SentenceTransformer", forbidden)
+    monkeypatch.setattr("artagent.retrieval.embedding.AutoTokenizer.from_pretrained", forbidden)
+    monkeypatch.setattr("artagent.retrieval.store.chromadb.PersistentClient", forbidden)
+    monkeypatch.setattr("urllib.request.urlopen", forbidden)
+
+    connect = sqlite3.connect
+
+    def connect_test_db(database, *args, **kwargs):
+        if str(database) != ":memory:":
+            value = str(database)
+            path = Path(unquote(urlparse(value).path) if value.startswith("file:") else value)
+            if not path.resolve().is_relative_to(tmp_path.resolve()):
+                blocked_calls.append("실제 DB")
+                raise AssertionError("합성 테스트 DB만 열 수 있습니다")
+        return connect(database, *args, **kwargs)
+
+    monkeypatch.setattr(sqlite3, "connect", connect_test_db)
+    run = subprocess.run
+
+    def run_local_command(command, *args, **kwargs):
+        executable = command[0] if isinstance(command, (list, tuple)) else command.split()[0]
+        if Path(executable).name == "codex":
+            blocked_calls.append("Codex")
+            raise AssertionError("Codex 실행은 테스트 내부에서 모의 처리해야 합니다")
+        return run(command, *args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", run_local_command)
+    yield
+    assert blocked_calls == [], f"차단 예외가 흡수된 외부 호출 시도: {blocked_calls}"
 
 
 class MockSpec:
@@ -230,7 +274,7 @@ def test_run_pipeline_generation_failure_recording():
     persist_dir = Path("data/vector-store/t09").resolve()
 
     with patch("artagent.answer.load_spec", return_value=MockSpec()), \
-         patch("artagent.answer.verify_store_ready", return_value=None), \
+         patch("artagent.answer.verify_store_ready", return_value=154), \
          patch("artagent.answer.load_encoder", return_value=None), \
          patch("artagent.answer.open_store", return_value=MockStore()), \
          patch("artagent.answer.generate_llm_response", side_effect=RuntimeError("API connection timeout")):
@@ -257,7 +301,7 @@ def test_record_isolation():
         # Mocking generation to return a valid grounded JSON response
         mock_response = json.dumps({"answer": "결과 [C1S1]", "citation_ids": ["C1S1"]})
         with patch("artagent.answer.load_spec", return_value=MockSpec()), \
-             patch("artagent.answer.verify_store_ready", return_value=None), \
+             patch("artagent.answer.verify_store_ready", return_value=154), \
              patch("artagent.answer.load_encoder", return_value=None), \
              patch("artagent.answer.open_store", return_value=MockStore()), \
              patch("artagent.answer.generate_llm_response", return_value=(mock_response, None, {"llm_provider": "mock"})):
@@ -342,9 +386,8 @@ def test_llm_provider_selection_errors():
 
 
 def test_check_input_matched():
-    query_set_path = Path("docs/search_eval_queries.json")
-    if not query_set_path.is_file():
-        pytest.skip("Query set file not present at docs/search_eval_queries.json")
+    query_set_path = DEFAULT_QUERY_SET_PATH
+    assert query_set_path.is_file()
 
     q_data = json.loads(query_set_path.read_bytes())
     first_q = q_data["queries"][0]
@@ -375,7 +418,7 @@ def test_codex_runner_metadata_null():
     }
 
     with patch("artagent.answer.load_spec", return_value=MockSpec()), \
-         patch("artagent.answer.verify_store_ready", return_value=None), \
+         patch("artagent.answer.verify_store_ready", return_value=154), \
          patch("artagent.answer.load_encoder", return_value=None), \
          patch("artagent.answer.open_store", return_value=MockStore()), \
          patch("artagent.answer.generate_llm_response", return_value=(mock_resp, {"total_tokens": 120}, mock_meta)):
@@ -737,7 +780,7 @@ def test_cli_failure_event_recorded_in_safe_jsonl_with_trace(tmp_path):
         with patch("shutil.which", return_value="/usr/bin/codex"):
             with patch("subprocess.run", side_effect=mock_subprocess_run):
                 with patch("artagent.answer.load_spec", return_value=MockSpec()), \
-                     patch("artagent.answer.verify_store_ready", return_value=None), \
+                     patch("artagent.answer.verify_store_ready", return_value=154), \
                      patch("artagent.answer.load_encoder", return_value=None), \
                      patch("artagent.answer.open_store", return_value=MockStore()):
                     with patch("sys.argv", ["artagent-answer", "test query", "--record", str(record_file)]):
@@ -970,7 +1013,7 @@ def test_cli_timeout_bytes_recorded_in_safe_jsonl_with_trace(tmp_path):
         with patch("shutil.which", return_value="/usr/bin/codex"):
             with patch("subprocess.run", side_effect=mock_subprocess_run):
                 with patch("artagent.answer.load_spec", return_value=MockSpec()), \
-                     patch("artagent.answer.verify_store_ready", return_value=None), \
+                     patch("artagent.answer.verify_store_ready", return_value=154), \
                      patch("artagent.answer.load_encoder", return_value=None), \
                      patch("artagent.answer.open_store", return_value=MockStore()):
                     with patch("sys.argv", ["artagent-answer", "test query", "--record", str(record_file)]):
@@ -990,6 +1033,62 @@ def test_cli_timeout_bytes_recorded_in_safe_jsonl_with_trace(tmp_path):
     assert trace["stderr"] == "timeout after 120s\n"
     assert trace["validation"]["status"] == "rejected"
     assert "시간 초과" in trace["validation"]["error_reason"]
+
+
+@pytest.mark.parametrize("case", ["str", "bytes", "none", "empty-bytes", "truncated-utf8"])
+def test_c04_cli_timeout_stream_types(tmp_path, capsys, case):
+    """B17·B20: 스트림 타입별 시간 초과를 실제 생성 함수부터 CLI JSONL까지 보존한다."""
+    event = '{"type":"thread.started","thread_id":"timeout-thread"}\n'
+    diagnostic = "시간 초과 진단\n"
+    if case == "str":
+        stdout, stderr = event, diagnostic
+        expected_stdout, expected_stderr = event, diagnostic
+    elif case == "bytes":
+        stdout, stderr = event.encode(), diagnostic.encode()
+        expected_stdout, expected_stderr = event, diagnostic
+    elif case == "truncated-utf8":
+        stdout, stderr = event.encode() + b"\xeb\x9c", b"diagnostic \xeb\x9c"
+        expected_stdout, expected_stderr = event + "\ufffd", "diagnostic \ufffd"
+    else:
+        stdout = stderr = None if case == "none" else b""
+        expected_stdout = expected_stderr = ""
+    response = json.dumps({"answer": "이미 완료된 답변 [C1S1]", "citation_ids": ["C1S1"]})
+    attempts = []
+    def mock_run(command, **kwargs):
+        if "-o" not in command:
+            return _make_mock_completed_proc("test-version")
+        attempts.append(command)
+        assert kwargs["timeout"] == 120
+        Path(command[command.index("-o") + 1]).write_text(response, encoding="utf-8")
+        raise subprocess.TimeoutExpired(command, 120, output=stdout, stderr=stderr)
+
+    record_path = tmp_path / "timeout.jsonl"
+    with patch("artagent.answer.load_spec", return_value=MockSpec()), \
+         patch("artagent.answer.verify_store_ready", return_value=154), \
+         patch("artagent.answer.load_encoder", return_value="session"), \
+         patch("artagent.answer.open_store", return_value=MockStore()), \
+         patch.dict("os.environ", {"LLM_PROVIDER": "codex"}), \
+         patch("shutil.which", return_value="/usr/bin/codex"), \
+         patch("subprocess.run", side_effect=mock_run), \
+         patch("sys.argv", ["answer", "질문", "--record", str(record_path)]):
+        assert main() == 1
+    lines = record_path.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 1 and len(attempts) == 1
+    saved = json.loads(lines[0])
+    assert saved["execution"]["failed_step"] == "generation"
+    assert saved["generation"]["call_count"] == 1
+    assert saved["generation"]["raw_response"] == response
+    assert saved["output"]["stdout"] == capsys.readouterr().out == ""
+    trace = saved["generation"]["trace"]
+    assert trace["stdout_jsonl"] == expected_stdout and trace["stderr"] == expected_stderr
+    assert trace["process_returncode"] is None
+    assert trace["process_error"] == {"kind": "timeout", "timeout_seconds": 120}
+    assert "시간 초과" in saved["execution"]["error_message"]
+    assert trace["execution_policy"]["application_status"] == "unconfirmed"
+    assert trace["execution_policy"]["tools_enabled"] is None
+    assert trace["validation"]["status"] == ("rejected" if expected_stdout else "unavailable")
+    expected_summary = "partial" if case == "truncated-utf8" else "complete" if expected_stdout else "unavailable"
+    assert trace["validation"]["summary_status"] == expected_summary
 
 
 def test_codex_failure_aggregation_with_timeout(tmp_path):
@@ -1157,7 +1256,7 @@ def test_cli_unsupported_option_and_tool_event_saved_in_record(tmp_path):
         with patch("shutil.which", return_value="/usr/bin/codex"):
             with patch("subprocess.run", side_effect=mock_subprocess_run1):
                 with patch("artagent.answer.load_spec", return_value=MockSpec()), \
-                     patch("artagent.answer.verify_store_ready", return_value=None), \
+                     patch("artagent.answer.verify_store_ready", return_value=154), \
                      patch("artagent.answer.load_encoder", return_value=None), \
                      patch("artagent.answer.open_store", return_value=MockStore()):
                     with patch("sys.argv", ["artagent-answer", "test query", "--record", str(rec_file1)]):
@@ -1186,7 +1285,7 @@ def test_cli_unsupported_option_and_tool_event_saved_in_record(tmp_path):
         with patch("shutil.which", return_value="/usr/bin/codex"):
             with patch("subprocess.run", side_effect=mock_subprocess_run2):
                 with patch("artagent.answer.load_spec", return_value=MockSpec()), \
-                     patch("artagent.answer.verify_store_ready", return_value=None), \
+                     patch("artagent.answer.verify_store_ready", return_value=154), \
                      patch("artagent.answer.load_encoder", return_value=None), \
                      patch("artagent.answer.open_store", return_value=MockStore()):
                     with patch("sys.argv", ["artagent-answer", "test query", "--record", str(rec_file2)]):
@@ -1399,7 +1498,7 @@ def test_c02_array_type_event_and_item_preserved_through_cli_record(tmp_path):
         with patch("shutil.which", return_value="/usr/bin/codex"):
             with patch("subprocess.run", side_effect=mock_subprocess_run):
                 with patch("artagent.answer.load_spec", return_value=MockSpec()), \
-                     patch("artagent.answer.verify_store_ready", return_value=None), \
+                     patch("artagent.answer.verify_store_ready", return_value=154), \
                      patch("artagent.answer.load_encoder", return_value=None), \
                      patch("artagent.answer.open_store", return_value=MockStore()):
                     with patch("sys.argv", ["artagent-answer", "test query", "--record", str(rec_file)]):
@@ -1576,6 +1675,39 @@ def test_c03_turn_lifecycle_and_forbidden_tool_detection():
     assert "turn.failed" in str(exc_info.value)
 
 
+@pytest.mark.parametrize("case", [
+    "missing-agent", "invalid-agent-text", "missing-file", "empty-file",
+    "invalid-file-json", "answer-mismatch", "citation-mismatch",
+])
+def test_c03_final_message_and_output_file_rejections(case):
+    """B16: 정상 생명주기에서 최종 메시지와 출력 파일만 바꾸어 각각 거부한다."""
+    response = json.dumps({"answer": "답변 [C1S1]", "citation_ids": ["C1S1"]})
+    events = [{"type": "thread.started"}, {"type": "turn.started"},
+              {"type": "item.completed", "item": {"type": "agent_message", "text": response}},
+              {"type": "turn.completed"}]
+    output = response
+    if case == "missing-agent":
+        del events[2]
+    elif case == "invalid-agent-text":
+        events[2]["item"]["text"] = None
+    elif case == "missing-file":
+        output = None
+    elif case == "empty-file":
+        output = ""
+    elif case == "invalid-file-json":
+        output = "not JSON"
+    elif case == "answer-mismatch":
+        output = json.dumps({"answer": "다른 답변 [C1S1]", "citation_ids": ["C1S1"]})
+    else:
+        output = json.dumps({"answer": "답변 [C1S1]", "citation_ids": ["C1S2"]})
+    stream = "\n".join(json.dumps(event) for event in events)
+    with pytest.raises(GenerationError) as error:
+        validate_codex_execution(stream, "", 0, output, build_codex_execution_policy("gpt-5.6-sol"), "test-version")
+    assert error.value.trace["validation"]["status"] == "rejected"
+    assert error.value.trace["stdout_jsonl"] == stream
+    assert error.value.raw_response == (output or "")
+
+
 def test_c04_aggregation_and_output_preservation():
     """C04 / R15, R17~R20, R23: 3개 이벤트+시간초과/종료코드 집계, 시작/갱신/완료 3개 누적, 스트림/바이트 정규화."""
     policy = build_codex_execution_policy("gpt-5.6-sol")
@@ -1614,7 +1746,8 @@ def test_c04_aggregation_and_output_preservation():
     assert exc_info.value.trace["process_returncode"] == 2
 
 
-def test_c05_storage_readiness_and_prep_isolation(tmp_path):
+@pytest.mark.parametrize("fail_fn", ["load_spec", "load_encoder", "open_store"])
+def test_c05_storage_readiness_and_prep_isolation(tmp_path, fail_fn, capsys):
     """C05 / R05, R06, R23: 미존재 persist 경로/미준비 컬렉션/준비 예외의 완전한 격리와 retrieval 단계 오류 보존."""
     ref_path = Path("docs/T08_2_t9_handoff_reference.json").resolve()
     non_existent_dir = tmp_path / "no_such_persist_dir_123"
@@ -1653,109 +1786,101 @@ def test_c05_storage_readiness_and_prep_isolation(tmp_path):
         assert "기대 컬렉션 'unconfirmed_wrong_collection'이 저장소에 존재하지 않습니다" in record["execution"]["error_message"]
 
     # 3. 준비 단계(load_spec / load_encoder / open_store) 모의 예외 시 CLI --record JSONL에 오류 보존
-    for fail_fn in ["load_spec", "load_encoder", "open_store"]:
-        rec_err_file = tmp_path / f"prep_err_{fail_fn}.jsonl"
-        with patch(f"artagent.answer.{fail_fn}", side_effect=RuntimeError(f"mocked {fail_fn} failure")), \
-             patch("artagent.answer.verify_store_ready", return_value=None):
+    rec_err_file = tmp_path / f"prep_err_{fail_fn}.jsonl"
+    store = MockStore()
+    with patch("artagent.answer.load_spec", return_value=MockSpec()), \
+         patch("artagent.answer.verify_store_ready", return_value=154), \
+         patch("artagent.answer.load_encoder", return_value="session"), \
+         patch("artagent.answer.open_store", return_value=store), \
+         patch.object(store, "search", wraps=store.search) as search, \
+         patch("artagent.answer.generate_llm_response") as generate:
+        with patch(f"artagent.answer.{fail_fn}", side_effect=RuntimeError(f"mocked {fail_fn} failure")):
             with patch("sys.argv", ["artagent-answer", "test query", "--record", str(rec_err_file)]):
                 ret = main()
                 assert ret == 1
 
-        assert rec_err_file.is_file()
-        saved = json.loads(rec_err_file.read_text(encoding="utf-8").strip())
-        assert saved["execution"]["status"] == "error"
-        assert saved["execution"]["failed_step"] == "retrieval"
-        assert f"mocked {fail_fn} failure" in saved["execution"]["error_message"]
-        assert saved["retrieval"]["call_count"] == 0
-        assert saved["generation"] is None
+        search.assert_not_called()
+        generate.assert_not_called()
+
+    assert rec_err_file.is_file()
+    lines = rec_err_file.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 1
+    saved = json.loads(lines[0])
+    assert saved["execution"]["status"] == "error"
+    assert saved["execution"]["failed_step"] == "retrieval"
+    assert f"mocked {fail_fn} failure" in saved["execution"]["error_message"]
+    assert saved["retrieval"]["call_count"] == 0
+    assert saved["generation"] is None
+    assert saved["output"]["exit_code"] == 1
+    assert capsys.readouterr().out == ""
 
 
-def test_c05_storage_readiness_counterexamples(tmp_path):
-    """§8.4.1 R05 / C05 준비 판정 전체 7개 반례/양성 대조 및 CLI 오류 기록 검증 (합성 SQLite 기반)."""
-    col_name = "art_retrieval_t09_v1"
+@pytest.mark.parametrize("case, config, active_count, error", [
+    ("mixed", {}, 154, None),
+    ("rawpedia-only", {"rawpedia_active": 154, "github_active": 0}, None, "GitHub"),
+    ("github-only", {"rawpedia_active": 0, "github_active": 154}, None, "RawPedia"),
+    ("all-excluded", {"rawpedia_active": 0, "rawpedia_excluded": 141,
+                      "github_active": 0, "github_excluded": 13}, None, "활성 건수 0"),
+    ("github-excluded", {"github_active": 0, "github_excluded": 13}, None, "GitHub"),
+    ("rawpedia-excluded", {"rawpedia_active": 0, "rawpedia_excluded": 141}, None, "RawPedia"),
+    ("partly-excluded", {"rawpedia_active": 139, "rawpedia_excluded": 2}, 152, None),
+    ("missing-directory", None, None, "디렉터리가 존재하지 않습니다"),
+    ("missing-db", None, None, "DB 파일이 존재하지 않습니다"),
+    ("missing-collection", {"create_collection": False}, None, "컬렉션.*존재하지 않습니다"),
+    ("unready", {"store_state": "indexing"}, None, "ready"),
+    ("empty", {"rawpedia_active": 0, "github_active": 0}, None, "물리 건수 0"),
+], ids=lambda value: value if isinstance(value, str) else None)
+def test_c05_storage_readiness_counterexamples(tmp_path, capsys, case, config, active_count, error):
+    """B05: 실제 준비 검사부터 CLI 기록까지 사례별 판정·호출·DB 보존을 확인한다."""
+    from artagent.retrieval.provenance import sha256_bytes
+
+    persist = tmp_path / case
+    if config is not None:
+        create_synthetic_store_db(persist / "chroma.sqlite3", **config)
+    elif case == "missing-db":
+        persist.mkdir()
+    before = {p.name: sha256_bytes(p.read_bytes()) for p in persist.glob("*") if p.is_file()}
     spec = MockSpec()
-    spec.collection_name = col_name
+    if error is None:
+        assert verify_store_ready(persist, spec) == active_count
+    else:
+        with pytest.raises((FileNotFoundError, ValueError), match=error):
+            verify_store_ready(persist, spec)
 
-    # 1. ready-mixed (154 물리, 141 rawpedia, 13 github, active=154) -> 합격
-    p_mix = tmp_path / "ready_mixed"
-    create_synthetic_store_db(p_mix / "chroma.sqlite3", collection_name=col_name, rawpedia_active=141, github_active=13)
-    act_mix = verify_store_ready(p_mix, spec)
-    assert act_mix == 154
+    record_path = tmp_path / f"{case}.jsonl"
+    store = MockStore()
+    response = json.dumps({"answer": "검색 문맥으로 확인할 수 없습니다.", "citation_ids": []})
+    with patch("artagent.answer.load_spec", return_value=spec), \
+         patch("artagent.answer.load_encoder", return_value="session") as encoder, \
+         patch("artagent.answer.open_store", return_value=store) as open_mock, \
+         patch.object(store, "search", wraps=store.search) as search, \
+         patch("artagent.answer.generate_llm_response", return_value=(response, None, {"llm_provider": "mock"})) as generate, \
+         patch("sys.argv", ["answer", "질문", "--persist-dir", str(persist), "--record", str(record_path)]):
+        exit_code = main()
+        calls = [encoder.call_count, open_mock.call_count, search.call_count, generate.call_count]
 
-    # 2. ready-rawpedia-only (154 rawpedia, 0 github) -> 거부 (GitHub 활성 근거 없음)
-    p_rp = tmp_path / "ready_rawpedia_only"
-    create_synthetic_store_db(p_rp / "chroma.sqlite3", collection_name=col_name, rawpedia_active=154, github_active=0)
-    with pytest.raises(ValueError, match="GitHub"):
-        verify_store_ready(p_rp, spec)
-
-    # 3. ready-github-only (0 rawpedia, 154 github) -> 거부 (RawPedia 활성 근거 없음)
-    p_gh = tmp_path / "ready_github_only"
-    create_synthetic_store_db(p_gh / "chroma.sqlite3", collection_name=col_name, rawpedia_active=0, github_active=154)
-    with pytest.raises(ValueError, match="RawPedia"):
-        verify_store_ready(p_gh, spec)
-
-    # 4. ready-all-excluded (141+13 모두 excluded=1) -> 거부 (활성 청크 0)
-    p_ex = tmp_path / "ready_all_excluded"
-    create_synthetic_store_db(p_ex / "chroma.sqlite3", collection_name=col_name, rawpedia_active=0, rawpedia_excluded=141, github_active=0, github_excluded=13)
-    with pytest.raises(ValueError, match="활성"):
-        verify_store_ready(p_ex, spec)
-
-    # 5. ready-one-source-excluded:
-    # 5-a. 141 rawpedia 활성, 13 github 제외 -> 거부
-    p_one_rp = tmp_path / "ready_one_source_rp"
-    create_synthetic_store_db(p_one_rp / "chroma.sqlite3", collection_name=col_name, rawpedia_active=141, github_active=0, github_excluded=13)
-    with pytest.raises(ValueError, match="GitHub"):
-        verify_store_ready(p_one_rp, spec)
-    # 5-b. 141 rawpedia 제외, 13 github 활성 -> 거부
-    p_one_gh = tmp_path / "ready_one_source_gh"
-    create_synthetic_store_db(p_one_gh / "chroma.sqlite3", collection_name=col_name, rawpedia_active=0, rawpedia_excluded=141, github_active=13)
-    with pytest.raises(ValueError, match="RawPedia"):
-        verify_store_ready(p_one_gh, spec)
-
-    # 6. ready-partly-excluded (139 rawpedia 활성, 2 rawpedia 제외, 13 github 활성 -> active=152) -> 합격
-    p_part = tmp_path / "ready_partly_excluded"
-    create_synthetic_store_db(p_part / "chroma.sqlite3", collection_name=col_name, rawpedia_active=139, rawpedia_excluded=2, github_active=13)
-    act_part = verify_store_ready(p_part, spec)
-    assert act_part == 152
-
-    # 7. missing-or-unready:
-    # 7-a. 미존재 디렉터리
-    with pytest.raises(FileNotFoundError, match="디렉터리가 존재하지 않습니다"):
-        verify_store_ready(tmp_path / "missing_dir_abc", spec)
-    # 7-b. 미존재 DB 파일
-    p_nodb = tmp_path / "missing_db_file"
-    p_nodb.mkdir(parents=True, exist_ok=True)
-    with pytest.raises(FileNotFoundError, match="DB 파일이 존재하지 않습니다"):
-        verify_store_ready(p_nodb, spec)
-    # 7-c. 미존재 컬렉션
-    p_nocol = tmp_path / "missing_col"
-    create_synthetic_store_db(p_nocol / "chroma.sqlite3", collection_name="other_collection")
-    with pytest.raises(ValueError, match="존재하지 않습니다"):
-        verify_store_ready(p_nocol, spec)
-    # 7-d. store_state != 'ready'
-    p_unready = tmp_path / "unready_state"
-    create_synthetic_store_db(p_unready / "chroma.sqlite3", collection_name=col_name, store_state="indexing")
-    with pytest.raises(ValueError, match="ready"):
-        verify_store_ready(p_unready, spec)
-    # 7-e. 빈 컬렉션 (물리 건수 0)
-    p_empty = tmp_path / "empty_collection"
-    create_synthetic_store_db(p_empty / "chroma.sqlite3", collection_name=col_name, rawpedia_active=0, github_active=0)
-    with pytest.raises(ValueError, match="물리 건수 0"):
-        verify_store_ready(p_empty, spec)
-
-
-    # 8. 음성 사례의 CLI --record 격리 및 retrieval 오류 JSONL 보존 (성공 stdout 없음)
-    rec_cli_file = tmp_path / "cli_ready_all_excluded.jsonl"
-    with patch("sys.argv", ["artagent-answer", "test query", "--persist-dir", str(p_ex), "--record", str(rec_cli_file)]):
-        ret = main()
-        assert ret == 1
-    assert rec_cli_file.is_file()
-    saved_rec = json.loads(rec_cli_file.read_text(encoding="utf-8").strip())
-    assert saved_rec["execution"]["status"] == "error"
-    assert saved_rec["execution"]["failed_step"] == "retrieval"
-    assert saved_rec["retrieval"]["call_count"] == 0
-    assert saved_rec["generation"] is None
-    assert "활성" in saved_rec["execution"]["error_message"]
+    lines = record_path.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 1
+    record = json.loads(lines[0])
+    captured = capsys.readouterr()
+    assert record["output"]["exit_code"] == exit_code
+    if error is None:
+        assert exit_code == 0 and record["execution"]["status"] == "success"
+        assert record["retrieval_config"]["active_count"] == active_count
+        assert calls == [1, 1, 1, 1]
+        assert record["retrieval"]["call_count"] == record["generation"]["call_count"] == 1
+        assert captured.out == record["output"]["stdout"] + "\n"
+        assert captured.err == ""
+    else:
+        assert exit_code == 1 and record["execution"]["status"] == "error"
+        assert record["execution"]["failed_step"] == "retrieval"
+        assert record["retrieval"]["call_count"] == 0 and record["generation"] is None
+        assert calls == [0, 0, 0, 0]
+        assert captured.out == "" and record["output"]["stderr"] in captured.err
+    after = {p.name: sha256_bytes(p.read_bytes()) for p in persist.glob("*") if p.is_file()}
+    assert after == before
+    if case == "missing-directory":
+        assert not persist.exists()
 
 
 def test_c06_answer_json_type_contracts_and_rejections(tmp_path):
@@ -1794,7 +1919,7 @@ def test_c06_answer_json_type_contracts_and_rejections(tmp_path):
         with patch("shutil.which", return_value="/usr/bin/codex"):
             with patch("subprocess.run", side_effect=mock_subprocess_run):
                 with patch("artagent.answer.load_spec", return_value=MockSpec()), \
-                     patch("artagent.answer.verify_store_ready", return_value=None), \
+                     patch("artagent.answer.verify_store_ready", return_value=154), \
                      patch("artagent.answer.load_encoder", return_value=None), \
                      patch("artagent.answer.open_store", return_value=MockStore()):
                     with patch("sys.argv", ["artagent-answer", "test query", "--record", str(rec_c06)]):
@@ -1808,7 +1933,44 @@ def test_c06_answer_json_type_contracts_and_rejections(tmp_path):
     assert "문자열이 아닙니다" in saved["execution"]["error_message"]
 
 
-def test_c07_citation_deduplication_and_multiple_segments_preserved():
+@pytest.mark.parametrize("phase", ["agent", "file"])
+@pytest.mark.parametrize("bad_obj", [
+    {"answer": value, "citation_ids": []} for value in (None, 12345, ["ans"], {"text": "ans"}, "", "   ")
+] + [
+    {"answer": "valid answer", "citation_ids": value} for value in ("C1S1", None, 123, [123], [None], [{"id": "C1S1"}])
+] + [{"citation_ids": []}, {"answer": "valid answer"}])
+def test_c06_schema_rejected_in_agent_and_output_file(phase, bad_obj):
+    """B12: 잘못된 답변 계약을 메시지·출력 파일 양쪽의 생성 경계에서 거부한다."""
+    valid = {"answer": "정상 답변", "citation_ids": []}
+    agent_text = json.dumps(bad_obj if phase == "agent" else valid)
+    output = json.dumps(bad_obj if phase == "file" else valid)
+    events = [{"type": "thread.started"}, {"type": "turn.started"},
+              {"type": "item.completed", "item": {"type": "agent_message", "text": agent_text}},
+              {"type": "turn.completed"}]
+    stream = "\n".join(json.dumps(event) for event in events)
+    attempts = []
+    def mock_run(command, **kwargs):
+        if "-o" not in command:
+            return _make_mock_completed_proc("test-version")
+        attempts.append(command)
+        Path(command[command.index("-o") + 1]).write_text(output, encoding="utf-8")
+        return _make_mock_completed_proc(stream)
+
+    with patch.dict("os.environ", {"LLM_PROVIDER": "codex"}), \
+         patch("shutil.which", return_value="/usr/bin/codex"), \
+         patch("subprocess.run", side_effect=mock_run):
+        with pytest.raises(GenerationError) as error:
+            generate_llm_response("system", "user", {}, "질문")
+    assert len(attempts) == 1
+    assert error.value.raw_response == output
+    trace = error.value.trace
+    assert trace["stdout_jsonl"] == stream
+    assert trace["validation"]["status"] == "rejected"
+    assert trace["validation"]["summary_status"] == "complete"
+    assert trace["execution_policy"]["application_status"] == "unconfirmed"
+
+
+def test_c07_citation_deduplication_and_multiple_segments_preserved(tmp_path, capsys):
     """C07 / R21, R22: 동일 인용 ID 반복은 1회 표시, 같은 chunk/doc의 서로 다른 세그먼트(C1S1, C1S2)는 각각 보존."""
     # 같은 doc_id, 같은 chunk_id의 서로 다른 세그먼트 2개 정의
     context_citations = {
@@ -1841,6 +2003,43 @@ def test_c07_citation_deduplication_and_multiple_segments_preserved():
     assert "- C1S1: Exposure (https://rawpedia.es/Exposure#part1)" in stdout_text
     assert "- C1S2: Exposure (https://rawpedia.es/Exposure#part2)" in stdout_text
 
+    hit = SearchHit(
+        rank=1, chunk_id="chunk_common", source_type="rawpedia", doc_id="rawpedia:Exposure",
+        source_group_id="rawpedia:Exposure", section_title="Exposure", content="검색 문맥",
+        content_sha256="test-sha", original_metadata={"page_title": "Exposure"},
+        source_segments=[dict(c["source_segment"], target_url=c["target_url"]) for c in context_citations.values()],
+        distance=0.1, distance_text="0.100000",
+    )
+    for name, answer, cids, count in [
+        ("repeated", raw_ans_repeat, ["C1S1", "C1S1"], 1),
+        ("segments", raw_ans_diff, ["C1S1", "C1S2"], 2),
+        ("mismatch", raw_ans_repeat, ["C1S2"], 0),
+    ]:
+        record_path = tmp_path / f"{name}.jsonl"
+        response = json.dumps({"answer": answer, "citation_ids": cids})
+        store = MockStore()
+        with patch("artagent.answer.load_spec", return_value=MockSpec()), \
+             patch("artagent.answer.verify_store_ready", return_value=154), \
+             patch("artagent.answer.load_encoder", return_value="session"), \
+             patch("artagent.answer.open_store", return_value=store), \
+             patch.object(store, "search", return_value=[hit]), \
+             patch("artagent.answer.generate_llm_response", return_value=(response, None, {"llm_provider": "mock"})), \
+             patch("sys.argv", ["answer", "질문", "--record", str(record_path)]):
+            assert main() == (1 if name == "mismatch" else 0)
+        lines = record_path.read_text(encoding="utf-8").splitlines()
+        assert len(lines) == 1
+        saved = json.loads(lines[0])
+        assert saved["generation"]["raw_response"] == response
+        assert len(saved["citations"]) == count
+        captured = capsys.readouterr()
+        if name == "mismatch":
+            assert saved["execution"]["failed_step"] == "citation_validation"
+            assert captured.out == saved["output"]["stdout"] == ""
+        else:
+            assert captured.out == saved["output"]["stdout"] + "\n"
+            assert saved["output"]["stdout"].count("- C1S1: Exposure") == 1
+            assert saved["output"]["stdout"].count("- C1S2: Exposure") == (1 if count == 2 else 0)
+
 
 def test_c08_existing_15_records_and_fingerprints_immutability():
     """C08 / R02, R09, R21, R23~R29: 15개 기존 성공 기록의 SHA-256 지문, 질문셋 SHA, 원응답/인용 100% 재현."""
@@ -1854,10 +2053,10 @@ def test_c08_existing_15_records_and_fingerprints_immutability():
 
     # 외부 질문셋 지문 확인
     query_set_path = DEFAULT_QUERY_SET_PATH
-    if query_set_path.is_file():
-        expected_qs_sha = "91b7fb50b23c0514d3e3d24579cad32a07dc6dcc3c8a40774b9e2e9da0fa14e8"
-        actual_qs_sha = sha256_bytes(query_set_path.read_bytes())
-        assert actual_qs_sha == expected_qs_sha
+    expected_qs_sha = "91b7fb50b23c0514d3e3d24579cad32a07dc6dcc3c8a40774b9e2e9da0fa14e8"
+    actual_qs_sha = sha256_bytes(query_set_path.read_bytes())
+    assert actual_qs_sha == expected_qs_sha
+    questions = {q["query_id"]: q for q in json.loads(query_set_path.read_bytes())["queries"]}
 
     records = [json.loads(line) for line in records_path.read_text(encoding="utf-8").splitlines() if line.strip()]
     assert len(records) == 15
@@ -1869,16 +2068,61 @@ def test_c08_existing_15_records_and_fingerprints_immutability():
     ]
     actual_qids = [r["query_id"] for r in records]
     assert actual_qids == expected_qids
+    assert len({r["run_id"] for r in records}) == 15
+    source_cache = {}
+    hit_count = segment_count = citation_count = 0
+    manual_qids = {"Q001", "Q004", "Q014", "Q054", "Q063", "Q086", "Q096"}
 
     for r in records:
+        query = questions[r["query_id"]]
+        assert r["query_set"]["path"] == str(query_set_path)
+        assert r["query_set"]["sha256"] == expected_qs_sha
+        assert r["input"]["query_original"] == query["query"]
+        assert r["input"]["query_normalized"] == normalize_query(query["query"])
+        assert r["runtime"]["llm_provider"] == "codex-cli"
+        assert r["runtime"]["model_id"] == "gpt-5.6-sol"
+        assert r["execution"]["status"] == "success" and r["output"]["exit_code"] == 0
+        assert r["retrieval"]["call_count"] == r["generation"]["call_count"] == 1
+        hits = [SearchHit(**h) for h in r["retrieval"]["hits"]]
+        assert len(hits) == r["retrieval"]["hits_count"] == 5
+        assert [(round(h.distance, 6), h.chunk_id) for h in hits] == sorted(
+            (round(h.distance, 6), h.chunk_id) for h in hits)
+        for hit in hits:
+            hit_count += 1
+            assert sha256_bytes(hit.content.encode()) == hit.content_sha256
+            for segment in hit.source_segments:
+                segment_count += 1
+                path = DEFAULT_SOURCE_ROOT / segment["source_path"]
+                if path not in source_cache:
+                    source_cache[path] = path.read_bytes()
+                raw = source_cache[path]
+                assert sha256_bytes(raw) == segment["source_file_sha256"]
+                pointer = segment.get("json_pointer")
+                if pointer:
+                    body = json.loads(raw)
+                    for part in pointer.lstrip("/").split("/"):
+                        part = part.replace("~1", "/").replace("~0", "~")
+                        body = body[int(part)] if isinstance(body, list) else body[part]
+                    assert sha256_bytes(body.encode()) == segment["body_sha256"]
+                else:
+                    body = raw.decode("utf-8")
+                span = body[segment["char_start"]:segment["char_end"]]
+                assert sha256_bytes(span.encode()) == segment["segment_sha256"]
+                assert body.encode()[segment["byte_start"]:segment["byte_end"]] == span.encode()
+                assert hit.content[segment["content_char_start"]:segment["content_char_end"]] == span
+
+        user_prompt, context_citations, context_ids = build_prompt_and_citations(r["input"]["query_normalized"], hits)
+        assert user_prompt == r["prompt"]["user_prompt"]
+        assert r["prompt"]["system_instruction"] == SYSTEM_INSTRUCTION
+        assert context_ids == r["prompt"]["context_citation_ids"]
         # prompt, answer, citations, stdout 일치 검증
         raw_ans = r["generation"]["parsed_answer"]
         cids = r["generation"]["parsed_citation_ids"]
-        context_citations = {c["citation_id"]: c for c in r["citations"]}
-        if cids:
-            _, stdout_rebuilt, used = validate_and_format_citations(raw_ans, cids, context_citations)
-            assert stdout_rebuilt == r["output"]["stdout"]
-            assert len(used) == len(r["citations"])
+        final_answer, stdout_rebuilt, used = validate_and_format_citations(raw_ans, cids, context_citations)
+        assert final_answer == r["output"]["final_answer"]
+        assert stdout_rebuilt == r["output"]["stdout"]
+        assert used == r["citations"]
+        citation_count += len(used)
 
         # 원본 stdout_jsonl 독립 재검증
         trace = r["generation"]["trace"]
@@ -1887,14 +2131,35 @@ def test_c08_existing_15_records_and_fingerprints_immutability():
         file_content = r["generation"]["raw_response"]
         parsed, usage, val_trace = validate_codex_execution(
             stdout_raw=ev_lines,
-            stderr_raw="",
-            process_returncode=0,
+            stderr_raw=trace["stderr"],
+            process_returncode=trace["process_returncode"],
             out_file_content=file_content,
             execution_policy=policy,
-            cli_version="1.0.0",
+            cli_version=trace["cli_version"],
+            process_error=trace.get("process_error"),
         )
         assert val_trace["validation"]["status"] == "verified"
         assert val_trace["validation"]["additional_tool_count"] == 0
+        assert parsed == {"answer": raw_ans, "citation_ids": cids}
+        assert usage == r["generation"]["usage"]
+        for key, value in trace["validation"].items():
+            assert val_trace["validation"][key] == value
+        assert val_trace["execution_policy"] == policy
+        assert validate_saved_trace(trace)["application_status"] == "unconfirmed"
+        if query["expected_behavior"] == "grounded_answer":
+            segments = [s for h in hits for s in h.source_segments]
+            reached = all(any(
+                s["source_path"] == e["source_path"] and s.get("json_pointer") == e.get("json_pointer")
+                and s["byte_start"] <= e["byte_start"] and s["byte_end"] >= e["byte_end"]
+                for s in segments) for e in query["evidence"] if e["role"] == "support")
+            assert reached == r["verification"]["gold_reached"]
+        if r["query_id"] in manual_qids:
+            assert r["verification"]["manual_review"] == "verified"
+            assert r["run_id"] in r["verification"]["notes"]
+
+    assert (hit_count, segment_count, len(source_cache), citation_count) == (75, 93, 62, 17)
+    assert sha256_bytes(records_path.read_bytes()) == expected_records_sha
+    assert sha256_bytes(query_set_path.read_bytes()) == expected_qs_sha
 
     # 수동 검토 표본 확인
     q044 = next(r for r in records if r["query_id"] == "Q044")
@@ -1910,7 +2175,7 @@ def test_c08_existing_15_records_and_fingerprints_immutability():
     assert "슬라이더" in q096["output"]["stdout"] or "절차" in q096["output"]["stdout"]
 
 
-def test_c09_normalization_and_retrieval_boundaries():
+def test_c09_normalization_and_retrieval_boundaries(tmp_path):
     """C09 / R01, R04, R07~R09: 정규화 및 검색 경계(빈 입력, 0/1/5개 hit 보존, 길이 초과 오류)."""
     # 1. 정규화 보존: 도구명, 숫자, 부정 표현, Unicode NFC
     raw = "  \u1100\u1161  Auto Levels 50%가   아닌가요?  "
@@ -1941,15 +2206,19 @@ def test_c09_normalization_and_retrieval_boundaries():
     persist_dir = Path("dummy_persist")
 
     with patch("artagent.answer.load_spec", return_value=MockSpec()), \
-         patch("artagent.answer.verify_store_ready", return_value=None), \
+         patch("artagent.answer.verify_store_ready", return_value=154), \
          patch("artagent.answer.load_encoder", return_value=None), \
          patch("artagent.answer.open_store", return_value=ZeroHitsStore()), \
-         patch("artagent.answer.generate_llm_response", return_value=(mock_resp, None, {"llm_provider": "mock"})):
+         patch.object(ZeroHitsStore, "search", wraps=ZeroHitsStore.search) as search_zero, \
+         patch("artagent.answer.generate_llm_response", return_value=(mock_resp, None, {"llm_provider": "mock"})) as generate_zero:
         record = run_pipeline("질문", ref_path, persist_dir)
         assert record["execution"]["status"] == "success"
         assert record["retrieval"]["hits_count"] == 0
         assert "(검색된 문맥이 없습니다.)" in record["prompt"]["user_prompt"]
         assert record["generation"]["call_count"] == 1
+        search_zero.assert_called_once_with("질문", None)
+        assert generate_zero.call_count == 1
+        assert record["citations"] == []
 
     # 4. B07 / R07: 1개 및 5개 hit 반환 시 search 1회 호출, 순서 및 전체 필드 보존 (추가 k/source_key 인자 없음)
     recorded_search_args = []
@@ -1970,26 +2239,45 @@ def test_c09_normalization_and_retrieval_boundaries():
             section_title=f"Sec {i}",
             content=f"Content {i}",
             content_sha256=f"sha_{i}",
-            source_segments=[{"doc_id": f"doc_{i}", "target_url": f"http://doc_{i}"}],
+            source_segments=[{"doc_id": f"doc_{i}", "ref_id": f"ref_{i}",
+                              "target_url": f"http://doc_{i}#comment-{i}",
+                              "char_start": 100 * i, "char_end": 100 * i + 9,
+                              "content_char_start": 0, "content_char_end": 9}],
             original_metadata={"meta_key": f"val_{i}"},
             distance=0.05 * i,
             distance_text=f"{0.05 * i:.2f}",
         )
         for i in range(1, 6)
     ]
+    query_set = tmp_path / "synthetic_queries.json"
+    query_set.write_text(json.dumps({"queries": [{
+        "query_id": "SYNTHETIC", "query": "질문 5개",
+        "gold_support_doc_ids": ["GOLD_ONLY"], "expected_behavior": "LABEL_ONLY",
+    }]}), encoding="utf-8")
     store_5 = MultiHitsStore(hits_5)
     with patch("artagent.answer.load_spec", return_value=MockSpec()), \
          patch("artagent.answer.verify_store_ready", return_value=154), \
          patch("artagent.answer.load_encoder", return_value="mock_sess"), \
          patch("artagent.answer.open_store", return_value=store_5), \
-         patch("artagent.answer.generate_llm_response", return_value=(mock_resp, None, {"llm_provider": "mock"})):
-        rec5 = run_pipeline("질문 5개", Path("ref"), Path("persist"))
+         patch("artagent.answer.generate_llm_response", return_value=(mock_resp, None, {"llm_provider": "mock"})) as generate_five:
+        rec5 = run_pipeline("질문 5개", Path("ref"), Path("persist"),
+                            query_id="SYNTHETIC", query_set_path=query_set)
         assert rec5["execution"]["status"] == "success"
         assert rec5["retrieval"]["hits_count"] == 5
         assert len(recorded_search_args) == 1
         args, kwargs = recorded_search_args[0]
         assert args == ("질문 5개", "mock_sess")
         assert kwargs == {}  # k/source_key 추가 인자 없음
+        assert rec5["retrieval"]["hits"] == [asdict(hit) for hit in hits_5]
+        assert generate_five.call_count == 1
+        generation_args = generate_five.call_args.args
+        assert generation_args[1] == rec5["prompt"]["user_prompt"]
+        assert generation_args[3] == "질문 5개"
+        for forbidden_label in ("GOLD_ONLY", "LABEL_ONLY", "SYNTHETIC"):
+            assert forbidden_label not in json.dumps(generation_args)
+        for hit in hits_5:
+            assert hit.content in generation_args[1]
+            assert hit.source_segments[0]["target_url"] in generation_args[1]
         for i, hit_dict in enumerate(rec5["retrieval"]["hits"]):
             assert hit_dict["chunk_id"] == f"c_{i+1}"
             assert hit_dict["content"] == f"Content {i+1}"
@@ -2007,25 +2295,36 @@ def test_c09_normalization_and_retrieval_boundaries():
         assert rec1["execution"]["status"] == "success"
         assert rec1["retrieval"]["hits_count"] == 1
         assert len(recorded_search_args) == 1
+        assert recorded_search_args[0] == (("질문 1개", "mock_sess"), {})
+        assert rec1["retrieval"]["hits"] == [asdict(hits_5[0])]
         assert rec1["retrieval"]["hits"][0]["chunk_id"] == "c_1"
 
     # 5. B08 / R08: search 중 query 길이 초과 등 오류 발생 시 retrieval 단계 실패, 생성 0회, 전달 질문 미절단
     class ErrorStore:
+        def __init__(self, error):
+            self.error = error
+
         def search(self, q, sess):
-            raise ValueError("Query string length exceeds limit")
+            recorded_search_args.append(((q, sess), {}))
+            raise ValueError(self.error)
 
     long_query = "아주 긴 질문 " * 50
-    with patch("artagent.answer.load_spec", return_value=MockSpec()), \
-         patch("artagent.answer.verify_store_ready", return_value=154), \
-         patch("artagent.answer.load_encoder", return_value="mock_sess"), \
-         patch("artagent.answer.open_store", return_value=ErrorStore()), \
-         patch("artagent.answer.generate_llm_response") as mock_gen_fail:
-        rec_err = run_pipeline(long_query, Path("ref"), Path("persist"))
-        assert rec_err["execution"]["status"] == "error"
-        assert rec_err["execution"]["failed_step"] == "retrieval"
-        assert "Query string length exceeds limit" in rec_err["execution"]["error_message"]
-        assert rec_err["input"]["query_original"] == long_query  # 절단되지 않음
-        assert mock_gen_fail.call_count == 0
+    for error in ("Query string length exceeds limit", "Retrieved chunk integrity mismatch"):
+        recorded_search_args.clear()
+        with patch("artagent.answer.load_spec", return_value=MockSpec()), \
+             patch("artagent.answer.verify_store_ready", return_value=154), \
+             patch("artagent.answer.load_encoder", return_value="mock_sess"), \
+             patch("artagent.answer.open_store", return_value=ErrorStore(error)), \
+             patch("artagent.answer.generate_llm_response") as mock_gen_fail:
+            rec_err = run_pipeline(long_query, Path("ref"), Path("persist"))
+            assert rec_err["execution"]["status"] == "error"
+            assert rec_err["execution"]["failed_step"] == "retrieval"
+            assert error in rec_err["execution"]["error_message"]
+            assert rec_err["input"]["query_original"] == long_query
+            assert recorded_search_args == [((normalize_query(long_query), "mock_sess"), {})]
+            assert rec_err["retrieval"]["call_count"] == 1
+            assert rec_err["generation"] is None
+            assert mock_gen_fail.call_count == 0
 
     # 6. B04 / R04: CLI 빈 입력 시 normalization 오류로 종료 1, 후속 T09 로드/검색/생성 호출 0회
     with patch("artagent.answer.load_spec") as mock_spec_cli, \

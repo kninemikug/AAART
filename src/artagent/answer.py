@@ -147,7 +147,7 @@ def verify_store_ready(persist_dir: Path, spec: RetrievalSpec) -> int:
             # 각 청크의 source_type 및 excluded 메타데이터 조회
             cur.execute(
                 """
-                SELECT 
+                SELECT
                     e.id,
                     m_type.string_value,
                     m_excl.bool_value,
@@ -1074,14 +1074,6 @@ def run_pipeline(
             },
             "verification": {"input_matched": input_matched, "gold_reached": False, "citations_valid": False, "manual_review": "pending", "notes": ""},
         }
-
-    if active_count is None:
-        if hasattr(store, "active_count"):
-            active_count = getattr(store, "active_count")() if callable(getattr(store, "active_count")) else getattr(store, "active_count")
-        elif hasattr(store, "collection") and hasattr(store.collection, "count"):
-            active_count = store.collection.count()
-        else:
-            active_count = 0
 
     retrieval_config = {
         "reference_path": str(reference_path.resolve()),
