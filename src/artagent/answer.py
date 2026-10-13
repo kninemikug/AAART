@@ -102,6 +102,48 @@ def resolve_persist_dir(custom_path: Optional[Path] = None) -> Path:
     return DEFAULT_PERSIST_DIR.resolve()
 
 
+def verify_store_ready(persist_dir: Path, spec: RetrievalSpec) -> None:
+    """Chroma 저장소의 존재 및 준비 상태를 새 디렉터리나 컬렉션 생성 없이 읽기 전용으로 검증한다."""
+    resolved = persist_dir.resolve()
+    if not resolved.exists() or not resolved.is_dir():
+        raise FileNotFoundError(f"Chroma persist 디렉터리가 존재하지 않습니다: {persist_dir}")
+
+    sqlite_path = resolved / "chroma.sqlite3"
+    if not sqlite_path.is_file():
+        raise FileNotFoundError(f"Chroma 저장소 DB 파일이 존재하지 않습니다: {sqlite_path}")
+
+    import sqlite3
+    uri = f"file:{sqlite_path}?mode=ro"
+    try:
+        with sqlite3.connect(uri, uri=True) as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT id FROM collections WHERE name = ?", (spec.collection_name,))
+            row = cur.fetchone()
+            if not row:
+                raise ValueError(f"기대 컬렉션 '{spec.collection_name}'이 저장소에 존재하지 않습니다.")
+            col_id = row[0]
+            cur.execute(
+                "SELECT str_value FROM collection_metadata WHERE collection_id = ? AND key = 'store_state'",
+                (col_id,),
+            )
+            meta_row = cur.fetchone()
+            state = meta_row[0] if meta_row else None
+            if state != "ready":
+                raise ValueError(f"저장소 준비 상태가 'ready'가 아닙니다 (현재 상태: {state}).")
+
+            cur.execute(
+                "SELECT COUNT(*) FROM embeddings WHERE segment_id IN (SELECT id FROM segments WHERE collection = ?)",
+                (col_id,),
+            )
+            cnt = cur.fetchone()[0]
+            if cnt == 0:
+                raise ValueError(f"저장소 컬렉션 '{spec.collection_name}'에 적재된 청크가 없습니다 (활성 건수 0).")
+    except Exception as ex:
+        if isinstance(ex, (FileNotFoundError, ValueError)):
+            raise
+        raise RuntimeError(f"Chroma 저장소 확인 실패: {ex}") from ex
+
+
 def validate_record_path(
     record_path: Path,
     reference_path: Path,
@@ -294,11 +336,17 @@ def _validate_llm_json_obj(obj: Any) -> None:
         raise ValueError("LLM 응답이 JSON 객체가 아닙니다.")
     if "answer" not in obj or "citation_ids" not in obj:
         raise ValueError("LLM 응답에 'answer' 또는 'citation_ids' 키가 없습니다.")
-    answer_str = str(obj["answer"]).strip()
-    if not answer_str:
+    answer_val = obj["answer"]
+    if not isinstance(answer_val, str):
+        raise ValueError(f"LLM 답변('answer')이 문자열이 아닙니다 (현재 타입: {type(answer_val).__name__}).")
+    if not answer_val.strip():
         raise ValueError("LLM 답변('answer') 문자열이 비어 있습니다.")
-    if not isinstance(obj["citation_ids"], list):
-        raise ValueError("'citation_ids'가 리스트 형식이 아닙니다.")
+    citation_ids_val = obj["citation_ids"]
+    if not isinstance(citation_ids_val, list):
+        raise ValueError(f"'citation_ids'가 리스트 형식이 아닙니다 (현재 타입: {type(citation_ids_val).__name__}).")
+    for idx, cid in enumerate(citation_ids_val):
+        if not isinstance(cid, str):
+            raise ValueError(f"'citation_ids'의 {idx}번째 원소가 문자열이 아닙니다 (타입: {type(cid).__name__}).")
 
 
 class GenerationError(RuntimeError):
@@ -403,30 +451,44 @@ def validate_codex_execution(
         parse_ok = True
         parse_err_msg: Optional[str] = None
 
-        for idx, line in enumerate(event_lines):
+        for idx, line in enumerate(event_lines, start=1):
             try:
                 ev = json.loads(line)
             except Exception as ex:
                 parse_ok = False
-                parse_err_msg = f"이벤트 로그 {idx + 1}번째 줄의 JSON 파싱 실패: {ex} (내용: {line[:100]})"
+                parse_err_msg = f"이벤트 로그 {idx}번째 줄의 JSON 파싱 실패: {ex} (내용: {line[:100]})"
                 break
 
             if not isinstance(ev, dict) or "type" not in ev:
                 parse_ok = False
-                parse_err_msg = f"이벤트 로그 {idx + 1}번째 줄이 JSON 객체가 아니거나 'type' 필드가 없음: {line[:100]}"
+                parse_err_msg = f"이벤트 로그 {idx}번째 줄이 JSON 객체가 아니거나 'type' 필드가 없음: {line[:100]}"
                 break
 
             ev_type = ev.get("type")
+            if not isinstance(ev_type, str):
+                parse_ok = False
+                parse_err_msg = f"이벤트 로그 {idx}번째 줄의 'type' 필드가 문자열이 아님 ({type(ev_type).__name__}): {line[:100]}"
+                break
+
             if ev_type not in KNOWN_EVENT_TYPES:
                 parse_ok = False
-                parse_err_msg = f"알 수 없는 이벤트 유형({ev_type})이 감지되었습니다."
+                parse_err_msg = f"이벤트 로그 {idx}번째 줄에 알 수 없는 이벤트 유형({ev_type})이 감지되었습니다."
                 break
 
             if ev_type in ("item.started", "item.updated", "item.completed"):
                 item = ev.get("item")
-                if not isinstance(item, dict) or not item.get("type"):
+                if not isinstance(item, dict):
                     parse_ok = False
-                    parse_err_msg = f"{ev_type} 이벤트의 item 객체 또는 'type' 필드가 유효하지 않습니다."
+                    parse_err_msg = f"이벤트 로그 {idx}번째 줄 {ev_type} 이벤트의 item 객체가 유효하지 않음 ({type(item).__name__}): {line[:100]}"
+                    break
+                if "type" not in item:
+                    parse_ok = False
+                    parse_err_msg = f"이벤트 로그 {idx}번째 줄 {ev_type} 이벤트의 item에 'type' 필드가 없음: {line[:100]}"
+                    break
+                itype = item.get("type")
+                if not isinstance(itype, str) or not itype.strip():
+                    parse_ok = False
+                    parse_err_msg = f"이벤트 로그 {idx}번째 줄 {ev_type} 이벤트의 item 'type' 필드가 유효한 문자열이 아님 ({type(itype).__name__}): {line[:100]}"
                     break
 
             parsed_events.append(ev)
@@ -466,15 +528,8 @@ def validate_codex_execution(
                     if ev_type == "item.completed" and itype == "agent_message":
                         completed_agent_messages.append(item)
 
-    def build_trace(status: str, err: Optional[str], is_success: bool = False) -> dict[str, Any]:
+    def build_trace(status: str, err: Optional[str]) -> dict[str, Any]:
         policy_copy = dict(execution_policy)
-        if is_success:
-            policy_copy["application_status"] = "confirmed"
-            policy_copy["tools_enabled"] = False
-        else:
-            policy_copy["application_status"] = "unconfirmed"
-            policy_copy["tools_enabled"] = None
-
         return {
             "trace_schema": "t11-codex-trace-v2",
             "cli_version": cli_version,
@@ -611,7 +666,7 @@ def validate_codex_execution(
                 break
 
     # 성공 trace 생성
-    trace = build_trace("verified", None, is_success=True)
+    trace = build_trace("verified", None)
     return parsed_from_file, usage, trace
 
 
@@ -732,6 +787,11 @@ def generate_llm_response(
             process_error=process_error,
         )
 
+        # 실제 생성 함수에서 정상 종료와 엄격한 검증을 통과한 경우에만 trace의 정책 적용 상태를 confirmed / False로 확정
+        if trace and "execution_policy" in trace:
+            trace["execution_policy"]["application_status"] = "confirmed"
+            trace["execution_policy"]["tools_enabled"] = False
+
         runtime_meta = {
             "llm_provider": "codex-cli",
             "model_id": model_id,
@@ -834,17 +894,16 @@ def validate_and_format_citations(
         replacement = f"[출처: {display_name}·{target_url}]"
         final_answer = final_answer.replace(marker, replacement)
 
-    # 4. 인용 목록 생성 (중복 세그먼트 제거 및 고유 순서)
+    # 4. 인용 목록 생성 (동일 인용 ID 반복만 중복 제거하고 서로 다른 세그먼트는 각각 보존)
     used_citations: list[dict[str, Any]] = []
-    seen_segments: Set[str] = set()
+    seen_cids: Set[str] = set()
     citation_lines: list[str] = []
 
     for cid in parsed_citation_ids:
-        info = context_citations[cid]
-        used_citations.append(info)
-        seg_key = (info["chunk_id"], info["source_segment"].get("doc_id"), info["source_segment"].get("ref_id"))
-        if seg_key not in seen_segments:
-            seen_segments.add(seg_key)
+        if cid not in seen_cids:
+            seen_cids.add(cid)
+            info = context_citations[cid]
+            used_citations.append(info)
             citation_lines.append(f"- {cid}: {info['display_name']} ({info['target_url']})")
 
     stdout_blocks = [final_answer]
@@ -925,10 +984,42 @@ def run_pipeline(
 
     durations["normalization"] = round((time.perf_counter() - t0) * 1000, 2)
 
-    # 저장소 및 세션 준비
-    spec = load_spec(reference_path)
-    session = load_encoder(spec)
-    store = open_store(persist_dir, spec)
+    # 저장소 및 세션 준비 (load_spec -> verify_store_ready -> load_encoder -> open_store)
+    t0 = time.perf_counter()
+    try:
+        spec = load_spec(reference_path)
+        verify_store_ready(persist_dir, spec)
+        session = load_encoder(spec)
+        store = open_store(persist_dir, spec)
+    except Exception as e:
+        durations["retrieval"] = round((time.perf_counter() - t0) * 1000, 2)
+        durations["total"] = round((time.perf_counter() - t_start) * 1000, 2)
+        return {
+            "record_schema": RECORD_SCHEMA,
+            "run_id": run_id,
+            "query_id": query_id,
+            "started_at": started_at,
+            "query_set": query_set_info,
+            "input": {
+                "query_original": query_original,
+                "query_normalized": query_normalized,
+                "normalization_rule": NORMALIZATION_RULE_VERSION,
+            },
+            "runtime": None,
+            "retrieval_config": None,
+            "retrieval": {"call_count": 0, "hits_count": 0, "hits": []},
+            "prompt": None,
+            "generation": None,
+            "citations": [],
+            "output": {"final_answer": "", "stdout": "", "stderr": f"[retrieval] {e}", "exit_code": 1},
+            "execution": {
+                "status": "error",
+                "failed_step": "retrieval",
+                "error_message": str(e),
+                "durations_ms": durations,
+            },
+            "verification": {"input_matched": input_matched, "gold_reached": False, "citations_valid": False, "manual_review": "pending", "notes": ""},
+        }
 
     retrieval_config = {
         "reference_path": str(reference_path.resolve()),
