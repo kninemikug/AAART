@@ -47,7 +47,8 @@
   "generation_contract": {
     "rewrite_prompt_version": "rewrite_v1",
     "hyde_prompt_version": "hyde_v1",
-    "prompt_rules": "플랜 §3.2 (6대 규칙) 및 §4.2 (HyDE 단일 가상문서 및 허구 금지)"
+    "prompt_rules": "플랜 §3.2 (6대 규칙) 및 §4.2 (HyDE 단일 가상문서 및 허구 금지)",
+    "status": "unverified"
   },
   "metrics_summary": {
     "all_100": {
@@ -200,8 +201,18 @@
     }
   },
   "verification_result": {
-    "rewrite_pass": true,
-    "hyde_c_pass": true,
-    "hyde_d_pass": true
+    "rewrite_pass": false,
+    "hyde_c_pass": false,
+    "hyde_d_pass": false
+  },
+  "validation_errors": [
+    "기존 생성 파일에는 모델·설정·실제 입력 프롬프트·호출 출처가 없습니다.",
+    "C와 D는 동일한 가상 문서 100개를 재생하므로 결합 효과를 입증할 수 없습니다.",
+    "원검색 기록에 source_segments와 원문 위치가 누락되어 GitHub 지표를 독립 재계산할 수 없습니다.",
+    "기존 집계는 참고용으로 보존하며 검증된 성능이나 채택 근거로 사용하지 않습니다."
+  ],
+  "legacy_artifacts_sha256": {
+    "docs/T14_ab_eval_data.json": "5b782f36f62b32e36f5650958e3564d80ea843cda7d90b686bc650ada8ecc71d",
+    "docs/T14_ab_eval_records.jsonl": "a2ae8b265cecdfefabee92858861ad57d6e3bf7d458a13d84ad26f5e79850145"
   }
 }

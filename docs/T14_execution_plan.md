@@ -177,9 +177,9 @@ HyDE는 별도 채택 판정을 남긴다. C의 채택은 C−A, D의 채택은 
 후속 검증 명령은 다음과 같다. 테스트 파일이 구현된 뒤 실행하며, 단위·기록 검증 중 생성 서비스를 새로 호출하지 않는다. A/B의 실제 생성·Chroma 검색은 단계 5~6에서 수행하고 출력 기록을 검증 단계에 전달한다.
 
 ```bash
-venv/bin/python -m pytest -q tests/test_eval_queries.py tests/test_retrieval.py
-venv/bin/python -m pytest -q tests/test_rewrite.py -k 'rewrite_unit or hyde_unit'
-venv/bin/python -m pytest -q tests/test_rewrite.py -k ab_records
+PYTHONPATH=src venv/bin/python -m pytest -q tests/test_eval_queries.py tests/test_retrieval.py
+PYTHONPATH=src venv/bin/python -m pytest -q tests/test_rewrite.py -k 'rewrite_unit or hyde_unit'
+PYTHONPATH=src venv/bin/python -m pytest -q tests/test_rewrite.py -k ab_records
 ```
 
 기록 검증에는 실제 기록뿐 아니라 잘못된 원문 ID·중복 행·누락 조건·k 변경·잘못된 MRR·부정 질문 분모 혼입을 가진 소규모 대조 자료를 사용한다. 잘못된 집계를 거부하는지 검증한다. 생성 호출 대역의 통과와 실제 검색 A/B의 통과는 각각 별도 증거로 인계한다.
@@ -231,3 +231,28 @@ venv/bin/python -m pytest -q tests/test_rewrite.py -k ab_records
 - [ ] T13-2 완료 후 연결·경로 회귀·실제 근거 분리 검증을 통과했다. 연결 대기 중이면 단독 완료와 연결 미완료를 구분해 보고했다.
 
 다음 단계는 구현 담당자가 §2의 T9 인계 항목과 기존 생성 런타임을 확보한 뒤 §7을 순서대로 수행하는 것이다. 인계 묶음에는 이 문서, 정본·원문 표·해시, 고정 대표 ID 목록, T9 호출 계약·선정 기록·k0·스냅샷, 단위 검증 결과, 원시/집계 A/B 기록과 채택 스위치를 포함한다. T13-2 담당자에게는 §8의 상태 매핑과 오류 계약을, T15 담당자에게는 고정 기준선·회귀 문항·실행 부담을, T16 담당자에게는 재작성 호출 계약과 중복 호출 방지 조건을 전달한다.
+
+## 11. 구현 검토 후 보완 및 실행 명령
+
+재작성과 HyDE는 정제 후 빈 출력과 필수 식별값 누락을 실패로 반환한다. 식별값은 대소문자와 토큰 경계를 유지한다. 기록 검증은 정본 파일 해시·질문별 원검색 결과·원문 연결 정보를 대조한 뒤 지표를 다시 계산하며, 전체와 출처별 두 지표의 비저하를 확인한다. D는 A와 B 모두를 기준으로 판정한다.
+
+기존 `T14_ab_eval_data.json`과 400행 기록에는 실제 생성 출처 및 원문 연결 정보가 부족하다. 원시자료는 보존하지만 매니페스트와 보고서는 미검증·채택 보류로 정정한다. 이 자료에 생성 정보를 소급하여 채우거나 새로운 검증을 통과했다고 표시하지 않는다.
+
+새 실행은 `schema_version=2` 캐시를 사용한다. 각 질문의 재작성, 원질문 HyDE, 재작성 질문 HyDE를 별도로 생성하며 입력·실제 프롬프트·원출력·정제 출력·모델·설정·호출 수·측정 시간을 보존한다. C와 D의 결과 문자열이 같더라도 실제 입력과 프롬프트는 각 조건과 일치해야 한다. 정본·프롬프트·출력·모델 설정이 바뀌면 캐시 검증이 실패한다.
+
+```bash
+# 기존 T11에서 설정한 생성 런타임으로 새 캐시 작성
+PYTHONPATH=src venv/bin/python scripts/run_t14_ab_eval.py generate --output data/eval/t14-generation-v2.json
+# 검증한 캐시로 고정 k=5의 새 검색 실행; 기존 출력 경로 덮어쓰기 금지
+PYTHONPATH=src venv/bin/python scripts/run_t14_ab_eval.py replay --cache data/eval/t14-generation-v2.json --output-dir data/eval/t14-run-v2
+# 정본·원문·지표·생성 캐시를 함께 대조
+PYTHONPATH=src venv/bin/python scripts/run_t14_ab_eval.py validate --manifest data/eval/t14-run-v2/manifest.json --records data/eval/t14-run-v2/records.jsonl --cache data/eval/t14-run-v2/generation_cache.json
+```
+
+재생 중 생성 호출은 0회이며 최초 생성 호출·시간은 별도 필드로 기록한다. 원질문·생성 캐시·검색 스냅샷을 실행 전후에 대조하고, 검색 장애나 입력 변경이 있으면 완료 기록을 작성하지 않는다. 정상 검색 결과에는 본문·본문 해시·전체 `source_segments`·원본 메타데이터를 보존하여 원문 위치와 점수를 독립 재검증할 수 있다. 그래프 연결은 §8의 후속 단계로 유지한다.
+
+보완 검증에서는 T14·질문셋 테스트 134개와 전체 파이프라인 테스트 545개가 통과했다. 전체 검증은 다음 명령으로 실행했다. 새 실제 생성 기반 A/B는 아직 수행하지 않았으며 기존 실행의 채택 보류 상태를 유지한다.
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 venv/bin/python -m pytest -q -p no:cacheprovider tests --tb=short
+```

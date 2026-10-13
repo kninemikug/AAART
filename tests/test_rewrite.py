@@ -210,6 +210,65 @@ def test_rewrite_unit_prompt_rules_contract() -> None:
     assert "User Query:\ntest query" in prompt
 
 
+@pytest.mark.parametrize("output", ['""', "''", "Rewritten Query:"])
+def test_rewrite_unit_cleaned_empty_output(output: str) -> None:
+    result = rewrite_query("Exposure options", generate=lambda prompt: output)
+    assert result.status == "error"
+    assert result.error_category == ERROR_EMPTY_OUTPUT
+
+
+def test_rewrite_unit_prefixed_list_is_rejected() -> None:
+    result = rewrite_query(
+        "Exposure options",
+        generate=lambda prompt: "Rewritten Query:\n1. Exposure options\n2. White balance options",
+    )
+    assert result.status == "error"
+    assert result.error_category == ERROR_FORMAT_VIOLATION
+
+
+@pytest.mark.parametrize(
+    ("original", "changed"),
+    [
+        ("ART-cli -Y -a", "ART-cli -y -a"),
+        ("Issue #524", "Issue #5240"),
+        ("ART 1.26.8", "ART 1.26.80"),
+        ("Blur Radius 32 and 0", "Blur Radius 32"),
+        ("Fedora Flatpak issue", "Flatpak issue"),
+    ],
+)
+def test_rewrite_unit_exact_identifier_preservation(original: str, changed: str) -> None:
+    result = rewrite_query(original, generate=lambda prompt: changed)
+    assert result.status == "error"
+    assert result.error_category == ERROR_MISSING_IDENTIFIER
+
+
+def test_hyde_unit_requires_identifiers_and_constraints() -> None:
+    result = generate_hyde_document(
+        "GitHub Issue #524, ART 1.26.8",
+        generate=lambda prompt: "Exposure settings are configured through the adjustment tool.",
+        constraints=("Linux",),
+    )
+    assert result.status == "error"
+    assert result.error_category == ERROR_MISSING_IDENTIFIER
+
+
+@pytest.mark.parametrize("identifier", ["#524", "-Y", "Windows", "2.0"])
+def test_hyde_unit_sentence_punctuation_preserves_identifier(identifier: str) -> None:
+    result = generate_hyde_document(
+        f"Describe {identifier}",
+        generate=lambda prompt: f"The documented behavior is described with {identifier}.",
+    )
+    assert result.status == "success"
+
+
+def test_rewrite_unit_url_suffix_change_is_rejected() -> None:
+    result = rewrite_query(
+        "See https://example.com/issue",
+        generate=lambda prompt: "See https://example.com/issue?other=1",
+    )
+    assert result.status == "error"
+
+
 # ============================================================================
 # 2. hyde_unit: HyDE 가상 문서 생성 및 검색 입력 단위 테스트
 # ============================================================================
@@ -392,56 +451,7 @@ def test_hyde_unit_search_with_rewrite_retrieval_isolation() -> None:
 # ============================================================================
 
 
-def _calculate_metrics(
-    records: list[dict[str, Any]],
-    k: int = 5,
-) -> dict[str, Any]:
-    """레코드 목록에서 Hit@k 및 MRR@k를 재계산.
-
-    - 양성 질문만 분모에 포함 (gold_support_doc_ids가 있는 문항)
-    - 부정 질문 (gold_support_doc_ids가 빈 문항)은 Hit/RR을 N/A로 기록하고 분모에서 제외
-    """
-    positive_records = [r for r in records if r.get("gold_support_doc_ids")]
-    negative_records = [r for r in records if not r.get("gold_support_doc_ids")]
-
-    rawpedia_pos = [r for r in positive_records if r.get("source_type") == "rawpedia"]
-    github_pos = [r for r in positive_records if r.get("source_type") == "github"]
-
-    def _calc_subset(subset: list[dict[str, Any]]) -> tuple[float, float]:
-        if not subset:
-            return 0.0, 0.0
-        hits = 0
-        rr_sum = 0.0
-        for r in subset:
-            first_rank = r.get("first_correct_rank")
-            if first_rank is not None and 1 <= first_rank <= k:
-                hits += 1
-                rr_sum += 1.0 / first_rank
-        n = len(subset)
-        return hits / n, rr_sum / n
-
-    total_hit, total_mrr = _calc_subset(positive_records)
-    rp_hit, rp_mrr = _calc_subset(rawpedia_pos)
-    gh_hit, gh_mrr = _calc_subset(github_pos)
-
-    # 두 출처 평균 (macro across 2 sources)
-    macro_hit = (rp_hit + gh_hit) / 2.0
-    macro_mrr = (rp_mrr + gh_mrr) / 2.0
-
-    return {
-        "positive_count": len(positive_records),
-        "negative_count": len(negative_records),
-        "rawpedia_positive_count": len(rawpedia_pos),
-        "github_positive_count": len(github_pos),
-        "total_hit": total_hit,
-        "total_mrr": total_mrr,
-        "rawpedia_hit": rp_hit,
-        "rawpedia_mrr": rp_mrr,
-        "github_hit": gh_hit,
-        "github_mrr": gh_mrr,
-        "macro_hit": macro_hit,
-        "macro_mrr": macro_mrr,
-    }
+from scripts.run_t14_ab_eval import recompute_metrics as _calculate_metrics
 
 
 def test_ab_records_aggregation_logic_and_negative_separation() -> None:
@@ -476,11 +486,21 @@ def test_ab_records_aggregation_logic_and_negative_separation() -> None:
             "first_correct_rank": None,
         })
 
+    for record in mock_records:
+        rank = record["first_correct_rank"]
+        record["counter_evidence_retrieved"] = False
+        record["hits"] = [
+            {"rank": index, "doc_id": (
+                record["gold_support_doc_ids"][0]
+                if index == rank and record["gold_support_doc_ids"] else "other:document"
+            ), "source_segments": []}
+            for index in range(1, min(rank or 0, 5) + 1)
+        ]
     metrics = _calculate_metrics(mock_records, k=5)
     assert metrics["positive_count"] == 95
     assert metrics["negative_count"] == 5
-    assert metrics["rawpedia_positive_count"] == 80
-    assert metrics["github_positive_count"] == 15
+    assert metrics["rawpedia_total"] == 80
+    assert metrics["github_total"] == 15
 
     # RawPedia: 72/80 = 0.90
     assert metrics["rawpedia_hit"] == pytest.approx(72 / 80)
@@ -492,29 +512,30 @@ def test_ab_records_aggregation_logic_and_negative_separation() -> None:
 
 def test_ab_records_reject_corrupted_manifest_or_tampering() -> None:
     """부정 질문이 양성 분모에 혼입되거나 k가 변경되거나 행 수가 왜곡된 경우 검증에서 거부되어야 한다."""
-    # 1. 100행 미만 (누락)
+    from scripts.run_t14_ab_eval import validate_records
+
+    root = Path(__file__).resolve().parents[1]
+    query_set = json.loads((root / "docs/search_eval_queries.json").read_text(encoding="utf-8"))
+    # 실제 검증 함수가 누락된 조건·정본 정보를 거부해야 한다.
     incomplete_records = [{"query_id": f"Q{i:03d}"} for i in range(1, 90)]
-    assert len(incomplete_records) != 100
+    with pytest.raises(ValueError):
+        validate_records(incomplete_records, query_set)
 
     # 2. 부정 질문(Q096)에 허위 정답 ID를 넣어 양성 분모에 혼입시키는 왜곡 시도 감지
     tampered_negative = {
         "query_id": "Q096",
         "gold_support_doc_ids": ["fake_doc"],
     }
-    # 정본 규격상 Q096은 부정 질문이어야 함
-    assert tampered_negative["query_id"] in ["Q096", "Q097", "Q098", "Q099", "Q100"]
-    # 정본 검증 로직에서는 Q096~Q100이 gold_support_doc_ids를 가지면 위반 판정
-    with pytest.raises(ValueError, match="부정 질문"):
-        if tampered_negative["query_id"] >= "Q096" and tampered_negative["gold_support_doc_ids"]:
-            raise ValueError(f"부정 질문 {tampered_negative['query_id']}에 정답 문서가 설정되어 있습니다.")
+    with pytest.raises(ValueError):
+        validate_records([tampered_negative], query_set)
 
     # 3. 잘못된 MRR (1보다 큰 값 또는 음수)
     invalid_mrr = 1.05
     assert not (0.0 <= invalid_mrr <= 1.0)
 
 
-def test_ab_records_actual_file_integrity() -> None:
-    """실제 생성된 docs/T14_ab_eval_records.jsonl 및 manifest 파일의 무결성과 재계산 일치를 검증."""
+def test_ab_records_legacy_archive_is_unverified() -> None:
+    """과거 원시자료를 보존하되 유효한 성능 증거로 받아들이지 않는다."""
     root = Path(__file__).resolve().parents[1]
     manifest_path = root / "docs" / "T14_ab_eval_manifest.json"
     records_path = root / "docs" / "T14_ab_eval_records.jsonl"
@@ -534,7 +555,8 @@ def test_ab_records_actual_file_integrity() -> None:
     assert manifest["dataset"]["negative_count"] == 5
     assert manifest["dataset"]["representative_15_count"] == 15
     assert manifest["retrieval_contract"]["k0"] == 5
-    assert manifest["verification_result"]["rewrite_pass"] is True
+    assert manifest["generation_contract"]["status"] == "unverified"
+    assert all(value is False for value in manifest["verification_result"].values())
 
     # 400행 레코드 읽기
     with open(records_path, encoding="utf-8") as f:
@@ -548,6 +570,12 @@ def test_ab_records_actual_file_integrity() -> None:
         cond = rec["condition"]
         assert cond in records_by_cond
         records_by_cond[cond].append(rec)
+
+    # 기존 기록의 보존 여부와 유효한 성능 증거인지는 별도 조건이다.
+    from scripts.run_t14_ab_eval import validate_artifacts
+
+    with pytest.raises(ValueError, match="원문 연결|source_segments"):
+        validate_artifacts(manifest, [json.loads(line) for line in lines], query_set_path)
 
     for cond in ["A", "B", "C", "D"]:
         recs = records_by_cond[cond]
@@ -569,24 +597,9 @@ def test_ab_records_actual_file_integrity() -> None:
                 assert r["hit_at_5"] in (0.0, 1.0)
                 assert 0.0 <= r["rr_at_5"] <= 1.0
 
-        # 지표 재계산 및 매니페스트 대조
-        metrics_recomputed = _calculate_metrics(recs, k=5)
-        saved_metrics = manifest["metrics_summary"]["all_100"][cond]
+    # 과거 원시자료는 수정하지 않았으며 해시로 보존을 확인한다.
+    from scripts.run_t14_ab_eval import compute_file_sha256
 
-        assert metrics_recomputed["total_hit"] == pytest.approx(saved_metrics["total_hit"], abs=1e-5)
-        assert metrics_recomputed["total_mrr"] == pytest.approx(saved_metrics["total_mrr"], abs=1e-5)
-        assert metrics_recomputed["rawpedia_hit"] == pytest.approx(saved_metrics["rawpedia_hit"], abs=1e-5)
-        assert metrics_recomputed["rawpedia_mrr"] == pytest.approx(saved_metrics["rawpedia_mrr"], abs=1e-5)
-        assert metrics_recomputed["github_hit"] == pytest.approx(saved_metrics["github_hit"], abs=1e-5)
-        assert metrics_recomputed["github_mrr"] == pytest.approx(saved_metrics["github_mrr"], abs=1e-5)
-
-    # 비저하 판정 검증 (B - A >= 0)
-    mA = manifest["metrics_summary"]["all_100"]["A"]
-    mB = manifest["metrics_summary"]["all_100"]["B"]
-    assert mB["total_hit"] >= mA["total_hit"], "재작성 Total Hit@5가 저하되었습니다."
-    assert mB["total_mrr"] >= mA["total_mrr"], "재작성 Total MRR@5가 저하되었습니다."
-    assert mB["rawpedia_hit"] >= mA["rawpedia_hit"], "재작성 RawPedia Hit@5가 저하되었습니다."
-    assert mB["rawpedia_mrr"] >= mA["rawpedia_mrr"], "재작성 RawPedia MRR@5가 저하되었습니다."
-    assert mB["github_hit"] >= mA["github_hit"], "재작성 GitHub Hit@5가 저하되었습니다."
-    assert mB["github_mrr"] >= mA["github_mrr"], "재작성 GitHub MRR@5가 저하되었습니다."
+    for relative_path, expected_sha in manifest["legacy_artifacts_sha256"].items():
+        assert compute_file_sha256(root / relative_path) == expected_sha
 
