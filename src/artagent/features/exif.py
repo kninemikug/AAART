@@ -209,7 +209,7 @@ def normalize_exif(raw_tags: Dict[str, Any]) -> Dict[str, Any]:
 
     return {
         "iso": iso,
-        "shutter_seconds": round(shutter_sec, 6) if shutter_sec is not None else None,
+        "shutter_seconds": shutter_sec,
         "camera": {
             "make": make,
             "model": model,

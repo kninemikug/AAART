@@ -246,6 +246,65 @@ def test_signal_thresholds() -> None:
     assert "yellow_tendency_boundary" in sig_near_y["deferred_reasons"]
 
 
+@pytest.mark.parametrize(
+    ("luminance", "expected"),
+    [(0.17989951, True), (0.17990049, None),
+     (0.18009951, None), (0.18010049, False)],
+)
+def test_dark_signal_uses_unrounded_pixels(luminance, expected) -> None:
+    rgb = np.full((1, 1, 3), luminance, dtype=np.float64)
+    histogram = summarize_rgb(rgb)
+    assert histogram["luminance"]["mean"] == pytest.approx(
+        luminance, abs=1e-12, rel=0
+    )
+    signals = derive_signals(histogram, {"wb_applied": "camera"})
+    assert signals["is_dark"] is expected
+
+
+@pytest.mark.parametrize(
+    ("yellow_excess", "expected"),
+    [(0.07989951, False), (0.07990049, None),
+     (0.08009951, None), (0.08010049, True)],
+)
+def test_yellow_signal_uses_unrounded_channel_means(yellow_excess, expected) -> None:
+    blue = (0.15 - 0.30 * yellow_excess) / (1 + yellow_excess)
+    rgb = np.array([[[0.15, 0.15, blue]]], dtype=np.float64)
+    signals = derive_signals(summarize_rgb(rgb), {"wb_applied": "camera"})
+    assert signals["yellow_excess"] == pytest.approx(
+        yellow_excess, abs=1e-12, rel=0
+    )
+    assert signals["yellow_tendency"] is expected
+
+
+def test_shutter_normalization_keeps_full_precision() -> None:
+    exif = normalize_exif({"vanilla": {"Exif.Photo.ExposureTime": "1/3"}})
+    assert exif["shutter_seconds"] == pytest.approx(1 / 3, abs=1e-12, rel=0)
+
+
+def test_json_rounding_preserves_internal_values_and_decisions() -> None:
+    features = {
+        "histogram": summarize_rgb(np.full((1, 1, 3), 0.17989951)),
+        "exif": {"shutter_seconds": 1 / 3, "multipliers": [507 / 256]},
+        "signals": {"is_dark": True, "yellow_tendency": None},
+    }
+    original = copy.deepcopy(features)
+    serialized = dumps_features(features)
+    loaded = json.loads(serialized)
+    assert loaded["histogram"]["luminance"]["mean"] == 0.1799
+    assert loaded["exif"]["shutter_seconds"] == 0.333333
+    assert loaded["exif"]["multipliers"] == [1.980469]
+    assert loaded["signals"] == features["signals"]
+    assert features == original
+    assert serialized.endswith("\n")
+    assert serialized == dumps_features(dict(reversed(list(features.items()))))
+
+
+@pytest.mark.parametrize("invalid", [float("nan"), float("inf"), -float("inf")])
+def test_json_rejects_non_finite_values(invalid) -> None:
+    with pytest.raises(ValueError, match="Non-finite"):
+        dumps_features({"nested": [{"value": invalid}]})
+
+
 def test_missing_or_invalid_exif() -> None:
     """Verify handling of missing/invalid EXIF fields without inventing values."""
     # Shutter with division by zero

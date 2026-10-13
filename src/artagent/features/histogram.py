@@ -182,9 +182,9 @@ def summarize_rgb(rgb: np.ndarray) -> Dict[str, Any]:
     def _channel_stats(channel: np.ndarray) -> Dict[str, Any]:
         counts_arr, _ = np.histogram(channel, bins=16, range=(0.0, 1.0))
         counts = [int(c) for c in counts_arr]
-        probs = [round(float(c) / total_pixels, 6) for c in counts]
+        probs = [float(c) / total_pixels for c in counts]
         return {
-            "mean": round(float(np.mean(channel)), 6),
+            "mean": float(np.mean(channel)),
             "counts": counts,
             "probabilities": probs,
         }
@@ -193,11 +193,11 @@ def summarize_rgb(rgb: np.ndarray) -> Dict[str, Any]:
         "bin_count": 16,
         "bin_edges": bin_edges,
         "luminance": {
-            "mean": round(mean_luminance, 6),
-            "shadow_fraction": round(shadow_fraction, 6),
+            "mean": mean_luminance,
+            "shadow_fraction": shadow_fraction,
         },
         "saturation": {
-            "mean": round(mean_saturation, 6),
+            "mean": mean_saturation,
         },
         "channels": {
             "r": _channel_stats(r),
@@ -278,8 +278,8 @@ def derive_signals(
 
     return {
         "rules_version": "t18-thresholds-v1",
-        "yellow_excess": round(yellow_excess, 6) if yellow_excess is not None else None,
-        "red_green_imbalance": round(red_green_imbalance, 6) if red_green_imbalance is not None else None,
+        "yellow_excess": yellow_excess,
+        "red_green_imbalance": red_green_imbalance,
         "is_dark": is_dark,
         "yellow_tendency": yellow_tendency,
         "thresholds": thresholds,

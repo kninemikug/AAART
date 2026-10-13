@@ -77,7 +77,20 @@ def extract_features(raw_path: Path | str) -> Dict[str, Any]:
 def dumps_features(features: Dict[str, Any]) -> str:
     """Serialize features dict into repeatable JSON string."""
     _ensure_finite(features)
-    return json.dumps(features, indent=2, ensure_ascii=False)
+
+    def rounded(obj: Any) -> Any:
+        if isinstance(obj, float):
+            return round(obj, 6)
+        if isinstance(obj, dict):
+            return {key: rounded(value) for key, value in obj.items()}
+        if isinstance(obj, (list, tuple)):
+            return [rounded(value) for value in obj]
+        return obj
+
+    return json.dumps(
+        rounded(features), indent=2, ensure_ascii=False, sort_keys=True,
+        allow_nan=False,
+    ) + "\n"
 
 
 __all__ = ["extract_features", "dumps_features", "read_exif", "normalize_exif", "decode_raw_rgb", "summarize_rgb", "derive_signals"]
