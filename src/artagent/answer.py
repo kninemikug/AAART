@@ -102,8 +102,12 @@ def resolve_persist_dir(custom_path: Optional[Path] = None) -> Path:
     return DEFAULT_PERSIST_DIR.resolve()
 
 
-def verify_store_ready(persist_dir: Path, spec: RetrievalSpec) -> None:
-    """Chroma 저장소의 존재 및 준비 상태를 새 디렉터리나 컬렉션 생성 없이 읽기 전용으로 검증한다."""
+def verify_store_ready(persist_dir: Path, spec: RetrievalSpec) -> int:
+    """Chroma 저장소의 존재 및 준비 상태(ready 상태, 활성 청크 건수 및 RawPedia/GitHub 양대 출처 활성 여부)를 새 디렉터리나 컬렉션 생성 없이 읽기 전용으로 검증한다.
+
+    Returns:
+        total_active: 선택된 컬렉션에서 excluded=False에 해당하는 총 활성 청크 건수
+    """
     resolved = persist_dir.resolve()
     if not resolved.exists() or not resolved.is_dir():
         raise FileNotFoundError(f"Chroma persist 디렉터리가 존재하지 않습니다: {persist_dir}")
@@ -131,13 +135,63 @@ def verify_store_ready(persist_dir: Path, spec: RetrievalSpec) -> None:
             if state != "ready":
                 raise ValueError(f"저장소 준비 상태가 'ready'가 아닙니다 (현재 상태: {state}).")
 
+            # 컬렉션에 속한 전체 물리 청크 수 확인
             cur.execute(
                 "SELECT COUNT(*) FROM embeddings WHERE segment_id IN (SELECT id FROM segments WHERE collection = ?)",
                 (col_id,),
             )
-            cnt = cur.fetchone()[0]
-            if cnt == 0:
-                raise ValueError(f"저장소 컬렉션 '{spec.collection_name}'에 적재된 청크가 없습니다 (활성 건수 0).")
+            total_physical = cur.fetchone()[0]
+            if total_physical == 0:
+                raise ValueError(f"저장소 컬렉션 '{spec.collection_name}'에 적재된 청크가 없습니다 (물리 건수 0).")
+
+            # 각 청크의 source_type 및 excluded 메타데이터 조회
+            cur.execute(
+                """
+                SELECT 
+                    e.id,
+                    m_type.string_value,
+                    m_excl.bool_value,
+                    m_excl.int_value
+                FROM embeddings e
+                JOIN segments s ON e.segment_id = s.id
+                LEFT JOIN embedding_metadata m_type ON e.id = m_type.id AND m_type.key = 'source_type'
+                LEFT JOIN embedding_metadata m_excl ON e.id = m_excl.id AND m_excl.key = 'excluded'
+                WHERE s.collection = ?
+                """,
+                (col_id,),
+            )
+            rows = cur.fetchall()
+            if not rows:
+                raise ValueError(f"저장소 컬렉션 '{spec.collection_name}'에 적재된 청크 메타데이터를 찾을 수 없습니다.")
+
+            rawpedia_active = 0
+            github_active = 0
+
+            for eid, stype, excl_bool, excl_int in rows:
+                if not stype or stype not in ("rawpedia", "github"):
+                    raise ValueError(f"청크(ID {eid})의 출처(source_type)를 확인할 수 없습니다: {stype}")
+
+                if excl_bool is None and excl_int is None:
+                    raise ValueError(f"청크(ID {eid})의 제외 플래그(excluded)를 확인할 수 없습니다.")
+
+                is_excluded = bool(excl_bool == 1 or excl_int == 1)
+                if not is_excluded:
+                    if stype == "rawpedia":
+                        rawpedia_active += 1
+                    elif stype == "github":
+                        github_active += 1
+
+            total_active = rawpedia_active + github_active
+            if total_active == 0:
+                raise ValueError(f"저장소 컬렉션 '{spec.collection_name}'에 검색 대상 활성 청크가 없습니다 (활성 건수 0).")
+
+            if rawpedia_active == 0:
+                raise ValueError(f"저장소 컬렉션 '{spec.collection_name}'에 RawPedia 활성 청크 근거가 없습니다 (RawPedia 활성 건수 0).")
+
+            if github_active == 0:
+                raise ValueError(f"저장소 컬렉션 '{spec.collection_name}'에 GitHub 활성 청크 근거가 없습니다 (GitHub 활성 건수 0).")
+
+            return total_active
     except Exception as ex:
         if isinstance(ex, (FileNotFoundError, ValueError)):
             raise
@@ -988,7 +1042,7 @@ def run_pipeline(
     t0 = time.perf_counter()
     try:
         spec = load_spec(reference_path)
-        verify_store_ready(persist_dir, spec)
+        active_count = verify_store_ready(persist_dir, spec)
         session = load_encoder(spec)
         store = open_store(persist_dir, spec)
     except Exception as e:
@@ -1021,13 +1075,21 @@ def run_pipeline(
             "verification": {"input_matched": input_matched, "gold_reached": False, "citations_valid": False, "manual_review": "pending", "notes": ""},
         }
 
+    if active_count is None:
+        if hasattr(store, "active_count"):
+            active_count = getattr(store, "active_count")() if callable(getattr(store, "active_count")) else getattr(store, "active_count")
+        elif hasattr(store, "collection") and hasattr(store.collection, "count"):
+            active_count = store.collection.count()
+        else:
+            active_count = 0
+
     retrieval_config = {
         "reference_path": str(reference_path.resolve()),
         "reference_sha256": spec.reference_sha256,
         "protocol_sha256": spec.protocol_sha256,
         "persist_dir": str(persist_dir.resolve()),
         "collection_name": spec.collection_name,
-        "active_count": store.collection.count(),
+        "active_count": active_count,
         "source_root": str(get_source_root()),
         "retrieval_spec": {
             "model_id": spec.model_id,

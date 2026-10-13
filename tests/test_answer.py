@@ -67,6 +67,68 @@ class MockStore:
         return [MockHit()]
 
 
+def create_synthetic_store_db(
+    db_path: Path,
+    collection_name: str = "col",
+    store_state: str = "ready",
+    rawpedia_active: int = 141,
+    rawpedia_excluded: int = 0,
+    github_active: int = 13,
+    github_excluded: int = 0,
+    create_collection: bool = True,
+) -> None:
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    import sqlite3
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    cur.execute("CREATE TABLE collections (id TEXT PRIMARY KEY, name TEXT);")
+    cur.execute("CREATE TABLE collection_metadata (collection_id TEXT, key TEXT, str_value TEXT, int_value INTEGER, float_value REAL, bool_value INTEGER);")
+    cur.execute("CREATE TABLE segments (id TEXT PRIMARY KEY, type TEXT, scope TEXT, collection TEXT);")
+    cur.execute("CREATE TABLE embeddings (id INTEGER PRIMARY KEY, segment_id TEXT, embedding_id TEXT, seq_id BLOB);")
+    cur.execute("CREATE TABLE embedding_metadata (id INTEGER, key TEXT, string_value TEXT, int_value INTEGER, float_value REAL, bool_value INTEGER);")
+
+    if not create_collection:
+        conn.commit()
+        conn.close()
+        return
+
+    col_id = "col_test_1"
+    cur.execute("INSERT INTO collections (id, name) VALUES (?, ?);", (col_id, collection_name))
+    if store_state is not None:
+        cur.execute("INSERT INTO collection_metadata (collection_id, key, str_value) VALUES (?, 'store_state', ?);", (col_id, store_state))
+
+    seg_id = "seg_test_1"
+    cur.execute("INSERT INTO segments (id, type, scope, collection) VALUES (?, 'urn:chroma:segment/metadata/sqlite', 'METADATA', ?);", (seg_id, col_id))
+
+    current_id = 1
+    for _ in range(rawpedia_active):
+        cur.execute("INSERT INTO embeddings (id, segment_id, embedding_id) VALUES (?, ?, ?);", (current_id, seg_id, f"chunk_{current_id}"))
+        cur.execute("INSERT INTO embedding_metadata (id, key, string_value) VALUES (?, 'source_type', 'rawpedia');", (current_id,))
+        cur.execute("INSERT INTO embedding_metadata (id, key, bool_value) VALUES (?, 'excluded', 0);", (current_id,))
+        current_id += 1
+
+    for _ in range(rawpedia_excluded):
+        cur.execute("INSERT INTO embeddings (id, segment_id, embedding_id) VALUES (?, ?, ?);", (current_id, seg_id, f"chunk_{current_id}"))
+        cur.execute("INSERT INTO embedding_metadata (id, key, string_value) VALUES (?, 'source_type', 'rawpedia');", (current_id,))
+        cur.execute("INSERT INTO embedding_metadata (id, key, bool_value) VALUES (?, 'excluded', 1);", (current_id,))
+        current_id += 1
+
+    for _ in range(github_active):
+        cur.execute("INSERT INTO embeddings (id, segment_id, embedding_id) VALUES (?, ?, ?);", (current_id, seg_id, f"chunk_{current_id}"))
+        cur.execute("INSERT INTO embedding_metadata (id, key, string_value) VALUES (?, 'source_type', 'github');", (current_id,))
+        cur.execute("INSERT INTO embedding_metadata (id, key, bool_value) VALUES (?, 'excluded', 0);", (current_id,))
+        current_id += 1
+
+    for _ in range(github_excluded):
+        cur.execute("INSERT INTO embeddings (id, segment_id, embedding_id) VALUES (?, ?, ?);", (current_id, seg_id, f"chunk_{current_id}"))
+        cur.execute("INSERT INTO embedding_metadata (id, key, string_value) VALUES (?, 'source_type', 'github');", (current_id,))
+        cur.execute("INSERT INTO embedding_metadata (id, key, bool_value) VALUES (?, 'excluded', 1);", (current_id,))
+        current_id += 1
+
+    conn.commit()
+    conn.close()
+
+
 def test_normalize_query_success():
     raw = "  RawPedia\t설명에서   Auto Levels는  무엇을 \n분석하나요?  "
     normalized = normalize_query(raw)
@@ -825,6 +887,45 @@ def test_codex_timeout_with_truncated_utf8_bytes(tmp_path):
                 assert err.trace["validation"]["status"] == "rejected"
 
 
+def test_codex_timeout_with_str_and_empty_bytes_output(tmp_path):
+    """B17 / R17: TimeoutExpired의 str 그대로 유지 및 빈 bytes('') 미수신 처리(unavailable) 확인."""
+    # 1. str 출력 시간초과
+    def mock_subprocess_str(cmd, **kwargs):
+        raise subprocess.TimeoutExpired(
+            cmd=cmd,
+            timeout=120,
+            output='{"type": "thread.started", "thread_id": "th-str"}\n',
+            stderr="process timed out\n",
+        )
+
+    with patch.dict("os.environ", {"LLM_PROVIDER": "codex"}):
+        with patch("shutil.which", return_value="/usr/bin/codex"):
+            with patch("subprocess.run", side_effect=mock_subprocess_str):
+                with pytest.raises(GenerationError) as exc_info:
+                    generate_llm_response("sys", "user", {}, "q")
+                err = exc_info.value
+                assert "시간 초과" in str(err)
+                assert err.trace["process_returncode"] is None
+                assert err.trace["stdout_jsonl"] == '{"type": "thread.started", "thread_id": "th-str"}\n'
+                assert err.trace["stderr"] == "process timed out\n"
+                assert err.trace["validation"]["status"] == "rejected"
+
+    # 2. 빈 bytes (b'') 시간초과 -> 미수신 처리 (unavailable)
+    def mock_subprocess_empty_bytes(cmd, **kwargs):
+        raise subprocess.TimeoutExpired(cmd=cmd, timeout=120, output=b"", stderr=b"")
+
+    with patch.dict("os.environ", {"LLM_PROVIDER": "codex"}):
+        with patch("shutil.which", return_value="/usr/bin/codex"):
+            with patch("subprocess.run", side_effect=mock_subprocess_empty_bytes):
+                with pytest.raises(GenerationError) as exc_info:
+                    generate_llm_response("sys", "user", {}, "q")
+                err = exc_info.value
+                assert "시간 초과" in str(err)
+                assert err.trace["stdout_jsonl"] == ""
+                assert err.trace["stderr"] == ""
+                assert err.trace["validation"]["status"] == "unavailable"
+
+
 def test_codex_timeout_with_completed_events_and_file_still_fails(tmp_path):
     ans_obj = {"answer": "정상 답변 [C1S1]", "citation_ids": ["C1S1"]}
     events = [
@@ -1380,6 +1481,100 @@ def test_c03_turn_lifecycle_and_forbidden_tool_detection():
             assert exc_info.value.trace["validation"]["additional_tool_count"] == 1
             assert ftype in exc_info.value.trace["validation"]["observed_item_types"]
 
+    # 4. 완료 turn 누락 (missing turn.completed)
+    missing_completed_evs = [
+        json.dumps({"type": "thread.started", "thread_id": "th-c03"}),
+        json.dumps({"type": "turn.started"}),
+        json.dumps({"type": "item.completed", "item": {"type": "agent_message", "text": valid_file}}),
+    ]
+    with pytest.raises(GenerationError) as exc_info:
+        validate_codex_execution(
+            stdout_raw="\n".join(missing_completed_evs),
+            stderr_raw="",
+            process_returncode=0,
+            out_file_content=valid_file,
+            execution_policy=policy,
+            cli_version="1.0.0",
+        )
+    assert exc_info.value.trace["validation"]["status"] == "rejected"
+    assert "이벤트 생명주기 불일치" in str(exc_info.value)
+
+    # 5. 시작 turn 중복 (duplicate turn.started)
+    dup_started_evs = [
+        json.dumps({"type": "thread.started", "thread_id": "th-c03"}),
+        json.dumps({"type": "turn.started"}),
+        json.dumps({"type": "turn.started"}),
+        json.dumps({"type": "item.completed", "item": {"type": "agent_message", "text": valid_file}}),
+        json.dumps({"type": "turn.completed"}),
+    ]
+    with pytest.raises(GenerationError) as exc_info:
+        validate_codex_execution(
+            stdout_raw="\n".join(dup_started_evs),
+            stderr_raw="",
+            process_returncode=0,
+            out_file_content=valid_file,
+            execution_policy=policy,
+            cli_version="1.0.0",
+        )
+    assert exc_info.value.trace["validation"]["status"] == "rejected"
+    assert "이벤트 생명주기 불일치" in str(exc_info.value)
+
+    # 6. 완료 turn 중복 (duplicate turn.completed)
+    dup_completed_evs = [
+        json.dumps({"type": "thread.started", "thread_id": "th-c03"}),
+        json.dumps({"type": "turn.started"}),
+        json.dumps({"type": "item.completed", "item": {"type": "agent_message", "text": valid_file}}),
+        json.dumps({"type": "turn.completed"}),
+        json.dumps({"type": "turn.completed"}),
+    ]
+    with pytest.raises(GenerationError) as exc_info:
+        validate_codex_execution(
+            stdout_raw="\n".join(dup_completed_evs),
+            stderr_raw="",
+            process_returncode=0,
+            out_file_content=valid_file,
+            execution_policy=policy,
+            cli_version="1.0.0",
+        )
+    assert exc_info.value.trace["validation"]["status"] == "rejected"
+    assert "이벤트 생명주기 불일치" in str(exc_info.value)
+
+    # 7. 별도 error 이벤트 (B14)
+    error_evs = [
+        json.dumps({"type": "thread.started", "thread_id": "th-c03"}),
+        json.dumps({"type": "turn.started"}),
+        json.dumps({"type": "error", "message": "codex internal error"}),
+    ]
+    with pytest.raises(GenerationError) as exc_info:
+        validate_codex_execution(
+            stdout_raw="\n".join(error_evs),
+            stderr_raw="",
+            process_returncode=0,
+            out_file_content=valid_file,
+            execution_policy=policy,
+            cli_version="1.0.0",
+        )
+    assert exc_info.value.trace["validation"]["status"] == "rejected"
+    assert "오류 이벤트" in str(exc_info.value)
+
+    # 8. 별도 turn.failed 이벤트 (B14)
+    turn_failed_evs = [
+        json.dumps({"type": "thread.started", "thread_id": "th-c03"}),
+        json.dumps({"type": "turn.started"}),
+        json.dumps({"type": "turn.failed", "error": {"message": "turn failed"}}),
+    ]
+    with pytest.raises(GenerationError) as exc_info:
+        validate_codex_execution(
+            stdout_raw="\n".join(turn_failed_evs),
+            stderr_raw="",
+            process_returncode=0,
+            out_file_content=valid_file,
+            execution_policy=policy,
+            cli_version="1.0.0",
+        )
+    assert exc_info.value.trace["validation"]["status"] == "rejected"
+    assert "turn.failed" in str(exc_info.value)
+
 
 def test_c04_aggregation_and_output_preservation():
     """C04 / R15, R17~R20, R23: 3개 이벤트+시간초과/종료코드 집계, 시작/갱신/완료 3개 누적, 스트림/바이트 정규화."""
@@ -1439,8 +1634,9 @@ def test_c05_storage_readiness_and_prep_isolation(tmp_path):
         assert record["retrieval"]["call_count"] == 0
         assert "Chroma persist 디렉터리가 존재하지 않습니다" in record["execution"]["error_message"]
 
-    # 2. 기대 컬렉션 미확인 -> verify_store_ready에서 예외, open_store 호출 0
-    real_persist_dir = Path("data/vector-store/t09").resolve()
+    # 2. 기대 컬렉션 미확인 -> verify_store_ready에서 예외, open_store 호출 0 (합성 DB로 완전 격리)
+    p_synthetic = tmp_path / "valid_sqlite_wrong_col"
+    create_synthetic_store_db(p_synthetic / "chroma.sqlite3", collection_name="real_col")
     class WrongSpec(MockSpec):
         collection_name = "unconfirmed_wrong_collection"
 
@@ -1449,7 +1645,7 @@ def test_c05_storage_readiness_and_prep_isolation(tmp_path):
         record = run_pipeline(
             query_original="test query",
             reference_path=ref_path,
-            persist_dir=real_persist_dir,
+            persist_dir=p_synthetic,
         )
         assert mock_open_store.call_count == 0
         assert record["execution"]["status"] == "error"
@@ -1472,6 +1668,94 @@ def test_c05_storage_readiness_and_prep_isolation(tmp_path):
         assert f"mocked {fail_fn} failure" in saved["execution"]["error_message"]
         assert saved["retrieval"]["call_count"] == 0
         assert saved["generation"] is None
+
+
+def test_c05_storage_readiness_counterexamples(tmp_path):
+    """§8.4.1 R05 / C05 준비 판정 전체 7개 반례/양성 대조 및 CLI 오류 기록 검증 (합성 SQLite 기반)."""
+    col_name = "art_retrieval_t09_v1"
+    spec = MockSpec()
+    spec.collection_name = col_name
+
+    # 1. ready-mixed (154 물리, 141 rawpedia, 13 github, active=154) -> 합격
+    p_mix = tmp_path / "ready_mixed"
+    create_synthetic_store_db(p_mix / "chroma.sqlite3", collection_name=col_name, rawpedia_active=141, github_active=13)
+    act_mix = verify_store_ready(p_mix, spec)
+    assert act_mix == 154
+
+    # 2. ready-rawpedia-only (154 rawpedia, 0 github) -> 거부 (GitHub 활성 근거 없음)
+    p_rp = tmp_path / "ready_rawpedia_only"
+    create_synthetic_store_db(p_rp / "chroma.sqlite3", collection_name=col_name, rawpedia_active=154, github_active=0)
+    with pytest.raises(ValueError, match="GitHub"):
+        verify_store_ready(p_rp, spec)
+
+    # 3. ready-github-only (0 rawpedia, 154 github) -> 거부 (RawPedia 활성 근거 없음)
+    p_gh = tmp_path / "ready_github_only"
+    create_synthetic_store_db(p_gh / "chroma.sqlite3", collection_name=col_name, rawpedia_active=0, github_active=154)
+    with pytest.raises(ValueError, match="RawPedia"):
+        verify_store_ready(p_gh, spec)
+
+    # 4. ready-all-excluded (141+13 모두 excluded=1) -> 거부 (활성 청크 0)
+    p_ex = tmp_path / "ready_all_excluded"
+    create_synthetic_store_db(p_ex / "chroma.sqlite3", collection_name=col_name, rawpedia_active=0, rawpedia_excluded=141, github_active=0, github_excluded=13)
+    with pytest.raises(ValueError, match="활성"):
+        verify_store_ready(p_ex, spec)
+
+    # 5. ready-one-source-excluded:
+    # 5-a. 141 rawpedia 활성, 13 github 제외 -> 거부
+    p_one_rp = tmp_path / "ready_one_source_rp"
+    create_synthetic_store_db(p_one_rp / "chroma.sqlite3", collection_name=col_name, rawpedia_active=141, github_active=0, github_excluded=13)
+    with pytest.raises(ValueError, match="GitHub"):
+        verify_store_ready(p_one_rp, spec)
+    # 5-b. 141 rawpedia 제외, 13 github 활성 -> 거부
+    p_one_gh = tmp_path / "ready_one_source_gh"
+    create_synthetic_store_db(p_one_gh / "chroma.sqlite3", collection_name=col_name, rawpedia_active=0, rawpedia_excluded=141, github_active=13)
+    with pytest.raises(ValueError, match="RawPedia"):
+        verify_store_ready(p_one_gh, spec)
+
+    # 6. ready-partly-excluded (139 rawpedia 활성, 2 rawpedia 제외, 13 github 활성 -> active=152) -> 합격
+    p_part = tmp_path / "ready_partly_excluded"
+    create_synthetic_store_db(p_part / "chroma.sqlite3", collection_name=col_name, rawpedia_active=139, rawpedia_excluded=2, github_active=13)
+    act_part = verify_store_ready(p_part, spec)
+    assert act_part == 152
+
+    # 7. missing-or-unready:
+    # 7-a. 미존재 디렉터리
+    with pytest.raises(FileNotFoundError, match="디렉터리가 존재하지 않습니다"):
+        verify_store_ready(tmp_path / "missing_dir_abc", spec)
+    # 7-b. 미존재 DB 파일
+    p_nodb = tmp_path / "missing_db_file"
+    p_nodb.mkdir(parents=True, exist_ok=True)
+    with pytest.raises(FileNotFoundError, match="DB 파일이 존재하지 않습니다"):
+        verify_store_ready(p_nodb, spec)
+    # 7-c. 미존재 컬렉션
+    p_nocol = tmp_path / "missing_col"
+    create_synthetic_store_db(p_nocol / "chroma.sqlite3", collection_name="other_collection")
+    with pytest.raises(ValueError, match="존재하지 않습니다"):
+        verify_store_ready(p_nocol, spec)
+    # 7-d. store_state != 'ready'
+    p_unready = tmp_path / "unready_state"
+    create_synthetic_store_db(p_unready / "chroma.sqlite3", collection_name=col_name, store_state="indexing")
+    with pytest.raises(ValueError, match="ready"):
+        verify_store_ready(p_unready, spec)
+    # 7-e. 빈 컬렉션 (물리 건수 0)
+    p_empty = tmp_path / "empty_collection"
+    create_synthetic_store_db(p_empty / "chroma.sqlite3", collection_name=col_name, rawpedia_active=0, github_active=0)
+    with pytest.raises(ValueError, match="물리 건수 0"):
+        verify_store_ready(p_empty, spec)
+
+
+    # 8. 음성 사례의 CLI --record 격리 및 retrieval 오류 JSONL 보존 (성공 stdout 없음)
+    rec_cli_file = tmp_path / "cli_ready_all_excluded.jsonl"
+    with patch("sys.argv", ["artagent-answer", "test query", "--persist-dir", str(p_ex), "--record", str(rec_cli_file)]):
+        ret = main()
+        assert ret == 1
+    assert rec_cli_file.is_file()
+    saved_rec = json.loads(rec_cli_file.read_text(encoding="utf-8").strip())
+    assert saved_rec["execution"]["status"] == "error"
+    assert saved_rec["execution"]["failed_step"] == "retrieval"
+    assert saved_rec["retrieval"]["call_count"] == 0
+    assert saved_rec["generation"] is None
+    assert "활성" in saved_rec["execution"]["error_message"]
 
 
 def test_c06_answer_json_type_contracts_and_rejections(tmp_path):
@@ -1654,7 +1938,7 @@ def test_c09_normalization_and_retrieval_boundaries():
 
     mock_resp = json.dumps({"answer": "근거가 없습니다.", "citation_ids": []})
     ref_path = Path("docs/T08_2_t9_handoff_reference.json").resolve()
-    persist_dir = Path("data/vector-store/t09").resolve()
+    persist_dir = Path("dummy_persist")
 
     with patch("artagent.answer.load_spec", return_value=MockSpec()), \
          patch("artagent.answer.verify_store_ready", return_value=None), \
@@ -1666,5 +1950,90 @@ def test_c09_normalization_and_retrieval_boundaries():
         assert record["retrieval"]["hits_count"] == 0
         assert "(검색된 문맥이 없습니다.)" in record["prompt"]["user_prompt"]
         assert record["generation"]["call_count"] == 1
+
+    # 4. B07 / R07: 1개 및 5개 hit 반환 시 search 1회 호출, 순서 및 전체 필드 보존 (추가 k/source_key 인자 없음)
+    recorded_search_args = []
+    class MultiHitsStore:
+        def __init__(self, hits):
+            self.hits = hits
+        def search(self, *args, **kwargs):
+            recorded_search_args.append((args, kwargs))
+            return self.hits
+
+    hits_5 = [
+        SearchHit(
+            rank=i,
+            chunk_id=f"c_{i}",
+            source_type="rawpedia" if i % 2 == 0 else "github",
+            doc_id=f"doc_{i}",
+            source_group_id=f"doc_{i}",
+            section_title=f"Sec {i}",
+            content=f"Content {i}",
+            content_sha256=f"sha_{i}",
+            source_segments=[{"doc_id": f"doc_{i}", "target_url": f"http://doc_{i}"}],
+            original_metadata={"meta_key": f"val_{i}"},
+            distance=0.05 * i,
+            distance_text=f"{0.05 * i:.2f}",
+        )
+        for i in range(1, 6)
+    ]
+    store_5 = MultiHitsStore(hits_5)
+    with patch("artagent.answer.load_spec", return_value=MockSpec()), \
+         patch("artagent.answer.verify_store_ready", return_value=154), \
+         patch("artagent.answer.load_encoder", return_value="mock_sess"), \
+         patch("artagent.answer.open_store", return_value=store_5), \
+         patch("artagent.answer.generate_llm_response", return_value=(mock_resp, None, {"llm_provider": "mock"})):
+        rec5 = run_pipeline("질문 5개", Path("ref"), Path("persist"))
+        assert rec5["execution"]["status"] == "success"
+        assert rec5["retrieval"]["hits_count"] == 5
+        assert len(recorded_search_args) == 1
+        args, kwargs = recorded_search_args[0]
+        assert args == ("질문 5개", "mock_sess")
+        assert kwargs == {}  # k/source_key 추가 인자 없음
+        for i, hit_dict in enumerate(rec5["retrieval"]["hits"]):
+            assert hit_dict["chunk_id"] == f"c_{i+1}"
+            assert hit_dict["content"] == f"Content {i+1}"
+            assert hit_dict["original_metadata"] == {"meta_key": f"val_{i+1}"}
+
+    # 1개 hit 대조
+    recorded_search_args.clear()
+    store_1 = MultiHitsStore([hits_5[0]])
+    with patch("artagent.answer.load_spec", return_value=MockSpec()), \
+         patch("artagent.answer.verify_store_ready", return_value=154), \
+         patch("artagent.answer.load_encoder", return_value="mock_sess"), \
+         patch("artagent.answer.open_store", return_value=store_1), \
+         patch("artagent.answer.generate_llm_response", return_value=(mock_resp, None, {"llm_provider": "mock"})):
+        rec1 = run_pipeline("질문 1개", Path("ref"), Path("persist"))
+        assert rec1["execution"]["status"] == "success"
+        assert rec1["retrieval"]["hits_count"] == 1
+        assert len(recorded_search_args) == 1
+        assert rec1["retrieval"]["hits"][0]["chunk_id"] == "c_1"
+
+    # 5. B08 / R08: search 중 query 길이 초과 등 오류 발생 시 retrieval 단계 실패, 생성 0회, 전달 질문 미절단
+    class ErrorStore:
+        def search(self, q, sess):
+            raise ValueError("Query string length exceeds limit")
+
+    long_query = "아주 긴 질문 " * 50
+    with patch("artagent.answer.load_spec", return_value=MockSpec()), \
+         patch("artagent.answer.verify_store_ready", return_value=154), \
+         patch("artagent.answer.load_encoder", return_value="mock_sess"), \
+         patch("artagent.answer.open_store", return_value=ErrorStore()), \
+         patch("artagent.answer.generate_llm_response") as mock_gen_fail:
+        rec_err = run_pipeline(long_query, Path("ref"), Path("persist"))
+        assert rec_err["execution"]["status"] == "error"
+        assert rec_err["execution"]["failed_step"] == "retrieval"
+        assert "Query string length exceeds limit" in rec_err["execution"]["error_message"]
+        assert rec_err["input"]["query_original"] == long_query  # 절단되지 않음
+        assert mock_gen_fail.call_count == 0
+
+    # 6. B04 / R04: CLI 빈 입력 시 normalization 오류로 종료 1, 후속 T09 로드/검색/생성 호출 0회
+    with patch("artagent.answer.load_spec") as mock_spec_cli, \
+         patch("artagent.answer.generate_llm_response") as mock_gen_cli:
+        with patch("sys.argv", ["artagent-answer", "   "]):
+            ret_empty = main()
+            assert ret_empty == 1
+            assert mock_spec_cli.call_count == 0
+            assert mock_gen_cli.call_count == 0
 
 
