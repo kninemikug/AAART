@@ -45,10 +45,31 @@ env PYTHONDONTWRITEBYTECODE=1 /Users/user/Workspace/Programming/Projects/AAART/v
 
 별도 프로세스에서 bin 1·2를 고의로 교환한 결함 주입 검사는 **7 failed, 41 passed**였다. 고정 샘플의 bin별 대조와 경계 테스트가 이 잘못된 분포를 검출했다. 이 검사는 소스 파일을 변경하지 않는다.
 
-전체 회귀 검사는 아래 명령으로 실행한다. `src` import 경로를 지정하고 기존 캐시를 사용하도록 다운로드를 막는다.
+fixture 보완 전 전체 회귀 검사는 아래 명령으로 실행했다. `src` import 경로를 지정하고 기존 캐시를 사용하도록 다운로드를 막았다.
 
 ```bash
 env PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 /Users/user/Workspace/Programming/Projects/AAART/venv/bin/python3 -m pytest -p no:cacheprovider tests -q --tb=line
 ```
 
-결과: **463 passed, 39 errors, 1 warning**. 39개는 모두 이 작업 폴더의 `data/vector-store/t09` 부재로 기존 `tests/test_issue_update.py`의 실물 저장소 fixture를 준비하지 못한 오류다. 테스트 본문에 진입하기 전에 `shutil.copytree`에서 실패한다. 해당 테스트·저장소 준비 로직·기준은 변경하지 않았으며 skip도 추가하지 않았다. 전체 테스트 통과로 보고하지 않는다. Task 18의 79개 focused 검사는 모두 통과했다.
+보완 전 결과: **463 passed, 39 errors, 1 warning**. 39개는 모두 이 작업 폴더의 `data/vector-store/t09` 부재로 기존 `tests/test_issue_update.py`의 실물 저장소 fixture를 준비하지 못한 오류였다. 테스트 본문에 진입하기 전에 `shutil.copytree`에서 실패했다. 이 시점에는 저장소 준비 로직을 변경하지 않았으며 전체 테스트 통과로 보고하지 않았다. Task 18의 79개 focused 검사는 모두 통과했다.
+
+## T9 테스트 입력 준비 보완
+
+`data/vector-store/`는 Git 추적 대상이 아니다. 메인에 합쳐진 코드를 포함하더라도 각 작업 폴더에 실물 DB가 생기지는 않는다. 테스트는 다른 작업 폴더의 DB를 복사하는 대신, 저장소에 추적된 고정 인계 입력으로 초기 상태를 재현하도록 보완했다.
+
+- [공통 fixture](../tests/conftest.py)는 세션마다 `tmp_path_factory` 아래에서 기존 `scripts/reproduce_t08_2_selected.py`를 실행한다. 현재 작업 폴더의 참조 문서·원문·고정 모델 revision을 사용하며, 모델·토크나이저는 설치된 캐시에서만 읽는다. 캐시가 없으면 준비 오류와 로그 경로를 제공하고 다운로드하거나 검사를 생략하지 않는다.
+- [초기 저장소 준비](../tests/t09_test_data.py)는 참조 문서 SHA-256, 선택 실험, 프로토콜, 청크·벡터 지문, 검색 지표와 쿼리 로그의 재현 증거를 대조한다. 원문의 출처·파일 지문을 검증한 154개 청크를 기존 색인 함수로 저장한다.
+- 계산 직후 벡터와 재현된 벡터 파일은 고정 SHA-256에 정확히 일치해야 한다. 저장 후 읽은 float32 벡터에는 `rtol=0`, `atol=1.1920928955078125e-7`을 적용한다. 직접 대조에서 저장 전후 최대 차이는 `1.4901161193847656e-8`이었다. 이 기준은 기존 인계 문서의 `atol=1e-6`, `rtol=1e-5`보다 엄격하다. 저장 표현의 미세한 차이 때문에 계산 단계의 지문 기준을 바꾸지 않는다.
+- 초기 DB를 만드는 프로세스와 다시 여는 검증 프로세스를 각각 종료한 후 복사한다. 모든 청크 ID·본문·출처 정보·벡터와 `ready` 상태, RawPedia 141개·GitHub 13개를 확인한다. 갱신 테스트는 각자의 `tmp_path`에 독립 복사본을 받는다.
+- [검색 테스트](../tests/test_retrieval.py)도 같은 재현 fixture를 사용한다. 다른 작업 폴더 및 `/private/tmp`의 최신 파일을 암묵적으로 선택하던 동작을 제거했다. 명시적인 `T09_REFERENCE_PATH`, `T09_SOURCE_ROOT`, `T09_REPRO_DIR` 지정은 유지하되, 지정한 재현 증거가 불완전하거나 기준과 다르면 실패한다.
+- [갱신 테스트](../tests/test_issue_update.py)에 초기 상태와 복사본 변경 후 기준 DB의 파일 바이트 보존 사례를 추가했다. [재현 증거 테스트](../tests/test_t09_test_data.py)는 누락·변경된 증거의 거부를 확인한다. 기존 갱신·검색 테스트의 판정 기준과 실행 여부는 유지한다.
+
+수정 전 새 초기 상태 검사는 기존 실물 DB 부재로 실패했다. 보완 후 관련 검증은 **18 passed, 40 deselected**였다. 검증 중에도 현재 작업 폴더의 `data/vector-store/t09`는 만들지 않았다.
+
+전체 회귀 검증에서는 경로 지정 세 가지를 해제하여 임시 입력과 초기 DB를 새로 준비한다. `src` import 경로는 공통 fixture에서 설정한다.
+
+```bash
+env -u T09_REPRO_DIR -u T09_SOURCE_ROOT -u T09_REFERENCE_PATH PYTHONDONTWRITEBYTECODE=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 /Users/user/Workspace/Programming/Projects/AAART/venv/bin/python3 -m pytest -p no:cacheprovider tests -q --tb=short
+```
+
+보완 후 결과: **520 passed, 1 warning** · 232.17초. 기존 39개 fixture 준비 오류를 포함한 전체 검사가 통과했다. 새 임시 경로의 재현 증거에서 참조 SHA-256 일치, 청크 141개·13개, 검색 기록 300개를 확인했다. Top5 거리의 최대 재현 차이는 `3.5762786865234375e-7`로 기존 `1e-5` 기준 안이다. 작업 폴더의 `data/vector-store/t09`는 검증 전후 모두 부재했다. 경고 1개는 설치된 Chroma가 사용하는 `asyncio.iscoroutinefunction`의 폐기 예고다. skip·xfail·경고 억제는 추가하지 않았다.

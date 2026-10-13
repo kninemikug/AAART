@@ -5,7 +5,6 @@ import dataclasses
 import gzip
 import hashlib
 import json
-import os
 from pathlib import Path
 import tempfile
 from typing import Any, Mapping
@@ -41,57 +40,19 @@ from artagent.retrieval.types import (
 )
 
 
-def find_reference_path() -> Path:
-    env_ref = os.getenv("T09_REFERENCE_PATH")
-    if env_ref and Path(env_ref).is_file():
-        return Path(env_ref).resolve()
-    candidates = [
-        Path("docs/T08_2_t9_handoff_reference.json"),
-        Path("/Users/user/orca/workspaces/AAART/T08-2-chunking-embedding/docs/T08_2_t9_handoff_reference.json"),
-    ]
-    for p in candidates:
-        if p.is_file():
-            return p.resolve()
-    raise FileNotFoundError("docs/T08_2_t9_handoff_reference.json을 찾을 수 없습니다.")
-
-
-def find_source_root() -> Path:
-    env_root = os.getenv("T09_SOURCE_ROOT")
-    if env_root and Path(env_root).is_dir():
-        return Path(env_root).resolve()
-    candidates = [
-        Path("/Users/user/orca/workspaces/AAART/T08-2-chunking-embedding"),
-        Path(".").resolve(),
-    ]
-    for p in candidates:
-        if (p / "data/rawpedia").is_dir() and (p / "data/issues").is_dir():
-            return p.resolve()
-    return Path(".").resolve()
-
-
-def find_repro_dir() -> Path:
-    env_dir = os.getenv("T09_REPRO_DIR")
-    if env_dir and Path(env_dir).is_dir() and (Path(env_dir) / "reproduction.json").is_file():
-        return Path(env_dir).resolve()
-    for p in sorted(Path("/private/tmp").glob("t09-repro.*"), key=lambda x: x.stat().st_mtime, reverse=True):
-        if (p / "reproduction.json").is_file():
-            return p.resolve()
-    raise FileNotFoundError("reproduction.json이 포함된 T09_REPRO_DIR를 찾을 수 없습니다.")
+@pytest.fixture(scope="session")
+def reference_path(t09_reference_path: Path) -> Path:
+    return t09_reference_path
 
 
 @pytest.fixture(scope="session")
-def reference_path() -> Path:
-    return find_reference_path()
+def source_root(t09_source_root: Path) -> Path:
+    return t09_source_root
 
 
 @pytest.fixture(scope="session")
-def source_root() -> Path:
-    return find_source_root()
-
-
-@pytest.fixture(scope="session")
-def repro_dir() -> Path:
-    return find_repro_dir()
+def repro_dir(t09_repro_dir: Path) -> Path:
+    return t09_repro_dir
 
 
 @pytest.fixture(scope="session")
