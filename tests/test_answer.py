@@ -2334,5 +2334,3 @@ def test_c09_normalization_and_retrieval_boundaries(tmp_path):
             assert ret_empty == 1
             assert mock_spec_cli.call_count == 0
             assert mock_gen_cli.call_count == 0
-
-

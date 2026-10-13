@@ -61,7 +61,7 @@ def get_protected_roots() -> list[Path]:
 
 def normalize_query(query: str) -> str:
     """3.1 쿼리 정규화: Unicode NFC, strip, 연속 공백 정리.
-    
+
     한글, 영문 도구명, 대소문자, 숫자, 파일명·확장자, 구두점 및 부정 표현을 유지한다.
     번역, 동의어 확장, LLM 재작성, HyDE, 의도 분류를 하지 않는다.
     """
@@ -306,7 +306,7 @@ def build_prompt_and_citations(
     hits: list[SearchHit]
 ) -> Tuple[str, dict[str, dict[str, Any]], list[str]]:
     """3.3 문맥 구성 및 인용 매핑 생성.
-    
+
     원문 세그먼트마다 C{rank}S{segment_index}라는 인용 ID를 부여한다.
     """
     context_blocks = []
@@ -481,7 +481,7 @@ def validate_codex_execution(
     process_error: Optional[dict[str, Any]] = None,
 ) -> Tuple[dict[str, Any], Optional[dict[str, Any]], dict[str, Any]]:
     """Codex 이벤트 로그와 출력 파일을 엄격히 검증하고 (parsed_obj, usage, trace) 반환.
-    
+
     실패 시 GenerationError 발생 (trace 포함).
     """
     event_lines = [line.strip() for line in (stdout_raw or "").splitlines() if line.strip()]
@@ -726,7 +726,7 @@ def validate_codex_execution(
 
 def validate_saved_trace(trace: dict[str, Any]) -> dict[str, Any]:
     """저장된 trace (v1 또는 v2)를 읽고 검증된 필드 요약 반환.
-    
+
     v1 레거시 trace의 경우 누락된 v2 필드(application_status, summary_status 등)를
     unconfirmed / null로 안전하게 해석한다.
     """
@@ -765,7 +765,7 @@ def generate_llm_response(
     query_normalized: str,
 ) -> Tuple[str, Optional[dict[str, Any]], dict[str, Any]]:
     """3.3 런타임 LLM 호출.
-    
+
     LLM 제공처는 LLM_PROVIDER 환경변수로 명시 선택한다 (기본값: 'codex').
     지원 제공처: 'codex', 'openai' (또는 'openai-compatible').
     설정이나 실행 환경 부족 시 즉시 오류로 종료하며 다른 제공처로 자동 전환하지 않는다.
@@ -912,7 +912,7 @@ def validate_and_format_citations(
     context_citations: dict[str, dict[str, Any]],
 ) -> Tuple[str, str, list[dict[str, Any]]]:
     """3.4 인용 검증 및 stdout 포맷팅.
-    
+
     답변 표식 집합과 citation_ids 집합이 일치하고 모두 문맥의 인용 목록 안에 있는지 검사한다.
     답변 표식을 [출처: 문서명·URL]로 치환하고 인용 목록을 구성한다.
     """
