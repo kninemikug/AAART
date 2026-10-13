@@ -1,8 +1,10 @@
 """EXIF metadata extraction and normalization for RAW files."""
 
 import math
+import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -16,6 +18,7 @@ def _run_cmd(cmd: List[str], timeout: float = 10.0) -> str:
         text=True,
         timeout=timeout,
         check=True,
+        env=dict(os.environ, LC_ALL="C", LANG="C"),
     )
     return res.stdout
 
@@ -29,15 +32,27 @@ def read_exif(raw_path: Path | str) -> Dict[str, Any]:
     if not path.is_file():
         raise FileNotFoundError(f"RAW file not found: {path}")
 
+    selected = shutil.which("exiv2")
+    if selected is None:
+        raise RuntimeError("exiv2 executable not found in PATH")
+    executable = str(Path(selected).resolve())
+    try:
+        version_output = _run_cmd([executable, "--version"])
+    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired) as e:
+        raise RuntimeError(f"Failed to query exiv2 version: {e}") from e
+    version_match = re.search(r"^exiv2\s+(\S+)", version_output, re.MULTILINE)
+    if version_match is None:
+        raise RuntimeError("Unrecognized exiv2 version output")
+
     # Read translated tags (-PEkt)
     try:
-        stdout_t = _run_cmd(["exiv2", "-PEkt", str(path)])
+        stdout_t = _run_cmd([executable, "-PEkt", str(path)])
     except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired) as e:
         raise RuntimeError(f"Failed to read translated EXIF with exiv2: {e}") from e
 
     # Read vanilla tags (-PEkv)
     try:
-        stdout_v = _run_cmd(["exiv2", "-PEkv", str(path)])
+        stdout_v = _run_cmd([executable, "-PEkv", str(path)])
     except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired) as e:
         raise RuntimeError(f"Failed to read vanilla EXIF with exiv2: {e}") from e
 
@@ -57,7 +72,11 @@ def read_exif(raw_path: Path | str) -> Dict[str, Any]:
         elif len(parts) == 1:
             tags_v[parts[0]] = ""
 
-    return {"translated": tags_t, "vanilla": tags_v}
+    return {
+        "translated": tags_t,
+        "vanilla": tags_v,
+        "metadata_tool": {"name": "exiv2", "version": version_match.group(1)},
+    }
 
 
 def _parse_shutter_seconds(val: Optional[str]) -> Tuple[Optional[float], Optional[str]]:

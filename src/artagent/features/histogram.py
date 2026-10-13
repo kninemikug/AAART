@@ -1,7 +1,10 @@
 """RAW image decoding to linear RGB and histogram/signal analysis."""
 
-import math
+import hashlib
+import os
 from pathlib import Path
+import re
+import shutil
 import subprocess
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -59,6 +62,31 @@ def _parse_ppm_p6(data: bytes) -> Tuple[int, int, int, np.ndarray]:
     return width, height, maxval, arr
 
 
+def _decoder_metadata(executable: Path) -> Dict[str, Any]:
+    """Identify the selected binary; report its package version when available.
+
+    dcraw_emu has no version option. Read only the LibRaw package metadata
+    adjacent to this installation, never an unrelated global pkg-config result.
+    The executable hash also identifies installations without package metadata.
+    """
+    metadata_path = executable.parent.parent / "lib" / "pkgconfig" / "libraw.pc"
+    version = None
+    try:
+        package_metadata = metadata_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        package_metadata = ""
+    if re.search(r"^Name:\s*libraw\s*$", package_metadata, re.MULTILINE):
+        match = re.search(r"^Version:\s*(\S+)\s*$", package_metadata, re.MULTILINE)
+        if match:
+            version = match.group(1)
+    return {
+        "name": "dcraw_emu",
+        "version": version,
+        "version_source": "libraw.pc" if version is not None else None,
+        "sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
+    }
+
+
 def decode_raw_rgb(
     raw_path: Path | str, exif: Dict[str, Any]
 ) -> Tuple[np.ndarray, Dict[str, Any]]:
@@ -66,6 +94,12 @@ def decode_raw_rgb(
     path = Path(raw_path)
     if not path.is_file():
         raise FileNotFoundError(f"RAW file not found: {path}")
+
+    selected = shutil.which("dcraw_emu")
+    if selected is None:
+        raise RuntimeError("dcraw_emu executable not found in PATH")
+    executable = Path(selected).resolve()
+    decoder_metadata = _decoder_metadata(executable)
 
     wb_applied = "camera"
     multipliers = exif.get("white_balance", {}).get("camera_multipliers")
@@ -94,7 +128,7 @@ def decode_raw_rgb(
         decoder_opts.extend(["-r", "1", "1", "1", "1"])
         wb_applied = "unity"
 
-    cmd = ["dcraw_emu"] + decoder_opts + ["-Z", "-", str(path)]
+    cmd = [str(executable)] + decoder_opts + ["-Z", "-", str(path)]
 
     try:
         proc = subprocess.run(
@@ -103,6 +137,10 @@ def decode_raw_rgb(
             stderr=subprocess.PIPE,
             timeout=30.0,
             check=True,
+            env=dict(
+                os.environ, LC_ALL="C", LANG="C", OMP_NUM_THREADS="1",
+                OMP_THREAD_LIMIT="1", OMP_DYNAMIC="FALSE",
+            ),
         )
     except subprocess.CalledProcessError as e:
         stderr_msg = e.stderr.decode("utf-8", errors="replace") if e.stderr else str(e)
@@ -127,8 +165,7 @@ def decode_raw_rgb(
 
     analysis: Dict[str, Any] = {
         "pipeline_version": "t18-linear-rgb-v1",
-        "metadata_tool": {"name": "exiv2", "version": "0.28.8"},
-        "decoder": {"name": "dcraw_emu", "version": "0.22.2"},
+        "decoder": decoder_metadata,
         "numpy_version": np.__version__,
         "color_space": "linear_srgb",
         "bit_depth": 16,

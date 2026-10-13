@@ -6,8 +6,10 @@ import copy
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 from typing import Any, Dict
 from unittest.mock import patch
@@ -397,6 +399,69 @@ def test_tool_failures() -> None:
     with patch("subprocess.run", side_effect=FileNotFoundError("dcraw_emu not found")):
         with pytest.raises(RuntimeError):
             decode_raw_rgb(SAMPLE_PATH, {})
+
+
+def test_exif_records_actual_tool_version(monkeypatch, tmp_path) -> None:
+    executable = tmp_path / "exiv2"
+    executable.write_bytes(b"selected metadata executable")
+    monkeypatch.setattr(shutil, "which", lambda name: str(executable))
+    monkeypatch.setenv("LC_ALL", "ko_KR.UTF-8")
+    calls = []
+
+    def run(command, **kwargs):
+        calls.append(command)
+        assert kwargs["env"]["LC_ALL"] == "C"
+        assert kwargs["env"]["LANG"] == "C"
+        stdout = "exiv2 9.8.7\n" if command[-1] == "--version" else ""
+        return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr="")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    tags = read_exif(SAMPLE_PATH)
+    assert tags["metadata_tool"] == {"name": "exiv2", "version": "9.8.7"}
+    assert all(command[0] == str(executable) for command in calls)
+    assert [str(executable), "--version"] in calls
+
+
+@pytest.mark.parametrize("package_version", ["9.8.7", None])
+def test_decoder_records_binary_and_enforces_threads(
+    monkeypatch, tmp_path, package_version
+) -> None:
+    prefix = tmp_path / "selected-installation"
+    executable = prefix / "bin" / "dcraw_emu"
+    executable.parent.mkdir(parents=True)
+    executable.write_bytes(b"selected decoder executable")
+    if package_version:
+        metadata = prefix / "lib" / "pkgconfig" / "libraw.pc"
+        metadata.parent.mkdir(parents=True)
+        metadata.write_text(f"Name: libraw\nVersion: {package_version}\n")
+    monkeypatch.setattr(shutil, "which", lambda name: str(executable))
+    inherited = {
+        "OMP_NUM_THREADS": "16", "OMP_THREAD_LIMIT": "32",
+        "OMP_DYNAMIC": "TRUE", "LC_ALL": "ko_KR.UTF-8",
+    }
+    for key, value in inherited.items():
+        monkeypatch.setenv(key, value)
+    child_environment = {}
+
+    def run(command, **kwargs):
+        assert command[0] == str(executable)
+        child_environment.update(kwargs["env"])
+        ppm = b"P6\n1 1\n65535\n" + b"\x00\x00" * 3
+        return subprocess.CompletedProcess(command, 0, stdout=ppm, stderr=b"")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    _, analysis = decode_raw_rgb(SAMPLE_PATH, {})
+    assert analysis["threads"] == 1
+    assert child_environment["OMP_NUM_THREADS"] == "1"
+    assert child_environment["OMP_THREAD_LIMIT"] == "1"
+    assert child_environment["OMP_DYNAMIC"] == "FALSE"
+    assert child_environment["LC_ALL"] == child_environment["LANG"] == "C"
+    for key, value in inherited.items():
+        assert os.environ[key] == value
+    decoder = analysis["decoder"]
+    assert decoder["version"] == package_version
+    assert decoder["version_source"] == ("libraw.pc" if package_version else None)
+    assert decoder["sha256"] == hashlib.sha256(executable.read_bytes()).hexdigest()
 
 
 def test_repeatable_json() -> None:

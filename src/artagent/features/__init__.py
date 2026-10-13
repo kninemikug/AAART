@@ -50,6 +50,7 @@ def extract_features(raw_path: Path | str) -> Dict[str, Any]:
 
     # 2. RGB decoding
     rgb, analysis = decode_raw_rgb(path, exif)
+    analysis["metadata_tool"] = raw_tags["metadata_tool"]
     if analysis.get("wb_applied") == "unity" and "wb_coefficients_missing" not in warnings:
         warnings.append("wb_coefficients_missing")
 
