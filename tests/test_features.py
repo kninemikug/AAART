@@ -32,6 +32,17 @@ from artagent.features.histogram import (
 SAMPLE_PATH = Path("data/fivek_sample/sample1.nef")
 SAMPLE_SHA256 = "18e287009b15b20fc73fd2223ed1551231f3853398a38a7b0a4308b630e1f805"
 SAMPLE_FILE_SIZE = 5533313
+# Independently checked on the fixed 16-bit PPM using integer bin indices.
+SAMPLE_PPM_SHA256 = "d6c0d4098988e60104c90d3b737b5ad0172c941c816ccbde858605f0c1bba176"
+SAMPLE_CHANNEL_SUMS = {"r": 57958062951, "g": 46785065609, "b": 53862449764}
+SAMPLE_CHANNEL_COUNTS = {
+    "r": [2463241, 1289356, 750743, 405109, 342818, 286850, 196790, 122833,
+          85361, 57166, 39223, 22284, 12541, 9952, 10619, 25660],
+    "g": [2889965, 1503300, 692549, 336784, 203968, 122749, 89872, 73899,
+          48685, 33365, 23468, 17790, 11640, 9672, 7414, 55426],
+    "b": [2962316, 1250364, 627418, 381230, 241200, 151582, 112061, 67341,
+          47091, 39915, 36137, 32897, 27551, 23243, 18785, 101415],
+}
 
 
 def test_sample_identity() -> None:
@@ -99,6 +110,10 @@ def test_sample_histogram_reference() -> None:
     assert analysis["height"] == 2014
     assert analysis["pixel_count"] == 3039 * 2014
     assert analysis["threads"] == 1
+    assert analysis["metadata_tool"] == {"name": "exiv2", "version": "0.28.8"}
+    assert analysis["decoder"]["version"] == "0.22.2"
+    assert analysis["numpy_version"] == "2.5.3"
+    assert analysis["ppm_sha256"] == SAMPLE_PPM_SHA256
 
     # Histogram verification
     hist = res["histogram"]
@@ -106,17 +121,21 @@ def test_sample_histogram_reference() -> None:
     assert len(hist["bin_edges"]) == 17
 
     # Measured statistics (compared to reference within tight tolerances)
-    assert pytest.approx(hist["luminance"]["mean"], abs=1e-5) == 0.123835
-    assert pytest.approx(hist["luminance"]["shadow_fraction"], abs=1e-5) == 0.371906
-    assert pytest.approx(hist["saturation"]["mean"], abs=1e-5) == 0.455694
+    assert hist["luminance"]["mean"] == pytest.approx(0.12383494352000035, abs=1e-12, rel=0)
+    assert hist["luminance"]["shadow_fraction"] == pytest.approx(0.37190587244994155, abs=1e-12, rel=0)
+    assert hist["saturation"]["mean"] == pytest.approx(0.45569380057466047, abs=1e-12, rel=0)
 
     r_ch = hist["channels"]["r"]
     g_ch = hist["channels"]["g"]
     b_ch = hist["channels"]["b"]
 
-    assert pytest.approx(r_ch["mean"], abs=1e-5) == 0.144494
-    assert pytest.approx(g_ch["mean"], abs=1e-5) == 0.116639
-    assert pytest.approx(b_ch["mean"], abs=1e-5) == 0.134283
+    for channel in ("r", "g", "b"):
+        # Sum uint16 pixels exactly, then normalize once; avoid accumulating
+        # millions of already-normalized floats in the independent reference.
+        expected_mean = SAMPLE_CHANNEL_SUMS[channel] / (3039 * 2014 * 65535)
+        assert hist["channels"][channel]["mean"] == pytest.approx(
+            expected_mean, abs=1e-12, rel=0
+        )
 
     # Counts sum must equal total pixels exactly
     total_pixels = 3039 * 2014
@@ -124,18 +143,22 @@ def test_sample_histogram_reference() -> None:
     assert sum(g_ch["counts"]) == total_pixels
     assert sum(b_ch["counts"]) == total_pixels
 
-    # Probabilities sum must equal 1.0 (within rounded precision)
-    assert pytest.approx(sum(r_ch["probabilities"]), abs=1e-4) == 1.0
-    assert pytest.approx(sum(g_ch["probabilities"]), abs=1e-4) == 1.0
-    assert pytest.approx(sum(b_ch["probabilities"]), abs=1e-4) == 1.0
+    for channel in ("r", "g", "b"):
+        stats = hist["channels"][channel]
+        expected_counts = SAMPLE_CHANNEL_COUNTS[channel]
+        assert stats["counts"] == expected_counts
+        assert stats["probabilities"] == pytest.approx(
+            [count / total_pixels for count in expected_counts], abs=1e-12, rel=0
+        )
+        assert sum(stats["probabilities"]) == pytest.approx(1, abs=1e-12, rel=0)
 
     # Signals verification
     signals = res["signals"]
     assert signals["rules_version"] == "t18-thresholds-v1"
     assert signals["is_dark"] is True
     assert signals["yellow_tendency"] is False
-    assert pytest.approx(signals["yellow_excess"], abs=1e-5) == -0.009399
-    assert pytest.approx(signals["red_green_imbalance"], abs=1e-5) == 0.070445
+    assert signals["yellow_excess"] == pytest.approx(-0.009399956166449671, abs=1e-12, rel=0)
+    assert signals["red_green_imbalance"] == pytest.approx(0.07044517261035904, abs=1e-12, rel=0)
     assert signals["deferred_reasons"] == []
 
 
@@ -185,23 +208,35 @@ def test_rgb_known_values() -> None:
     assert yellow_signals["yellow_tendency"] is True
 
 
-def test_histogram_bins_and_counts() -> None:
-    """Verify boundary assignment in 16 bins: [0, 1/16, ..., 1]."""
-    bin_edges = [i / 16.0 for i in range(17)]
-    # Create test pixels placed exactly on bin edges and interiors
-    vals = [0.0, 0.0625, 0.125, 0.5, 0.9375, 1.0]
-    arr = np.zeros((len(vals), 1, 3), dtype=np.float64)
-    for i, v in enumerate(vals):
-        arr[i, 0, :] = v
+@pytest.mark.parametrize(
+    ("value", "bin_index"),
+    [(0.0, 0), (1.0, 15)] + [
+        (value, expected)
+        for edge in range(1, 16)
+        for value, expected in (
+            (np.nextafter(edge / 16, 0.0), edge - 1),
+            (edge / 16, edge),
+            (np.nextafter(edge / 16, 1.0), edge),
+        )
+    ],
+)
+def test_histogram_bins_and_counts(value, bin_index) -> None:
+    """Check both sides of every boundary, including the inclusive endpoint 1."""
+    summary = summarize_rgb(np.full((1, 1, 3), value))
+    expected = [0] * 16
+    expected[bin_index] = 1
+    assert summary["bin_edges"] == [i / 16 for i in range(17)]
+    for channel in ("r", "g", "b"):
+        assert summary["channels"][channel]["counts"] == expected
+        assert summary["channels"][channel]["probabilities"] == expected
 
-    summary = summarize_rgb(arr)
-    r_counts = summary["channels"]["r"]["counts"]
-    assert len(r_counts) == 16
-    assert sum(r_counts) == len(vals)
-    # 0.0 should be in bin 0
-    assert r_counts[0] >= 1
-    # 1.0 should be included in the last bin 15
-    assert r_counts[15] >= 1
+
+@pytest.mark.parametrize(("blue", "expected"), [(2085, 1.0), (2086, 0.0), (2087, 0.0)])
+def test_shadow_cutoff_excludes_exact_boundary(blue, expected) -> None:
+    # 2126*4232 + 7152*3113 + 722*2086 == 500*65535: exactly Y=0.05.
+    rgb = np.array([[[4232, 3113, blue]]], dtype=np.float64) / 65535
+    summary = summarize_rgb(rgb)
+    assert summary["luminance"]["shadow_fraction"] == expected
 
 
 def test_signal_thresholds() -> None:

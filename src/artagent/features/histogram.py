@@ -173,6 +173,7 @@ def decode_raw_rgb(
         "width": width,
         "height": height,
         "pixel_count": width * height,
+        "ppm_sha256": hashlib.sha256(proc.stdout).hexdigest(),
         "decoder_options": decoder_opts + ["-Z", "-"],
         "threads": 1,
     }
@@ -200,10 +201,12 @@ def summarize_rgb(rgb: np.ndarray) -> Dict[str, Any]:
     g = rgb[:, :, 1]
     b = rgb[:, :, 2]
 
-    # Linear sRGB relative luminance
-    y = 0.2126 * r + 0.7152 * g + 0.0722 * b
+    # Equivalent sRGB weights; compare before division so an exact Y=0.05
+    # pixel is not moved below the shadow boundary by decimal coefficients.
+    weighted_luminance = 2126 * r + 7152 * g + 722 * b
+    y = weighted_luminance / 10000
     mean_luminance = float(np.mean(y))
-    shadow_fraction = float(np.sum(y < 0.05) / total_pixels)
+    shadow_fraction = float(np.sum(weighted_luminance < 500) / total_pixels)
 
     # HSV saturation (M-m)/M
     max_c = np.maximum(np.maximum(r, g), b)
