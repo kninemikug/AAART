@@ -384,8 +384,14 @@ class RetrievalStore:
         session: EncoderSession,
         *,
         source_key: Optional[SourceKey] = None,
+        source_type: Optional[str] = None,
+        source_group_ids: Optional[Sequence[str]] = None,
     ) -> list[SearchHit]:
-        """T09 검색 계약에 따라 query 임베딩 후 top5 SearchHit 반환."""
+        """T09 검색 계약에 따라 query 임베딩 후 top5 SearchHit 반환.
+
+        출처(source_type) 및 대상 글(source_group_ids) 필터를 선택적으로 지원하며,
+        기존 source_key와의 호환성 및 교집합을 보장한다.
+        """
         with self._lock:
             state = self._get_store_state()
             if state != "ready":
@@ -397,17 +403,49 @@ class RetrievalStore:
             q_vec = embed_query(query, session)
             self._validate_vectors(q_vec.reshape(1, -1), 1)
 
+            # source_key 와 source_type / source_group_ids 정합성 검증 및 교집합 구성
+            resolved_source_type: Optional[str] = None
+            resolved_group_ids: Optional[list[str]] = None
+
+            if source_type is not None:
+                st = source_type.strip().lower()
+                if st not in ("rawpedia", "github"):
+                    raise ValueError(f"지원하지 않는 source_type: {source_type}")
+                resolved_source_type = st
+
+            if source_group_ids is not None:
+                resolved_group_ids = [str(gid).strip() for gid in source_group_ids]
+                # 명시적인 빈 시퀀스인 경우: 정상 빈 결과 반환 (전체 검색으로 확대하지 않음)
+                if len(resolved_group_ids) == 0:
+                    return []
+
+            if source_key is not None:
+                if resolved_source_type is not None and resolved_source_type != source_key.source_type:
+                    raise ValueError(
+                        f"source_key.source_type({source_key.source_type})과 source_type({resolved_source_type})이 충돌합니다."
+                    )
+                if resolved_group_ids is not None and source_key.source_group_id not in resolved_group_ids:
+                    raise ValueError(
+                        f"source_key.source_group_id({source_key.source_group_id})이 source_group_ids({resolved_group_ids})에 포함되지 않아 충돌합니다."
+                    )
+                resolved_source_type = source_key.source_type
+                resolved_group_ids = [source_key.source_group_id]
+
             # where 절 구성
-            if source_key is None:
-                where_clause: dict[str, Any] = {"excluded": False}
+            conditions: list[dict[str, Any]] = [{"excluded": False}]
+            if resolved_source_type is not None:
+                conditions.append({"source_type": resolved_source_type})
+
+            if resolved_group_ids is not None:
+                if len(resolved_group_ids) == 1:
+                    conditions.append({"source_group_id": resolved_group_ids[0]})
+                else:
+                    conditions.append({"source_group_id": {"$in": resolved_group_ids}})
+
+            if len(conditions) == 1:
+                where_clause: dict[str, Any] = conditions[0]
             else:
-                where_clause = {
-                    "$and": [
-                        {"excluded": False},
-                        {"source_type": source_key.source_type},
-                        {"source_group_id": source_key.source_group_id},
-                    ]
-                }
+                where_clause = {"$and": conditions}
 
             # 검색 가능한 ID 수 확인
             searchable = self.collection.get(

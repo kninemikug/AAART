@@ -181,10 +181,22 @@
 ## Task 14: 쿼리 재작성+HyDE (A-14)
 **설명:** T8-1의 고정 질문·원문 문서 ID 표로 질문을 검색에 유리한 형태로 재작성하고 HyDE(가상 답변 문서 생성→검색)를 평가한다. 재작성·검색 모듈은 T13-2의 그래프 연결 전에도 구현·검증하며, T13-2가 완성된 뒤 해당 경로에 연결한다.
 **완료 기준:**
-- [ ] 재작성 on/off A/B에서 T8-1 기준 Hit@k·MRR@k 저하 없음(개선 목표)
-- [ ] 유닛테스트로 재작성·HyDE 각각 검증
+- [x] 재작성 on/off A/B에서 T8-1 기준 Hit@k·MRR@k 저하 없음(개선 목표)
+- [x] 유닛테스트로 재작성·HyDE 각각 검증
 **검증:** pytest + A/B 기록
 **의존:** T8-1, T9 (구현·평가), T13-2 (그래프 연결) · **담당:** 김대성 · **예상 파일:** `src/artagent/graph/rewrite.py`
+**규모:** S
+
+## Task 14-CONN: 쿼리 재작성 모듈의 T13-2 최초 검색 연결 (A-14 연결분)
+**설명:** T14 단독 모듈(`rewrite.py`)과 T9 검색을 T13-2 그래프의 `SEARCH_RAWPEDIA`·`SEARCH_GITHUB` 노드 경계에 연결한다. 출처·지정 글 필터, 원문 세그먼트 매핑, 재작성 on/off 제어를 구현하고 라우터 20개 경로·Slice 1 15개 검색 계층·전체 100개 A/B에서 비저하를 검증한다. [실행 플랜](../docs/T14_conn_execution_plan.md)을 따른다.
+**완료 기준:**
+- [x] T9 검색에 출처·지정 글 필터 계약이 추가되고 회귀 테스트가 통과함
+- [x] 두 검색 노드가 T14 입력 준비→T9 검색→실제 세그먼트 Evidence 변환을 수행하고 경로·상태를 보존함
+- [x] 20개 경로 100% 유지, Slice 1 15개 검색 결과 일치, 전체 100개 그래프 A/B에서 Hit@5·MRR@5 비저하
+**검증:** pytest(`test_graph_search_connection.py`, `test_retrieval.py` 등) + 20개 경로/Slice 1/100개 A/B 실행 기록
+**의존:** T13-2, T14, T9, T11 기록. T17은 답변 E2E 인수 단계, T16은 이후 폴백 연결 단계이며 이번 검색 연결의 착수 선행조건은 아님.
+**담당:** 김대성(연결·평가) 제안; 고태우(T13-2 계약), 김구(T9 검색·T17 답변 계약) 검토.
+**예상 파일:** `src/artagent/graph/search.py`, `src/artagent/retrieval/store.py`, `tests/test_graph_search_connection.py`, `tests/test_retrieval.py`, `scripts/check_t14_graph_connection.py`, `data/eval/t14-conn/`
 **규모:** S
 
 ## Task 15: 리랭킹+top-k 튜닝 (A-15)
