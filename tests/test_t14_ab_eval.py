@@ -334,6 +334,18 @@ def test_report_does_not_invent_generation_latency(records: list[dict[str, Any]]
     assert "200–500" not in report
 
 
+def test_report_distinguishes_replay_from_measured_generation(records: list[dict[str, Any]]) -> None:
+    manifest = report_manifest(passed=True, provenance="verified")
+    manifest["execution_mode"] = "replay"
+    manifest["generation_contract"].update(source_call_count=3, source_elapsed_ms=300.0)
+    for record in records:
+        record["generation_call_count"] = 0
+    report = evaluator.render_report(manifest, records)
+    assert "재생 중 생성 호출: 0회" in report
+    assert "최초 생성 호출: 3회" in report
+    assert "평균 100.00ms" in report
+
+
 @pytest.mark.parametrize("create_directory", [False, True])
 def test_replay_rejects_missing_or_empty_store_before_opening(
     generated_cache: tuple[dict[str, Any], list[dict[str, Any]]],
@@ -697,6 +709,7 @@ def provenance_bundle(tmp_path: Path) -> tuple[dict[str, Any], list[dict[str, An
             "status": "verified", "cache_sha256": hashlib.sha256(cache_path.read_bytes()).hexdigest(),
             "runtime": cache["runtime"], "rewrite_prompt_version": cache["rewrite_prompt_version"],
             "hyde_prompt_version": cache["hyde_prompt_version"],
+            **evaluator._generation_totals(cache),
         },
         "retrieval_contract": {
             "k0": 5, "reference_path": str(evaluator.REFERENCE_PATH.relative_to(evaluator.ROOT)),
@@ -722,6 +735,8 @@ def test_bundle_accepts_real_source_provenance_and_matching_model_contract(
     ("retrieval_contract", "model_revision", "different-revision"),
     ("retrieval_contract", "collection_name", "different-collection"),
     ("generation_contract", "hyde_prompt_version", "different-prompt-version"),
+    ("generation_contract", "source_call_count", 1000),
+    ("generation_contract", "source_elapsed_ms", -1.0),
 ])
 def test_bundle_rejects_model_or_prompt_contract_disagreement(
     provenance_bundle: tuple[dict[str, Any], list[dict[str, Any]], Path, Path],

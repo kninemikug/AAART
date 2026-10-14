@@ -251,7 +251,9 @@ PYTHONPATH=src venv/bin/python scripts/run_t14_ab_eval.py validate --manifest da
 
 재생 중 생성 호출은 0회이며 최초 생성 호출·시간은 별도 필드로 기록한다. 원질문·생성 캐시·검색 스냅샷을 실행 전후에 대조하고, 검색 장애나 입력 변경이 있으면 완료 기록을 작성하지 않는다. 정상 검색 결과에는 본문·본문 해시·전체 `source_segments`·원본 메타데이터를 보존하여 원문 위치와 점수를 독립 재검증할 수 있다. 그래프 연결은 §8의 후속 단계로 유지한다.
 
-보완 검증에서는 T14·질문셋 테스트 134개와 전체 파이프라인 테스트 545개가 통과했다. 전체 검증은 다음 명령으로 실행했다. 새 실제 생성 기반 A/B는 아직 수행하지 않았으며 기존 실행의 채택 보류 상태를 유지한다.
+2026-10-14에는 실제 생성 297회와 고정 질문 100개·네 조건의 새 A/B 기록을 확보했다. 재작성 B는 전체·출처별 비저하 기준을 통과했다. HyDE 단독 C는 GitHub Hit@5 저하로 실패했으며, 결합 D는 검색 지표 통과와 별개로 가상 문서의 의미 위험 때문에 채택을 보류한다. 인계할 기본 설정은 재작성 on·HyDE off다. 지표·실패·회귀·생성 부담·원문 검증 기록은 [실측 평가 보고서](T14_live_evaluation.md)에 기록했다. 기존 출처 미검증 실행은 보류 상태로 유지한다.
+
+T14·질문셋 관련 테스트 144개와 전체 파이프라인 테스트 555개가 통과했다. 전체 검증은 다음 명령으로 실행했다. T13-2 연결은 §8의 별도 후속 단계다.
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 venv/bin/python -m pytest -q -p no:cacheprovider tests --tb=short

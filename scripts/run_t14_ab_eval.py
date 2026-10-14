@@ -224,15 +224,33 @@ def render_report(manifest: dict[str, Any], records: list[dict[str, Any]]) -> st
     for condition, values in manifest["metrics_summary"].get("rep_15", {}).items():
         lines.append(f"- {condition}: 양성 {values['positive_count']}개, "
                      f"Hit {values['total_hit']:.6f}, MRR {values['total_mrr']:.6f}")
-    generation_times = [r["generation_elapsed_ms"] for r in records
-                        if "generation_elapsed_ms" in r]
-    lines += ["", (f"기록된 생성 시간 평균: {sum(generation_times) / len(generation_times):.2f}ms"
-                   if generation_times else "생성 시간: 측정 기록 없음.")]
+    if manifest.get("execution_mode") == "replay":
+        replay_calls = sum(r.get("generation_call_count", 0) for r in records)
+        source_calls = contract.get("source_call_count", 0)
+        source_elapsed = contract.get("source_elapsed_ms")
+        lines += ["", f"- 재생 중 생성 호출: {replay_calls}회"]
+        if source_calls and source_elapsed is not None:
+            lines.append(f"- 최초 생성 호출: {source_calls}회, "
+                         f"합산 {source_elapsed:.2f}ms, 평균 {source_elapsed / source_calls:.2f}ms")
+        else:
+            lines.append("- 최초 생성 시간: 측정 기록 없음.")
+    else:
+        generation_times = [r["generation_elapsed_ms"] for r in records
+                            if "generation_elapsed_ms" in r]
+        lines += ["", (f"기록된 생성 시간 평균: {sum(generation_times) / len(generation_times):.2f}ms"
+                       if generation_times else "생성 시간: 측정 기록 없음.")]
     return "\n".join(lines) + "\n"
 
 
 def _fingerprint(value: Any) -> str:
     return hashlib.sha256(canonical_json_bytes(value)).hexdigest()
+
+
+def _generation_totals(cache: dict[str, Any]) -> dict[str, int | float]:
+    """조건 간 공유되는 재작성 호출은 캐시의 실제 단계에서 한 번만 센다."""
+    stages = [stage for entry in cache["entries"].values() for stage in entry.values()]
+    return {"source_call_count": sum(stage["generation_call_count"] for stage in stages),
+            "source_elapsed_ms": sum(stage["elapsed_ms"] for stage in stages)}
 
 
 def _runtime_identity(metadata: dict[str, Any]) -> dict[str, Any]:
@@ -443,6 +461,9 @@ def validate_bundle(
     query_set = json.loads(query_set_path.read_text(encoding="utf-8"))
     cache = json.loads(cache_path.read_text(encoding="utf-8"))
     validate_generation_cache(cache, query_set)
+    for key, value in _generation_totals(cache).items():
+        if contract.get(key) != value:
+            raise ValueError("매니페스트와 실제 생성 호출 수·측정 시간 불일치")
     if contract.get("runtime") != cache["runtime"]:
         raise ValueError("매니페스트와 실제 생성 모델·설정 불일치")
     for key in ("rewrite_prompt_version", "hyde_prompt_version"):
@@ -587,7 +608,8 @@ def run_eval(cache_path: Path, output_dir: Path, query_set_path: Path = QUERY_SE
                                "snapshot_after_sha256": after, "active_chunks": active_chunks},
         "generation_contract": {"status": "verified", "cache_sha256": cache_hash,
                                 "runtime": cache["runtime"], "rewrite_prompt_version": REWRITE_PROMPT_VERSION,
-                                "hyde_prompt_version": HYDE_PROMPT_VERSION},
+                                "hyde_prompt_version": HYDE_PROMPT_VERSION,
+                                **_generation_totals(cache)},
         "metrics_summary": {"all_100": metrics, "rep_15": representatives},
         "verification_result": adoption_decisions(metrics),
     }

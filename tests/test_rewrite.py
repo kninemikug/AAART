@@ -232,6 +232,8 @@ def test_rewrite_unit_prefixed_list_is_rejected() -> None:
         ("ART-cli -Y -a", "ART-cli -y -a"),
         ("Issue #524", "Issue #5240"),
         ("ART 1.26.8", "ART 1.26.80"),
+        ("ISO 6400", "ISO 6400extra"),
+        ("ART 1.0", "ART 1.0stable"),
         ("Blur Radius 32 and 0", "Blur Radius 32"),
         ("Fedora Flatpak issue", "Flatpak issue"),
     ],
@@ -267,6 +269,31 @@ def test_rewrite_unit_url_suffix_change_is_rejected() -> None:
         generate=lambda prompt: "See https://example.com/issue?other=1",
     )
     assert result.status == "error"
+
+
+@pytest.mark.parametrize(
+    ("original", "rewritten"),
+    [
+        ("슬라이더가 1.0보다 작을 때", "slider below 1.0"),
+        ("GitHub Issue #524에서", "GitHub Issue #524에서 설명한 조건"),
+        ("ISO 6400처럼", "ISO 6400처럼 노이즈가 많은 조건"),
+    ],
+)
+def test_rewrite_unit_korean_particle_and_decimal_preservation(original: str, rewritten: str) -> None:
+    assert validate_identifier_preservation(original, rewritten) == (True, [])
+
+
+def test_rewrite_unit_identical_fixed_questions_preserve_identifiers() -> None:
+    root = Path(__file__).resolve().parents[1]
+    questions = json.loads((root / "docs/search_eval_queries.json").read_text(encoding="utf-8"))["queries"]
+    for question in questions:
+        assert validate_identifier_preservation(question["query"], question["query"])[0], question["query_id"]
+
+
+def test_hyde_unit_prompt_requires_english_with_bounded_length() -> None:
+    prompt = build_hyde_prompt("사진 처리 질문")
+    assert "English" in prompt
+    assert "50-100 words" in prompt
 
 
 # ============================================================================

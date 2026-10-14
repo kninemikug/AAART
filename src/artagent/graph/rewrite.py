@@ -16,7 +16,7 @@ from typing import Any, Callable, Optional, Sequence
 
 # 프롬프트 버전
 REWRITE_PROMPT_VERSION = "rewrite_v2"
-HYDE_PROMPT_VERSION = "hyde_v2"
+HYDE_PROMPT_VERSION = "hyde_v3"
 
 # 오류 분류 코드 (플랜 §3.1, §4.2, §6.2)
 ERROR_EMPTY_INPUT = "EMPTY_INPUT"
@@ -96,10 +96,10 @@ def normalize_query(query: str) -> str:
 _RE_ISSUE_NUM = re.compile(r"#\d+")
 _RE_URL = re.compile(r"https?://[^\s()<>]+", re.IGNORECASE)
 _RE_CLI_FLAG = re.compile(r"(?:^|[\s,;()\"'])(--[a-zA-Z0-9_-]+|-[a-zA-Z0-9])(?=[\s,;()\"']|$)", re.IGNORECASE)
-_RE_VERSION = re.compile(r"\bv?\d+\.\d+(?:\.\d+)?(?:-[a-zA-Z0-9]+)?\b", re.IGNORECASE)
+_RE_VERSION = re.compile(r"(?<![A-Za-z0-9_.])v?\d+\.\d+(?:\.\d+)*(?:-[a-zA-Z0-9]+)?(?![A-Za-z0-9_]|\.\d)", re.IGNORECASE)
 _RE_EXTENSIONS = re.compile(r"(?:^|[\s,;()\"'])(\.[a-zA-Z0-9]{2,4})(?=[\s,;()\"']|$)", re.IGNORECASE)
-_RE_NUMBER = re.compile(r"(?<![\w#])-?\d+(?:\.\d+)*(?:%)?(?!\w)")
-_RE_PLATFORM = re.compile(r"\b(?:Linux|Windows|macOS|Fedora|Ubuntu|Flatpak|AppImage|RawTherapee)\b")
+_RE_NUMBER = re.compile(r"(?<![A-Za-z0-9_#.\-])-?\d+(?:\.\d+)*(?:%)?(?![A-Za-z0-9_]|\.\d)")
+_RE_PLATFORM = re.compile(r"\b(?:Linux|Windows|macOS|Fedora|Ubuntu|Flatpak|AppImage|RawTherapee)\b", re.ASCII)
 
 
 def extract_critical_identifiers(text: str) -> list[str]:
@@ -131,8 +131,11 @@ def validate_identifier_preservation(original: str, rewritten: str) -> tuple[boo
         if ident.startswith(("http://", "https://")):
             preserved = ident in rewritten_urls
         else:
+            left = r"(?<![#0-9])" if ident.startswith("#") else r"(?<![A-Za-z0-9_#.-])"
+            right = (r"(?![A-Za-z0-9_%-]|\.[0-9])" if re.fullmatch(r"-?\d+(?:\.\d+)*(?:%)?", ident)
+                     else r"(?![A-Za-z0-9_-]|\.[A-Za-z0-9_])")
             preserved = bool(re.search(
-                rf"(?<![\w#.-]){re.escape(ident)}(?![\w-]|\.[A-Za-z0-9_])", rewritten
+                rf"{left}{re.escape(ident)}{right}", rewritten
             ))
         if not preserved:
             missing.append(ident)
@@ -171,7 +174,7 @@ def build_hyde_prompt(query: str, constraints: tuple[str, ...] = ()) -> str:
 
     return (
         "You are a technical documentation specialist for ART (Another RawTherapee), an open-source RAW image editor.\n"
-        "Write a short hypothetical documentation passage (1-3 paragraphs, 50-150 words) that would directly answer the following user query in ART documentation or technical issue discussions.\n\n"
+        "Write a short hypothetical documentation passage in English (1-2 paragraphs, 50-100 words) that would directly answer the following user query in ART documentation or technical issue discussions. The retrieval corpus is English. Output English even when the input query is Korean.\n\n"
         "Strict Rules:\n"
         "1. Focus directly on the query topic and constraints. Express uncertain features as possibilities rather than confirmed facts.\n"
         "2. Do NOT hallucinate or invent fake version numbers, CLI options, issue numbers, URLs, or citations not in the query.\n"
