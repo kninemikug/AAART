@@ -51,7 +51,6 @@ FIXTURE_CORPUS = FIXTURE_DIR / "corpus"
 FIXTURE_CURATION = FIXTURE_DIR / "curation-decisions.json"
 REFERENCE_PATH = ROOT / "docs" / "T08_2_t9_handoff_reference.json"
 DATA_ISSUES = ROOT / "data" / "issues"
-REAL_STORE_DIR = ROOT / "data" / "vector-store" / "t09"
 
 
 @pytest.fixture(scope="session")
@@ -73,10 +72,10 @@ def tokenizer_bundle(ref_tokenizer: AutoTokenizer) -> TokenizerBundle:
 
 
 @pytest.fixture
-def t09_store_dir(tmp_path: Path) -> Path:
-    """T09 초기 저장소(RawPedia 141개 + GitHub 13개 = 154개)를 tmp_path에 복사한 격리 환경 제공."""
+def t09_store_dir(tmp_path: Path, t09_seed_store: Path) -> Path:
+    """세션에서 생성·검증하고 닫은 초기 저장소의 독립 복사본을 제공한다."""
     store_dir = tmp_path / "t09_store"
-    shutil.copytree(REAL_STORE_DIR, store_dir)
+    shutil.copytree(t09_seed_store, store_dir)
     return store_dir
 
 
@@ -151,6 +150,38 @@ def forbid_chroma_writes(monkeypatch: pytest.MonkeyPatch, store: RetrievalStore)
 # ---------------------------------------------------------------------------
 # 1. 선정 청킹 규칙 및 기준선 재현 테스트
 # ---------------------------------------------------------------------------
+
+
+def test_t09_fixture_initial_state(t09_store_dir: Path, tmp_path: Path, spec: RetrievalSpec):
+    """실물 작업 저장소 없이 테스트 임시 경로에 검증된 초기 상태를 준비한다."""
+    assert t09_store_dir.parent == tmp_path
+    store = open_store(t09_store_dir, spec)
+    metadata = store._current_collection().metadata
+    assert metadata["store_state"] == "ready"
+    assert metadata["reference_sha256"] == spec.reference_sha256
+    assert metadata["protocol_sha256"] == spec.protocol_sha256
+    for source, expected in (("rawpedia", 141), ("github", 13)):
+        ids = store.collection.get(
+            where={"$and": [{"source_type": source}, {"excluded": False}]}, include=[]
+        )["ids"]
+        assert len(ids) == expected
+
+
+def test_t09_fixture_copy_preserves_seed(t09_store_dir: Path, t09_seed_store: Path, spec: RetrievalSpec):
+    """복사본 변경이 세션 기준 저장소의 파일 바이트에 영향을 주지 않는다."""
+    def seed_hashes():
+        return {
+            str(path.relative_to(t09_seed_store)): compute_file_sha256(path.read_bytes())
+            for path in t09_seed_store.rglob("*") if path.is_file()
+        }
+
+    before = seed_hashes()
+    store = open_store(t09_store_dir, spec)
+    github = store.collection.get(where={"source_type": "github"}, include=["metadatas"])
+    key = SourceKey("github", github["metadatas"][0]["source_group_id"])
+    report = store.exclude_source(key)
+    assert report.total_active < spec.total_expected_count
+    assert seed_hashes() == before
 
 
 def test_baseline_github_13_chunks_byte_parity(
