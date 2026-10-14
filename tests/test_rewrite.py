@@ -629,4 +629,3 @@ def test_ab_records_legacy_archive_is_unverified() -> None:
 
     for relative_path, expected_sha in manifest["legacy_artifacts_sha256"].items():
         assert compute_file_sha256(root / relative_path) == expected_sha
-
