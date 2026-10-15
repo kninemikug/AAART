@@ -1,0 +1,289 @@
+{
+  "t17_t11_replay_Q001_1792051848": {
+    "run_id": "t17_t11_replay_Q001_1792051848",
+    "query_id": "Q001",
+    "track": "t11_replay",
+    "record_hash": "1f1da77236c3c7648dc9e076b3f677486dfc2895e93e1daf6ae625f1d3e611e3",
+    "status": "verified",
+    "reviewed_claims": [
+      "Auto Levels가 히스토그램을 분석해 Exposure 섹션 설정(노출보정, 하이라이트압축/복원, 블랙, 명도, 대비)을 조정함을 설명",
+      "RawTherapee 참고 범위 유지 (ART로 임의 확정 안함)"
+    ],
+    "citations": [
+      "https://rawpedia.rawtherapee.com/exposure/"
+    ],
+    "reason": "RawPedia Exposure 원문(Auto Levels 섹션)과 일치하며, 히스토그램 분석 및 6개 조절 항목 사실을 정확히 뒷받침하고 인용 1개 매핑 확인됨."
+  },
+  "t17_t14_a_Q001_1792051954": {
+    "run_id": "t17_t14_a_Q001_1792051954",
+    "query_id": "Q001",
+    "track": "t14_a",
+    "record_hash": "7ae44e4bd121f05bdac66ad923d71f74951dd76902c689bac22c823b871ab959",
+    "status": "verified",
+    "reviewed_claims": [
+      "Auto Levels의 히스토그램 분석 및 Exposure 조정 설명 유지",
+      "RawTherapee 참고 범위 유지"
+    ],
+    "citations": [
+      "https://rawpedia.rawtherapee.com/exposure/"
+    ],
+    "reason": "T14 A 검색 근거 원문과 정확히 부합하며 제품 범위를 RawTherapee로 유지하고 필수 인용 매핑 확인됨."
+  },
+  "t17_t14_b_Q001_1792052058": {
+    "run_id": "t17_t14_b_Q001_1792052058",
+    "query_id": "Q001",
+    "track": "t14_b",
+    "record_hash": "587d6004d621ba2a4246acafc9af568d14bbde4bb634ba82cde4bc185f6cc4ad",
+    "status": "verified",
+    "reviewed_claims": [
+      "Auto Levels의 히스토그램 분석 및 Exposure 조정 설명 유지",
+      "RawTherapee 참고 범위 유지"
+    ],
+    "citations": [
+      "https://rawpedia.rawtherapee.com/exposure/"
+    ],
+    "reason": "T14 B 검색 근거 원문과 정확히 부합하며 제품 범위를 RawTherapee로 유지하고 필수 인용 매핑 확인됨."
+  },
+  "t17_t11_replay_Q086_1792051929": {
+    "run_id": "t17_t11_replay_Q086_1792051929",
+    "query_id": "Q086",
+    "track": "t11_replay",
+    "record_hash": "9375265945af706f6f70f65cf6663eed3511448058ac8e96314241dde877d703",
+    "status": "verified",
+    "reviewed_claims": [
+      "GitHub Discussion #442 근거가 없는 기존 문맥에서 INSUFFICIENT_EVIDENCE 반환",
+      "이름 입력 UI 등 가짜 절차를 날조하지 않음"
+    ],
+    "citations": [
+      "https://rawpedia.rawtherapee.com/local_adjustments/"
+    ],
+    "reason": "T11 문맥에는 #442 논의가 없으므로 근거 부족 취지 안내를 충족하며, 존재하지 않는 이름 입력 절차를 생성하지 않고 안전하게 종료됨."
+  },
+  "t17_t14_a_Q086_1792052033": {
+    "run_id": "t17_t14_a_Q086_1792052033",
+    "query_id": "Q086",
+    "track": "t14_a",
+    "record_hash": "875e16a894c4a706cf9cb92e9f048bf6a66c6ea1c6c9ce73cfecfbf9ccc63268",
+    "status": "verified",
+    "reviewed_claims": [
+      "원래 마스크 정의 도구에서 이름 지정 시 후속 도구에서 Linked mask로 표시됨을 설명",
+      "후속 도구의 위->아래 파이프라인 처리 순서 조건 설명",
+      "구체적인 이름 입력 UI 절차는 문서에 없음을 명시"
+    ],
+    "citations": [
+      "https://github.com/artraweditor/ART/discussions/442#discussioncomment-15597989",
+      "https://github.com/artraweditor/ART/discussions/442#discussioncomment-15603701"
+    ],
+    "reason": "GitHub Discussion #442 본문 및 #discussioncomment-15597989, #discussioncomment-15603701 원문과 정확히 대조됨. 가짜 UI 절차 없이 파이프라인 순서 제약을 사실대로 설명함."
+  },
+  "t17_t14_b_Q086_1792052152": {
+    "run_id": "t17_t14_b_Q086_1792052152",
+    "query_id": "Q086",
+    "track": "t14_b",
+    "record_hash": "dd2542a57e71a31d3e34d8093398e45f1d4732533a737f5cb98bcac02eeedb20",
+    "status": "verified",
+    "reviewed_claims": [
+      "원래 마스크 정의 도구에서 이름 지정 시 후속 도구에서 Linked mask로 표시됨을 설명",
+      "화면 위->아래 방향 파이프라인 순서 제약 설명",
+      "구체적인 이름 입력 UI 절차는 문서에 없음을 명시"
+    ],
+    "citations": [
+      "https://github.com/artraweditor/ART/discussions/442#discussioncomment-15597989",
+      "https://github.com/artraweditor/ART/discussions/442#discussioncomment-15603701"
+    ],
+    "reason": "GitHub Discussion #442 댓글(#discussioncomment-15597989)에 정확히 매핑되며, Linked mask 조건과 화면 위아래 처리 순서를 충실히 전달함."
+  },
+  "t17_t11_replay_Q096_1792051948": {
+    "run_id": "t17_t11_replay_Q096_1792051948",
+    "query_id": "Q096",
+    "track": "t11_replay",
+    "record_hash": "d628d2dbeb68edb1c82e02fb41124e3a3940d3ac7ad43f57e86c6232d59fe205",
+    "status": "verified",
+    "reviewed_claims": [
+      "Issue #500 스냅샷 기준 JXL 품질 설정 옵션 부재 및 visually lossless 고정 설명",
+      "JXL 품질 50 설정 및 전용 슬라이더 활성화 요구를 직접 반증(UNSUPPORTED)"
+    ],
+    "citations": [
+      "https://github.com/artraweditor/ART/issues/500",
+      "https://github.com/artraweditor/ART/issues/500#issuecomment-4711197631"
+    ],
+    "reason": "GitHub Issue #500 본문 및 #issuecomment-4711197631 원문과 일치하며, 거짓 슬라이더나 50 설정 절차를 생성하지 않고 정확한 반증 근거를 인용함."
+  },
+  "t17_t14_a_Q096_1792052052": {
+    "run_id": "t17_t14_a_Q096_1792052052",
+    "query_id": "Q096",
+    "track": "t14_a",
+    "record_hash": "0bdc508aa72537f07654141d6adb7b3a37331fa76c944b2ecb9fec383a1b2393",
+    "status": "verified",
+    "reviewed_claims": [
+      "Issue #500 스냅샷 기준 JXL 내보내기 품질 옵션 부재 및 visually lossless 고정 설명",
+      "품질 50 설정 및 전용 슬라이더 절차 직접 반증(UNSUPPORTED)"
+    ],
+    "citations": [
+      "https://github.com/artraweditor/ART/issues/500#issuecomment-4711197631"
+    ],
+    "reason": "T14 A 문맥에서 #issuecomment-4711197631을 정확히 인용하여 JXL 품질 슬라이더 부재를 직접 반증함."
+  },
+  "t17_t14_b_Q096_1792052172": {
+    "run_id": "t17_t14_b_Q096_1792052172",
+    "query_id": "Q096",
+    "track": "t14_b",
+    "record_hash": "3c23e0e3af50489beed00e6b6b119be4029685149ddc677e4c30767c5961fd48",
+    "status": "verified",
+    "reviewed_claims": [
+      "Issue #500 스냅샷 기준 JXL 내보내기 품질 옵션 부재 및 visually lossless 고정 설명",
+      "품질 50 설정 및 전용 슬라이더 절차 직접 반증(UNSUPPORTED)"
+    ],
+    "citations": [
+      "https://github.com/artraweditor/ART/issues/500#issuecomment-4711197631"
+    ],
+    "reason": "T14 B 문맥에서 #issuecomment-4711197631을 정확히 인용하여 JXL 품질 슬라이더 부재를 직접 반증함."
+  },
+  "t17_t14_a_Q004_1792051961": {
+    "run_id": "t17_t14_a_Q004_1792051961",
+    "query_id": "Q004",
+    "track": "t14_a",
+    "record_hash": "ad95df91f552422f12616d6738e7ccece694f52b6d6dd5777bc63de23d436202",
+    "status": "verified",
+    "reviewed_claims": [
+      "Dynamic Range Compression 도구의 Amount(압축 강도) 및 Detail(로컬 대비 보존) 역할 설명",
+      "RawTherapee 제품 범위 유지"
+    ],
+    "citations": [
+      "https://rawpedia.rawtherapee.com/dynamic_range_compression/"
+    ],
+    "reason": "RawPedia Dynamic Range Compression 원문과 일치하며 Amount와 Detail의 기능적 차이를 정확히 서술함."
+  },
+  "t17_t14_b_Q004_1792052067": {
+    "run_id": "t17_t14_b_Q004_1792052067",
+    "query_id": "Q004",
+    "track": "t14_b",
+    "record_hash": "2f90d05bf03ab20a80dea4c5c6912f86b0ca2138a9bf9628329585d182052189",
+    "status": "verified",
+    "reviewed_claims": [
+      "Dynamic Range Compression 도구의 Amount(압축 강도) 및 Detail(로컬 대비 보존) 역할 설명",
+      "RawTherapee 제품 범위 유지"
+    ],
+    "citations": [
+      "https://rawpedia.rawtherapee.com/dynamic_range_compression/"
+    ],
+    "reason": "RawPedia Dynamic Range Compression 원문과 일치하며 세부 로컬 대비 보존 역할을 충실히 서술함."
+  },
+  "t17_t14_a_Q014_1792051967": {
+    "run_id": "t17_t14_a_Q014_1792051967",
+    "query_id": "Q014",
+    "track": "t14_a",
+    "record_hash": "882b52ab2d8f59c081a73c5915dfca4102016560e3e45376a069f1aba54b1ee4",
+    "status": "verified",
+    "reviewed_claims": [
+      "Haze Removal의 Depth Map(깊이 맵) 표시 기능 설명",
+      "색상이 밝을수록 안개 제거 효과가 더 강하게 적용됨을 설명"
+    ],
+    "citations": [
+      "https://rawpedia.rawtherapee.com/haze_removal/"
+    ],
+    "reason": "RawPedia Haze Removal 원문의 Depth Map 설명과 완벽히 부합하며 시각적 확인 방법을 정확히 설명함."
+  },
+  "t17_t14_b_Q014_1792052071": {
+    "run_id": "t17_t14_b_Q014_1792052071",
+    "query_id": "Q014",
+    "track": "t14_b",
+    "record_hash": "c4820365082c0c0c91cd5e9366d4aa3cdd84c86482cc88395b857d5a53f42e93",
+    "status": "verified",
+    "reviewed_claims": [
+      "Haze Removal의 Depth Map(깊이 맵) 표시 기능 설명",
+      "색상이 밝을수록 안개 제거 효과가 더 강하게 적용됨을 설명"
+    ],
+    "citations": [
+      "https://rawpedia.rawtherapee.com/haze_removal/"
+    ],
+    "reason": "RawPedia Haze Removal 원문의 Depth Map 설명과 완벽히 부합하며 시각적 확인 방법을 정확히 설명함."
+  },
+  "t17_t14_a_Q054_1792051994": {
+    "run_id": "t17_t14_a_Q054_1792051994",
+    "query_id": "Q054",
+    "track": "t14_a",
+    "record_hash": "c553eddafc28b52adc191aef83058bc7fd0a212f02ba7653275dd8c2d04bce03",
+    "status": "verified",
+    "reviewed_claims": [
+      "Contrast by Detail Levels 도구에서 1.0 미만은 로컬 대비 감소, 1.0 초과는 로컬 대비 증가 설명"
+    ],
+    "citations": [
+      "https://rawpedia.rawtherapee.com/contrast_by_detail_levels/"
+    ],
+    "reason": "RawPedia Contrast by Detail Levels 원문과 일치하며 슬라이더 1.0 기준 로컬 대비 증감 사실을 정확히 기술함."
+  },
+  "t17_t14_b_Q054_1792052109": {
+    "run_id": "t17_t14_b_Q054_1792052109",
+    "query_id": "Q054",
+    "track": "t14_b",
+    "record_hash": "38cd8a9834ebab7f6503a5e7fad2d4881806d1044b97a430e8e3af41eef61be4",
+    "status": "verified",
+    "reviewed_claims": [
+      "Contrast by Detail Levels 도구에서 1.0 미만은 로컬 대비 감소, 1.0 초과는 로컬 대비 증가 설명"
+    ],
+    "citations": [
+      "https://rawpedia.rawtherapee.com/contrast_by_detail_levels/"
+    ],
+    "reason": "RawPedia Contrast by Detail Levels 원문과 일치하며 슬라이더 1.0 기준 로컬 대비 증감 사실을 정확히 기술함."
+  },
+  "t17_t14_a_Q063_1792052001": {
+    "run_id": "t17_t14_a_Q063_1792052001",
+    "query_id": "Q063",
+    "track": "t14_a",
+    "record_hash": "8949e83a7e3659cac85abc2cebe8efd6a1f76773cb5a0a4aaa54a81a11d9136f",
+    "status": "verified",
+    "reviewed_claims": [
+      "Spot Removal 도구에서 가리려는 위치 Ctrl-클릭 후 대체 소스 위치 드래그 지정 절차 설명"
+    ],
+    "citations": [
+      "https://rawpedia.rawtherapee.com/spot_removal/"
+    ],
+    "reason": "RawPedia Spot Removal 원문과 일치하며 대상과 소스 지정 단축키/조작법을 정확히 설명함."
+  },
+  "t17_t14_b_Q063_1792052116": {
+    "run_id": "t17_t14_b_Q063_1792052116",
+    "query_id": "Q063",
+    "track": "t14_b",
+    "record_hash": "200d093038dc9a1c850f775570d0fb3eab1e7ddd50979efc687483259f7de854",
+    "status": "verified",
+    "reviewed_claims": [
+      "Spot Removal 도구에서 가리려는 위치 Ctrl-클릭 후 대체 소스 위치 드래그 지정 절차 설명"
+    ],
+    "citations": [
+      "https://rawpedia.rawtherapee.com/spot_removal/"
+    ],
+    "reason": "RawPedia Spot Removal 원문과 일치하며 대상과 소스 지정 단축키/조작법을 정확히 설명함."
+  },
+  "t17_t14_b_reg_Q010_Q010_1792052178": {
+    "run_id": "t17_t14_b_reg_Q010_Q010_1792052178",
+    "query_id": "Q010",
+    "track": "t14_b_reg_Q010",
+    "record_hash": "556359392777de0c5586177a8092bf8611f003e5bea5978ff2f69d58703f255e",
+    "status": "verified",
+    "reviewed_claims": [
+      "Local Contrast 도구의 Darkness Level과 Lightness Level 역할 설명",
+      "RawTherapee 제품 범위 보존 (ART로 임의 확정 안함)"
+    ],
+    "citations": [
+      "https://rawpedia.rawtherapee.com/local_contrast/"
+    ],
+    "reason": "RawPedia Local Contrast 원문과 일치하며 제품 범위를 RawTherapee로 유지함 (applicability 위반 없음)."
+  },
+  "t17_t14_b_reg_Q077_Q077_1792052195": {
+    "run_id": "t17_t14_b_reg_Q077_Q077_1792052195",
+    "query_id": "Q077",
+    "track": "t14_b_reg_Q077",
+    "record_hash": "ef541cfc7eb0421aa92174167c9805e8ede87607cb9b1129781d6f68418849fd",
+    "status": "verified",
+    "reviewed_claims": [
+      "Creating processing profiles for general use 원문 기반 부분 프로필 생성 절차 및 주의점 설명",
+      "RawTherapee 제품 범위 보존 (ART로 임의 확정 안함)"
+    ],
+    "citations": [
+      "https://rawpedia.rawtherapee.com/creating_processing_profiles_for_general_use/",
+      "https://rawpedia.rawtherapee.com/sidecar_files_-_processing_profiles/"
+    ],
+    "reason": "RawPedia 범용 프로필 생성 원문과 일치하며 불필요한 설정(WB, 크롭 등) 배제 이유를 충실히 설명하고 제품 범위를 RawTherapee로 유지함."
+  }
+}

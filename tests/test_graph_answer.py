@@ -21,6 +21,7 @@ from artagent.graph import (
     Citation,
     ErrorInfo,
     Evidence,
+    IntentSignals,
     Path as AgentPath,
     PlanStep,
     RequestContext,
@@ -701,3 +702,220 @@ def test_router_graph_transitions_with_answer_node(tmp_path: Path) -> None:
     assert "ADVANCE" in res_state["trace"]
     assert res_state["answer"].status == "SUPPORTED"
     assert res_state.get("error") is None
+
+
+# =========================================================================
+# 7. F02 Exact UTF-8 Byte Offset Verification Tests
+# =========================================================================
+
+def test_repetitive_text_mismatched_byte_offsets_rejected(tmp_path: Path) -> None:
+    """R2 / F02: 'same\\nsame\\n'에서 문자 [0:4]와 바이트 [5:9]를 거부하고 생성 0회."""
+    rel_path = "data/rawpedia/repeat.md"
+    file_content = "same\nsame\n"
+    target_file = tmp_path / rel_path
+    target_file.parent.mkdir(parents=True, exist_ok=True)
+    target_file.write_text(file_content, encoding="utf-8")
+    f_sha = sha256_bytes(file_content.encode("utf-8"))
+
+    # char: 0..4 ("same"), byte: 5..9 ("same" at second line)
+    ev = _make_evidence(
+        source_path=rel_path,
+        text="same",
+        source_file_sha=f_sha,
+        char_start=0,
+        char_end=4,
+        byte_start=5,
+        byte_end=9,
+    )
+    bundle = RetrievalBundle(query="q", source_filter="RAWPEDIA", hits=[ev])
+
+    gen_mock = MagicMock()
+    ans, err = answer_standalone(
+        query="test query",
+        bundle=bundle,
+        generate=gen_mock,
+        source_root=tmp_path,
+    )
+    assert ans is None
+    assert err is not None
+    assert err.code == "ANSWER_INPUT_INVALID"
+    gen_mock.assert_not_called()
+
+
+def test_invalid_byte_offsets_various(tmp_path: Path) -> None:
+    """F02: 시작만 불일치, 끝만 불일치, 음수, bool 타입 좌표는 ANSWER_INPUT_INVALID 및 생성 0회."""
+    rel_path = "data/rawpedia/sample.md"
+    file_content = "Hello world\n"
+    target_file = tmp_path / rel_path
+    target_file.parent.mkdir(parents=True, exist_ok=True)
+    target_file.write_text(file_content, encoding="utf-8")
+    f_sha = sha256_bytes(file_content.encode("utf-8"))
+
+    # 1. byte_start mismatch
+    ev1 = _make_evidence(
+        source_path=rel_path, text="Hello", source_file_sha=f_sha,
+        char_start=0, char_end=5, byte_start=1, byte_end=5,
+    )
+    # 2. byte_end mismatch
+    ev2 = _make_evidence(
+        source_path=rel_path, text="Hello", source_file_sha=f_sha,
+        char_start=0, char_end=5, byte_start=0, byte_end=4,
+    )
+    # 3. bool offset
+    ev3 = _make_evidence(
+        source_path=rel_path, text="Hello", source_file_sha=f_sha,
+        char_start=True, char_end=5, byte_start=0, byte_end=5,  # type: ignore
+    )
+
+    for ev in (ev1, ev2, ev3):
+        gen_mock = MagicMock()
+        b = RetrievalBundle(query="q", source_filter="RAWPEDIA", hits=[ev])
+        ans, err = answer_standalone(query="test", bundle=b, generate=gen_mock, source_root=tmp_path)
+        assert ans is None
+        assert err is not None
+        assert err.code == "ANSWER_INPUT_INVALID"
+        gen_mock.assert_not_called()
+
+
+def test_multibyte_korean_exact_byte_offsets_pass(tmp_path: Path) -> None:
+    """F02: 한글 멀티바이트 원문에서 정확한 byte_start/end가 성공적으로 통과."""
+    rel_path = "data/rawpedia/korean.md"
+    file_content = "노출(Exposure) 설정 방법 안내입니다.\n"
+    target_file = tmp_path / rel_path
+    target_file.parent.mkdir(parents=True, exist_ok=True)
+    target_file.write_text(file_content, encoding="utf-8")
+    f_sha = sha256_bytes(file_content.encode("utf-8"))
+
+    segment_text = "설정 방법"
+    char_start = file_content.index(segment_text)
+    char_end = char_start + len(segment_text)
+    byte_start = len(file_content[:char_start].encode("utf-8"))
+    byte_end = len(file_content[:char_end].encode("utf-8"))
+
+    ev = _make_evidence(
+        source_path=rel_path,
+        text=segment_text,
+        source_file_sha=f_sha,
+        char_start=char_start,
+        char_end=char_end,
+        byte_start=byte_start,
+        byte_end=byte_end,
+    )
+    bundle = RetrievalBundle(query="q", source_filter="RAWPEDIA", hits=[ev])
+
+    def mock_gen(*args: Any) -> str:
+        return json.dumps({
+            "status": "SUPPORTED",
+            "answer": "설정 방법 답변입니다 [C1S1].",
+            "citation_ids": ["C1S1"],
+        })
+
+    ans, err = answer_standalone(query="설정 방법", bundle=bundle, generate=mock_gen, source_root=tmp_path)
+    assert err is None
+    assert ans is not None
+    assert ans.status == "SUPPORTED"
+
+
+# =========================================================================
+# 8. F03 Constraints & Source Contract Verification Tests
+# =========================================================================
+
+def test_create_answer_node_cross_source_rejected(tmp_path: Path) -> None:
+    """R5 / F03: TROUBLESHOOT 항목에 RAWPEDIA 번들이 주입되면 ANSWER_INPUT_INVALID 거부."""
+    rel_path = "data/rawpedia/sample.md"
+    text = "Exposure sample text"
+    _, f_sha = _setup_mock_source_file(tmp_path, rel_path, text)
+    ev = _make_evidence(source_path=rel_path, text=text, source_file_sha=f_sha)
+    bundle = RetrievalBundle(query="q", source_filter="RAWPEDIA", hits=[ev])
+
+    gen_mock = MagicMock()
+    ans_node = create_answer_node(generate=gen_mock, source_root=tmp_path)
+
+    plan_item = PlanStep(step_id="step_1", path=AgentPath.TROUBLESHOOT, query="에러 질문")
+    decision = RouteDecision(primary_path=AgentPath.TROUBLESHOOT, plan=[plan_item])
+
+    state: AgentState = {
+        "request": RequestInput(request_id="req_1", text="에러 질문"),
+        "decision": decision,
+        "cursor": 0,
+        "retrieval": bundle,
+        "trace": ["DISPATCH", "SEARCH_GITHUB"],
+    }
+
+    updates = ans_node(state)
+    assert updates["answer"] is None
+    assert updates["error"] is not None
+    assert updates["error"].code == "ANSWER_INPUT_INVALID"
+    assert "불일치" in updates["error"].message
+    gen_mock.assert_not_called()
+
+
+def test_create_answer_node_execute_action_rejected(tmp_path: Path) -> None:
+    """F03: EXECUTE 액션의 ANSWER 진입은 거부."""
+    bundle = RetrievalBundle(query="q", source_filter="RAWPEDIA", hits=[])
+    gen_mock = MagicMock()
+    ans_node = create_answer_node(generate=gen_mock, source_root=tmp_path)
+
+    plan_item = PlanStep(step_id="step_1", path=AgentPath.EXECUTE, query="렌더 명령")
+    decision = RouteDecision(primary_path=AgentPath.EXECUTE, plan=[plan_item])
+
+    state: AgentState = {
+        "request": RequestInput(request_id="req_1", text="렌더 명령"),
+        "decision": decision,
+        "cursor": 0,
+        "retrieval": bundle,
+    }
+
+    updates = ans_node(state)
+    assert updates["answer"] is None
+    assert updates["error"] is not None
+    assert updates["error"].code == "ANSWER_INPUT_INVALID"
+    gen_mock.assert_not_called()
+
+
+def test_create_answer_node_passes_constraints_to_prompt(tmp_path: Path) -> None:
+    """R4 / F03: signals.constraints가 프롬프트의 확정 문맥 구역에 보존되어 전달됨."""
+    rel_path = "data/rawpedia/sample.md"
+    text = "Exposure sample text"
+    _, f_sha = _setup_mock_source_file(tmp_path, rel_path, text)
+    ev = _make_evidence(source_path=rel_path, text=text, source_file_sha=f_sha)
+    bundle = RetrievalBundle(query="q", source_filter="RAWPEDIA", hits=[ev])
+
+    captured_prompt = {}
+
+    def mock_gen(sys_inst: str, user_prompt: str, ctx_cits: dict, q_norm: str) -> str:
+        captured_prompt["user_prompt"] = user_prompt
+        return json.dumps({
+            "status": "SUPPORTED",
+            "answer": "제약을 준수한 답변입니다 [C1S1].",
+            "citation_ids": ["C1S1"],
+        })
+
+    ans_node = create_answer_node(generate=mock_gen, source_root=tmp_path)
+
+    req_ctx = RequestContext(os="macOS", art_version="1.20", confirmed_goal="노출 조정")
+    signals = IntentSignals(constraints=["RawTherapee 전용 기능 제외", "절대 자동 노출 슬라이더를 건드리지 말 것"])
+    plan_item = PlanStep(step_id="step_1", path=AgentPath.DOC_QA, query="노출 조정 방법")
+    decision = RouteDecision(primary_path=AgentPath.DOC_QA, plan=[plan_item])
+
+    state: AgentState = {
+        "request": RequestInput(request_id="req_1", text="노출 조정 방법", context=req_ctx),
+        "signals": signals,
+        "decision": decision,
+        "cursor": 0,
+        "retrieval": bundle,
+    }
+
+    updates = ans_node(state)
+    assert updates["error"] is None
+    assert updates["answer"] is not None
+    assert updates["answer"].status == "SUPPORTED"
+
+    user_p = captured_prompt.get("user_prompt", "")
+    assert "[확정 문맥]" in user_p
+    assert "OS: macOS" in user_p
+    assert "ART Version: 1.20" in user_p
+    assert "Confirmed Goal: 노출 조정" in user_p
+    assert "Constraints:" in user_p
+    assert "RawTherapee 전용 기능 제외" in user_p
+    assert "절대 자동 노출 슬라이더를 건드리지 말 것" in user_p

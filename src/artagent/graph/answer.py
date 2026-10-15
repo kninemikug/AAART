@@ -28,6 +28,7 @@ from .state import (
     Citation,
     ErrorInfo,
     Evidence,
+    Path as ProcessingPath,
     RequestContext,
     RetrievalBundle,
 )
@@ -145,6 +146,10 @@ def validate_and_project_bundle(
             or type(char_end) is not int
             or type(byte_start) is not int
             or type(byte_end) is not int
+            or isinstance(char_start, bool)
+            or isinstance(char_end, bool)
+            or isinstance(byte_start, bool)
+            or isinstance(byte_end, bool)
             or not (0 <= char_start <= char_end)
             or not (0 <= byte_start <= byte_end)
         ):
@@ -176,6 +181,18 @@ def validate_and_project_bundle(
                 raise ValueError(f"char_end({char_end})가 원문 텍스트 길이({len(full_text)})를 초과합니다.")
             extracted_text = full_text[char_start:char_end]
 
+            # F02: 원문 문자열 기준 엄격한 UTF-8 바이트 좌표 대조
+            expected_byte_start = len(full_text[:char_start].encode("utf-8"))
+            expected_byte_end = len(full_text[:char_end].encode("utf-8"))
+            if byte_start != expected_byte_start:
+                raise ValueError(
+                    f"byte_start 불일치: 기대={expected_byte_start}, 실제={byte_start} ({target_file})"
+                )
+            if byte_end != expected_byte_end:
+                raise ValueError(
+                    f"byte_end 불일치: 기대={expected_byte_end}, 실제={byte_end} ({target_file})"
+                )
+
             if byte_end > len(file_bytes):
                 raise ValueError(f"byte_end({byte_end})가 파일 바이트 크기({len(file_bytes)})를 초과합니다.")
             byte_extracted = file_bytes[byte_start:byte_end].decode("utf-8")
@@ -201,6 +218,18 @@ def validate_and_project_bundle(
             if char_end > len(body):
                 raise ValueError(f"char_end({char_end})가 body 길이({len(body)})를 초과합니다.")
             extracted_text = body[char_start:char_end]
+
+            # F02: JSON /body 문자열 기준 엄격한 UTF-8 바이트 좌표 대조
+            expected_byte_start = len(body[:char_start].encode("utf-8"))
+            expected_byte_end = len(body[:char_end].encode("utf-8"))
+            if byte_start != expected_byte_start:
+                raise ValueError(
+                    f"JSON body byte_start 불일치: 기대={expected_byte_start}, 실제={byte_start} ({target_file})"
+                )
+            if byte_end != expected_byte_end:
+                raise ValueError(
+                    f"JSON body byte_end 불일치: 기대={expected_byte_end}, 실제={byte_end} ({target_file})"
+                )
 
             if byte_end > len(body_bytes):
                 raise ValueError(f"byte_end({byte_end})가 body 바이트 크기({len(body_bytes)})를 초과합니다.")
@@ -270,13 +299,14 @@ def answer_standalone(
     bundle: Optional[RetrievalBundle],
     *,
     context: Optional[Any] = None,
+    constraints: Optional[list[str]] = None,
     generate: Optional[Callable[..., Any]] = None,
     source_root: Optional[Path] = None,
     observe: Optional[Callable[[dict[str, Any]], None]] = None,
 ) -> Tuple[Optional[AnswerResult], Optional[ErrorInfo]]:
     """단독 답변 생성 및 인용 검증 실행.
 
-    원질문, 확정 문맥, RetrievalBundle, 생성 콜백, source_root를 입력받아
+    원질문, 확정 문맥, 제약(constraints), RetrievalBundle, 생성 콜백, source_root를 입력받아
     검색 0회 / 재작성 0회 / 생성 1회(오류 시 0회)로 검증된 AnswerResult 또는 ErrorInfo를 반환한다.
     """
     started = time.perf_counter()
@@ -317,23 +347,28 @@ def answer_standalone(
             })
         return None, error
 
-    # 3. 확정 문맥 직렬화
-    confirmed_context_str: Optional[str] = None
+    # 3. 확정 문맥 및 제약 직렬화 (docs/T17_fix_plan.md §5: 별도 프롬프트 구역)
+    context_parts: list[str] = []
     if isinstance(context, RequestContext):
-        parts = []
         if context.os:
-            parts.append(f"OS: {context.os}")
+            context_parts.append(f"OS: {context.os}")
         if context.art_version:
-            parts.append(f"ART Version: {context.art_version}")
+            context_parts.append(f"ART Version: {context.art_version}")
         if context.confirmed_goal:
-            parts.append(f"Confirmed Goal: {context.confirmed_goal}")
-        confirmed_context_str = "\n".join(parts) if parts else None
+            context_parts.append(f"Confirmed Goal: {context.confirmed_goal}")
     elif isinstance(context, (list, tuple)):
-        confirmed_context_str = "\n".join(str(c) for c in context) if context else None
+        context_parts.extend(str(c) for c in context if c)
     elif isinstance(context, dict):
-        confirmed_context_str = "\n".join(f"{k}: {v}" for k, v in context.items()) if context else None
-    elif isinstance(context, str):
-        confirmed_context_str = context.strip() or None
+        context_parts.extend(f"{k}: {v}" for k, v in context.items() if v)
+    elif isinstance(context, str) and context.strip():
+        context_parts.append(context.strip())
+
+    if constraints:
+        c_lines = [f"- {c}" for c in constraints if c]
+        if c_lines:
+            context_parts.append("Constraints:\n" + "\n".join(c_lines))
+
+    confirmed_context_str: Optional[str] = "\n".join(context_parts) if context_parts else None
 
     # 4. 프롬프트 및 인용 매핑 구성 (전체 세그먼트 투영, 5개 절단 금지)
     user_prompt, context_citations, context_citation_ids = build_prompt_and_citations(
@@ -342,6 +377,8 @@ def answer_standalone(
         prompt_version=T17_PROMPT_VERSION,
         confirmed_context=confirmed_context_str,
     )
+
+    prompt_hash = sha256_str(f"{SYSTEM_INSTRUCTION}\n{user_prompt}")
 
     # 문맥 한도 초과 검사 (절단 없이 오류 반환)
     if len(user_prompt) > MAX_CONTEXT_CHARS:
@@ -354,6 +391,9 @@ def answer_standalone(
         if observe:
             observe({
                 "query": query_normalized,
+                "system_instruction": SYSTEM_INSTRUCTION,
+                "user_prompt": user_prompt,
+                "prompt_hash": prompt_hash,
                 "error": error.__dict__,
                 "elapsed_ms": (time.perf_counter() - started) * 1000,
             })
@@ -403,8 +443,13 @@ def answer_standalone(
         if observe:
             observe({
                 "query": query_normalized,
-                "error": error.__dict__,
+                "system_instruction": SYSTEM_INSTRUCTION,
                 "user_prompt": user_prompt,
+                "prompt_hash": prompt_hash,
+                "raw_response": getattr(e, "raw_response", None),
+                "trace": getattr(e, "trace", None),
+                "runtime_meta": getattr(e, "runtime_meta", None),
+                "error": error.__dict__,
                 "elapsed_ms": (time.perf_counter() - started) * 1000,
             })
         return None, error
@@ -453,7 +498,12 @@ def answer_standalone(
         if observe:
             observe({
                 "query": query_normalized,
+                "system_instruction": SYSTEM_INSTRUCTION,
+                "user_prompt": user_prompt,
+                "prompt_hash": prompt_hash,
                 "raw_response": raw_response,
+                "runtime_meta": runtime_meta,
+                "usage": usage,
                 "error": error.__dict__,
                 "elapsed_ms": (time.perf_counter() - started) * 1000,
             })
@@ -471,6 +521,12 @@ def answer_standalone(
             if observe:
                 observe({
                     "query": query_normalized,
+                    "system_instruction": SYSTEM_INSTRUCTION,
+                    "user_prompt": user_prompt,
+                    "prompt_hash": prompt_hash,
+                    "raw_response": raw_response,
+                    "runtime_meta": runtime_meta,
+                    "usage": usage,
                     "status": status,
                     "error": error.__dict__,
                     "elapsed_ms": (time.perf_counter() - started) * 1000,
@@ -487,6 +543,12 @@ def answer_standalone(
             if observe:
                 observe({
                     "query": query_normalized,
+                    "system_instruction": SYSTEM_INSTRUCTION,
+                    "user_prompt": user_prompt,
+                    "prompt_hash": prompt_hash,
+                    "raw_response": raw_response,
+                    "runtime_meta": runtime_meta,
+                    "usage": usage,
                     "status": status,
                     "error": error.__dict__,
                     "elapsed_ms": (time.perf_counter() - started) * 1000,
@@ -523,8 +585,14 @@ def answer_standalone(
         if observe:
             observe({
                 "query": query_normalized,
+                "system_instruction": SYSTEM_INSTRUCTION,
+                "user_prompt": user_prompt,
+                "prompt_hash": prompt_hash,
+                "raw_response": raw_response,
                 "raw_answer": raw_answer,
                 "citation_ids": citation_ids,
+                "runtime_meta": runtime_meta,
+                "usage": usage,
                 "error": error.__dict__,
                 "elapsed_ms": (time.perf_counter() - started) * 1000,
             })
@@ -566,6 +634,10 @@ def answer_standalone(
     if observe:
         observe({
             "query": query_normalized,
+            "system_instruction": SYSTEM_INSTRUCTION,
+            "user_prompt": user_prompt,
+            "prompt_hash": prompt_hash,
+            "raw_response": raw_response,
             "status": status,
             "answer_result": {
                 "status": answer_result.status,
@@ -600,7 +672,7 @@ def create_answer_node(
         trace = list(state.get("trace", []))
         trace.append("ANSWER")
 
-        # 선행 오류가 이미 존재하면 보존하고 생성 호출 없음
+        # 1. 선행 오류가 이미 존재하면 보존하고 생성 호출 없음
         prior_error = state.get("error")
         if prior_error is not None:
             return {
@@ -609,29 +681,82 @@ def create_answer_node(
                 "trace": trace,
             }
 
-        # 1. 쿼리 추출 (decision.plan[cursor].query 우선)
-        step_query = ""
         decision = state.get("decision")
         cursor = state.get("cursor", 0)
-        if decision and cursor < len(decision.plan):
-            step_query = decision.plan[cursor].query
+        bundle = state.get("retrieval")
+
+        # 2. plan & cursor 유효성 검사 (docs/T17_fix_plan.md §5: 누락·범위 밖 cursor·EXECUTE 거부)
+        if not decision or not decision.plan or cursor < 0 or cursor >= len(decision.plan):
+            err = ErrorInfo(
+                code="ANSWER_INPUT_INVALID",
+                message=f"유효하지 않은 decision.plan 또는 cursor({cursor})",
+                node="ANSWER",
+                recoverable=False,
+            )
+            return {"answer": None, "error": err, "trace": trace}
+
+        plan_step = decision.plan[cursor]
+        step_path = plan_step.path
+        step_query = plan_step.query
 
         if not step_query:
             request = state.get("request")
             if request and request.text:
                 step_query = request.text
 
-        # 2. 확정 문맥 추출
+        # 3. Path와 bundle 출처 대조
+        # DOC_QA -> RAWPEDIA, TROUBLESHOOT -> GITHUB, EXECUTE -> 금지
+        if step_path == ProcessingPath.EXECUTE or str(step_path) == "EXECUTE":
+            err = ErrorInfo(
+                code="ANSWER_INPUT_INVALID",
+                message="EXECUTE 경로의 항목은 ANSWER 노드에서 처리할 수 없습니다.",
+                node="ANSWER",
+                recoverable=False,
+            )
+            return {"answer": None, "error": err, "trace": trace}
+
+        if bundle is None:
+            err = ErrorInfo(
+                code="ANSWER_INPUT_INVALID",
+                message="retrieval bundle이 누락되었습니다.",
+                node="ANSWER",
+                recoverable=False,
+            )
+            return {"answer": None, "error": err, "trace": trace}
+
+        expected_filter = "RAWPEDIA" if (step_path == ProcessingPath.DOC_QA or str(step_path) == "DOC_QA") else ("GITHUB" if (step_path == ProcessingPath.TROUBLESHOOT or str(step_path) == "TROUBLESHOOT") else None)
+        if expected_filter is None or bundle.source_filter != expected_filter:
+            err = ErrorInfo(
+                code="ANSWER_INPUT_INVALID",
+                message=f"경로-출처 불일치: {step_path} 경로는 '{expected_filter}' 출처만 허용되나 '{bundle.source_filter}'가 제공되었습니다.",
+                node="ANSWER",
+                recoverable=False,
+            )
+            return {"answer": None, "error": err, "trace": trace}
+
+        # 개별 Evidence의 출처도 검사
+        for ev in bundle.hits:
+            if ev.source_type.upper() != expected_filter:
+                err = ErrorInfo(
+                    code="ANSWER_INPUT_INVALID",
+                    message=f"Evidence 출처 불일치: 기대 '{expected_filter}', 실제 '{ev.source_type}' ({ev.doc_id})",
+                    node="ANSWER",
+                    recoverable=False,
+                )
+                return {"answer": None, "error": err, "trace": trace}
+
+        # 4. 확정 문맥 및 constraints 추출
         req = state.get("request")
         ctx = req.context if req else None
 
-        # 3. bundle 추출
-        bundle = state.get("retrieval")
+        signals = state.get("signals")
+        constraints = signals.constraints if signals and hasattr(signals, "constraints") else None
 
         ans, err = answer_standalone(
             query=step_query,
             bundle=bundle,
             context=ctx,
+            constraints=constraints,
             generate=generate,
             source_root=source_root,
             observe=observe,

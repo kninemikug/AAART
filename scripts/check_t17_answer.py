@@ -44,6 +44,29 @@ FIXED_SLICE1_IDS = [
     "Q084", "Q086", "Q092", "Q093", "Q096",
 ]
 
+# docs/T17_fix_plan.md §7: 필수 19개 수동 검토 타겟 (Q001 x3, Q086 x3, Q096 x3, CP2 x8, Q010 x1, Q077 x1)
+REQUIRED_MANUAL_REVIEW_TARGETS: list[tuple[str, str]] = [
+    ("Q001", "t11_replay"),
+    ("Q001", "t14_a"),
+    ("Q001", "t14_b"),
+    ("Q086", "t11_replay"),
+    ("Q086", "t14_a"),
+    ("Q086", "t14_b"),
+    ("Q096", "t11_replay"),
+    ("Q096", "t14_a"),
+    ("Q096", "t14_b"),
+    ("Q004", "t14_a"),
+    ("Q004", "t14_b"),
+    ("Q014", "t14_a"),
+    ("Q014", "t14_b"),
+    ("Q054", "t14_a"),
+    ("Q054", "t14_b"),
+    ("Q063", "t14_a"),
+    ("Q063", "t14_b"),
+    ("Q010", "t14_b_reg_Q010"),
+    ("Q077", "t14_b_reg_Q077"),
+]
+
 EXPECTED_QUERIES_SHA = "91b7fb50b23c0514d3e3d24579cad32a07dc6dcc3c8a40774b9e2e9da0fa14e8"
 EXPECTED_T11_RECORDS_SHA = "5d3d9a7df432cbfac741d479c554aae69a6dfbc8039ed166331d7f5a8d1b64b7"
 
@@ -144,6 +167,19 @@ def load_t14_slice1_bundles(slice1_path: Path) -> Tuple[dict[str, dict[str, Any]
     return bundles_a, bundles_b
 
 
+def extract_original_run_id(entry: dict[str, Any], default_qid: str = "", default_cond: str = "") -> str:
+    plan = entry.get("decision", {}).get("plan", [])
+    if plan and isinstance(plan, list) and plan[0].get("step_id"):
+        return plan[0]["step_id"]
+    if entry.get("request", {}).get("request_id"):
+        return entry["request"]["request_id"]
+    if entry.get("step_id"):
+        return entry["step_id"]
+    if default_qid and default_cond:
+        return f"{default_qid}_{default_cond}"
+    return entry.get("run_id", "")
+
+
 def run_single_evaluation(
     track: str,
     query_id: str,
@@ -173,8 +209,14 @@ def run_single_evaluation(
 
     run_id = f"t17_{track}_{query_id}_{int(time.time())}"
 
+    rmeta = observation.get("runtime_meta") or {}
+    trace = observation.get("trace") or rmeta.get("_trace")
+    is_mock = bool(rmeta.get("is_mock")) or rmeta.get("llm_provider") in ("mock", "custom")
+    provider = rmeta.get("llm_provider")
+    model = rmeta.get("model_id") or rmeta.get("model")
+
     record = {
-        "record_schema": "t17-run-v1",
+        "record_schema": "t17-run-v2",
         "run_id": run_id,
         "track": track,
         "query_id": query_id,
@@ -193,9 +235,19 @@ def run_single_evaluation(
             "product_scopes": sorted(set(h.product_scope for h in bundle.hits)),
             "hits": [h.__dict__ for h in bundle.hits],
         },
+        "prompt": {
+            "version": T17_PROMPT_VERSION,
+            "system_instruction": observation.get("system_instruction"),
+            "user_prompt": observation.get("user_prompt"),
+            "prompt_hash": observation.get("prompt_hash"),
+        },
         "generation": {
             "call_count": 1 if err is None or err.code != "ANSWER_INPUT_INVALID" else 0,
-            "runtime_meta": observation.get("runtime_meta"),
+            "provider": provider,
+            "model": model,
+            "is_mock": is_mock,
+            "runtime_meta": rmeta,
+            "trace": trace,
             "usage": observation.get("usage"),
             "raw_response": observation.get("raw_response"),
             "status": ans.status if ans else None,
@@ -220,39 +272,256 @@ def run_single_evaluation(
     return record
 
 
+def find_manual_review(manual_reviews: Optional[dict[str, Any]], query_id: str, track: str) -> Optional[dict[str, Any]]:
+    """수동 검토 딕셔너리에서 (query_id, track)에 해당하는 검토 항목 탐색."""
+    if not manual_reviews:
+        return None
+    for k, v in manual_reviews.items():
+        if (v.get("query_id") == query_id and v.get("track") == track) or k == f"run_{query_id}_{track}" or k == f"{query_id}_{track}":
+            return v
+    return None
+
+
+def evaluate_gate_b(
+    records: list[dict[str, Any]],
+    regression_records: Optional[list[dict[str, Any]]] = None,
+    manual_reviews: Optional[dict[str, Any]] = None,
+    source_root: Optional[Path] = None,
+    allow_mock: bool = False,
+) -> tuple[str, list[str], list[str]]:
+    """Gate B 판정 함수 (docs/T17_fix_plan.md §3).
+
+    결과: (verdict, fail_reasons, pending_reasons)
+    - FAIL: 검증 가능한 위반 (중복, 오류, 불일치 등)
+    - PENDING: 증거 누락, 모의 결과, 수동 검토 미결/누락
+    - PASS: 모든 필수 조건 완결
+    """
+    fail_reasons: list[str] = []
+    pending_reasons: list[str] = []
+
+    if regression_records is None:
+        regression_records = []
+    if manual_reviews is None:
+        manual_reviews = {}
+
+    seen_keys: set[tuple[str, str]] = set()
+    found_keys: set[tuple[str, str]] = set()
+
+    for r in records:
+        qid = r.get("query_id")
+        trk = r.get("track")
+        key = (qid, trk)
+        if key in seen_keys:
+            fail_reasons.append(f"중복 실행 기록 존재: ({qid}, {trk})")
+        seen_keys.add(key)
+        found_keys.add(key)
+
+        err = r.get("output", {}).get("error") or r.get("error")
+        if err is not None:
+            fail_reasons.append(f"실행 기술 오류 발생: {qid} ({trk}) - {err}")
+
+        orig_id = r.get("original_run_id")
+        if not orig_id:
+            pending_reasons.append(f"원본 실행 ID(original_run_id) 누락: {qid} ({trk})")
+
+        st = r.get("output", {}).get("status")
+        if st not in ("SUPPORTED", "UNSUPPORTED", "INSUFFICIENT_EVIDENCE"):
+            fail_reasons.append(f"유효하지 않은 status 값: {qid} ({trk}) - '{st}'")
+
+        cits = r.get("citations", [])
+        if st in ("SUPPORTED", "UNSUPPORTED") and len(cits) == 0:
+            fail_reasons.append(f"인용 없는 {st} 응답: {qid} ({trk})")
+
+        gen = r.get("generation", {})
+        call_count = gen.get("call_count", 0)
+        if call_count > 1:
+            fail_reasons.append(f"생성 호출 수 초과 (최대 1회 허용): {qid} ({trk}) - {call_count}")
+
+        if gen.get("is_mock") and not allow_mock:
+            pending_reasons.append(f"모의(mock) 생성 결과 포함: {qid} ({trk})")
+
+        prompt = r.get("prompt", {})
+        u_prompt = prompt.get("user_prompt")
+        s_inst = prompt.get("system_instruction")
+        p_hash = prompt.get("prompt_hash")
+        if not u_prompt:
+            pending_reasons.append(f"실제 전달 사용자 프롬프트 누락: {qid} ({trk})")
+        elif p_hash and s_inst:
+            expected_ph = sha256_str(f"{s_inst}\n{u_prompt}")
+            if p_hash != expected_ph:
+                fail_reasons.append(f"프롬프트 해시 불일치: {qid} ({trk}) (기대: {expected_ph}, 실제: {p_hash})")
+
+        raw_resp = gen.get("raw_response")
+        if raw_resp is None and err is None:
+            pending_reasons.append(f"원생성 응답(raw_response) 누락: {qid} ({trk})")
+        elif raw_resp is not None:
+            try:
+                cleaned_resp = raw_resp.strip()
+                if cleaned_resp.startswith("```"):
+                    lines_c = cleaned_resp.splitlines()
+                    if lines_c[0].startswith("```"):
+                        lines_c = lines_c[1:]
+                    if lines_c and lines_c[-1].startswith("```"):
+                        lines_c = lines_c[:-1]
+                    cleaned_resp = "\n".join(lines_c).strip()
+                parsed_resp = json.loads(cleaned_resp)
+                raw_st = parsed_resp.get("status")
+                if raw_st != st:
+                    fail_reasons.append(f"원생성 응답의 status('{raw_st}')와 출력 status('{st}') 불일치: {qid} ({trk})")
+            except Exception as pe:
+                fail_reasons.append(f"원생성 응답 JSON 파싱 실패: {qid} ({trk}) - {pe}")
+
+        # 원문 및 좌표 독립 검증
+        if source_root and r.get("retrieval", {}).get("hits"):
+            try:
+                evs = [parse_evidence_from_dict(h) for h in r["retrieval"]["hits"]]
+                b_check = RetrievalBundle(
+                    query=r.get("retrieval", {}).get("query", ""),
+                    source_filter=r.get("retrieval", {}).get("source_filter", "RAWPEDIA"),
+                    hits=evs,
+                    snapshot_ref=r.get("retrieval", {}).get("snapshot_ref", "snapshot"),
+                )
+                validate_and_project_bundle(b_check, source_root=source_root)
+            except Exception as ve:
+                fail_reasons.append(f"원문/좌표 독립 검증 실패: {qid} ({trk}) - {ve}")
+
+    # 45개 필수 Slice 1 레코드 존재 검사
+    for qid in FIXED_SLICE1_IDS:
+        for trk in ("t11_replay", "t14_a", "t14_b"):
+            if (qid, trk) not in found_keys:
+                pending_reasons.append(f"필수 Slice 1 레코드 누락: ({qid}, {trk})")
+
+    # Q010 / Q077 B 회귀 검사
+    q010_found = False
+    q077_found = False
+    for r in regression_records:
+        qid = r.get("query_id")
+        trk = r.get("track")
+        if not r.get("original_run_id"):
+            pending_reasons.append(f"Q010/Q077 B 회귀 원본 실행 ID(original_run_id) 누락: {qid} ({trk})")
+        if qid == "Q010":
+            q010_found = True
+            app = r.get("output", {}).get("applicability", "")
+            if "ART" in app and "RawTherapee" not in app:
+                fail_reasons.append(f"Q010 제품 범위 위반: RawTherapee 근거를 ART로 확정함 ('{app}')")
+        elif qid == "Q077":
+            q077_found = True
+            app = r.get("output", {}).get("applicability", "")
+            if "ART" in app and "RawTherapee" not in app:
+                fail_reasons.append(f"Q077 제품 범위 위반: RawTherapee 근거를 ART로 확정함 ('{app}')")
+
+        if source_root and r.get("retrieval", {}).get("hits"):
+            try:
+                evs = [parse_evidence_from_dict(h) for h in r["retrieval"]["hits"]]
+                b_check = RetrievalBundle(
+                    query=r.get("retrieval", {}).get("query", ""),
+                    source_filter=r.get("retrieval", {}).get("source_filter", "RAWPEDIA"),
+                    hits=evs,
+                    snapshot_ref=r.get("retrieval", {}).get("snapshot_ref", "snapshot"),
+                )
+                validate_and_project_bundle(b_check, source_root=source_root)
+            except Exception as ve:
+                fail_reasons.append(f"Q010/Q077 B 회귀 원문/좌표 독립 검증 실패: {qid} ({trk}) - {ve}")
+
+    if not q010_found:
+        pending_reasons.append("Q010 B 회귀 기록 누락")
+    if not q077_found:
+        pending_reasons.append("Q077 B 회귀 기록 누락")
+
+    # 필수 19개 수동 검토 검사
+    for qid, trk in REQUIRED_MANUAL_REVIEW_TARGETS:
+        rev = find_manual_review(manual_reviews, qid, trk)
+        if rev is None:
+            pending_reasons.append(f"필수 수동 검토 누락: ({qid}, {trk})")
+        else:
+            rev_status = rev.get("status")
+            if rev_status == "failed":
+                fail_reasons.append(f"수동 검토 불합격 판정: ({qid}, {trk}) - {rev.get('reason', '')}")
+            elif rev_status == "pending" or not rev_status:
+                pending_reasons.append(f"수동 검토 미결(pending): ({qid}, {trk})")
+            elif rev_status == "verified":
+                if not rev.get("reviewed_claims"):
+                    pending_reasons.append(f"수동 검토 검토 주장(reviewed_claims) 누락: ({qid}, {trk})")
+                if not rev.get("reason"):
+                    pending_reasons.append(f"수동 검토 판정 사유(reason) 누락: ({qid}, {trk})")
+            else:
+                fail_reasons.append(f"알 수 없는 수동 검토 상태: ({qid}, {trk}) - '{rev_status}'")
+
+    if fail_reasons:
+        return "FAIL", fail_reasons, pending_reasons
+    elif pending_reasons:
+        return "PENDING", fail_reasons, pending_reasons
+    else:
+        return "PASS", [], []
+
+
 def generate_comparison_report(
     records: list[dict[str, Any]],
     out_dir: Path,
     q010_reg: Optional[dict[str, Any]] = None,
     q077_reg: Optional[dict[str, Any]] = None,
+    manual_reviews: Optional[dict[str, Any]] = None,
+    verdict: Optional[str] = None,
+    fail_reasons: Optional[list[str]] = None,
+    pending_reasons: Optional[list[str]] = None,
 ) -> str:
+    regression_records = []
+    if q010_reg:
+        regression_records.append(q010_reg)
+    if q077_reg:
+        regression_records.append(q077_reg)
+
+    if verdict is None:
+        verdict, f_reasons, p_reasons = evaluate_gate_b(
+            records=records,
+            regression_records=regression_records,
+            manual_reviews=manual_reviews,
+        )
+        if fail_reasons is None:
+            fail_reasons = f_reasons
+        if pending_reasons is None:
+            pending_reasons = p_reasons
+    else:
+        fail_reasons = fail_reasons or []
+        pending_reasons = pending_reasons or []
+
+    providers = sorted({r.get("generation", {}).get("provider") for r in records if r.get("generation", {}).get("provider")})
+    models = sorted({r.get("generation", {}).get("model") for r in records if r.get("generation", {}).get("model")})
+    prompt_versions = sorted({r.get("prompt", {}).get("version") for r in records if r.get("prompt", {}).get("version")})
+    has_mock = any(r.get("generation", {}).get("is_mock") for r in records)
+
     lines = [
         "# Task 17 Slice 1 15개 질문 답변 대조 보고서",
         "",
         f"- 생성일: {datetime.now(timezone.utc).astimezone().isoformat()}",
         f"- 질문 원본 SHA-256: `{EXPECTED_QUERIES_SHA}`",
         f"- T11 기준선 SHA-256: `{EXPECTED_T11_RECORDS_SHA}`",
-        "- 프롬프트 버전: `t17-answer-v1`",
-        "- 생성 모델: `codex-cli` / `gpt-5.6-sol`",
+        f"- 프롬프트 버전: `{', '.join(prompt_versions) if prompt_versions else 't17-answer-v1'}`",
+        f"- 생성 모델: `{', '.join(models) if models else 'N/A'}` (제공처: `{', '.join(providers) if providers else 'N/A'}`)",
+    ]
+    if has_mock:
+        lines.append("- **주의**: 모의(mock) 생성 결과가 포함되어 있습니다.")
+
+    lines.extend([
         "",
         "## 1. 15개 전수 실행 결과 요약",
         "",
-        "| Query ID | 출처 | T11 상태 / 인용 | T14 A 상태 / 인용 | T14 B 상태 / 인용 | 판정 |",
-        "|---|---|---|---|---|---|",
-    ]
+        "| Query ID | 출처 | T11 상태 / 인용 | T14 A 상태 / 인용 | T14 B 상태 / 인용 |",
+        "|---|---|---|---|---|",
+    ])
 
     by_query: dict[str, dict[str, Any]] = {}
     for r in records:
-        qid = r["query_id"]
-        trk = r["track"]
+        qid = r.get("query_id")
+        trk = r.get("track")
         if qid not in by_query:
             by_query[qid] = {}
         by_query[qid][trk] = r
 
     for qid in FIXED_SLICE1_IDS:
-        t11_rec = by_query[qid].get("t11_replay", {})
-        t14_a = by_query[qid].get("t14_a", {})
-        t14_b = by_query[qid].get("t14_b", {})
+        t11_rec = by_query.get(qid, {}).get("t11_replay", {})
+        t14_a = by_query.get(qid, {}).get("t14_a", {})
+        t14_b = by_query.get(qid, {}).get("t14_b", {})
 
         s11 = t11_rec.get("output", {}).get("status", "N/A")
         c11 = len(t11_rec.get("citations", []))
@@ -260,10 +529,9 @@ def generate_comparison_report(
         ca = len(t14_a.get("citations", []))
         sb = t14_b.get("output", {}).get("status", "N/A")
         cb = len(t14_b.get("citations", []))
-        stype = t14_b.get("retrieval", {}).get("source_filter", "RAWPEDIA")
+        stype = t14_b.get("retrieval", {}).get("source_filter") or t11_rec.get("retrieval", {}).get("source_filter") or "RAWPEDIA"
 
-        verdict = "일치" if sa == sb else "개선/변화"
-        lines.append(f"| {qid} | {stype} | {s11} ({c11}) | {sa} ({ca}) | {sb} ({cb}) | {verdict} |")
+        lines.append(f"| {qid} | {stype} | {s11} ({c11}) | {sa} ({ca}) | {sb} ({cb}) |")
 
     lines.extend([
         "",
@@ -275,11 +543,12 @@ def generate_comparison_report(
 
     q001_b = by_query.get("Q001", {}).get("t14_b", {})
     q001_text = str(q001_b.get("output", {}).get("text") or "")
+    q001_rev = find_manual_review(manual_reviews, "Q001", "t14_b") or {}
     lines.extend([
         f"- **실제 상태 (B)**: `{q001_b.get('output', {}).get('status')}`",
         f"- **실제 인용수**: {len(q001_b.get('citations', []))}",
         f"- **답변 발췌**: {q001_text[:200]}...",
-        "- **검토 결과**: 히스토그램 분석과 Exposure 조정이 원문 근거에 명확히 기반하며 RawTherapee 범위를 보존함. [합격]",
+        f"- **수동 검토 상태 (B)**: `{q001_rev.get('status', 'pending')}` (사유: {q001_rev.get('reason', '미검토')})",
         "",
         "### Q086 (GitHub: Discussion #442 마스크 공유)",
         "- **기대**: T11 재생은 `INSUFFICIENT_EVIDENCE` 유지. T14 A/B는 #442 본문과 댓글(Linked mask)로 `SUPPORTED` 기대.",
@@ -288,12 +557,15 @@ def generate_comparison_report(
     q086_t11 = by_query.get("Q086", {}).get("t11_replay", {})
     q086_b = by_query.get("Q086", {}).get("t14_b", {})
     q086_text = str(q086_b.get("output", {}).get("text") or "")
+    q086_t11_rev = find_manual_review(manual_reviews, "Q086", "t11_replay") or {}
+    q086_b_rev = find_manual_review(manual_reviews, "Q086", "t14_b") or {}
     lines.extend([
         f"- **실제 상태 (T11)**: `{q086_t11.get('output', {}).get('status')}`",
+        f"- **수동 검토 상태 (T11)**: `{q086_t11_rev.get('status', 'pending')}` (사유: {q086_t11_rev.get('reason', '미검토')})",
         f"- **실제 상태 (B)**: `{q086_b.get('output', {}).get('status')}`",
         f"- **실제 인용수 (B)**: {len(q086_b.get('citations', []))}",
         f"- **답변 발췌 (B)**: {q086_text[:250]}...",
-        "- **검토 결과**: 마스크에 이름을 부여하면 Linked mask로 공유되고, 화면 위→아래 처리 순서상 후속 도구에서만 사용 가능하다는 조건과 댓글 앵커가 정확히 반영됨. [합격]",
+        f"- **수동 검토 상태 (B)**: `{q086_b_rev.get('status', 'pending')}` (사유: {q086_b_rev.get('reason', '미검토')})",
         "",
         "### Q096 (GitHub: Issue #500 JXL 설정)",
         "- **기대**: T11/A/B 모두 `UNSUPPORTED`. JXL 품질 슬라이더는 지원되지 않으며 visually lossless 고정임을 설명.",
@@ -301,15 +573,16 @@ def generate_comparison_report(
 
     q096_b = by_query.get("Q096", {}).get("t14_b", {})
     q096_text = str(q096_b.get("output", {}).get("text") or "")
+    q096_rev = find_manual_review(manual_reviews, "Q096", "t14_b") or {}
     lines.extend([
         f"- **실제 상태 (B)**: `{q096_b.get('output', {}).get('status')}`",
         f"- **실제 인용수 (B)**: {len(q096_b.get('citations', []))}",
         f"- **답변 발췌 (B)**: {q096_text[:200]}...",
-        "- **검토 결과**: JXL 품질 슬라이더 조작 절차를 허위 생성하지 않고, 별도 설정 없이 visually lossless로 고정된다는 반증 댓글을 정확히 인용함. [합격]",
+        f"- **수동 검토 상태 (B)**: `{q096_rev.get('status', 'pending')}` (사유: {q096_rev.get('reason', '미검토')})",
         "",
         "## 3. CP2 양성 5개 (Q001, Q004, Q014, Q054, Q063) 검토",
         "",
-        "| Query ID | T14 A 상태 / 인용 | T14 B 상태 / 인용 | 주요 사실 및 근거 확인 |",
+        "| Query ID | T14 A 상태 / 인용 | T14 B 상태 / 인용 | 검토 상태 (B) |",
         "|---|---|---|---|",
     ])
 
@@ -321,7 +594,9 @@ def generate_comparison_report(
         ca = len(a_rec.get("citations", []))
         sb = b_rec.get("output", {}).get("status")
         cb = len(b_rec.get("citations", []))
-        lines.append(f"| {qid} | {sa} ({ca}) | {sb} ({cb}) | 주요 사실 및 원문 세그먼트 인용 완전 부합 확인 |")
+        b_rev = find_manual_review(manual_reviews, qid, "t14_b") or {}
+        rev_st = b_rev.get("status", "pending")
+        lines.append(f"| {qid} | {sa} ({ca}) | {sb} ({cb}) | `{rev_st}` |")
 
     lines.extend([
         "",
@@ -331,21 +606,30 @@ def generate_comparison_report(
 
     if q010_reg:
         lines.append(f"- **Q010 (B)**: 상태 `{q010_reg.get('output', {}).get('status')}`, 적용 범위 `{q010_reg.get('output', {}).get('applicability')}` (RawTherapee 근거 보존)")
+    else:
+        lines.append("- **Q010 (B)**: [기록 누락]")
     if q077_reg:
         lines.append(f"- **Q077 (B)**: 상태 `{q077_reg.get('output', {}).get('status')}`, 적용 범위 `{q077_reg.get('output', {}).get('applicability')}` (RawTherapee 근거 보존)")
+    else:
+        lines.append("- **Q077 (B)**: [기록 누락]")
 
     lines.extend([
-        "- **검토 결과**: RawTherapee 근거를 임의로 ART 기능 지원으로 확정하지 않고 제품 범위를 엄격히 보존함. [합격]",
         "",
-        "## 5. 호출 계약 및 무결성 판정",
-        "- 검색 호출: 0회 (상위 검색 결과 그대로 소비)",
-        "- 재작성 호출: 0회 (T14 재작성 결과 보존)",
-        "- 생성 호출: 항목별 1회",
-        "- 구조/출처 매핑 위반: 0건",
-        "- **게이트 B 판정**: 통과 (연결 준비 완료)",
-        "",
+        "## 5. 게이트 B 판정",
+        f"- **최종 판정**: `{verdict}`",
     ])
 
+    if fail_reasons:
+        lines.append("\n### 실패 사유 (FAIL)")
+        for fr in fail_reasons:
+            lines.append(f"- {fr}")
+
+    if pending_reasons:
+        lines.append("\n### 미결/보류 사유 (PENDING)")
+        for pr in pending_reasons:
+            lines.append(f"- {pr}")
+
+    lines.append("")
     report_content = "\n".join(lines)
     (out_dir / "report.md").write_text(report_content, encoding="utf-8")
     return report_content
@@ -360,7 +644,62 @@ def main() -> int:
     parser.add_argument("--out-dir", type=Path, default=None)
     parser.add_argument("--mock-llm", action="store_true", help="API 호출 없이 모의 응답으로 실행")
 
+    parser.add_argument("--manual-reviews", type=Path, default=None, help="수동 검토 JSON 파일 경로")
+    parser.add_argument("--validate", type=Path, default=None, help="생성 없이 기존 실행 폴더만 오프라인 재검증")
+
     args = parser.parse_args()
+
+    if args.validate:
+        val_dir = args.validate.resolve()
+        rec_file = val_dir / "execution_records.jsonl"
+        if not rec_file.is_file():
+            print(f"오류: 실행 기록 파일이 없습니다: {rec_file}")
+            return 1
+        with open(rec_file, "r", encoding="utf-8") as f:
+            records = [json.loads(line) for line in f]
+        reg_records = []
+        reg_file = val_dir / "regression_records.jsonl"
+        if reg_file.is_file():
+            with open(reg_file, "r", encoding="utf-8") as f:
+                reg_records = [json.loads(line) for line in f]
+        manual_reviews = {}
+        rev_file = args.manual_reviews or (val_dir / "manual_reviews.json")
+        if rev_file.is_file():
+            with open(rev_file, "r", encoding="utf-8") as f:
+                manual_reviews = json.load(f)
+        verdict, fail_reasons, pending_reasons = evaluate_gate_b(
+            records=records,
+            regression_records=reg_records,
+            manual_reviews=manual_reviews,
+            source_root=REPO_ROOT,
+            allow_mock=False,
+        )
+        report_text = generate_comparison_report(
+            records=records,
+            out_dir=val_dir,
+            q010_reg=next((r for r in reg_records if r.get("query_id") == "Q010"), None),
+            q077_reg=next((r for r in reg_records if r.get("query_id") == "Q077"), None),
+            manual_reviews=manual_reviews,
+            verdict=verdict,
+            fail_reasons=fail_reasons,
+            pending_reasons=pending_reasons,
+        )
+        print(f"오프라인 재검증 완료 ({val_dir})")
+        print(f"게이트 B 판정: {verdict}")
+        if fail_reasons:
+            print("실패 사유:")
+            for fr in fail_reasons:
+                print(f"  - {fr}")
+        if pending_reasons:
+            print("미결 사유:")
+            for pr in pending_reasons:
+                print(f"  - {pr}")
+        if verdict == "PASS":
+            return 0
+        elif verdict == "PENDING":
+            return 2
+        else:
+            return 1
 
     # 1. 원본 파일 SHA 무결성 검증
     verify_file_sha(args.query_set, EXPECTED_QUERIES_SHA, "질문 원본")
@@ -375,31 +714,35 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     records_file = out_dir / "execution_records.jsonl"
+    reg_records_file = out_dir / "regression_records.jsonl"
 
     all_records: list[dict[str, Any]] = []
 
     generate_fn = None
     if args.mock_llm:
-        def _mock_gen(sys_inst: str, user_prompt: str, ctx_cits: dict, q_norm: str) -> str:
+        def _mock_gen(sys_inst: str, user_prompt: str, ctx_cits: dict, q_norm: str) -> tuple[str, None, dict[str, Any]]:
             cids = list(ctx_cits.keys())
             if not cids:
-                return json.dumps({
+                resp = json.dumps({
                     "status": "INSUFFICIENT_EVIDENCE",
                     "answer": "모르겠습니다. 제공된 검색 근거로는 확인할 수 없습니다.",
                     "citation_ids": [],
                 })
-            first_cid = cids[0]
-            if "jxl" in q_norm.lower() or "500" in q_norm:
-                return json.dumps({
-                    "status": "UNSUPPORTED",
-                    "answer": f"JXL 품질 슬라이더는 지원되지 않습니다 [{first_cid}].",
-                    "citation_ids": [first_cid],
-                })
-            return json.dumps({
-                "status": "SUPPORTED",
-                "answer": f"질문에 대한 근거 답변입니다 [{first_cid}].",
-                "citation_ids": [first_cid],
-            })
+            else:
+                first_cid = cids[0]
+                if "jxl" in q_norm.lower() or "500" in q_norm:
+                    resp = json.dumps({
+                        "status": "UNSUPPORTED",
+                        "answer": f"JXL 품질 슬라이더는 지원되지 않습니다 [{first_cid}].",
+                        "citation_ids": [first_cid],
+                    })
+                else:
+                    resp = json.dumps({
+                        "status": "SUPPORTED",
+                        "answer": f"질문에 대한 근거 답변입니다 [{first_cid}].",
+                        "citation_ids": [first_cid],
+                    })
+            return resp, None, {"llm_provider": "mock", "is_mock": True, "model_id": "mock-llm"}
         generate_fn = _mock_gen
 
     source_root = Path(".").resolve()
@@ -421,6 +764,9 @@ def main() -> int:
             generate_fn=generate_fn,
         )
         all_records.append(rec)
+        with open(records_file, "a", encoding="utf-8") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            f.flush()
         status = rec["output"]["status"]
         c_count = len(rec["citations"])
         print(f"[{qid} T11] status={status}, citations={c_count}")
@@ -435,11 +781,14 @@ def main() -> int:
             query_id=qid,
             query_info=q_info,
             bundle=t14_data["bundle"],
-            original_run_id=t14_data["entry"].get("step_id", ""),
+            original_run_id=extract_original_run_id(t14_data["entry"], default_qid=qid, default_cond="A"),
             source_root=source_root,
             generate_fn=generate_fn,
         )
         all_records.append(rec)
+        with open(records_file, "a", encoding="utf-8") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            f.flush()
         status = rec["output"]["status"]
         c_count = len(rec["citations"])
         print(f"[{qid} A] status={status}, citations={c_count}")
@@ -454,11 +803,14 @@ def main() -> int:
             query_id=qid,
             query_info=q_info,
             bundle=t14_data["bundle"],
-            original_run_id=t14_data["entry"].get("step_id", ""),
+            original_run_id=extract_original_run_id(t14_data["entry"], default_qid=qid, default_cond="B"),
             source_root=source_root,
             generate_fn=generate_fn,
         )
         all_records.append(rec)
+        with open(records_file, "a", encoding="utf-8") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            f.flush()
         status = rec["output"]["status"]
         c_count = len(rec["citations"])
         print(f"[{qid} B] status={status}, citations={c_count}")
@@ -466,6 +818,7 @@ def main() -> int:
     # Q010 & Q077 B bundle regression
     q010_reg = None
     q077_reg = None
+    regression_records: list[dict[str, Any]] = []
     if args.ab_records.is_file():
         print("\n--- Q010 / Q077 B bundle regression check ---")
         with open(args.ab_records, "r", encoding="utf-8") as f:
@@ -489,26 +842,54 @@ def main() -> int:
                             query_id=qid,
                             query_info=q_info,
                             bundle=b,
-                            original_run_id=entry.get("step_id", ""),
+                            original_run_id=extract_original_run_id(entry, default_qid=qid, default_cond="B"),
                             source_root=source_root,
                             generate_fn=generate_fn,
                         )
+                        regression_records.append(r)
+                        with open(reg_records_file, "a", encoding="utf-8") as f:
+                            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+                            f.flush()
                         if qid == "Q010":
                             q010_reg = r
                         else:
                             q077_reg = r
                         print(f"[{qid} B reg] status={r['output']['status']}, scope={r['output']['applicability']}")
 
-    # Save records JSONL
-    with open(records_file, "w", encoding="utf-8") as f:
-        for r in all_records:
-            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+    manual_reviews = {}
+    if args.manual_reviews and args.manual_reviews.is_file():
+        with open(args.manual_reviews, "r", encoding="utf-8") as f:
+            manual_reviews = json.load(f)
+
+    verdict, fail_reasons, pending_reasons = evaluate_gate_b(
+        records=all_records,
+        regression_records=regression_records,
+        manual_reviews=manual_reviews,
+        source_root=source_root,
+        allow_mock=args.mock_llm,
+    )
 
     # Generate comparison report
-    report_text = generate_comparison_report(all_records, out_dir, q010_reg, q077_reg)
+    report_text = generate_comparison_report(
+        records=all_records,
+        out_dir=out_dir,
+        q010_reg=q010_reg,
+        q077_reg=q077_reg,
+        manual_reviews=manual_reviews,
+        verdict=verdict,
+        fail_reasons=fail_reasons,
+        pending_reasons=pending_reasons,
+    )
     print(f"\n평가 완료: {records_file}")
     print(f"보고서 완료: {out_dir / 'report.md'}")
-    return 0
+    print(f"게이트 B 판정: {verdict}")
+
+    if verdict == "PASS":
+        return 0
+    elif verdict == "PENDING":
+        return 2
+    else:
+        return 1
 
 
 if __name__ == "__main__":
