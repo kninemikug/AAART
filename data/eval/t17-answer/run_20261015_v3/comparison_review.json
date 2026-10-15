@@ -1,0 +1,582 @@
+{
+  "scope": "Slice 1 45건 및 Q010/Q077 2건. 실제 정상 응답 9건만 의미 대조를 완료했다.",
+  "complete": false,
+  "reviewed_count": 9,
+  "unreviewable_count": 38,
+  "cross_track_comparison": "A/B 실제 응답을 얻지 못했으므로 15개 질문의 3 track 전수 비교는 미완료다.",
+  "records": [
+    {
+      "query_id": "Q001",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q001_1792055197",
+      "record_hash": "1ac9789dbe05e35067af090481520a7f1485eac32ade03d83b3d682c1d59ab3a",
+      "status": "verified",
+      "reason": "히스토그램 분석 후 Exposure 조정이라는 핵심 사실이 T11 답변 및 Exposure 원문과 일치한다. RawTherapee로 범위를 명시했다.",
+      "citations": [
+        {
+          "cid": "C1S1",
+          "doc_id": "rawpedia:Exposure",
+          "target_url": "https://rawpedia.rawtherapee.com/exposure/",
+          "source_location": "{\"section_title\":\"Exposure\",\"source_segment\":{\"byte_end\":29445,\"byte_start\":138,\"char_end\":29437,\"char_start\":138,\"content_char_end\":29299,\"content_char_start\":0,\"doc_id\":\"rawpedia:Exposure\",\"json_pointer\":null,\"segment_sha256\":\"2a5e5b64b2950fc8ef622cf9ce50c253d3f35a1aed6583818ddc51375e58ae2b\",\"source_file_sha256\":\"6bf06463d4f46b5291459bd5b452d5b4b409f7362d3e73e8f0dfbd754a7a6ab1\",\"source_path\":\"data/rawpedia/Exposure.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/exposure/\"}}"
+        }
+      ],
+      "baseline_run_id": "run_1791816326_4bfaeb47",
+      "baseline_answer_sha256": "5c1b40b154c445385f1be0c5fc56d4b55d7cfb0e28c9b9940959e5888c0d20b8"
+    },
+    {
+      "query_id": "Q004",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q004_1792055203",
+      "record_hash": "15b7e1505b8e44bc6547692a12f02d662efbc51ffd67fbcbfdac6a6d39a52f8f",
+      "status": "verified",
+      "reason": "Amount 증가 시 동적 범위 축소, Detail 양수의 대비 보존·음수의 대비 감소가 T11 및 원문과 일치한다. RawTherapee 범위를 유지했다.",
+      "citations": [
+        {
+          "cid": "C1S1",
+          "doc_id": "rawpedia:Dynamic_Range_Compression",
+          "target_url": "https://rawpedia.rawtherapee.com/dynamic_range_compression/",
+          "source_location": "{\"section_title\":\"Dynamic Range Compression\",\"source_segment\":{\"byte_end\":3921,\"byte_start\":141,\"char_end\":3919,\"char_start\":141,\"content_char_end\":3778,\"content_char_start\":0,\"doc_id\":\"rawpedia:Dynamic_Range_Compression\",\"json_pointer\":null,\"segment_sha256\":\"d06de8767563d92333ebb9fbfd4cfd64d6c29e2052b18913383d74c8d4141027\",\"source_file_sha256\":\"c0ad011fe62f78926cd63ef8464d0b43c1fc015f2a23fa0a94be69dfdb40d6c0\",\"source_path\":\"data/rawpedia/Dynamic_Range_Compression.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/dynamic_range_compression/\"}}"
+        }
+      ],
+      "baseline_run_id": "run_1791816339_875dc379",
+      "baseline_answer_sha256": "2214244e54081c048f1992861f5fda835ffc38ced1b77b3b072926fe62e13dfa"
+    },
+    {
+      "query_id": "Q014",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q014_1792055208",
+      "record_hash": "c2ce4acc6af85e96818d6c18d7d4abc384d6c586c6d240bf27b93e6f6c585dd5",
+      "status": "verified",
+      "reason": "Depth Map을 켜고 밝을수록 효과가 크다는 설명이 T11 및 Haze Removal 원문과 일치한다. ART 기능으로 확대하지 않았다.",
+      "citations": [
+        {
+          "cid": "C1S1",
+          "doc_id": "rawpedia:Haze_Removal",
+          "target_url": "https://rawpedia.rawtherapee.com/haze_removal/",
+          "source_location": "{\"section_title\":\"Haze Removal\",\"source_segment\":{\"byte_end\":678,\"byte_start\":119,\"char_end\":678,\"char_start\":119,\"content_char_end\":559,\"content_char_start\":0,\"doc_id\":\"rawpedia:Haze_Removal\",\"json_pointer\":null,\"segment_sha256\":\"901c0d8a89180288be11dca576f31743925928c096078b805313fa9cc6b7b5a0\",\"source_file_sha256\":\"1857dd49ce185f777ee7cd72eec8d0f11902ac4edb24bba4a1a9234706ab6a1d\",\"source_path\":\"data/rawpedia/Haze_Removal.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/haze_removal/\"}}"
+        }
+      ],
+      "baseline_run_id": "run_1791816351_d2dbbd3e",
+      "baseline_answer_sha256": "ce5d571d4ad40ff6137bd07988d98690efc754b0febcd39eebb96b4b3f7fa0aa"
+    },
+    {
+      "query_id": "Q021",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q021_1792055215",
+      "record_hash": "422c7466dc32eb75c483c5cf61c951a2e6e66912e65409decb9f80b0478d3bb2",
+      "status": "verified",
+      "reason": "카메라 고채도 데이터를 작은 색역에 압축하고 작업 프로파일을 복원한다는 설명이 T11 및 원문과 일치한다. 일반 색역 변환과의 구별도 원문에 있다.",
+      "citations": [
+        {
+          "cid": "C1S1",
+          "doc_id": "rawpedia:Gamut_compression",
+          "target_url": "https://rawpedia.rawtherapee.com/gamut_compression/",
+          "source_location": "{\"section_title\":\"Gamut Compression\",\"source_segment\":{\"byte_end\":8883,\"byte_start\":109,\"char_end\":8808,\"char_start\":109,\"content_char_end\":8699,\"content_char_start\":0,\"doc_id\":\"rawpedia:Gamut_compression\",\"json_pointer\":null,\"segment_sha256\":\"7fd925fce9e4056f9b7bde4d1bffb2c560acb483aa84a760b25794e1f799e7dc\",\"source_file_sha256\":\"d97cc4a36a67312b7398386398e0c7dc07f87d90106f0e0a40c25d6f46aeb125\",\"source_path\":\"data/rawpedia/Gamut_compression.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/gamut_compression/\"}}"
+        }
+      ],
+      "baseline_run_id": "run_1791816361_43493e75",
+      "baseline_answer_sha256": "42f7bf8404b4e6cc975d3fa32ef79e85c5bf911001a88ae47f8da9f423a8c319"
+    },
+    {
+      "query_id": "Q033",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q033_1792055230",
+      "record_hash": "dc52e529d04fe195da7f56af462ea36552bddf31dfe4be09dafe88ea741fcb41",
+      "status": "verified",
+      "reason": "센서 수치의 색 대응과 DCP·듀얼 일루미넌트·조명별 색상표 설명은 T11 및 인용 원문에 있다. 구체적인 동적 범위·광자 잡음·스펙트럼 한계를 추가하지 않았다. 센서 수치와 실제 색 대응의 필요성을 설명한 범위로 검토했다.",
+      "citations": [
+        {
+          "cid": "C1S1",
+          "doc_id": "rawpedia:How_to_create_DCP_color_profiles",
+          "target_url": "https://rawpedia.rawtherapee.com/how_to_create_dcp_color_profiles/",
+          "source_location": "{\"section_title\":\"How to create DCP color profiles\",\"source_segment\":{\"byte_end\":15946,\"byte_start\":125,\"char_end\":15945,\"char_start\":125,\"content_char_end\":15820,\"content_char_start\":0,\"doc_id\":\"rawpedia:How_to_create_DCP_color_profiles\",\"json_pointer\":null,\"segment_sha256\":\"a0b75135e043af925d2806659c360dc3bb524c26cda120cc20e9e4cdef32bb50\",\"source_file_sha256\":\"0296cac7536d04ff0f92171b29f63b9df5fe02d780b98fc0206d9e70e9d34683\",\"source_path\":\"data/rawpedia/How_to_create_DCP_color_profiles.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/how_to_create_dcp_color_profiles/\"}}"
+        }
+      ],
+      "baseline_run_id": "run_1791816373_918ab1f3",
+      "baseline_answer_sha256": "339442b7c94314ca4c905c981bd2270fe522b1ad25637f3f8b0c88dc5cf7f19c"
+    },
+    {
+      "query_id": "Q044",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q044_1792055235",
+      "record_hash": "72c178acba009b79a3895fc16e4ceae9c1af806e1f525347e8f1e25065ae03c3",
+      "status": "verified",
+      "reason": "T11과 동일하게 비트 심도 근거가 없다. 제공된 다섯 문서는 Graduated Filter, Channel Mixer, Haze Removal, Impulse Noise Reduction, Vignetting Filter이다. 이점이나 비용을 만들어내지 않고 부족 상태를 반환했다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816390_2e04aa27",
+      "baseline_answer_sha256": "f09687281d5603996c1537c67612d64f357ba0effbfdbd6f01c27e06019975f2"
+    },
+    {
+      "query_id": "Q054",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q054_1792055242",
+      "record_hash": "c2f88439d6d4e86caef482daa2619a09648bc25bbb69aa08d880b492866d0c11",
+      "status": "verified",
+      "reason": "1.0 미만 로컬 대비 감소, 초과 증가가 T11 및 Contrast by Detail Levels 원문과 일치한다. RawTherapee 범위를 명시했다.",
+      "citations": [
+        {
+          "cid": "C1S1",
+          "doc_id": "rawpedia:Contrast_by_Detail_Levels",
+          "target_url": "https://rawpedia.rawtherapee.com/contrast_by_detail_levels/",
+          "source_location": "{\"section_title\":\"Contrast by Detail Levels\",\"source_segment\":{\"byte_end\":5170,\"byte_start\":132,\"char_end\":5125,\"char_start\":132,\"content_char_end\":4993,\"content_char_start\":0,\"doc_id\":\"rawpedia:Contrast_by_Detail_Levels\",\"json_pointer\":null,\"segment_sha256\":\"5736db4f1a61da2a9b7657900799031b04016a6ab4093b1236e96ee1da26a2ca\",\"source_file_sha256\":\"d4206295c1d5443153ccc5664ba7f764a4c3ae9f12910158829ee698e84066ac\",\"source_path\":\"data/rawpedia/Contrast_by_Detail_Levels.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/contrast_by_detail_levels/\"}}"
+        }
+      ],
+      "baseline_run_id": "run_1791816400_e0962d23",
+      "baseline_answer_sha256": "93c41fe0b25359245303d6685362ceca705265624f3a9949c549577747424c03"
+    },
+    {
+      "query_id": "Q063",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q063_1792055248",
+      "record_hash": "bf0e6d50e75f8b5bbd64f8d20a5c1f4463d510cc07aaaf7954d45d96808a6278",
+      "status": "verified",
+      "reason": "Ctrl-click 대상(실선), 드래그 소스(점선), 소스가 대상을 대체하는 방향이 T11 및 Spot Removal 원문과 일치한다. RawTherapee 범위를 유지했다.",
+      "citations": [
+        {
+          "cid": "C1S1",
+          "doc_id": "rawpedia:Spot_Removal",
+          "target_url": "https://rawpedia.rawtherapee.com/spot_removal/",
+          "source_location": "{\"section_title\":\"Spot Removal\",\"source_segment\":{\"byte_end\":1337,\"byte_start\":114,\"char_end\":1337,\"char_start\":114,\"content_char_end\":1223,\"content_char_start\":0,\"doc_id\":\"rawpedia:Spot_Removal\",\"json_pointer\":null,\"segment_sha256\":\"76eece2a206f724c974d348a94fd36138848be681065e320360251cdcc6c0e9a\",\"source_file_sha256\":\"bbfb6d2c66076e6509d788a3caae77ddf1d00a2a2bad63d1b30a22c582961174\",\"source_path\":\"data/rawpedia/Spot_Removal.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/spot_removal/\"}}"
+        }
+      ],
+      "baseline_run_id": "run_1791816410_4f4a35ba",
+      "baseline_answer_sha256": "bacbd9bce813febf4181eb319fa0b9de238276d670b92dc86b5f02fca50e05fd"
+    },
+    {
+      "query_id": "Q072",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q072_1792055254",
+      "record_hash": "c1e613bed179807dc50a7edec84263dc0b70ae2ac7f1d530e1eb8ddd9e8d6360",
+      "status": "verified",
+      "reason": "Fill의 누락값 기본값 채움과 기존 편집 덮어쓰기, Preserve의 포함값만 적용이 T11 및 원문과 일치한다. RawTherapee 처리 프로필 설명으로 한정했다.",
+      "citations": [
+        {
+          "cid": "C1S1",
+          "doc_id": "rawpedia:Sidecar_Files_-_Processing_Profiles",
+          "target_url": "https://rawpedia.rawtherapee.com/sidecar_files_-_processing_profiles/",
+          "source_location": "{\"section_title\":\"Sidecar Files - Processing Profiles\",\"source_segment\":{\"byte_end\":12423,\"byte_start\":135,\"char_end\":12423,\"char_start\":135,\"content_char_end\":12288,\"content_char_start\":0,\"doc_id\":\"rawpedia:Sidecar_Files_-_Processing_Profiles\",\"json_pointer\":null,\"segment_sha256\":\"6fadb5a56c883e0fef169bc7fdb810fb1d578e8f8f0a87b155aabdfcc290e302\",\"source_file_sha256\":\"16646b23c9d50e91ba8d35c6bd71ae7041e1ee418dfde096390051d17c7ed5e9\",\"source_path\":\"data/rawpedia/Sidecar_Files_-_Processing_Profiles.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/sidecar_files_-_processing_profiles/\"}}"
+        }
+      ],
+      "baseline_run_id": "run_1791816421_366bd20b",
+      "baseline_answer_sha256": "9f9c5a36e2a6b8dfc2b00de381c8f90a53c46c5987d5bd7ef62456683c55600a"
+    },
+    {
+      "query_id": "Q080",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q080_1792055257",
+      "record_hash": "25e6acbf66bcded9a8c487bce1713140df64b32336d5314786b5abcae7647390",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816432_2d74fd60",
+      "baseline_answer_sha256": "a688a3e320ce5f8416b7823108fcd0485628278b6f0b8da157174627cb316b93"
+    },
+    {
+      "query_id": "Q084",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q084_1792055259",
+      "record_hash": "1a8b2b0a724976bcc695fec5835ff10396c9200dd8c0830ff5130c179119f868",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816444_4c30c335",
+      "baseline_answer_sha256": "9a104a67c850e37c7b075b02adfb7bd1f5111f60d9f200c078c8aa827049a424"
+    },
+    {
+      "query_id": "Q086",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q086_1792055262",
+      "record_hash": "6dbf4893c1dbc939c84e1a296c2c1c8fc0095a6e6c30b9985311254d3c19a5f4",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816457_7032ccae",
+      "baseline_answer_sha256": "db179ee7cf648246544ee6f7ef52915ef1d02fd35d41a116eeee41bb43037f42"
+    },
+    {
+      "query_id": "Q092",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q092_1792055264",
+      "record_hash": "12ac00b178095b5f76ddfa333ed32eb2baa783941febe9311bd932e3fd3710cc",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816470_b2d265fb",
+      "baseline_answer_sha256": "002bf28c6f76a79059c8876904c734f61eb9c89666544c1606b275fe335be2aa"
+    },
+    {
+      "query_id": "Q093",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q093_1792055267",
+      "record_hash": "9d9183ee5f37832aa9e4bbc01341e7088c73f21177a209d35b4b7d14bf169c3a",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816484_2da27107",
+      "baseline_answer_sha256": "e2b51a546cddfbd6461b761c5d98f006c115d244d240c258e8d2187bb2acb4a2"
+    },
+    {
+      "query_id": "Q096",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q096_1792055270",
+      "record_hash": "f90c0f2148f9e40c19e77ed78047f793b226a2bcfa689b03d85548b174cc6965",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816494_ebbb5582",
+      "baseline_answer_sha256": "870ec83de788d6828e3c7ea48b85d51106092e74a115c835ded6d3ba494b463f"
+    },
+    {
+      "query_id": "Q001",
+      "track": "t14_a",
+      "run_id": "t17_t14_a_Q001_1792055272",
+      "record_hash": "ea16a7d8196eb6d99fc21904a8b2e14c192038ca2dda24c5f2b548bf05b3dea3",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816326_4bfaeb47",
+      "baseline_answer_sha256": "5c1b40b154c445385f1be0c5fc56d4b55d7cfb0e28c9b9940959e5888c0d20b8"
+    },
+    {
+      "query_id": "Q004",
+      "track": "t14_a",
+      "run_id": "t17_t14_a_Q004_1792055274",
+      "record_hash": "b0e2868ad88fb46fd172badf98cc6f84577b40a0c9d7ac017138706d19a3c46d",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816339_875dc379",
+      "baseline_answer_sha256": "2214244e54081c048f1992861f5fda835ffc38ced1b77b3b072926fe62e13dfa"
+    },
+    {
+      "query_id": "Q014",
+      "track": "t14_a",
+      "run_id": "t17_t14_a_Q014_1792055277",
+      "record_hash": "1932d737adfbd0c56d3aa392b0bf7e5747305e4f5e8dbd660d09a8184694e2c8",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816351_d2dbbd3e",
+      "baseline_answer_sha256": "ce5d571d4ad40ff6137bd07988d98690efc754b0febcd39eebb96b4b3f7fa0aa"
+    },
+    {
+      "query_id": "Q021",
+      "track": "t14_a",
+      "run_id": "t17_t14_a_Q021_1792055280",
+      "record_hash": "c6dedd26f7a74b6df21c0ed5e3fd72bd668a6b713c22561b78e0be34f23cf0fb",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816361_43493e75",
+      "baseline_answer_sha256": "42f7bf8404b4e6cc975d3fa32ef79e85c5bf911001a88ae47f8da9f423a8c319"
+    },
+    {
+      "query_id": "Q033",
+      "track": "t14_a",
+      "run_id": "t17_t14_a_Q033_1792055282",
+      "record_hash": "175bbc1afb21884f57c914d177cd42a4dc794700f9289f1779b0fd43a7bd1b86",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816373_918ab1f3",
+      "baseline_answer_sha256": "339442b7c94314ca4c905c981bd2270fe522b1ad25637f3f8b0c88dc5cf7f19c"
+    },
+    {
+      "query_id": "Q044",
+      "track": "t14_a",
+      "run_id": "t17_t14_a_Q044_1792055284",
+      "record_hash": "98b5f8c195277a9728cc8e96592c70f2d7d15071ed953e273998e626b38d2e47",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816390_2e04aa27",
+      "baseline_answer_sha256": "f09687281d5603996c1537c67612d64f357ba0effbfdbd6f01c27e06019975f2"
+    },
+    {
+      "query_id": "Q054",
+      "track": "t14_a",
+      "run_id": "t17_t14_a_Q054_1792055286",
+      "record_hash": "991eafc6c7c43123c211bad8ee76009d215112492faa4f8f20d86f6a09dbe54b",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816400_e0962d23",
+      "baseline_answer_sha256": "93c41fe0b25359245303d6685362ceca705265624f3a9949c549577747424c03"
+    },
+    {
+      "query_id": "Q063",
+      "track": "t14_a",
+      "run_id": "t17_t14_a_Q063_1792055290",
+      "record_hash": "dc2fa0772b16b9a6619de00decdcaa684f36cd20c16dccd9c093e768914cd363",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816410_4f4a35ba",
+      "baseline_answer_sha256": "bacbd9bce813febf4181eb319fa0b9de238276d670b92dc86b5f02fca50e05fd"
+    },
+    {
+      "query_id": "Q072",
+      "track": "t14_a",
+      "run_id": "t17_t14_a_Q072_1792055292",
+      "record_hash": "df912b87a80695716bfc7991b2f2b7f4038008f4660f09d768d93e02c67f393a",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816421_366bd20b",
+      "baseline_answer_sha256": "9f9c5a36e2a6b8dfc2b00de381c8f90a53c46c5987d5bd7ef62456683c55600a"
+    },
+    {
+      "query_id": "Q080",
+      "track": "t14_a",
+      "run_id": "t17_t14_a_Q080_1792055295",
+      "record_hash": "9248eae623810b0b36a344da82f508005cd72ed71842028d3b89dba6f2c03fad",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816432_2d74fd60",
+      "baseline_answer_sha256": "a688a3e320ce5f8416b7823108fcd0485628278b6f0b8da157174627cb316b93"
+    },
+    {
+      "query_id": "Q084",
+      "track": "t14_a",
+      "run_id": "t17_t14_a_Q084_1792055299",
+      "record_hash": "0993ca3a0e788ef52bf4e953f87eaaecacee753467f6271392becf51e7b43004",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816444_4c30c335",
+      "baseline_answer_sha256": "9a104a67c850e37c7b075b02adfb7bd1f5111f60d9f200c078c8aa827049a424"
+    },
+    {
+      "query_id": "Q086",
+      "track": "t14_a",
+      "run_id": "t17_t14_a_Q086_1792055302",
+      "record_hash": "dbd33fcacc1024c803ce19c9ba142320ab66acd9609e7921ee2dad8b33ae2ecf",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816457_7032ccae",
+      "baseline_answer_sha256": "db179ee7cf648246544ee6f7ef52915ef1d02fd35d41a116eeee41bb43037f42"
+    },
+    {
+      "query_id": "Q092",
+      "track": "t14_a",
+      "run_id": "t17_t14_a_Q092_1792055304",
+      "record_hash": "2ccc8fdfb3b372f9c0d645795764c84f13db5081e911ecb3f889fda48cd3ef1e",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816470_b2d265fb",
+      "baseline_answer_sha256": "002bf28c6f76a79059c8876904c734f61eb9c89666544c1606b275fe335be2aa"
+    },
+    {
+      "query_id": "Q093",
+      "track": "t14_a",
+      "run_id": "t17_t14_a_Q093_1792055307",
+      "record_hash": "f5f0dda706c6ae565a17ea2f474bdd4752d372eab5b2b3767edd80eb51033f90",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816484_2da27107",
+      "baseline_answer_sha256": "e2b51a546cddfbd6461b761c5d98f006c115d244d240c258e8d2187bb2acb4a2"
+    },
+    {
+      "query_id": "Q096",
+      "track": "t14_a",
+      "run_id": "t17_t14_a_Q096_1792055309",
+      "record_hash": "01505779f42c701a558c40dc9a75b05d5fba395341b2fe4f717628f7b0a7cfd2",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816494_ebbb5582",
+      "baseline_answer_sha256": "870ec83de788d6828e3c7ea48b85d51106092e74a115c835ded6d3ba494b463f"
+    },
+    {
+      "query_id": "Q001",
+      "track": "t14_b",
+      "run_id": "t17_t14_b_Q001_1792055311",
+      "record_hash": "8119726b1e1bcbce097eea284dfd5a7ab9d9b8e26a901a120205516835adb855",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816326_4bfaeb47",
+      "baseline_answer_sha256": "5c1b40b154c445385f1be0c5fc56d4b55d7cfb0e28c9b9940959e5888c0d20b8"
+    },
+    {
+      "query_id": "Q004",
+      "track": "t14_b",
+      "run_id": "t17_t14_b_Q004_1792055314",
+      "record_hash": "de4cc2dc6c80dc1607e978ab2973658401a969cfed73fd60d330fad3267a286d",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816339_875dc379",
+      "baseline_answer_sha256": "2214244e54081c048f1992861f5fda835ffc38ced1b77b3b072926fe62e13dfa"
+    },
+    {
+      "query_id": "Q014",
+      "track": "t14_b",
+      "run_id": "t17_t14_b_Q014_1792055316",
+      "record_hash": "05057abc9a08580a8baef35fbab57e177085c9766922184747dfe9aca0027a33",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816351_d2dbbd3e",
+      "baseline_answer_sha256": "ce5d571d4ad40ff6137bd07988d98690efc754b0febcd39eebb96b4b3f7fa0aa"
+    },
+    {
+      "query_id": "Q021",
+      "track": "t14_b",
+      "run_id": "t17_t14_b_Q021_1792055319",
+      "record_hash": "96a09ec93707891036f3096da46cd05d51b84a5669c800efc379a135619fdaf3",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816361_43493e75",
+      "baseline_answer_sha256": "42f7bf8404b4e6cc975d3fa32ef79e85c5bf911001a88ae47f8da9f423a8c319"
+    },
+    {
+      "query_id": "Q033",
+      "track": "t14_b",
+      "run_id": "t17_t14_b_Q033_1792055321",
+      "record_hash": "60c85d9cb9a41ccd0a9f1f5385b5146270ad5f6dd83cf699aa87c159d660d8e6",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816373_918ab1f3",
+      "baseline_answer_sha256": "339442b7c94314ca4c905c981bd2270fe522b1ad25637f3f8b0c88dc5cf7f19c"
+    },
+    {
+      "query_id": "Q044",
+      "track": "t14_b",
+      "run_id": "t17_t14_b_Q044_1792055323",
+      "record_hash": "00366e5ec73107e5f93e6b857751e936fa41e09a4f615a53fdafc10b14d9001b",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816390_2e04aa27",
+      "baseline_answer_sha256": "f09687281d5603996c1537c67612d64f357ba0effbfdbd6f01c27e06019975f2"
+    },
+    {
+      "query_id": "Q054",
+      "track": "t14_b",
+      "run_id": "t17_t14_b_Q054_1792055326",
+      "record_hash": "480e31275d132d8253e2f8d333dc387d763f1da6254ae34c1d2b6cf8e3fdefc1",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816400_e0962d23",
+      "baseline_answer_sha256": "93c41fe0b25359245303d6685362ceca705265624f3a9949c549577747424c03"
+    },
+    {
+      "query_id": "Q063",
+      "track": "t14_b",
+      "run_id": "t17_t14_b_Q063_1792055328",
+      "record_hash": "694dbc7b72d9e3ca2a10aad6c58452528f4525761d485a13e9250392c737c39b",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816410_4f4a35ba",
+      "baseline_answer_sha256": "bacbd9bce813febf4181eb319fa0b9de238276d670b92dc86b5f02fca50e05fd"
+    },
+    {
+      "query_id": "Q072",
+      "track": "t14_b",
+      "run_id": "t17_t14_b_Q072_1792055330",
+      "record_hash": "e608bbbaeb28ba000c6960891ca2becd9b22a53bb90f5d687ca425026528ce92",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816421_366bd20b",
+      "baseline_answer_sha256": "9f9c5a36e2a6b8dfc2b00de381c8f90a53c46c5987d5bd7ef62456683c55600a"
+    },
+    {
+      "query_id": "Q080",
+      "track": "t14_b",
+      "run_id": "t17_t14_b_Q080_1792055333",
+      "record_hash": "e3c4279421adc2a59924070a666d10de26cb83eab978f25e39d2c1d01241702c",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816432_2d74fd60",
+      "baseline_answer_sha256": "a688a3e320ce5f8416b7823108fcd0485628278b6f0b8da157174627cb316b93"
+    },
+    {
+      "query_id": "Q084",
+      "track": "t14_b",
+      "run_id": "t17_t14_b_Q084_1792055335",
+      "record_hash": "de6f63cb51372450db5fd2bdc1f31eebb4532ec5a08fb4db10d3467e6a2522e5",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816444_4c30c335",
+      "baseline_answer_sha256": "9a104a67c850e37c7b075b02adfb7bd1f5111f60d9f200c078c8aa827049a424"
+    },
+    {
+      "query_id": "Q086",
+      "track": "t14_b",
+      "run_id": "t17_t14_b_Q086_1792055337",
+      "record_hash": "abfcc6ab47480c2c21ab41b77e75677b68f9e6056bfaff0d625c8818f18348e6",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816457_7032ccae",
+      "baseline_answer_sha256": "db179ee7cf648246544ee6f7ef52915ef1d02fd35d41a116eeee41bb43037f42"
+    },
+    {
+      "query_id": "Q092",
+      "track": "t14_b",
+      "run_id": "t17_t14_b_Q092_1792055340",
+      "record_hash": "3b3379a3ff4aa736602e9dc66cf6475a5b7c7de611b9f4e995f8e15f2ff1c740",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816470_b2d265fb",
+      "baseline_answer_sha256": "002bf28c6f76a79059c8876904c734f61eb9c89666544c1606b275fe335be2aa"
+    },
+    {
+      "query_id": "Q093",
+      "track": "t14_b",
+      "run_id": "t17_t14_b_Q093_1792055342",
+      "record_hash": "a07a39fb5be3aee442c7fac0f3975c6e825523f66ecc2a4bad844765dc31ac5a",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816484_2da27107",
+      "baseline_answer_sha256": "e2b51a546cddfbd6461b761c5d98f006c115d244d240c258e8d2187bb2acb4a2"
+    },
+    {
+      "query_id": "Q096",
+      "track": "t14_b",
+      "run_id": "t17_t14_b_Q096_1792055345",
+      "record_hash": "691a08447a965bb60c092a19f50e67891b0959a98262e0b275c44a1d85644a6c",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": "run_1791816494_ebbb5582",
+      "baseline_answer_sha256": "870ec83de788d6828e3c7ea48b85d51106092e74a115c835ded6d3ba494b463f"
+    },
+    {
+      "query_id": "Q010",
+      "track": "t14_b_reg_Q010",
+      "run_id": "t17_t14_b_reg_Q010_Q010_1792055347",
+      "record_hash": "abfdf8f1c0c7c7b196597565c7df67628498276589622a6e70398f2035af723d",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": null,
+      "baseline_answer_sha256": null
+    },
+    {
+      "query_id": "Q077",
+      "track": "t14_b_reg_Q077",
+      "run_id": "t17_t14_b_reg_Q077_Q077_1792055349",
+      "record_hash": "62434eecf4f03d6917208b10e5b40693cf807a35c79bc4ea5802581c37fa5360",
+      "status": "blocked_by_generation_error",
+      "reason": "실제 생성 제공처의 사용량 한도 오류. 본문·인용의 대조를 완료하지 않았다.",
+      "citations": [],
+      "baseline_run_id": null,
+      "baseline_answer_sha256": null
+    }
+  ]
+}
