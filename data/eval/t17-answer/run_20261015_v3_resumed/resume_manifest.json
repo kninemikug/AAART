@@ -1,0 +1,64 @@
+{
+  "source": "data/eval/t17-answer/run_20261015_v3",
+  "source_hashes": {
+    "execution_records.jsonl": "6bb858afc71f29765bc0a090fb62242a7eb31639dcdb7df8a977ded00666ee93",
+    "regression_records.jsonl": "36bbd7e3d8ef9302d41e2ade917bb73c58bc4d290f3707ea9858599f750b55c1"
+  },
+  "reused": [
+    {
+      "query_id": "Q001",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q001_1792055197",
+      "record_hash": "1ac9789dbe05e35067af090481520a7f1485eac32ade03d83b3d682c1d59ab3a"
+    },
+    {
+      "query_id": "Q004",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q004_1792055203",
+      "record_hash": "15b7e1505b8e44bc6547692a12f02d662efbc51ffd67fbcbfdac6a6d39a52f8f"
+    },
+    {
+      "query_id": "Q014",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q014_1792055208",
+      "record_hash": "c2ce4acc6af85e96818d6c18d7d4abc384d6c586c6d240bf27b93e6f6c585dd5"
+    },
+    {
+      "query_id": "Q021",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q021_1792055215",
+      "record_hash": "422c7466dc32eb75c483c5cf61c951a2e6e66912e65409decb9f80b0478d3bb2"
+    },
+    {
+      "query_id": "Q033",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q033_1792055230",
+      "record_hash": "dc52e529d04fe195da7f56af462ea36552bddf31dfe4be09dafe88ea741fcb41"
+    },
+    {
+      "query_id": "Q044",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q044_1792055235",
+      "record_hash": "72c178acba009b79a3895fc16e4ceae9c1af806e1f525347e8f1e25065ae03c3"
+    },
+    {
+      "query_id": "Q054",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q054_1792055242",
+      "record_hash": "c2f88439d6d4e86caef482daa2619a09648bc25bbb69aa08d880b492866d0c11"
+    },
+    {
+      "query_id": "Q063",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q063_1792055248",
+      "record_hash": "bf0e6d50e75f8b5bbd64f8d20a5c1f4463d510cc07aaaf7954d45d96808a6278"
+    },
+    {
+      "query_id": "Q072",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q072_1792055254",
+      "record_hash": "c1e613bed179807dc50a7edec84263dc0b70ae2ac7f1d530e1eb8ddd9e8d6360"
+    }
+  ],
+  "rule": "독립 검증에 통과한 정상 기록만 그대로 재사용. 실패는 원본에 보존하고 새 run_id로 시도."
+}

@@ -1,0 +1,185 @@
+{
+  "t17_t11_replay_Q001_1792055197": {
+    "query_id": "Q001",
+    "track": "t11_replay",
+    "run_id": "t17_t11_replay_Q001_1792055197",
+    "record_hash": "1ac9789dbe05e35067af090481520a7f1485eac32ade03d83b3d682c1d59ab3a",
+    "status": "verified",
+    "reviewed_claims": [
+      {
+        "claim": "Auto Levels가 히스토그램을 분석하고 Exposure 설정을 조정한다. RawTherapee 설명이다.",
+        "evidence": [
+          {
+            "cid": "C1S1",
+            "doc_id": "rawpedia:Exposure",
+            "target_url": "https://rawpedia.rawtherapee.com/exposure/",
+            "source_location": "{\"section_title\":\"Exposure\",\"source_segment\":{\"byte_end\":29445,\"byte_start\":138,\"char_end\":29437,\"char_start\":138,\"content_char_end\":29299,\"content_char_start\":0,\"doc_id\":\"rawpedia:Exposure\",\"json_pointer\":null,\"segment_sha256\":\"2a5e5b64b2950fc8ef622cf9ce50c253d3f35a1aed6583818ddc51375e58ae2b\",\"source_file_sha256\":\"6bf06463d4f46b5291459bd5b452d5b4b409f7362d3e73e8f0dfbd754a7a6ab1\",\"source_path\":\"data/rawpedia/Exposure.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/exposure/\"}}"
+          }
+        ]
+      }
+    ],
+    "reason": "히스토그램 분석 후 Exposure 조정이라는 핵심 사실이 T11 답변 및 Exposure 원문과 일치한다. RawTherapee로 범위를 명시했다."
+  },
+  "t17_t14_a_Q001_1792055272": {
+    "query_id": "Q001",
+    "track": "t14_a",
+    "run_id": "t17_t14_a_Q001_1792055272",
+    "record_hash": "ea16a7d8196eb6d99fc21904a8b2e14c192038ca2dda24c5f2b548bf05b3dea3",
+    "status": "pending",
+    "reviewed_claims": [],
+    "reason": "사용량 한도로 생성이 실패하여 답변·인용의 의미 검토를 진행할 수 없다. 실패 trace와 실제 요청은 보존했다."
+  },
+  "t17_t14_b_Q001_1792055311": {
+    "query_id": "Q001",
+    "track": "t14_b",
+    "run_id": "t17_t14_b_Q001_1792055311",
+    "record_hash": "8119726b1e1bcbce097eea284dfd5a7ab9d9b8e26a901a120205516835adb855",
+    "status": "pending",
+    "reviewed_claims": [],
+    "reason": "사용량 한도로 생성이 실패하여 답변·인용의 의미 검토를 진행할 수 없다. 실패 trace와 실제 요청은 보존했다."
+  },
+  "t17_t11_replay_Q086_1792055262": {
+    "query_id": "Q086",
+    "track": "t11_replay",
+    "run_id": "t17_t11_replay_Q086_1792055262",
+    "record_hash": "6dbf4893c1dbc939c84e1a296c2c1c8fc0095a6e6c30b9985311254d3c19a5f4",
+    "status": "pending",
+    "reviewed_claims": [],
+    "reason": "사용량 한도로 생성이 실패하여 답변·인용의 의미 검토를 진행할 수 없다. 실패 trace와 실제 요청은 보존했다."
+  },
+  "t17_t14_a_Q086_1792055302": {
+    "query_id": "Q086",
+    "track": "t14_a",
+    "run_id": "t17_t14_a_Q086_1792055302",
+    "record_hash": "dbd33fcacc1024c803ce19c9ba142320ab66acd9609e7921ee2dad8b33ae2ecf",
+    "status": "pending",
+    "reviewed_claims": [],
+    "reason": "사용량 한도로 생성이 실패하여 답변·인용의 의미 검토를 진행할 수 없다. 실패 trace와 실제 요청은 보존했다."
+  },
+  "t17_t14_b_Q086_1792055337": {
+    "query_id": "Q086",
+    "track": "t14_b",
+    "run_id": "t17_t14_b_Q086_1792055337",
+    "record_hash": "abfcc6ab47480c2c21ab41b77e75677b68f9e6056bfaff0d625c8818f18348e6",
+    "status": "pending",
+    "reviewed_claims": [],
+    "reason": "사용량 한도로 생성이 실패하여 답변·인용의 의미 검토를 진행할 수 없다. 실패 trace와 실제 요청은 보존했다."
+  },
+  "t17_t11_replay_Q096_1792055270": {
+    "query_id": "Q096",
+    "track": "t11_replay",
+    "run_id": "t17_t11_replay_Q096_1792055270",
+    "record_hash": "f90c0f2148f9e40c19e77ed78047f793b226a2bcfa689b03d85548b174cc6965",
+    "status": "pending",
+    "reviewed_claims": [],
+    "reason": "사용량 한도로 생성이 실패하여 답변·인용의 의미 검토를 진행할 수 없다. 실패 trace와 실제 요청은 보존했다."
+  },
+  "t17_t14_a_Q096_1792055309": {
+    "query_id": "Q096",
+    "track": "t14_a",
+    "run_id": "t17_t14_a_Q096_1792055309",
+    "record_hash": "01505779f42c701a558c40dc9a75b05d5fba395341b2fe4f717628f7b0a7cfd2",
+    "status": "pending",
+    "reviewed_claims": [],
+    "reason": "사용량 한도로 생성이 실패하여 답변·인용의 의미 검토를 진행할 수 없다. 실패 trace와 실제 요청은 보존했다."
+  },
+  "t17_t14_b_Q096_1792055345": {
+    "query_id": "Q096",
+    "track": "t14_b",
+    "run_id": "t17_t14_b_Q096_1792055345",
+    "record_hash": "691a08447a965bb60c092a19f50e67891b0959a98262e0b275c44a1d85644a6c",
+    "status": "pending",
+    "reviewed_claims": [],
+    "reason": "사용량 한도로 생성이 실패하여 답변·인용의 의미 검토를 진행할 수 없다. 실패 trace와 실제 요청은 보존했다."
+  },
+  "t17_t14_a_Q004_1792055274": {
+    "query_id": "Q004",
+    "track": "t14_a",
+    "run_id": "t17_t14_a_Q004_1792055274",
+    "record_hash": "b0e2868ad88fb46fd172badf98cc6f84577b40a0c9d7ac017138706d19a3c46d",
+    "status": "pending",
+    "reviewed_claims": [],
+    "reason": "사용량 한도로 생성이 실패하여 답변·인용의 의미 검토를 진행할 수 없다. 실패 trace와 실제 요청은 보존했다."
+  },
+  "t17_t14_b_Q004_1792055314": {
+    "query_id": "Q004",
+    "track": "t14_b",
+    "run_id": "t17_t14_b_Q004_1792055314",
+    "record_hash": "de4cc2dc6c80dc1607e978ab2973658401a969cfed73fd60d330fad3267a286d",
+    "status": "pending",
+    "reviewed_claims": [],
+    "reason": "사용량 한도로 생성이 실패하여 답변·인용의 의미 검토를 진행할 수 없다. 실패 trace와 실제 요청은 보존했다."
+  },
+  "t17_t14_a_Q014_1792055277": {
+    "query_id": "Q014",
+    "track": "t14_a",
+    "run_id": "t17_t14_a_Q014_1792055277",
+    "record_hash": "1932d737adfbd0c56d3aa392b0bf7e5747305e4f5e8dbd660d09a8184694e2c8",
+    "status": "pending",
+    "reviewed_claims": [],
+    "reason": "사용량 한도로 생성이 실패하여 답변·인용의 의미 검토를 진행할 수 없다. 실패 trace와 실제 요청은 보존했다."
+  },
+  "t17_t14_b_Q014_1792055316": {
+    "query_id": "Q014",
+    "track": "t14_b",
+    "run_id": "t17_t14_b_Q014_1792055316",
+    "record_hash": "05057abc9a08580a8baef35fbab57e177085c9766922184747dfe9aca0027a33",
+    "status": "pending",
+    "reviewed_claims": [],
+    "reason": "사용량 한도로 생성이 실패하여 답변·인용의 의미 검토를 진행할 수 없다. 실패 trace와 실제 요청은 보존했다."
+  },
+  "t17_t14_a_Q054_1792055286": {
+    "query_id": "Q054",
+    "track": "t14_a",
+    "run_id": "t17_t14_a_Q054_1792055286",
+    "record_hash": "991eafc6c7c43123c211bad8ee76009d215112492faa4f8f20d86f6a09dbe54b",
+    "status": "pending",
+    "reviewed_claims": [],
+    "reason": "사용량 한도로 생성이 실패하여 답변·인용의 의미 검토를 진행할 수 없다. 실패 trace와 실제 요청은 보존했다."
+  },
+  "t17_t14_b_Q054_1792055326": {
+    "query_id": "Q054",
+    "track": "t14_b",
+    "run_id": "t17_t14_b_Q054_1792055326",
+    "record_hash": "480e31275d132d8253e2f8d333dc387d763f1da6254ae34c1d2b6cf8e3fdefc1",
+    "status": "pending",
+    "reviewed_claims": [],
+    "reason": "사용량 한도로 생성이 실패하여 답변·인용의 의미 검토를 진행할 수 없다. 실패 trace와 실제 요청은 보존했다."
+  },
+  "t17_t14_a_Q063_1792055290": {
+    "query_id": "Q063",
+    "track": "t14_a",
+    "run_id": "t17_t14_a_Q063_1792055290",
+    "record_hash": "dc2fa0772b16b9a6619de00decdcaa684f36cd20c16dccd9c093e768914cd363",
+    "status": "pending",
+    "reviewed_claims": [],
+    "reason": "사용량 한도로 생성이 실패하여 답변·인용의 의미 검토를 진행할 수 없다. 실패 trace와 실제 요청은 보존했다."
+  },
+  "t17_t14_b_Q063_1792055328": {
+    "query_id": "Q063",
+    "track": "t14_b",
+    "run_id": "t17_t14_b_Q063_1792055328",
+    "record_hash": "694dbc7b72d9e3ca2a10aad6c58452528f4525761d485a13e9250392c737c39b",
+    "status": "pending",
+    "reviewed_claims": [],
+    "reason": "사용량 한도로 생성이 실패하여 답변·인용의 의미 검토를 진행할 수 없다. 실패 trace와 실제 요청은 보존했다."
+  },
+  "t17_t14_b_reg_Q010_Q010_1792055347": {
+    "query_id": "Q010",
+    "track": "t14_b_reg_Q010",
+    "run_id": "t17_t14_b_reg_Q010_Q010_1792055347",
+    "record_hash": "abfdf8f1c0c7c7b196597565c7df67628498276589622a6e70398f2035af723d",
+    "status": "pending",
+    "reviewed_claims": [],
+    "reason": "사용량 한도로 생성이 실패하여 답변·인용의 의미 검토를 진행할 수 없다. 실패 trace와 실제 요청은 보존했다."
+  },
+  "t17_t14_b_reg_Q077_Q077_1792055349": {
+    "query_id": "Q077",
+    "track": "t14_b_reg_Q077",
+    "run_id": "t17_t14_b_reg_Q077_Q077_1792055349",
+    "record_hash": "62434eecf4f03d6917208b10e5b40693cf807a35c79bc4ea5802581c37fa5360",
+    "status": "pending",
+    "reviewed_claims": [],
+    "reason": "사용량 한도로 생성이 실패하여 답변·인용의 의미 검토를 진행할 수 없다. 실패 trace와 실제 요청은 보존했다."
+  }
+}

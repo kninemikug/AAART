@@ -1,0 +1,241 @@
+# Task 17 보완 플랜 — 검증과 완료 판정 복구
+
+작성일: 2026-10-15. 대상 구현: `29462a5e11b2188eb4c33d76a59ca9ab50190ed2`. 담당: 김구.
+
+이 문서는 리뷰에서 재현한 문제의 수정 계획과 이행 기록이다. 최초 작성은 플랜에 한정했으며, 이후 구현·회귀 검증·실제 재평가 결과를 추가했다. [기존 실행 플랜](T17_execution_plan.md), [Task 17](../tasks/todo.md#task-17-답변-생성출처-인용-a-17), [T14 인계 §2](T14_conn_handoff.md#2-t17--실제-답변인용-연결)의 답변·인용·제품 범위·검색 중복 금지 계약은 유지한다. 보완 작업 목록과 체크포인트는 이 문서에서 관리한다.
+
+## 1. 현재 증거와 미완료 범위
+
+리뷰에서 아래 명령으로 **230 passed, 1 warning**을 확인했다. 이는 다섯 테스트 파일의 결과이며 프로젝트 전체 테스트 결과가 아니다. 경고는 기존 Chroma의 폐기 예정 함수 사용에 관한 것이다.
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src /Users/user/Workspace/Programming/Projects/AAART/venv/bin/python -m pytest -p no:cacheprovider tests/test_graph_answer.py tests/test_answer.py tests/test_router.py tests/test_router_contracts.py tests/test_graph_search_connection.py -q
+```
+
+기존 [실행 기록](../data/eval/t17-answer/run_20261015_final/execution_records.jsonl)의 T11 재생·T14 A·T14 B 각 15개, 총 45개에서 입력·상태·출력 인용을 대조했고 221개 근거 세그먼트의 원문·정확한 바이트 좌표에 불일치는 없었다. 기본 동작 증거는 보존한다.
+
+그러나 45개 모두 `manual_review=pending`이고 실제 전달 프롬프트가 없다. `generation.raw_response`는 모두 `null`이며, 생성 이벤트의 원문 답변은 trace에 남아 있으므로 원응답 전체가 없다고 해석하지 않는다. T14 A/B 30개의 `original_run_id`는 비어 있고 Q010·Q077의 독립 실행 기록도 저장되지 않았다. [기존 보고서](../data/eval/t17-answer/run_20261015_final/report.md)의 수동 합격·게이트 B 통과는 구현상 무조건 출력되므로 완료 증거로 인정하지 않는다.
+
+| 문제 | 재현 결과 | 보완 소유 단계 |
+| --- | --- | --- |
+| R1 / P1: 보고서의 무조건 합격 | 45건 전부 오류이고 Q010·Q077이 없어도 수동 합격·게이트 B 통과를 출력 | F01 판정 수정, F04 기록 검증, F05 실제 재평가 |
+| R2 / P2: 좌표 불일치 허용 | `same\nsame\n`에서 문자 `[0:4]`, 바이트 `[5:9]`를 수용 | F02 원문 좌표 검증 |
+| R3 / P2: 생성 증거 유실 | `GenerationError.trace`·`raw_response`를 버림. 성공 시 실제 전달 프롬프트 누락 | F04 관측·저장·독립 재검증 |
+| R4 / P2: 확정 제약 누락 | `signals.constraints`의 표식이 실제 답변 생성 인자에 없음 | F03 문맥 전달 |
+| R5 / P2: 현재 경로와 출처 미대조 | `TROUBLESHOOT` 항목과 `RAWPEDIA` bundle 조합이 `SUPPORTED`로 처리됨 | F03 노드 입력 경계 |
+
+재리뷰 결과 **v2의 PASS는 완료 증거로 인정하지 않는다.** 기존 v1·v2를 보완 검증기로 읽으면 각각 `PENDING`(exit code 2)이다. v2는 47건 및 19개 검토를 보유하지만 실제 최종 요청 전문·입력 파일 지문·실행 코드 지문이 없다. 과거 기록을 소급 보완하지 않고 별도 감사 결과를 [v1 감사](../data/eval/t17-answer/run_20261015_final_audit_v3.json), [v2 감사](../data/eval/t17-answer/run_20261015_v2_audit_v3.json)에 저장했다. 새 실제 실행 결과와 최종 판정은 §10에 기록한다.
+
+현재 최종 판정은 **v3 재개 실행 47건·필수 검토 19건 완료, 게이트 B PASS(exit code 0)**다. 이는 T17 단독 모듈의 연결 준비 판정이며 T13-2 실제 접합·T16 실제 폴백·CP3 완료를 포함하지 않는다.
+
+## 2. 기준선 보존과 변경 경계
+
+기존 원문·질문셋·T11/T14 기록·T17 실행 폴더는 덮어쓰지 않는다. 수정 구현과 재평가 산출물은 별도 커밋·새 실행 폴더에서 추적한다. 기존 보고서의 한계는 새 보고서에서 원본 경로와 함께 설명한다.
+
+| 입력 파일 | 고정 SHA-256 |
+| --- | --- |
+| `docs/search_eval_queries.json` | `91b7fb50b23c0514d3e3d24579cad32a07dc6dcc3c8a40774b9e2e9da0fa14e8` |
+| `docs/T11_execution_records.jsonl` | `5d3d9a7df432cbfac741d479c554aae69a6dfbc8039ed166331d7f5a8d1b64b7` |
+| `data/eval/t14-conn/conn_20261015_pr/slice1_search.jsonl` | `7362973a835ca69e3375e2980e6c79d83cccab31a221a750ee2b23724c520a4d` |
+| `data/eval/t14-conn/conn_20261015_pr/ab_records.jsonl` | `96f11d6d63f41896c1b8cf028f52b0932d121d3d5ad4093c69a33802ea0dfd0e` |
+| `data/eval/t17-answer/run_20261015_final/execution_records.jsonl` | `55864299554fa5a12bca0824997f347d551fb342c5b55a53a2bc5cec2476d487` |
+| `data/eval/t17-answer/run_20261015_final/report.md` | `96bb9f9039721269ffbcedf22a49bf5cc7dc507971bb142817f43939a442b766` |
+
+후속 변경 대상은 [그래프 답변 모듈](../src/artagent/graph/answer.py), [T11 헬퍼](../src/artagent/answer.py)의 관측에 필요한 최소 확장, [평가 실행기](../scripts/check_t17_answer.py), 관련 테스트와 새 실행 결과다. 새 패키지·모델 선정·검색 튜닝·T16 실제 폴백·코어 변경은 필요하지 않다.
+
+`AnswerResult.status`의 `SUPPORTED`, `UNSUPPORTED`, `INSUFFICIENT_EVIDENCE`와 기술 오류의 `ErrorInfo` 구분을 유지한다. `PASS`·`FAIL`·`PENDING`은 평가 게이트 판정값이며 답변 상태에 추가하지 않는다. 부족 상태에서만 T16 추가 검색 대상이 될 수 있고, T17 자체의 검색·재작성은 0회다.
+
+## 3. F01 — 보고서가 검증 결과를 소비하도록 수정
+
+**의존:** 없음. **규모:** S. **예상 파일:** `scripts/check_t17_answer.py`, 신규 `tests/test_t17_answer_eval.py`.
+
+보고서 작성과 판정을 분리한다. 판정 함수는 실행 기록·기계 검증 결과·필수 수동 검토 파일을 받아 게이트 상태와 실패/미확인 사유를 반환하고, 보고서는 그 결과만 표시한다. 상태가 A/B에서 같다는 이유로 내용 일치·개선을 선언하지 않는다. 모델·설정·호출 수 역시 실제 기록에서 읽으며 하드코딩한 성공 문장을 제거한다.
+
+검증 가능한 위반이 있으면 `FAIL`, 위반은 없지만 필수 증거가 부족하거나 검토 전이면 `PENDING`, 모든 필수 조건을 통과한 경우에만 `PASS`다. 완료 판정 CLI의 종료 코드는 각각 `FAIL=1`, `PENDING=2`, `PASS=0`으로 구분하고, 오류·증거 누락이 있어도 확보한 결과를 먼저 보존한다. 실행 성공과 의미 상태의 근거 부족은 구별한다. 예상된 `INSUFFICIENT_EVIDENCE`나 `UNSUPPORTED` 자체는 평가 실패가 아니다.
+
+`--mock-llm`은 기록과 보고서에 모의 실행임을 명시한다. 모의 결과는 도구·직렬화 시험에 사용하고 실제 생성 게이트 B의 `PASS` 증거에서는 제외한다. 기존 45개 기록을 읽으면 구조적으로 확인 가능한 범위와 미검토·프롬프트 누락을 표시하여 `PENDING`으로 판정해야 한다.
+
+**완료·검증 기준:**
+
+- [x] 45개 전부 기술 오류, 질문/track 중복, 잘못된 상태·인용·제품 범위 등 각각의 반례는 실패 사유와 `FAIL`을 반환한다.
+- [x] 필수 질문/track 누락, 필수 수동 검토 `pending`, Q010/Q077 결과·실제 프롬프트 누락, 모의 결과만 있는 경우는 `PENDING`이다. 무결성 위반도 함께 있으면 `FAIL`을 우선한다.
+- [x] 기록·필수 검토 필드가 완결된 합성 양성 대조는 판정 함수에서 `PASS`다. 합성 fixture를 실제 실행 증거로 제출하지 않는다.
+
+테스트는 임시 디렉터리의 합성 기록으로 판정 함수와 CLI 종료 상태를 검사하고, 생성 호출은 차단한다. 현재 코드에서 반례가 잘못 통과하는 실패 테스트를 먼저 확보한다.
+
+## 4. F02 — 문자 위치와 정확한 UTF-8 바이트 위치 대조
+
+**의존:** F01 뒤 순차 진행. **규모:** S. **예상 파일:** `src/artagent/graph/answer.py`, `tests/test_graph_answer.py`.
+
+Markdown 또는 JSON `/body`에서 선택한 원문 문자열을 `original_text`라 할 때, 기대 시작·끝은 각각 `len(original_text[:char_start].encode("utf-8"))`, `len(original_text[:char_end].encode("utf-8"))`다. 전달된 `byte_start/end`가 이 값과 정확히 일치해야 한다. 반복 텍스트가 다른 위치에 있어도 추출 문자열 일치만으로 수용하지 않는다. 기존 파일·본문·세그먼트 해시와 텍스트 일치 검증도 유지한다.
+
+공유가 필요한 순수 계산은 기존 [provenance 검증](../src/artagent/retrieval/provenance.py)의 규칙과 일치시킨다. 가짜 청크를 구성해 검증을 우회하지 않는다. `content_char_start/end`는 원래 청크 좌표 그대로 보존하고 원문 좌표나 Evidence 로컬 좌표로 대체하지 않는다.
+
+**완료·검증 기준:**
+
+- [x] Markdown·JSON 양쪽에서 ASCII 반복 문장과 한글·멀티바이트 반복 문장의 다른 위치를 가리키는 바이트 범위를 거부한다.
+- [x] 시작만 불일치·끝만 불일치·음수·범위 초과·정수 대신 bool인 입력은 `ANSWER_INPUT_INVALID`, 생성 0회다. 생성 대역의 호출을 직접 단언한다.
+- [x] 정확한 좌표의 양성 대조와 기존 정상 세그먼트가 통과하고, 서로 다른 댓글·범위의 인용 ID가 그대로 구분된다.
+
+## 5. F03 — 현재 항목의 제약·출처 계약 검증
+
+**의존:** F02. **규모:** S. **예상 파일:** `src/artagent/graph/answer.py`, `tests/test_graph_answer.py`; 공유 추출이 필요할 경우에만 `src/artagent/graph/search.py`.
+
+현재 항목의 질문을 그대로 사용하고, `request.context`의 OS·ART 버전·확정 목표와 `signals.constraints`를 함께 답변 경로로 전달한다. 명시적인 `constraints` 인자와 별도 프롬프트 구역을 사용해 확정 문맥을 원문 근거와 구분한다. 제약의 원문·부정·제품명·파일명·숫자를 보존하며, 검색용 재작성 문장이나 보존 지시 자체를 답변 사실의 근거로 넣지 않는다. T14의 문맥 추출 규칙과 대응시켜 한쪽에서만 누락되는 필드가 없게 한다.
+
+그래프 노드는 생성 전에 `decision.plan[cursor]`와 `retrieval.source_filter`를 대조한다. `DOC_QA → RAWPEDIA`, `TROUBLESHOOT → GITHUB`만 허용하고 개별 Evidence의 출처도 검사한다. 누락·범위 밖 cursor·실행 경로 `EXECUTE`의 ANSWER 진입은 `ANSWER_INPUT_INVALID`로 종료한다. 부분 state 갱신은 오류 때 `answer=None`으로 과거 답변을 지운다. 선행 검색·재작성 오류가 있으면 그 오류를 우선 보존한다.
+
+기존 T11 검색은 두 출처가 섞일 수 있으므로 **단독 T11 재생의 `ALL`은 명시적인 평가 예외로 유지**한다. 이 예외를 그래프 노드에 적용하지 않으며 T14 A/B는 원래 단일 출처 계약을 유지한다. `bundle.query`는 재작성된 검색어일 수 있으므로 원질문과 문자열이 다르다는 이유만으로 거부하지 않는다.
+
+**완료·검증 기준:**
+
+- [x] 생성 콜백의 실제 인자를 캡처해 OS·버전·목표·각 제약의 원문 포함을 확인한다. `context=None`·빈 제약·혼합 항목에서도 현재 질문과 제약이 보존된다.
+- [x] 두 경로의 교차 출처·`ALL`·잘못된 Evidence 출처, 잘못된 plan/cursor를 생성 전에 거부한다. 올바른 경로의 정상 빈 검색은 부족 상태를 반환한다.
+- [x] 입력 state의 `request`, `decision.plan`, `cursor`, `retrieval`, `signals`, `research_count`는 불변이다. count=0/1, 선행 오류·이전 답변 존재를 각각 대조하고 단독 T11 혼합 재생은 통과한다.
+
+**체크포인트 A:** F01~F03 반례와 양성 대조 통과, 기존 상태·인용 포맷 유지. 이 시점에는 실제 생성 게이트 B를 통과했다고 보고하지 않는다.
+
+## 6. F04 — 실제 호출 증거 보존과 오프라인 재검증
+
+**의존:** 체크포인트 A. **규모:** M. **예상 파일:** `src/artagent/graph/answer.py`, `src/artagent/answer.py`, `scripts/check_t17_answer.py`, `tests/test_graph_answer.py`, `tests/test_t17_answer_eval.py`.
+
+### 6.1 관측과 저장 계약
+
+실행별 관측 레코드 하나에 단계별로 확보한 값을 축적하여 성공·입력 오류·생성 오류·인용 오류 모두에서 한 번 저장한다. `GenerationError`의 `trace`, `raw_response`, `runtime_meta`를 명시적으로 넘기고, 일반 예외의 미제공 값은 `null`로 남긴다. 오류 코드만 보고 호출 횟수를 추정하지 말고 실제 생성 진입 직전의 계수를 사용한다. 실패를 성공 형태로 보정하거나 재호출하지 않는다.
+
+새 기록은 `t17-run-v3`로 구분하며, 최소한 아래 정보를 보존한다. v1·v2는 당시 확보한 증거만으로 검증한다.
+
+프롬프트 버전과 응답 스키마 식별자는 구분한다. 지시 내용 변경으로 프롬프트 버전을 올려도 T17의 `status` 필수 검사가 유지되어야 하며, 현재의 버전 문자열 비교 때문에 T11 두 키 경로로 되돌아가서는 안 된다. T11 기본 계약과 기존 기록 재검증은 그대로 유지한다.
+
+| 구분 | 기록할 증거 |
+| --- | --- |
+| 입력·계보 | 실제 코드 커밋, 질문·원문/스냅샷·질문셋 SHA, 입력 레코드의 파일 SHA와 query/condition/step 식별자, 원본 `source_location`, 전체 bundle, 제약 |
+| 프롬프트 | 버전, 실제 전달한 시스템 지침·사용자 프롬프트·해시·문맥 인용 목록. 생성 헬퍼가 최종 지시를 덧붙이면 실제 최종 요청 전문도 전달 직전에 캡처 |
+| 생성 | 실제 제공처·모델·설정, `live`/`mock` 실행 구분, 실제 생성 시도 수·시간, 원응답, T17 스키마로 파싱한 status/answer/citation_ids, usage·종료 정보 |
+| 진단 | 제공처별 실제 trace·stdout/stderr·프로세스 오류·출력 파일 내용 등 확보한 값. 미수신과 0건을 구분하고 자격증명은 제외 |
+| 출력·검토 | 최종 답변·상태·오류, 인용→Evidence→원문 매핑, 기계 검증 결과와 수동 검토의 run ID·주장·근거·판정 이유 |
+
+T14 레코드에는 현재 최상위 `step_id`가 없으므로 빈 값을 원본 실행 ID로 기록하지 않는다. 실제 `request.request_id`, `decision.plan`의 step ID와 입력 파일 SHA·query ID·A/B condition의 조합으로 연결한다. Q010/Q077은 전체 실행 기록을 별도 회귀 JSONL에 저장하고 보고서와 검토 파일에서 그 run ID를 참조한다.
+
+실행 기록은 항목 종료 때마다 쓰고, 도중 오류·중단까지 보존한다. 기존 출력 폴더에 재실행 결과를 덮어쓰지 않도록 새 경로나 명시적인 재개 계약을 사용한다. 검토 파일은 실행 원본을 변경하지 않고 run ID·레코드 해시로 연결한다.
+
+### 6.2 독립 재검증과 반례
+
+평가 실행기에 생성하지 않고 저장 기록만 검증하는 경로를 추가한다. 계획된 인터페이스는 `--validate <실행폴더>`다. JSONL·검토 파일을 읽어 기준선·정확한 ID/track·중복·원문·좌표·제품 범위·인용·출력·계수를 재계산하고, `verified=True`나 보고서 문구를 신뢰하지 않는다.
+
+제공처 실행 로그는 T17 응답 스키마를 지정한 전체 검증 경로로 다시 확인한다. [T11 `validate_saved_trace`](../src/artagent/answer.py)는 현재 저장 요약을 읽는 함수이므로 그것만 호출해 원본 로그 검증을 대신하지 않는다. T11의 기존 v1/v2 기록 해석과 기본 스키마는 보존한다.
+
+**완료·검증 기준:**
+
+- [x] 성공·입력 오류·시간 초과·프로세스 실패·JSON 오류·인용 오류에서 실제 호출 수와 확보한 프롬프트/원응답/trace가 저장된다. 미실행 생성의 로그는 만들지 않으며, T17의 새 프롬프트 버전에서도 상태 누락·미지 상태를 거부한다.
+- [x] 저장 후 status·본문·인용 URL·문자/바이트 범위·제약·프롬프트 해시·원본 연결·호출 수·trace 중 하나를 바꾼 반례와 Q010/Q077 누락은 독립 검증에서 탐지한다. 진위 확인이 불가능한 누락 정보는 미확인으로 처리한다.
+- [x] 오프라인 검증은 생성·검색·임베딩·재작성을 호출하지 않고 입력 파일도 변경하지 않는다. 제공처 비공개 값은 새로 추정하지 않는다. 정상 완결 기록은 통과한다.
+
+**체크포인트 B:** F04를 포함한 집중 회귀 통과. 원본 보존과 오프라인 재검증이 확보된 뒤 실제 생성 평가를 시작한다.
+
+## 7. F05 — 새 실제 실행과 수동 대조로 게이트 재판정
+
+**의존:** 체크포인트 B. **규모:** M. **예상 산출물:** 새 `data/eval/t17-answer/<보완실행>/`의 실행·회귀·검토·기계 검증 기록과 보고서. 원본 코드는 이 단계에서 추가 변경하지 않는다. 수정이 필요하면 관련 단위 게이트부터 다시 확인한다.
+
+먼저 기존 45개를 읽기 전용으로 재검증하고, 확인 가능한 입력·221개 원문 세그먼트·이벤트 답변·상태·인용 연결의 결과를 별도 감사 기록에 남긴다. 당시 프롬프트를 현재 코드로 재구성한 값은 실제 전달값이라고 표시하지 않는다. 과거 기록의 빈 원응답·연결 ID·검토 상태를 소급해 채우지 않는다.
+
+새 실제 생성은 T11 문맥 재생 15개 + T14 A 15개 + T14 B 15개 = **45개**, 제품 범위 추가 회귀 Q010·Q077의 B 입력 **2개**다. Slice 1과 회귀를 별도 파일에 보존하여 총 47개 실행을 추적한다. 고정 질문 순서는 Q001, Q004, Q014, Q021, Q033, Q044, Q054, Q063, Q072, Q080, Q084, Q086, Q092, Q093, Q096이다.
+
+제공처·모델·설정은 기존 기준 `codex-cli`·`gpt-5.6-sol`과의 차이를 실행 전에 기록하여 고정한다. 검색 입력·원문 스냅샷·HyDE off·A/B 설정을 유지한다. 검색이나 재작성을 새로 실행하지 않는다. 골드·기대 상태·질문 ID는 생성 입력에 넣지 않는다. 기록/검증 보완만으로 답변 프롬프트가 같으면 기존 버전을 유지하고, 전달 제약·지시 내용이 달라지면 버전을 올려 차이를 명시한다.
+
+| 지정 검토 | 예상·필수 확인 |
+| --- | --- |
+| Q001 / 세 track | `SUPPORTED`, 히스토그램 분석·Exposure 조정·인용 ≥1. RawTherapee 참고 범위를 ART 지원 확정으로 바꾸지 않음 |
+| Q086 / T11 재생 | #442 근거가 없는 기존 문맥에서는 `INSUFFICIENT_EVIDENCE`; 이름 입력 UI 절차를 만들지 않음 |
+| Q086 / T14 A·B | `SUPPORTED`, 이름 부여·Linked mask·후속 도구의 위→아래 처리 순서. 실제 댓글 `#discussioncomment-15597989`에 연결 |
+| Q096 / 세 track | 직접 반증이 있는 문맥에서는 `UNSUPPORTED`, 인용 ≥1과 `#issuecomment-4711197631` 연결. 슬라이더 활성화·품질 50 절차를 만들지 않음 |
+| CP2 양성 Q001·Q004·Q014·Q054·Q063 / A·B | 각 주요 사실·절차와 인용의 원문 대응, 제품 범위, 근거 답변 유지 |
+| Q010·Q077 / B 추가 회귀 | 실제 답변·근거·인용 전체를 보존하고 RawTherapee 설명을 ART 지원 확정으로 확대하지 않음. `applicability` 문자열만 검사하여 합격시키지 않음 |
+
+45개 전부에서 주요 사실·제품 범위·인용을 T11 기준선 및 새 A/B 문맥과 대조해 판정 이유를 기록한다. 필수 수동 검토는 위 표의 Q001·Q086·Q096 세 track, CP2 다섯 개의 A/B, Q010·Q077 B다. 중복을 제외하면 **19개 실행**이며, 각 실행의 실제 run ID·레코드 해시·검토 주장·인용 ID·원문 위치·사유가 있어야 `verified`로 표시한다. 나머지도 전수 대조 결과는 필요하지만 수동 검토 수에 합산하지 않는다.
+
+**게이트 B의 `PASS` 조건:**
+
+- [x] 45개 고정 입력과 2개 추가 회귀가 각각 누락·중복 없이 존재하고 모두 실제 생성이다. 정상 호출은 항목별 생성 1회, 답변 내부 검색·재작성은 0회다.
+- [x] 입력 지문·출처/제약 전달·실제 프롬프트·실행 로그·원문 좌표·사용 인용·제품 범위의 기계 검증 위반이 0건이다. 기존 기준선 파일 지문도 실행 전후 같다.
+- [x] 전수 대조와 필수 19개 수동 검토가 완료되어 지정 기대 및 CP2 근거 답변을 충족한다. 누락은 `PENDING`, 사실·제품 범위·상태·인용의 위반은 `FAIL`이다.
+
+정상 부족 답변과 반증 답변을 기술 실패로 세지 않는다. Q096은 양성 Hit로 합산하지 않으며 Q044 같은 변화는 실제 문맥으로 설명한다. 실패 시 원인과 결과를 보존하고 유리한 질문·출처·모델로 교체하여 통과시키지 않는다. 기존 질문 반복은 독립 확대 평가로 표시하지 않는다.
+
+## 8. 후속 검증 명령과 종료 기준
+
+구현 후 F01~F04 집중 검증은 다음 명령으로 실행한다. 새 평가 테스트 파일은 후속 구현에서 만든다.
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src /Users/user/Workspace/Programming/Projects/AAART/venv/bin/python -m pytest -p no:cacheprovider tests/test_graph_answer.py tests/test_t17_answer_eval.py tests/test_answer.py -q
+```
+
+F05 기록 검증은 구현할 `scripts/check_t17_answer.py --validate <보완실행폴더>`를 같은 venv·`PYTHONPATH=src` 환경에서 실행한다. 마지막으로 §1의 다섯 파일과 `tests/test_t17_answer_eval.py`를 함께 실행하여 T11 기본 경로·T13-2 라우팅·T14 검색 연결의 회귀를 확인한다. 테스트 제외·단언 삭제·품질 기준 하향으로 성공 수를 맞추지 않는다.
+
+R1~R5 각각에 `문제 ID / 실패를 재현한 테스트 / 수정 후 양성·음성 결과 / 코드 위치 / 검증 기록`을 연결한다. 최종 보고서에는 실제 명령·결과 수·미확인 항목·기준선 보존 여부와 게이트 상태를 적는다. 이 보완은 T17 단독 모듈의 연결 준비 판정이며, T13-2 실노드 접합·T16 실제 1회 폴백·CP3 완료는 별도 검증이다.
+
+이번 문서 작성의 완료 조건은 R1~R5의 수정 순서·반례·양성 대조·증거 보존·재평가·게이트가 빠짐없이 연결되고 참조 및 기준선 지문이 맞는 것이다. 위 구현·재평가 체크박스는 실제 증거를 확보한 뒤에만 체크한다.
+
+## 9. v2 이행 기록과 판정 정정 (2026-10-15)
+
+- **F01 (보고서-판정 분리 & 게이트 B 로직)**: `evaluate_gate_b` 구현, `FAIL=1`/`PENDING=2`/`PASS=0` 종료 코드 분리, 단위 테스트 12건 전원 통과 (`tests/test_t17_answer_eval.py`).
+- **F02 (정확한 UTF-8 바이트 좌표 검증)**: Markdown 및 JSON `/body` 모두에서 `len(text[:char_start].encode('utf-8'))` 엄격 대조 적용, 잘못된 바이트 범위 및 bool 차단 단위 테스트 통과 (`tests/test_graph_answer.py`).
+- **F03 (확정 제약 및 출처 계약 검증)**: `signals.constraints` 전달 및 `[확정 문맥]` 렌더링, `DOC_QA -> RAWPEDIA`, `TROUBLESHOOT -> GITHUB` 경로 불일치 및 `EXECUTE` ANSWER 진입 차단 구현.
+- **F04 (호출 증거 보존 & 독립 재검증)**: 프롬프트·원응답·trace 보존, `record_schema="t17-run-v2"` 규격화, `--validate <dir>` 오프라인 재검증 파이프라인 탑재.
+- **F05 (v2 실제 재평가 및 당시 판정)**:
+  - `data/eval/t17-answer/run_20261015_v2/`에 47건(Slice 1 45건 + Q010/Q077 2건) 실 LLM(`codex-cli` / `gpt-5.6-sol`) 실행 완료.
+  - 19건 필수 수동 검토(`manual_reviews.json`) 전원 `verified` 확인.
+  - 당시 검증기는 `PASS`(exit code 0)를 출력했으나, 실제 요청 누락·최종 본문/trace 미대조·회귀 검증 우회·검토 연결 미검증 때문에 완료 판정을 철회한다. 원본 보고서는 역사적 기록으로 보존한다.
+  - 당시 관련 테스트 248건이 통과했다. 프로젝트 전체 테스트 수를 의미하지 않는다.
+
+## 10. 재리뷰 보완 및 실제 평가 완료 (2026-10-16)
+
+### 10.1 검증 허점의 수정과 증거
+
+최초 재현한 42개 실패 반례와 이후 추가 반례를 먼저 확인하고 수정했다. 정상 완결 합성 자료는 통과시키고, 손상·위반은 `FAIL`, 필수 증거 누락은 `PENDING`으로 구분한다. 합성 자료는 검증기 시험에만 사용한다.
+
+| 재리뷰 문제 | 보완 내용 | 직접 검증 |
+| --- | --- | --- |
+| 모의 실행의 PASS 허용 | `allow_mock`로 모의 결과를 게이트 증거로 승격하지 않음. 본문·runtime의 모의 표식을 함께 확인 | `test_allow_mock_does_not_turn_mock_generation_into_gate_b_evidence`, API/Codex 정상 양성 대조 |
+| 최종 답변·인용·trace 미대조 | 원응답으로 최종 본문·인용·적용 범위를 재구성하고 원문 위치까지 대조. 저장된 verified 요약 대신 원본 이벤트·종료 코드·정책을 재검증 | `test_output_must_be_reconstructed_from_raw_response`, `test_citation_must_match_retrieved_source`, `test_trace_is_revalidated_instead_of_trusting_saved_validation` |
+| Q010/Q077 검증 우회 | 고정 45건과 추가 회귀 2건에 같은 입력·생성·원문·인용 검증 적용 | `test_regression_records_receive_the_same_integrity_checks`, `test_regression_mock_generation_cannot_satisfy_gate_b` |
+| 검토와 실행의 연결 누락 | 실제 query/track·run ID·레코드 SHA를 모두 확인. 다른 실행의 검토는 거부 | `test_manual_review_cannot_verify_a_different_execution` |
+| 검증 명령이 원본 보고서 변경 | `--validate`는 입력 폴더를 읽기만 함. `--validation-output`은 입력 폴더 밖의 새 파일로 제한 | `test_validate_does_not_write_to_any_input_directory_file`, 실제 8개 입력 파일의 SHA·크기·mtime 전후 일치 |
+| 최종 요청·코드·실제 호출 수 누락 | 제공처 호출 직전에 최종 요청 전문·스키마·모델·해시·시도 수 캡처. 코드 커밋/파일 및 입력 파일 지문 저장 | `test_codex_captures_exact_request_and_output_file`, `test_generation_attempt_count_is_observed_before_call` |
+
+구현 위치는 [생성 헬퍼](../src/artagent/answer.py), [그래프 단독 경로](../src/artagent/graph/answer.py), [독립 검증기](../src/artagent/answer_validation.py), [평가 실행기](../scripts/check_t17_answer.py)다. 프롬프트 버전과 응답 스키마를 분리해 프롬프트 버전이 바뀌어도 T17 상태 검사를 유지한다. 실패·시간 초과에서도 실제 제공처·모델·출력 파일·trace를 보존한다. API 원응답 문자열과 파싱 사본 불일치도 별도 반례로 확인해 차단했다.
+
+| 코드 커밋 | 내용 |
+| --- | --- |
+| `39b77ecfb` | 실제 생성 요청·출력 파일·관측한 호출 수 보존 |
+| `01e8fd206` | 공통 독립 검증·고정 입력·검토 연결·읽기 전용 CLI |
+| `68673afd8` | 생성 실패·시간 초과의 제공처 진단 보존 |
+| `8658c289a` | API 원응답과 파싱 사본 일치 검증 |
+
+### 10.2 실행 중단과 재개
+
+[첫 v3 실행](../data/eval/t17-answer/run_20261015_v3/)은 정상 9건 뒤 사용량 한도로 38건이 실패하여 `FAIL`이었다. 실패한 기록·요청·trace를 그대로 보존했다. 한도 해제 후 [재개 실행](../data/eval/t17-answer/run_20261015_v3_resumed/)에서 독립 검증을 통과한 정상 9건은 run ID·레코드 해시 그대로 재사용하고, 실패했던 38건만 같은 고정 입력·제공처·모델로 새로 생성했다. 원본의 실패를 삭제하거나 성공으로 덮어쓰지 않았다.
+
+[재개 manifest](../data/eval/t17-answer/run_20261015_v3_resumed/resume_manifest.json)에 원본 JSONL 지문과 재사용 9건을 연결했고, [실행 컨트롤러](../data/eval/t17-answer/run_20261015_v3_resumed/resume_evaluation.py)를 보존했다. 최종 선택된 47건은 정상 실행 각 1회이며, 원본 실패 38회를 포함한 두 폴더 전체의 실제 생성 시도는 총 85회다. 선택 기록의 코드 커밋은 재사용 9건 `01e8fd206`, 신규 38건 `68673afd8`로 구별한다. 두 버전은 답변 지시·문맥·모델이 같으며 차이는 실패 진단 보존이다. 기록에 당시 실행한 커밋과 실제 파일 지문을 함께 남겼다.
+
+모델은 `codex-cli / gpt-5.6-sol`, 프롬프트는 `t17-answer-v1`, 응답 스키마는 `t17-answer-v1`을 유지했다. T11의 기존 15개 실제 실행이 최초 기준선이며 이번 결과는 같은 질문의 회귀 검증이다. 모델의 출력 자체를 정답으로 사용하지 않고 원문·기대 행동·제품 범위로 판정했다. 경량 모델 선정·후보 비교·모델별 성능 최적화는 수행하지 않았다.
+
+### 10.3 최종 결과와 한계
+
+- [실제 실행 45건](../data/eval/t17-answer/run_20261015_v3_resumed/execution_records.jsonl)과 [추가 회귀 2건](../data/eval/t17-answer/run_20261015_v3_resumed/regression_records.jsonl): `SUPPORTED=41`, `INSUFFICIENT_EVIDENCE=3`, `UNSUPPORTED=3`, 기술 오류 0건.
+- 전체 231개 입력 근거 세그먼트 및 58개 사용 인용을 검증했다. 고정 질문·입력 bundle·원본 실행 연결·코드 지문·실제 최종 요청·원응답·프로세스 로그에 기계 검증 위반이 없다.
+- [47건 전체 대조](../data/eval/t17-answer/run_20261015_v3_resumed/comparison_review.json) 및 [필수 19건 검토](../data/eval/t17-answer/run_20261015_v3_resumed/manual_reviews.json)를 완료했다. 각 주장에 cid·URL·source_location과 판정 이유를 연결했다. T14 A/B 30건은 [독립 원문 대조](../data/eval/t17-answer/run_20261015_v3_resumed/independent_t14_review.json)도 통과했다.
+- Q001은 세 track 모두 Auto Levels의 히스토그램·Exposure 조정 및 RawTherapee 범위를 유지했다. Q086은 T11에서 부족, A/B에서 #15597989·#15603701의 이름·후속·위→아래 순서로 답변했다. Q096은 세 track 모두 #4711197631의 직접 반증으로 `UNSUPPORTED`였다.
+- Q044는 T11/A에서 부족 상태를 유지했고 B의 Bit Depth·Floating Point Engine 근거에서 답변 가능해졌다. CP2 양성 A/B와 Q010/Q077의 RawTherapee 범위를 확인했다.
+- Q021 A의 보조 인용, Q033 B의 DCP 역할 범위, Q044 B의 수치 표현량과 전체 RSS 구별은 비차단 해석 한계로 기록에 남겼다. 근거 문서의 설명을 추가 실험이나 모든 환경의 성능 보장으로 확대하지 않는다.
+
+최종 [오프라인 감사](../data/eval/t17-answer/run_20261015_v3_resumed_audit.json)는 **PASS, 실패 0·미확인 0, exit code 0**이다. [실제 검증 증거](../data/eval/t17-answer/run_20261015_v3_resumed_verification.json)에 입력 파일의 SHA·크기·mtime이 검증 전후 모두 같고 기준선 지문도 유지됨을 기록했다. 보고서 작성은 별도 명시적 단계에서 끝냈으며 `--validate`는 보고서를 갱신하지 않았다.
+
+최종 전체 테스트는 **906 passed, 1 warning**, 게이트·생성 증거 집중 테스트는 **79 passed, 1 warning**이다. 경고는 기존 Chroma의 `asyncio.iscoroutinefunction` 폐기 예정 안내다. 테스트 제외·단언 삭제·기준선 변경 없이 확인했다. 전체 테스트는 반드시 루트 venv의 `python3`로 실행한다. `python` 별칭은 T09의 실행 파일 경로 지문이 달라져 초기 시험에서 setup 오류가 발생했고, 지정된 `python3`로 바로잡아 전체 통과를 확인했다.
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 /Users/user/Workspace/Programming/Projects/AAART/venv/bin/python3 -m pytest -p no:cacheprovider tests -q --tb=short
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src /Users/user/Workspace/Programming/Projects/AAART/venv/bin/python3 scripts/check_t17_answer.py --validate data/eval/t17-answer/run_20261015_v3_resumed
+```
+
+T17 단독 연결 준비까지 완료했다. T13-2 실제 ANSWER 접합·T16 실제 재검색·CP3 통합 검증은 기존 계획의 별도 후속 범위다. 검색 설정·원문·질문셋·T11/T14 기준선은 변경하지 않았다.

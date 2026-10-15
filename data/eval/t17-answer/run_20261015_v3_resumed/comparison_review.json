@@ -1,0 +1,2152 @@
+{
+  "complete": true,
+  "reviewed_count": 47,
+  "slice1_count": 45,
+  "regression_count": 2,
+  "records": [
+    {
+      "query_id": "Q001",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q001_1792055197",
+      "record_hash": "1ac9789dbe05e35067af090481520a7f1485eac32ade03d83b3d682c1d59ab3a",
+      "status": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "히스토그램을 분석하고 Exposure 설정을 조정한다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/exposure/",
+              "source_location": "{\"section_title\":\"Exposure\",\"source_segment\":{\"byte_end\":29445,\"byte_start\":138,\"char_end\":29437,\"char_start\":138,\"content_char_end\":29299,\"content_char_start\":0,\"doc_id\":\"rawpedia:Exposure\",\"json_pointer\":null,\"segment_sha256\":\"2a5e5b64b2950fc8ef622cf9ce50c253d3f35a1aed6583818ddc51375e58ae2b\",\"source_file_sha256\":\"6bf06463d4f46b5291459bd5b452d5b4b409f7362d3e73e8f0dfbd754a7a6ab1\",\"source_path\":\"data/rawpedia/Exposure.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/exposure/\"}}"
+            }
+          ]
+        }
+      ],
+      "reason": "히스토그램 분석 후 Exposure 조정이라는 핵심 사실이 T11 답변 및 Exposure 원문과 일치한다. RawTherapee로 범위를 명시했다.",
+      "caveats": [],
+      "baseline_run_id": "run_1791816326_4bfaeb47",
+      "baseline_answer_sha256": "5c1b40b154c445385f1be0c5fc56d4b55d7cfb0e28c9b9940959e5888c0d20b8"
+    },
+    {
+      "query_id": "Q004",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q004_1792055203",
+      "record_hash": "15b7e1505b8e44bc6547692a12f02d662efbc51ffd67fbcbfdac6a6d39a52f8f",
+      "status": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "Amount 증가 시 동적 범위가 좁아지고 Detail 양수는 대비 보존, 음수는 대비 감소다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/dynamic_range_compression/",
+              "source_location": "{\"section_title\":\"Dynamic Range Compression\",\"source_segment\":{\"byte_end\":3921,\"byte_start\":141,\"char_end\":3919,\"char_start\":141,\"content_char_end\":3778,\"content_char_start\":0,\"doc_id\":\"rawpedia:Dynamic_Range_Compression\",\"json_pointer\":null,\"segment_sha256\":\"d06de8767563d92333ebb9fbfd4cfd64d6c29e2052b18913383d74c8d4141027\",\"source_file_sha256\":\"c0ad011fe62f78926cd63ef8464d0b43c1fc015f2a23fa0a94be69dfdb40d6c0\",\"source_path\":\"data/rawpedia/Dynamic_Range_Compression.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/dynamic_range_compression/\"}}"
+            }
+          ]
+        }
+      ],
+      "reason": "Amount 증가 시 동적 범위 축소, Detail 양수의 대비 보존·음수의 대비 감소가 T11 및 원문과 일치한다. RawTherapee 범위를 유지했다.",
+      "caveats": [],
+      "baseline_run_id": "run_1791816339_875dc379",
+      "baseline_answer_sha256": "2214244e54081c048f1992861f5fda835ffc38ced1b77b3b072926fe62e13dfa"
+    },
+    {
+      "query_id": "Q014",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q014_1792055208",
+      "record_hash": "c2ce4acc6af85e96818d6c18d7d4abc384d6c586c6d240bf27b93e6f6c585dd5",
+      "status": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "Depth Map을 켜며 밝을수록 안개 제거가 강한 영역이다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/haze_removal/",
+              "source_location": "{\"section_title\":\"Haze Removal\",\"source_segment\":{\"byte_end\":678,\"byte_start\":119,\"char_end\":678,\"char_start\":119,\"content_char_end\":559,\"content_char_start\":0,\"doc_id\":\"rawpedia:Haze_Removal\",\"json_pointer\":null,\"segment_sha256\":\"901c0d8a89180288be11dca576f31743925928c096078b805313fa9cc6b7b5a0\",\"source_file_sha256\":\"1857dd49ce185f777ee7cd72eec8d0f11902ac4edb24bba4a1a9234706ab6a1d\",\"source_path\":\"data/rawpedia/Haze_Removal.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/haze_removal/\"}}"
+            }
+          ]
+        }
+      ],
+      "reason": "Depth Map을 켜고 밝을수록 효과가 크다는 설명이 T11 및 Haze Removal 원문과 일치한다. ART 기능으로 확대하지 않았다.",
+      "caveats": [],
+      "baseline_run_id": "run_1791816351_d2dbbd3e",
+      "baseline_answer_sha256": "ce5d571d4ad40ff6137bd07988d98690efc754b0febcd39eebb96b4b3f7fa0aa"
+    },
+    {
+      "query_id": "Q021",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q021_1792055215",
+      "record_hash": "422c7466dc32eb75c483c5cf61c951a2e6e66912e65409decb9f80b0478d3bb2",
+      "status": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "고채도 카메라 데이터를 작은 색역에 압축하며 색역 변환과 구별되고 작업 프로파일이 복원된다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/gamut_compression/",
+              "source_location": "{\"section_title\":\"Gamut Compression\",\"source_segment\":{\"byte_end\":8883,\"byte_start\":109,\"char_end\":8808,\"char_start\":109,\"content_char_end\":8699,\"content_char_start\":0,\"doc_id\":\"rawpedia:Gamut_compression\",\"json_pointer\":null,\"segment_sha256\":\"7fd925fce9e4056f9b7bde4d1bffb2c560acb483aa84a760b25794e1f799e7dc\",\"source_file_sha256\":\"d97cc4a36a67312b7398386398e0c7dc07f87d90106f0e0a40c25d6f46aeb125\",\"source_path\":\"data/rawpedia/Gamut_compression.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/gamut_compression/\"}}"
+            }
+          ]
+        }
+      ],
+      "reason": "카메라 고채도 데이터를 작은 색역에 압축하고 작업 프로파일을 복원한다는 설명이 T11 및 원문과 일치한다. 일반 색역 변환과의 구별도 원문에 있다.",
+      "caveats": [],
+      "baseline_run_id": "run_1791816361_43493e75",
+      "baseline_answer_sha256": "42f7bf8404b4e6cc975d3fa32ef79e85c5bf911001a88ae47f8da9f423a8c319"
+    },
+    {
+      "query_id": "Q033",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q033_1792055230",
+      "record_hash": "dc52e529d04fe195da7f56af462ea36552bddf31dfe4be09dafe88ea741fcb41",
+      "status": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "센서 RAW 수치의 색 대응에 입력 프로필이 필요하며 DCP·듀얼 일루미넌트·촬영 조명별 차트 활용이 설명된다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/how_to_create_dcp_color_profiles/",
+              "source_location": "{\"section_title\":\"How to create DCP color profiles\",\"source_segment\":{\"byte_end\":15946,\"byte_start\":125,\"char_end\":15945,\"char_start\":125,\"content_char_end\":15820,\"content_char_start\":0,\"doc_id\":\"rawpedia:How_to_create_DCP_color_profiles\",\"json_pointer\":null,\"segment_sha256\":\"a0b75135e043af925d2806659c360dc3bb524c26cda120cc20e9e4cdef32bb50\",\"source_file_sha256\":\"0296cac7536d04ff0f92171b29f63b9df5fe02d780b98fc0206d9e70e9d34683\",\"source_path\":\"data/rawpedia/How_to_create_DCP_color_profiles.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/how_to_create_dcp_color_profiles/\"}}"
+            }
+          ]
+        }
+      ],
+      "reason": "센서 수치의 색 대응과 DCP·듀얼 일루미넌트·조명별 색상표 설명은 T11 및 인용 원문에 있다. 구체적인 동적 범위·광자 잡음·스펙트럼 한계를 추가하지 않았다. 센서 수치와 실제 색 대응의 필요성을 설명한 범위로 검토했다.",
+      "caveats": [],
+      "baseline_run_id": "run_1791816373_918ab1f3",
+      "baseline_answer_sha256": "339442b7c94314ca4c905c981bd2270fe522b1ad25637f3f8b0c88dc5cf7f19c"
+    },
+    {
+      "query_id": "Q044",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q044_1792055235",
+      "record_hash": "72c178acba009b79a3895fc16e4ceae9c1af806e1f525347e8f1e25065ae03c3",
+      "status": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "현재 다섯 검색 근거에 비트 심도의 이점·트레이드오프 설명이 없어 답변을 보류한다.",
+          "citation_ids": [],
+          "evidence_links": []
+        }
+      ],
+      "reason": "T11과 동일하게 비트 심도 근거가 없다. 제공된 다섯 문서는 Graduated Filter, Channel Mixer, Haze Removal, Impulse Noise Reduction, Vignetting Filter이다. 이점이나 비용을 만들어내지 않고 부족 상태를 반환했다.",
+      "caveats": [],
+      "baseline_run_id": "run_1791816390_2e04aa27",
+      "baseline_answer_sha256": "f09687281d5603996c1537c67612d64f357ba0effbfdbd6f01c27e06019975f2"
+    },
+    {
+      "query_id": "Q054",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q054_1792055242",
+      "record_hash": "c2f88439d6d4e86caef482daa2619a09648bc25bbb69aa08d880b492866d0c11",
+      "status": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "레벨 값 1.0 미만은 로컬 대비 감소, 초과는 증가다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/contrast_by_detail_levels/",
+              "source_location": "{\"section_title\":\"Contrast by Detail Levels\",\"source_segment\":{\"byte_end\":5170,\"byte_start\":132,\"char_end\":5125,\"char_start\":132,\"content_char_end\":4993,\"content_char_start\":0,\"doc_id\":\"rawpedia:Contrast_by_Detail_Levels\",\"json_pointer\":null,\"segment_sha256\":\"5736db4f1a61da2a9b7657900799031b04016a6ab4093b1236e96ee1da26a2ca\",\"source_file_sha256\":\"d4206295c1d5443153ccc5664ba7f764a4c3ae9f12910158829ee698e84066ac\",\"source_path\":\"data/rawpedia/Contrast_by_Detail_Levels.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/contrast_by_detail_levels/\"}}"
+            }
+          ]
+        }
+      ],
+      "reason": "1.0 미만 로컬 대비 감소, 초과 증가가 T11 및 Contrast by Detail Levels 원문과 일치한다. RawTherapee 범위를 명시했다.",
+      "caveats": [],
+      "baseline_run_id": "run_1791816400_e0962d23",
+      "baseline_answer_sha256": "93c41fe0b25359245303d6685362ceca705265624f3a9949c549577747424c03"
+    },
+    {
+      "query_id": "Q063",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q063_1792055248",
+      "record_hash": "bf0e6d50e75f8b5bbd64f8d20a5c1f4463d510cc07aaaf7954d45d96808a6278",
+      "status": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "Ctrl-click 대상(실선)과 드래그 소스(점선)를 구별하고 소스가 대상을 대체한다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/spot_removal/",
+              "source_location": "{\"section_title\":\"Spot Removal\",\"source_segment\":{\"byte_end\":1337,\"byte_start\":114,\"char_end\":1337,\"char_start\":114,\"content_char_end\":1223,\"content_char_start\":0,\"doc_id\":\"rawpedia:Spot_Removal\",\"json_pointer\":null,\"segment_sha256\":\"76eece2a206f724c974d348a94fd36138848be681065e320360251cdcc6c0e9a\",\"source_file_sha256\":\"bbfb6d2c66076e6509d788a3caae77ddf1d00a2a2bad63d1b30a22c582961174\",\"source_path\":\"data/rawpedia/Spot_Removal.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/spot_removal/\"}}"
+            }
+          ]
+        }
+      ],
+      "reason": "Ctrl-click 대상(실선), 드래그 소스(점선), 소스가 대상을 대체하는 방향이 T11 및 Spot Removal 원문과 일치한다. RawTherapee 범위를 유지했다.",
+      "caveats": [],
+      "baseline_run_id": "run_1791816410_4f4a35ba",
+      "baseline_answer_sha256": "bacbd9bce813febf4181eb319fa0b9de238276d670b92dc86b5f02fca50e05fd"
+    },
+    {
+      "query_id": "Q072",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q072_1792055254",
+      "record_hash": "c1e613bed179807dc50a7edec84263dc0b70ae2ac7f1d530e1eb8ddd9e8d6360",
+      "status": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "Fill은 누락값을 기본값으로 채우고 Preserve는 포함값만 적용해 다른 편집을 유지한다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/sidecar_files_-_processing_profiles/",
+              "source_location": "{\"section_title\":\"Sidecar Files - Processing Profiles\",\"source_segment\":{\"byte_end\":12423,\"byte_start\":135,\"char_end\":12423,\"char_start\":135,\"content_char_end\":12288,\"content_char_start\":0,\"doc_id\":\"rawpedia:Sidecar_Files_-_Processing_Profiles\",\"json_pointer\":null,\"segment_sha256\":\"6fadb5a56c883e0fef169bc7fdb810fb1d578e8f8f0a87b155aabdfcc290e302\",\"source_file_sha256\":\"16646b23c9d50e91ba8d35c6bd71ae7041e1ee418dfde096390051d17c7ed5e9\",\"source_path\":\"data/rawpedia/Sidecar_Files_-_Processing_Profiles.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/sidecar_files_-_processing_profiles/\"}}"
+            }
+          ]
+        }
+      ],
+      "reason": "Fill의 누락값 기본값 채움과 기존 편집 덮어쓰기, Preserve의 포함값만 적용이 T11 및 원문과 일치한다. RawTherapee 처리 프로필 설명으로 한정했다.",
+      "caveats": [],
+      "baseline_run_id": "run_1791816421_366bd20b",
+      "baseline_answer_sha256": "9f9c5a36e2a6b8dfc2b00de381c8f90a53c46c5987d5bd7ef62456683c55600a"
+    },
+    {
+      "query_id": "Q080",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q080_1792074956",
+      "record_hash": "a0a6c60c2bb4f1154820ee028f93d81c1e78031a74f23441d97c536e5f2d15e3",
+      "status": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "config는 지속 설정, cache는 임시 자료이며 images 삭제로 설정을 잃지 않고 썸네일을 재생성한다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/file_paths/",
+              "source_location": "{\"section_title\":\"File Paths\",\"source_segment\":{\"byte_end\":6876,\"byte_start\":107,\"char_end\":6876,\"char_start\":107,\"content_char_end\":6769,\"content_char_start\":0,\"doc_id\":\"rawpedia:file_paths\",\"json_pointer\":null,\"segment_sha256\":\"ccf5d9934cef4486b58ec37998ca453068ece3fc6ed1253270a0d51eb7ef4f44\",\"source_file_sha256\":\"3e973c93c09169953f632e83396da5a7d2271b4039452e45ca44e56af060005f\",\"source_path\":\"data/rawpedia/file_paths.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/file_paths/\"}}"
+            }
+          ]
+        }
+      ],
+      "reason": "File Paths의 config/options/사용자 프로필과 cache/썸네일/메타데이터/사이드카 구분 및 images 삭제 후 설정 보존·썸네일 재생성이 T11과 원문에 일치한다. RawTherapee 참고 범위를 유지한다.",
+      "caveats": [],
+      "baseline_run_id": "run_1791816432_2d74fd60",
+      "baseline_answer_sha256": "a688a3e320ce5f8416b7823108fcd0485628278b6f0b8da157174627cb316b93"
+    },
+    {
+      "query_id": "Q084",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q084_1792074967",
+      "record_hash": "b184528b8b3f01d07d74095bb76d88350c65d20372f339b11ac6669dcc408073",
+      "status": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "point-wise LUT는 spatial halation/grain을 직접 지원하지 않으며 Smoothing의 Halation/Add noise가 별도 대안이다.",
+          "citation_ids": [
+            "C1S2"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S2",
+              "target_url": "https://github.com/artraweditor/ART/discussions/424#discussioncomment-15304221",
+              "source_location": "{\"section_title\":\"Halation,Grain and Upscaling\",\"source_segment\":{\"body_sha256\":\"536ddfc88c17ea6871223eaca9338c0082e4aaced1fef1502fefc113c689ffc2\",\"byte_end\":932,\"byte_start\":0,\"char_end\":932,\"char_start\":0,\"content_char_end\":1400,\"content_char_start\":468,\"curated\":true,\"curated_content_index\":1,\"doc_id\":\"discussion-comment:DC_kwDONWPV1M4A6YYd\",\"json_pointer\":\"/body\",\"ref_id\":\"discussion-comment:DC_kwDONWPV1M4A6YYd\",\"segment_sha256\":\"536ddfc88c17ea6871223eaca9338c0082e4aaced1fef1502fefc113c689ffc2\",\"source_file_sha256\":\"d8cfe115fff9c3907b3b094dfc86ea0b32c8189f4836a78dcdad123234688482\",\"source_path\":\"data/issues/snapshots/discussion-comments/15304221.json\",\"source_role\":\"discussion-comment\",\"target_url\":\"https://github.com/artraweditor/ART/discussions/424#discussioncomment-15304221\"}}"
+            }
+          ]
+        }
+      ],
+      "reason": "#15304221에서 point-wise LUT와 spatial halation/grain 한계, Smoothing의 Halation/Add noise, Special Effects 및 다른 알고리즘이라는 제한까지 대조했다. T11의 핵심 설명을 유지하고 ART 해당 스냅샷으로 범위를 한정한다.",
+      "caveats": [],
+      "baseline_run_id": "run_1791816444_4c30c335",
+      "baseline_answer_sha256": "9a104a67c850e37c7b075b02adfb7bd1f5111f60d9f200c078c8aa827049a424"
+    },
+    {
+      "query_id": "Q086",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q086_1792074974",
+      "record_hash": "20e1237d229d519090a218463a292d954d308019506a32f87bf0149ea8a572aa",
+      "status": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "#442가 없어 이름·Linked mask 조건을 확정할 수 없으며 RawTherapee 부수 설명만 인용한다.",
+          "citation_ids": [
+            "C3S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C3S1",
+              "target_url": "https://rawpedia.rawtherapee.com/local_adjustments/",
+              "source_location": "{\"section_title\":\"Complementary algorithm - Mask and Modifications\",\"source_segment\":{\"byte_end\":312725,\"byte_start\":277808,\"char_end\":311873,\"char_start\":276988,\"content_char_end\":34885,\"content_char_start\":0,\"doc_id\":\"rawpedia:local_adjustments\",\"json_pointer\":null,\"segment_sha256\":\"d7de04b13fc353ab1d914fbacfef2cde00c68f3aaf8029fb9aec80dc2156e94d\",\"source_file_sha256\":\"16cdec987f69e5be869ce50d81247517d954f45fe656d9fd17f0ea405a19c86a\",\"source_path\":\"data/rawpedia/local_adjustments.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/local_adjustments/\"}}"
+            }
+          ]
+        }
+      ],
+      "reason": "T11과 동일하게 #442가 없는 문맥에서 부족 상태다. 부수 설명은 RawTherapee Local Adjustments의 추가 마스크와 파이프라인 순서에 한정하고 Linked mask 이름 입력 UI나 후속 조건을 추측하지 않았다.",
+      "caveats": [],
+      "baseline_run_id": "run_1791816457_7032ccae",
+      "baseline_answer_sha256": "db179ee7cf648246544ee6f7ef52915ef1d02fd35d41a116eeee41bb43037f42"
+    },
+    {
+      "query_id": "Q092",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q092_1792074982",
+      "record_hash": "b0b69313198ff5962cd14daeae1e0114aa10bef5dea0b274fae33ae4c5903ea6",
+      "status": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "자가 빌드는 썸네일/편집기 모두 흰색, AppImage는 썸네일만 흰색이다.",
+          "citation_ids": [
+            "C1S2"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S2",
+              "target_url": "https://github.com/artraweditor/ART/issues/516#issuecomment-5102797884",
+              "source_location": "{\"section_title\":\"Canon EOS R8 images fully white\",\"source_segment\":{\"body_sha256\":\"1f1ba99d682f42d9b98755f7a0f195174aa341dfee0dfa2a96432fc6237b087d\",\"byte_end\":1307,\"byte_start\":0,\"char_end\":1307,\"char_start\":0,\"content_char_end\":1629,\"content_char_start\":322,\"curated\":true,\"curated_content_index\":1,\"doc_id\":\"issue-comment:5102797884\",\"json_pointer\":\"/body\",\"ref_id\":\"issue-comment:5102797884\",\"segment_sha256\":\"1f1ba99d682f42d9b98755f7a0f195174aa341dfee0dfa2a96432fc6237b087d\",\"source_file_sha256\":\"05d83f0385b3bec5fbc7df33205ccc5ec21448da8417ec5c7d8d0d7ced6d6200\",\"source_path\":\"data/issues/snapshots/issue-comments/5102797884.json\",\"source_role\":\"issue-comment\",\"target_url\":\"https://github.com/artraweditor/ART/issues/516#issuecomment-5102797884\"}}"
+            }
+          ]
+        },
+        {
+          "claim": "오래된 스크립트와 AppImage·캐시 삭제가 안내됐다.",
+          "citation_ids": [
+            "C1S3"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S3",
+              "target_url": "https://github.com/artraweditor/ART/issues/516#issuecomment-5102851028",
+              "source_location": "{\"section_title\":\"Canon EOS R8 images fully white\",\"source_segment\":{\"body_sha256\":\"540894d153b194c0e2326ece36af92413d9d2ddfddd95cb62d86d7b43d8387f5\",\"byte_end\":305,\"byte_start\":0,\"char_end\":305,\"char_start\":0,\"content_char_end\":1977,\"content_char_start\":1672,\"curated\":true,\"curated_content_index\":2,\"doc_id\":\"issue-comment:5102851028\",\"json_pointer\":\"/body\",\"ref_id\":\"issue-comment:5102851028\",\"segment_sha256\":\"540894d153b194c0e2326ece36af92413d9d2ddfddd95cb62d86d7b43d8387f5\",\"source_file_sha256\":\"cda1f829009ace381da7db1df346a7420c48272560d0746be7c9120258bca928\",\"source_path\":\"data/issues/snapshots/issue-comments/5102851028.json\",\"source_role\":\"issue-comment\",\"target_url\":\"https://github.com/artraweditor/ART/issues/516#issuecomment-5102851028\"}}"
+            }
+          ]
+        },
+        {
+          "claim": "보고자가 캐시 삭제로 해결을 확인했다.",
+          "citation_ids": [
+            "C1S4"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S4",
+              "target_url": "https://github.com/artraweditor/ART/issues/516#issuecomment-5103254495",
+              "source_location": "{\"section_title\":\"Canon EOS R8 images fully white\",\"source_segment\":{\"body_sha256\":\"66b1fdba109e05a365a849e11af6e0559b18e0cb71701d1cbf0a51c366daa86d\",\"byte_end\":76,\"byte_start\":0,\"char_end\":76,\"char_start\":0,\"content_char_end\":2096,\"content_char_start\":2020,\"curated\":true,\"curated_content_index\":3,\"doc_id\":\"issue-comment:5103254495\",\"json_pointer\":\"/body\",\"ref_id\":\"issue-comment:5103254495\",\"segment_sha256\":\"66b1fdba109e05a365a849e11af6e0559b18e0cb71701d1cbf0a51c366daa86d\",\"source_file_sha256\":\"736082dd08fe1f4407016507535fbc7eccb6a1862a1175d2bce61823427801c3\",\"source_path\":\"data/issues/snapshots/issue-comments/5103254495.json\",\"source_role\":\"issue-comment\",\"target_url\":\"https://github.com/artraweditor/ART/issues/516#issuecomment-5103254495\"}}"
+            }
+          ]
+        }
+      ],
+      "reason": "#5102797884의 자가 빌드/ AppImage 표시 차이, #5102851028의 오래된 스크립트 및 캐시 안내, #5103254495의 해결 확인을 각각 대조했다. T11의 핵심 관찰·조치를 유지하고 미확인 디코더 원인을 확정하지 않는다.",
+      "caveats": [],
+      "baseline_run_id": "run_1791816470_b2d265fb",
+      "baseline_answer_sha256": "002bf28c6f76a79059c8876904c734f61eb9c89666544c1606b275fe335be2aa"
+    },
+    {
+      "query_id": "Q093",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q093_1792074987",
+      "record_hash": "ae05cb99f785272e75b0723702afd20b6dc66589b15243ae4b82f1bf8cf95c06",
+      "status": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "해당 사용자는 /usr/share/lensfun/version_1 경로를 설정해 해결했다.",
+          "citation_ids": [
+            "C1S3"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S3",
+              "target_url": "https://github.com/artraweditor/ART/issues/521#issuecomment-5315824799",
+              "source_location": "{\"section_title\":\"[Solved] Lens correction profile not working?\",\"source_segment\":{\"body_sha256\":\"2c9a985b1cd4cce065cc60cf546c9d879a0bb6bb34c828722cd18849334f5225\",\"byte_end\":204,\"byte_start\":0,\"char_end\":204,\"char_start\":0,\"content_char_end\":999,\"content_char_start\":795,\"curated\":true,\"curated_content_index\":2,\"doc_id\":\"issue-comment:5315824799\",\"json_pointer\":\"/body\",\"ref_id\":\"issue-comment:5315824799\",\"segment_sha256\":\"2c9a985b1cd4cce065cc60cf546c9d879a0bb6bb34c828722cd18849334f5225\",\"source_file_sha256\":\"55a4ad01f214a571a42ba2669e6e3603d93751de4e4502bffcfc8b17aacfc058\",\"source_path\":\"data/issues/snapshots/issue-comments/5315824799.json\",\"source_role\":\"issue-comment\",\"target_url\":\"https://github.com/artraweditor/ART/issues/521#issuecomment-5315824799\"}}"
+            }
+          ]
+        }
+      ],
+      "reason": "#5315824799의 /usr/share/lensfun/version_1 경로와 문제 해결 확인이 T11 및 답변과 일치한다. 해당 사용자의 보고 범위를 유지한다.",
+      "caveats": [],
+      "baseline_run_id": "run_1791816484_2da27107",
+      "baseline_answer_sha256": "e2b51a546cddfbd6461b761c5d98f006c115d244d240c258e8d2187bb2acb4a2"
+    },
+    {
+      "query_id": "Q096",
+      "track": "t11_replay",
+      "run_id": "t17_t11_replay_Q096_1792074994",
+      "record_hash": "2c90f428b1561a1e5d583296b645c899de118a4d94aa230fa7422d4701980f0b",
+      "status": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "품질 옵션이 없고 visually lossless 고정이므로 품질 50 슬라이더 절차는 없다.",
+          "citation_ids": [
+            "C1S1",
+            "C1S2"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://github.com/artraweditor/ART/issues/500",
+              "source_location": "{\"section_title\":\"question: absolute no settings for jxl export?\",\"source_segment\":{\"body_sha256\":\"590abe7e573eb2a063c3d46872800ad348b60282ff79ed4ee0eb9edbd12bff76\",\"byte_end\":219,\"byte_start\":0,\"char_end\":219,\"char_start\":0,\"content_char_end\":219,\"content_char_start\":0,\"curated\":true,\"curated_content_index\":0,\"doc_id\":\"issue:500\",\"json_pointer\":\"/body\",\"ref_id\":\"issue:500\",\"segment_sha256\":\"590abe7e573eb2a063c3d46872800ad348b60282ff79ed4ee0eb9edbd12bff76\",\"source_file_sha256\":\"210e95a36a0726bbb7fbb3ee1949cd8af571367cc44127228c5ea6360506bc8f\",\"source_path\":\"data/issues/snapshots/issues/500.json\",\"source_role\":\"issue\",\"target_url\":\"https://github.com/artraweditor/ART/issues/500\"}}"
+            },
+            {
+              "cid": "C1S2",
+              "target_url": "https://github.com/artraweditor/ART/issues/500#issuecomment-4711197631",
+              "source_location": "{\"section_title\":\"question: absolute no settings for jxl export?\",\"source_segment\":{\"body_sha256\":\"1a72636b6373fabc9ebbd0e99ee806d629fcf943837d8059a87a247e14473dc2\",\"byte_end\":67,\"byte_start\":0,\"char_end\":67,\"char_start\":0,\"content_char_end\":329,\"content_char_start\":262,\"curated\":true,\"curated_content_index\":1,\"doc_id\":\"issue-comment:4711197631\",\"json_pointer\":\"/body\",\"ref_id\":\"issue-comment:4711197631\",\"segment_sha256\":\"1a72636b6373fabc9ebbd0e99ee806d629fcf943837d8059a87a247e14473dc2\",\"source_file_sha256\":\"32dcb0afb1e0f5a456a78c7d3e16a4b512ad1d244b58f75af53a1895147d8cad\",\"source_path\":\"data/issues/snapshots/issue-comments/4711197631.json\",\"source_role\":\"issue-comment\",\"target_url\":\"https://github.com/artraweditor/ART/issues/500#issuecomment-4711197631\"}}"
+            }
+          ]
+        }
+      ],
+      "reason": "#4711197631의 no option / visually lossless 고정이 직접 반증이다. T11과 같은 결론을 UNSUPPORTED로 반환하고 품질 슬라이더 활성화·50 설정 절차를 만들지 않는다.",
+      "caveats": [],
+      "baseline_run_id": "run_1791816494_ebbb5582",
+      "baseline_answer_sha256": "870ec83de788d6828e3c7ea48b85d51106092e74a115c835ded6d3ba494b463f"
+    },
+    {
+      "query_id": "Q001",
+      "track": "t14_a",
+      "run_id": "t17_t14_a_Q001_1792074999",
+      "record_hash": "323b77d680ae7ffe6a289ab11ae7af27fb1caba96bda600eb23dad490255dbf1",
+      "verdict": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "Auto Levels는 히스토그램을 분석하여 적절한 노출을 위해 Exposure 섹션을 조정한다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/exposure/",
+              "source_path": "data/rawpedia/Exposure.md",
+              "source_location": "{\"section_title\":\"Exposure\",\"source_segment\":{\"byte_end\":29445,\"byte_start\":138,\"char_end\":29437,\"char_start\":138,\"content_char_end\":29299,\"content_char_start\":0,\"doc_id\":\"rawpedia:Exposure\",\"json_pointer\":null,\"segment_sha256\":\"2a5e5b64b2950fc8ef622cf9ce50c253d3f35a1aed6583818ddc51375e58ae2b\",\"source_file_sha256\":\"6bf06463d4f46b5291459bd5b452d5b4b409f7362d3e73e8f0dfbd754a7a6ab1\",\"source_path\":\"data/rawpedia/Exposure.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/exposure/\"}}",
+              "source_verified": true
+            }
+          ]
+        }
+      ],
+      "reason": "Exposure의 Auto Levels 첫 문장과 답변의 분석 대상·조정 목적이 일치한다. RawTherapee 제품 범위를 유지했다.",
+      "caveats": [],
+      "evidence_links": [
+        {
+          "cid": "C1S1",
+          "target_url": "https://rawpedia.rawtherapee.com/exposure/",
+          "source_path": "data/rawpedia/Exposure.md",
+          "source_location": "{\"section_title\":\"Exposure\",\"source_segment\":{\"byte_end\":29445,\"byte_start\":138,\"char_end\":29437,\"char_start\":138,\"content_char_end\":29299,\"content_char_start\":0,\"doc_id\":\"rawpedia:Exposure\",\"json_pointer\":null,\"segment_sha256\":\"2a5e5b64b2950fc8ef622cf9ce50c253d3f35a1aed6583818ddc51375e58ae2b\",\"source_file_sha256\":\"6bf06463d4f46b5291459bd5b452d5b4b409f7362d3e73e8f0dfbd754a7a6ab1\",\"source_path\":\"data/rawpedia/Exposure.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/exposure/\"}}",
+          "source_verified": true
+        }
+      ],
+      "status": "verified",
+      "baseline_run_id": "run_1791816326_4bfaeb47",
+      "baseline_answer_sha256": "5c1b40b154c445385f1be0c5fc56d4b55d7cfb0e28c9b9940959e5888c0d20b8"
+    },
+    {
+      "query_id": "Q004",
+      "track": "t14_a",
+      "run_id": "t17_t14_a_Q004_1792075004",
+      "record_hash": "8e5a207a286de65471c31596bc48232c4dce45594d776ce384bd0b0d188677de",
+      "verdict": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "Amount가 클수록 압축이 강해져 다이내믹 레인지가 좁아지고 히스토그램에서 확인된다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/dynamic_range_compression/",
+              "source_path": "data/rawpedia/Dynamic_Range_Compression.md",
+              "source_location": "{\"section_title\":\"Dynamic Range Compression\",\"source_segment\":{\"byte_end\":3921,\"byte_start\":141,\"char_end\":3919,\"char_start\":141,\"content_char_end\":3778,\"content_char_start\":0,\"doc_id\":\"rawpedia:Dynamic_Range_Compression\",\"json_pointer\":null,\"segment_sha256\":\"d06de8767563d92333ebb9fbfd4cfd64d6c29e2052b18913383d74c8d4141027\",\"source_file_sha256\":\"c0ad011fe62f78926cd63ef8464d0b43c1fc015f2a23fa0a94be69dfdb40d6c0\",\"source_path\":\"data/rawpedia/Dynamic_Range_Compression.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/dynamic_range_compression/\"}}",
+              "source_verified": true
+            }
+          ]
+        },
+        {
+          "claim": "Detail은 로컬 대비 보존량이며 양수는 압축을 줄여 대비를 보존하고 음수는 대비를 줄인다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/dynamic_range_compression/",
+              "source_path": "data/rawpedia/Dynamic_Range_Compression.md",
+              "source_location": "{\"section_title\":\"Dynamic Range Compression\",\"source_segment\":{\"byte_end\":3921,\"byte_start\":141,\"char_end\":3919,\"char_start\":141,\"content_char_end\":3778,\"content_char_start\":0,\"doc_id\":\"rawpedia:Dynamic_Range_Compression\",\"json_pointer\":null,\"segment_sha256\":\"d06de8767563d92333ebb9fbfd4cfd64d6c29e2052b18913383d74c8d4141027\",\"source_file_sha256\":\"c0ad011fe62f78926cd63ef8464d0b43c1fc015f2a23fa0a94be69dfdb40d6c0\",\"source_path\":\"data/rawpedia/Dynamic_Range_Compression.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/dynamic_range_compression/\"}}",
+              "source_verified": true
+            }
+          ]
+        }
+      ],
+      "reason": "Dynamic Range Compression의 Amount·Detail 인터페이스 설명과 방향·영향을 모두 대조했다. 두 개의 핵심 조건에 인용이 있고 ART 동작으로 바꾸어 말하지 않았다.",
+      "caveats": [],
+      "evidence_links": [
+        {
+          "cid": "C1S1",
+          "target_url": "https://rawpedia.rawtherapee.com/dynamic_range_compression/",
+          "source_path": "data/rawpedia/Dynamic_Range_Compression.md",
+          "source_location": "{\"section_title\":\"Dynamic Range Compression\",\"source_segment\":{\"byte_end\":3921,\"byte_start\":141,\"char_end\":3919,\"char_start\":141,\"content_char_end\":3778,\"content_char_start\":0,\"doc_id\":\"rawpedia:Dynamic_Range_Compression\",\"json_pointer\":null,\"segment_sha256\":\"d06de8767563d92333ebb9fbfd4cfd64d6c29e2052b18913383d74c8d4141027\",\"source_file_sha256\":\"c0ad011fe62f78926cd63ef8464d0b43c1fc015f2a23fa0a94be69dfdb40d6c0\",\"source_path\":\"data/rawpedia/Dynamic_Range_Compression.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/dynamic_range_compression/\"}}",
+          "source_verified": true
+        }
+      ],
+      "status": "verified",
+      "baseline_run_id": "run_1791816339_875dc379",
+      "baseline_answer_sha256": "2214244e54081c048f1992861f5fda835ffc38ced1b77b3b072926fe62e13dfa"
+    },
+    {
+      "query_id": "Q014",
+      "track": "t14_a",
+      "run_id": "t17_t14_a_Q014_1792075009",
+      "record_hash": "fb35a5ce4aa26bfd6fdc30f496cded86005f20bfc859b116b7363303d58cf48e",
+      "verdict": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "Depth Map을 켜면 적용 강도를 볼 수 있고 밝은 색일수록 안개 제거가 강하다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/haze_removal/",
+              "source_path": "data/rawpedia/Haze_Removal.md",
+              "source_location": "{\"section_title\":\"Haze Removal\",\"source_segment\":{\"byte_end\":678,\"byte_start\":119,\"char_end\":678,\"char_start\":119,\"content_char_end\":559,\"content_char_start\":0,\"doc_id\":\"rawpedia:Haze_Removal\",\"json_pointer\":null,\"segment_sha256\":\"901c0d8a89180288be11dca576f31743925928c096078b805313fa9cc6b7b5a0\",\"source_file_sha256\":\"1857dd49ce185f777ee7cd72eec8d0f11902ac4edb24bba4a1a9234706ab6a1d\",\"source_path\":\"data/rawpedia/Haze_Removal.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/haze_removal/\"}}",
+              "source_verified": true
+            }
+          ]
+        }
+      ],
+      "reason": "Haze Removal Usage의 enabling the depth map / lighter color / more dehazed와 기능·명암 방향이 일치한다. RawTherapee 범위다.",
+      "caveats": [],
+      "evidence_links": [
+        {
+          "cid": "C1S1",
+          "target_url": "https://rawpedia.rawtherapee.com/haze_removal/",
+          "source_path": "data/rawpedia/Haze_Removal.md",
+          "source_location": "{\"section_title\":\"Haze Removal\",\"source_segment\":{\"byte_end\":678,\"byte_start\":119,\"char_end\":678,\"char_start\":119,\"content_char_end\":559,\"content_char_start\":0,\"doc_id\":\"rawpedia:Haze_Removal\",\"json_pointer\":null,\"segment_sha256\":\"901c0d8a89180288be11dca576f31743925928c096078b805313fa9cc6b7b5a0\",\"source_file_sha256\":\"1857dd49ce185f777ee7cd72eec8d0f11902ac4edb24bba4a1a9234706ab6a1d\",\"source_path\":\"data/rawpedia/Haze_Removal.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/haze_removal/\"}}",
+          "source_verified": true
+        }
+      ],
+      "status": "verified",
+      "baseline_run_id": "run_1791816351_d2dbbd3e",
+      "baseline_answer_sha256": "ce5d571d4ad40ff6137bd07988d98690efc754b0febcd39eebb96b4b3f7fa0aa"
+    },
+    {
+      "query_id": "Q021",
+      "track": "t14_a",
+      "run_id": "t17_t14_a_Q021_1792075015",
+      "record_hash": "f2bc19b4f3293f646c4f53cc648584d23336c167dfe9007c42007704a2436a80",
+      "verdict": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "Gamut Compression은 카메라의 고채도 색도 데이터를 더 작은 색역으로 압축한다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/gamut_compression/",
+              "source_path": "data/rawpedia/Gamut_compression.md",
+              "source_location": "{\"section_title\":\"Gamut Compression\",\"source_segment\":{\"byte_end\":8883,\"byte_start\":109,\"char_end\":8808,\"char_start\":109,\"content_char_end\":8699,\"content_char_start\":0,\"doc_id\":\"rawpedia:Gamut_compression\",\"json_pointer\":null,\"segment_sha256\":\"7fd925fce9e4056f9b7bde4d1bffb2c560acb483aa84a760b25794e1f799e7dc\",\"source_file_sha256\":\"d97cc4a36a67312b7398386398e0c7dc07f87d90106f0e0a40c25d6f46aeb125\",\"source_path\":\"data/rawpedia/Gamut_compression.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/gamut_compression/\"}}",
+              "source_verified": true
+            }
+          ]
+        },
+        {
+          "claim": "색역 밖 음수값의 문제를 피하고 색역 변환과 구별되며 압축 후 작업 프로파일은 복원된다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/gamut_compression/",
+              "source_path": "data/rawpedia/Gamut_compression.md",
+              "source_location": "{\"section_title\":\"Gamut Compression\",\"source_segment\":{\"byte_end\":8883,\"byte_start\":109,\"char_end\":8808,\"char_start\":109,\"content_char_end\":8699,\"content_char_start\":0,\"doc_id\":\"rawpedia:Gamut_compression\",\"json_pointer\":null,\"segment_sha256\":\"7fd925fce9e4056f9b7bde4d1bffb2c560acb483aa84a760b25794e1f799e7dc\",\"source_file_sha256\":\"d97cc4a36a67312b7398386398e0c7dc07f87d90106f0e0a40c25d6f46aeb125\",\"source_path\":\"data/rawpedia/Gamut_compression.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/gamut_compression/\"}}",
+              "source_verified": true
+            }
+          ]
+        }
+      ],
+      "reason": "Gamut Compression 원문 첫 단락과 not a gamut conversion 및 working profile is restored 문장으로 핵심 주장을 확인했다. 부가 인용인 Film Simulation 문서에도 마지막 단계 gamut compression 활용 설명이 있다.",
+      "caveats": [
+        "C4S1은 주변 활용을 설명하는 보조 인용이며 기본 목적의 직접 근거는 C1S1이다."
+      ],
+      "evidence_links": [
+        {
+          "cid": "C1S1",
+          "target_url": "https://rawpedia.rawtherapee.com/gamut_compression/",
+          "source_path": "data/rawpedia/Gamut_compression.md",
+          "source_location": "{\"section_title\":\"Gamut Compression\",\"source_segment\":{\"byte_end\":8883,\"byte_start\":109,\"char_end\":8808,\"char_start\":109,\"content_char_end\":8699,\"content_char_start\":0,\"doc_id\":\"rawpedia:Gamut_compression\",\"json_pointer\":null,\"segment_sha256\":\"7fd925fce9e4056f9b7bde4d1bffb2c560acb483aa84a760b25794e1f799e7dc\",\"source_file_sha256\":\"d97cc4a36a67312b7398386398e0c7dc07f87d90106f0e0a40c25d6f46aeb125\",\"source_path\":\"data/rawpedia/Gamut_compression.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/gamut_compression/\"}}",
+          "source_verified": true
+        },
+        {
+          "cid": "C4S1",
+          "target_url": "https://rawpedia.rawtherapee.com/tutorials/game_changer/film-simulation/",
+          "source_path": "data/rawpedia/Tutorials/game_changer/film-simulation.md",
+          "source_location": "{\"section_title\":\"05. Mastery of Colours & Film Simulation\",\"source_segment\":{\"byte_end\":13784,\"byte_start\":243,\"char_end\":13676,\"char_start\":239,\"content_char_end\":13437,\"content_char_start\":0,\"doc_id\":\"rawpedia:Tutorials/game_changer/film-simulation\",\"json_pointer\":null,\"segment_sha256\":\"d4f47f85b7717abe150d61742d28a2299cc02eb865f85fee12a047cb8bf4859f\",\"source_file_sha256\":\"906b2d105be5f425bd1ea1b6d34a3f12baac0067d548fd1e04a92630f59f0169\",\"source_path\":\"data/rawpedia/Tutorials/game_changer/film-simulation.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/tutorials/game_changer/film-simulation/\"}}",
+          "source_verified": true
+        }
+      ],
+      "status": "verified",
+      "baseline_run_id": "run_1791816361_43493e75",
+      "baseline_answer_sha256": "42f7bf8404b4e6cc975d3fa32ef79e85c5bf911001a88ae47f8da9f423a8c319"
+    },
+    {
+      "query_id": "Q033",
+      "track": "t14_a",
+      "run_id": "t17_t14_a_Q033_1792075025",
+      "record_hash": "4f0ef937d2fee087bd586ef386705f22292a0715dade24b8ca0fad61aa638290",
+      "verdict": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "포토사이트는 광자 수에 따른 전류를 숫자로 변환해 RAW에 기록하며 정확한 색으로 대응시키는 프로파일링이 필요하다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/how_to_create_dcp_color_profiles/",
+              "source_path": "data/rawpedia/How_to_create_DCP_color_profiles.md",
+              "source_location": "{\"section_title\":\"How to create DCP color profiles\",\"source_segment\":{\"byte_end\":15946,\"byte_start\":125,\"char_end\":15945,\"char_start\":125,\"content_char_end\":15820,\"content_char_start\":0,\"doc_id\":\"rawpedia:How_to_create_DCP_color_profiles\",\"json_pointer\":null,\"segment_sha256\":\"a0b75135e043af925d2806659c360dc3bb524c26cda120cc20e9e4cdef32bb50\",\"source_file_sha256\":\"0296cac7536d04ff0f92171b29f63b9df5fe02d780b98fc0206d9e70e9d34683\",\"source_path\":\"data/rawpedia/How_to_create_DCP_color_profiles.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/how_to_create_dcp_color_profiles/\"}}",
+              "source_verified": true
+            }
+          ]
+        },
+        {
+          "claim": "DCP는 조정 전 입력 색 재현에 쓰이고 이중 광원 DCP는 주광·백열광에 맞춰 다양한 조명과 일관된 색·화이트밸런스에 유리하다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/how_to_create_dcp_color_profiles/",
+              "source_path": "data/rawpedia/How_to_create_DCP_color_profiles.md",
+              "source_location": "{\"section_title\":\"How to create DCP color profiles\",\"source_segment\":{\"byte_end\":15946,\"byte_start\":125,\"char_end\":15945,\"char_start\":125,\"content_char_end\":15820,\"content_char_start\":0,\"doc_id\":\"rawpedia:How_to_create_DCP_color_profiles\",\"json_pointer\":null,\"segment_sha256\":\"a0b75135e043af925d2806659c360dc3bb524c26cda120cc20e9e4cdef32bb50\",\"source_file_sha256\":\"0296cac7536d04ff0f92171b29f63b9df5fe02d780b98fc0206d9e70e9d34683\",\"source_path\":\"data/rawpedia/How_to_create_DCP_color_profiles.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/how_to_create_dcp_color_profiles/\"}}",
+              "source_verified": true
+            }
+          ]
+        }
+      ],
+      "reason": "How to create DCP color profiles의 도입부·dual-illuminant 설명·촬영 환경별 프로파일 문장을 대조했다. 답변은 다른 물리적 한계를 추가로 확정하지 않고 근거 범위를 명시한다.",
+      "caveats": [],
+      "evidence_links": [
+        {
+          "cid": "C1S1",
+          "target_url": "https://rawpedia.rawtherapee.com/how_to_create_dcp_color_profiles/",
+          "source_path": "data/rawpedia/How_to_create_DCP_color_profiles.md",
+          "source_location": "{\"section_title\":\"How to create DCP color profiles\",\"source_segment\":{\"byte_end\":15946,\"byte_start\":125,\"char_end\":15945,\"char_start\":125,\"content_char_end\":15820,\"content_char_start\":0,\"doc_id\":\"rawpedia:How_to_create_DCP_color_profiles\",\"json_pointer\":null,\"segment_sha256\":\"a0b75135e043af925d2806659c360dc3bb524c26cda120cc20e9e4cdef32bb50\",\"source_file_sha256\":\"0296cac7536d04ff0f92171b29f63b9df5fe02d780b98fc0206d9e70e9d34683\",\"source_path\":\"data/rawpedia/How_to_create_DCP_color_profiles.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/how_to_create_dcp_color_profiles/\"}}",
+          "source_verified": true
+        }
+      ],
+      "status": "verified",
+      "baseline_run_id": "run_1791816373_918ab1f3",
+      "baseline_answer_sha256": "339442b7c94314ca4c905c981bd2270fe522b1ad25637f3f8b0c88dc5cf7f19c"
+    },
+    {
+      "query_id": "Q044",
+      "track": "t14_a",
+      "run_id": "t17_t14_a_Q044_1792075030",
+      "record_hash": "f131760489405cc126cba4147a7486ddfe1d36e7e9b39b9477c39ebd0917131b",
+      "verdict": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "검색 문맥이 비트 심도의 이점·트레이드오프를 다루지 않아 결론을 보류한다.",
+          "citation_ids": [],
+          "evidence_links": []
+        }
+      ],
+      "reason": "실제 다섯 hit은 Graduated Filter, Channel Mixer, Haze Removal, Impulse Noise Reduction, Vignetting Filter이고 비트심도 논의를 포함하지 않는다. 부재를 미지원으로 단정하지 않고 INSUFFICIENT_EVIDENCE를 반환했다.",
+      "caveats": [
+        "인용 0개는 부족 상태에 허용된다. 일반 지식으로 비트심도 답변을 채우지 않았다."
+      ],
+      "evidence_links": [],
+      "uncited_context_checked": [
+        {
+          "cid": null,
+          "target_url": "https://rawpedia.rawtherapee.com/graduated_filter/",
+          "source_path": "data/rawpedia/Graduated_Filter.md",
+          "source_location": "{\"section_title\":\"Graduated Filter\",\"source_segment\":{\"byte_end\":996,\"byte_start\":115,\"char_end\":992,\"char_start\":115,\"content_char_end\":877,\"content_char_start\":0,\"doc_id\":\"rawpedia:Graduated_Filter\",\"json_pointer\":null,\"segment_sha256\":\"abc1e4251b917e04bbc301a3962e91a21029a03ea728b693a6fb787050562081\",\"source_file_sha256\":\"9cb0d52e15d78541dbeee809912ec648656e98af5d5b4b101d111ec32ffb47ca\",\"source_path\":\"data/rawpedia/Graduated_Filter.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/graduated_filter/\"}}",
+          "source_verified": true
+        },
+        {
+          "cid": null,
+          "target_url": "https://rawpedia.rawtherapee.com/channel_mixer/",
+          "source_path": "data/rawpedia/Channel_Mixer.md",
+          "source_location": "{\"section_title\":\"Channel Mixer\",\"source_segment\":{\"byte_end\":1116,\"byte_start\":120,\"char_end\":1116,\"char_start\":120,\"content_char_end\":996,\"content_char_start\":0,\"doc_id\":\"rawpedia:Channel_Mixer\",\"json_pointer\":null,\"segment_sha256\":\"de24efb7b443530de169b69064cd99bac2d003b6bcd83fa9aa7abc4832bfef04\",\"source_file_sha256\":\"e881117fedfa34861ed9b55df2ed3f5e471364fc632618448fb9a051c8da1379\",\"source_path\":\"data/rawpedia/Channel_Mixer.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/channel_mixer/\"}}",
+          "source_verified": true
+        },
+        {
+          "cid": null,
+          "target_url": "https://rawpedia.rawtherapee.com/haze_removal/",
+          "source_path": "data/rawpedia/Haze_Removal.md",
+          "source_location": "{\"section_title\":\"Haze Removal\",\"source_segment\":{\"byte_end\":678,\"byte_start\":119,\"char_end\":678,\"char_start\":119,\"content_char_end\":559,\"content_char_start\":0,\"doc_id\":\"rawpedia:Haze_Removal\",\"json_pointer\":null,\"segment_sha256\":\"901c0d8a89180288be11dca576f31743925928c096078b805313fa9cc6b7b5a0\",\"source_file_sha256\":\"1857dd49ce185f777ee7cd72eec8d0f11902ac4edb24bba4a1a9234706ab6a1d\",\"source_path\":\"data/rawpedia/Haze_Removal.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/haze_removal/\"}}",
+          "source_verified": true
+        },
+        {
+          "cid": null,
+          "target_url": "https://rawpedia.rawtherapee.com/impulse_noise_reduction/",
+          "source_path": "data/rawpedia/Impulse_Noise_Reduction.md",
+          "source_location": "{\"section_title\":\"Impulse Noise Reduction\",\"source_segment\":{\"byte_end\":752,\"byte_start\":151,\"char_end\":752,\"char_start\":151,\"content_char_end\":601,\"content_char_start\":0,\"doc_id\":\"rawpedia:Impulse_Noise_Reduction\",\"json_pointer\":null,\"segment_sha256\":\"ca12861c781de1d588be669a64d6c1e67b67422f6dc1f484255744b8341644d7\",\"source_file_sha256\":\"a8191c4be2f5b2ae18d48589a7c0f41eadcefef2250732ee007ce3f5151eb4cc\",\"source_path\":\"data/rawpedia/Impulse_Noise_Reduction.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/impulse_noise_reduction/\"}}",
+          "source_verified": true
+        },
+        {
+          "cid": null,
+          "target_url": "https://rawpedia.rawtherapee.com/vignetting_filter/",
+          "source_path": "data/rawpedia/Vignetting_Filter.md",
+          "source_location": "{\"section_title\":\"Vignetting Filter\",\"source_segment\":{\"byte_end\":1642,\"byte_start\":116,\"char_end\":1640,\"char_start\":116,\"content_char_end\":1524,\"content_char_start\":0,\"doc_id\":\"rawpedia:Vignetting_Filter\",\"json_pointer\":null,\"segment_sha256\":\"d3d28358a862a9b957bbf3fd89acf0257e8232c789187b5b7d36923a8906aa9a\",\"source_file_sha256\":\"5c11a29ef8544ff1def1696e7960543fe448e6beab0cb9d2e062aa3330313841\",\"source_path\":\"data/rawpedia/Vignetting_Filter.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/vignetting_filter/\"}}",
+          "source_verified": true
+        }
+      ],
+      "status": "verified",
+      "baseline_run_id": "run_1791816390_2e04aa27",
+      "baseline_answer_sha256": "f09687281d5603996c1537c67612d64f357ba0effbfdbd6f01c27e06019975f2"
+    },
+    {
+      "query_id": "Q054",
+      "track": "t14_a",
+      "run_id": "t17_t14_a_Q054_1792075035",
+      "record_hash": "c9fa53640a1620848a59685fcf33e5b979c3506829fd6c9562cb23e1e7473cd3",
+      "verdict": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "해당 레벨 슬라이더가 1.0 미만이면 로컬 대비가 줄고 초과하면 증가한다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/contrast_by_detail_levels/",
+              "source_path": "data/rawpedia/Contrast_by_Detail_Levels.md",
+              "source_location": "{\"section_title\":\"Contrast by Detail Levels\",\"source_segment\":{\"byte_end\":5170,\"byte_start\":132,\"char_end\":5125,\"char_start\":132,\"content_char_end\":4993,\"content_char_start\":0,\"doc_id\":\"rawpedia:Contrast_by_Detail_Levels\",\"json_pointer\":null,\"segment_sha256\":\"5736db4f1a61da2a9b7657900799031b04016a6ab4093b1236e96ee1da26a2ca\",\"source_file_sha256\":\"d4206295c1d5443153ccc5664ba7f764a4c3ae9f12910158829ee698e84066ac\",\"source_path\":\"data/rawpedia/Contrast_by_Detail_Levels.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/contrast_by_detail_levels/\"}}",
+              "source_verified": true
+            }
+          ]
+        }
+      ],
+      "reason": "Contrast by Detail Levels 첫 단락의 less than 1.0 decreases / higher value increases와 숫자 경계·효과 방향이 정확히 일치한다. RawTherapee 범위다.",
+      "caveats": [],
+      "evidence_links": [
+        {
+          "cid": "C1S1",
+          "target_url": "https://rawpedia.rawtherapee.com/contrast_by_detail_levels/",
+          "source_path": "data/rawpedia/Contrast_by_Detail_Levels.md",
+          "source_location": "{\"section_title\":\"Contrast by Detail Levels\",\"source_segment\":{\"byte_end\":5170,\"byte_start\":132,\"char_end\":5125,\"char_start\":132,\"content_char_end\":4993,\"content_char_start\":0,\"doc_id\":\"rawpedia:Contrast_by_Detail_Levels\",\"json_pointer\":null,\"segment_sha256\":\"5736db4f1a61da2a9b7657900799031b04016a6ab4093b1236e96ee1da26a2ca\",\"source_file_sha256\":\"d4206295c1d5443153ccc5664ba7f764a4c3ae9f12910158829ee698e84066ac\",\"source_path\":\"data/rawpedia/Contrast_by_Detail_Levels.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/contrast_by_detail_levels/\"}}",
+          "source_verified": true
+        }
+      ],
+      "status": "verified",
+      "baseline_run_id": "run_1791816400_e0962d23",
+      "baseline_answer_sha256": "93c41fe0b25359245303d6685362ceca705265624f3a9949c549577747424c03"
+    },
+    {
+      "query_id": "Q063",
+      "track": "t14_a",
+      "run_id": "t17_t14_a_Q063_1792075041",
+      "record_hash": "775aba8ab72d8241ac0c416f96bfca84fba582b9217f636e774e70b879ed9ad7",
+      "verdict": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "스팟 편집 모드를 켠 상태에서 대상 위치를 Ctrl-click하고 소스 위치로 드래그한다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/spot_removal/",
+              "source_path": "data/rawpedia/Spot_Removal.md",
+              "source_location": "{\"section_title\":\"Spot Removal\",\"source_segment\":{\"byte_end\":1337,\"byte_start\":114,\"char_end\":1337,\"char_start\":114,\"content_char_end\":1223,\"content_char_start\":0,\"doc_id\":\"rawpedia:Spot_Removal\",\"json_pointer\":null,\"segment_sha256\":\"76eece2a206f724c974d348a94fd36138848be681065e320360251cdcc6c0e9a\",\"source_file_sha256\":\"bbfb6d2c66076e6509d788a3caae77ddf1d00a2a2bad63d1b30a22c582961174\",\"source_path\":\"data/rawpedia/Spot_Removal.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/spot_removal/\"}}",
+              "source_verified": true
+            }
+          ]
+        },
+        {
+          "claim": "대상은 실선, 소스는 점선이며 소스 이미지가 대상 영역을 대체한다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/spot_removal/",
+              "source_path": "data/rawpedia/Spot_Removal.md",
+              "source_location": "{\"section_title\":\"Spot Removal\",\"source_segment\":{\"byte_end\":1337,\"byte_start\":114,\"char_end\":1337,\"char_start\":114,\"content_char_end\":1223,\"content_char_start\":0,\"doc_id\":\"rawpedia:Spot_Removal\",\"json_pointer\":null,\"segment_sha256\":\"76eece2a206f724c974d348a94fd36138848be681065e320360251cdcc6c0e9a\",\"source_file_sha256\":\"bbfb6d2c66076e6509d788a3caae77ddf1d00a2a2bad63d1b30a22c582961174\",\"source_path\":\"data/rawpedia/Spot_Removal.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/spot_removal/\"}}",
+              "source_verified": true
+            }
+          ]
+        }
+      ],
+      "reason": "Spot Removal의 Activate spot editing mode 및 Adding spots 원문을 대조하여 동작 순서, 대상·소스 방향, 선 모양과 편집 모드 전제를 모두 확인했다.",
+      "caveats": [],
+      "evidence_links": [
+        {
+          "cid": "C1S1",
+          "target_url": "https://rawpedia.rawtherapee.com/spot_removal/",
+          "source_path": "data/rawpedia/Spot_Removal.md",
+          "source_location": "{\"section_title\":\"Spot Removal\",\"source_segment\":{\"byte_end\":1337,\"byte_start\":114,\"char_end\":1337,\"char_start\":114,\"content_char_end\":1223,\"content_char_start\":0,\"doc_id\":\"rawpedia:Spot_Removal\",\"json_pointer\":null,\"segment_sha256\":\"76eece2a206f724c974d348a94fd36138848be681065e320360251cdcc6c0e9a\",\"source_file_sha256\":\"bbfb6d2c66076e6509d788a3caae77ddf1d00a2a2bad63d1b30a22c582961174\",\"source_path\":\"data/rawpedia/Spot_Removal.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/spot_removal/\"}}",
+          "source_verified": true
+        }
+      ],
+      "status": "verified",
+      "baseline_run_id": "run_1791816410_4f4a35ba",
+      "baseline_answer_sha256": "bacbd9bce813febf4181eb319fa0b9de238276d670b92dc86b5f02fca50e05fd"
+    },
+    {
+      "query_id": "Q072",
+      "track": "t14_a",
+      "run_id": "t17_t14_a_Q072_1792075047",
+      "record_hash": "608f6a2be72e3e1cf72b802d4fe6d7a38527353be512ee3a7c19c67768e04f3f",
+      "verdict": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "Fill은 누락 파라미터를 하드코딩 기본값으로 채워 기존 편집을 덮어쓴다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/sidecar_files_-_processing_profiles/",
+              "source_path": "data/rawpedia/Sidecar_Files_-_Processing_Profiles.md",
+              "source_location": "{\"section_title\":\"Sidecar Files - Processing Profiles\",\"source_segment\":{\"byte_end\":12423,\"byte_start\":135,\"char_end\":12423,\"char_start\":135,\"content_char_end\":12288,\"content_char_start\":0,\"doc_id\":\"rawpedia:Sidecar_Files_-_Processing_Profiles\",\"json_pointer\":null,\"segment_sha256\":\"6fadb5a56c883e0fef169bc7fdb810fb1d578e8f8f0a87b155aabdfcc290e302\",\"source_file_sha256\":\"16646b23c9d50e91ba8d35c6bd71ae7041e1ee418dfde096390051d17c7ed5e9\",\"source_path\":\"data/rawpedia/Sidecar_Files_-_Processing_Profiles.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/sidecar_files_-_processing_profiles/\"}}",
+              "source_verified": true
+            }
+          ]
+        },
+        {
+          "claim": "Preserve는 부분 프로필에 있는 값만 적용하고 누락값·기존 다른 편집은 보존한다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/sidecar_files_-_processing_profiles/",
+              "source_path": "data/rawpedia/Sidecar_Files_-_Processing_Profiles.md",
+              "source_location": "{\"section_title\":\"Sidecar Files - Processing Profiles\",\"source_segment\":{\"byte_end\":12423,\"byte_start\":135,\"char_end\":12423,\"char_start\":135,\"content_char_end\":12288,\"content_char_start\":0,\"doc_id\":\"rawpedia:Sidecar_Files_-_Processing_Profiles\",\"json_pointer\":null,\"segment_sha256\":\"6fadb5a56c883e0fef169bc7fdb810fb1d578e8f8f0a87b155aabdfcc290e302\",\"source_file_sha256\":\"16646b23c9d50e91ba8d35c6bd71ae7041e1ee418dfde096390051d17c7ed5e9\",\"source_path\":\"data/rawpedia/Sidecar_Files_-_Processing_Profiles.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/sidecar_files_-_processing_profiles/\"}}",
+              "source_verified": true
+            }
+          ]
+        }
+      ],
+      "reason": "Partial Processing Profiles and Fill Modes의 두 모드 설명과 sharpening 예시까지 일치한다. 설정을 RawTherapee 기준으로 설명한다.",
+      "caveats": [],
+      "evidence_links": [
+        {
+          "cid": "C1S1",
+          "target_url": "https://rawpedia.rawtherapee.com/sidecar_files_-_processing_profiles/",
+          "source_path": "data/rawpedia/Sidecar_Files_-_Processing_Profiles.md",
+          "source_location": "{\"section_title\":\"Sidecar Files - Processing Profiles\",\"source_segment\":{\"byte_end\":12423,\"byte_start\":135,\"char_end\":12423,\"char_start\":135,\"content_char_end\":12288,\"content_char_start\":0,\"doc_id\":\"rawpedia:Sidecar_Files_-_Processing_Profiles\",\"json_pointer\":null,\"segment_sha256\":\"6fadb5a56c883e0fef169bc7fdb810fb1d578e8f8f0a87b155aabdfcc290e302\",\"source_file_sha256\":\"16646b23c9d50e91ba8d35c6bd71ae7041e1ee418dfde096390051d17c7ed5e9\",\"source_path\":\"data/rawpedia/Sidecar_Files_-_Processing_Profiles.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/sidecar_files_-_processing_profiles/\"}}",
+          "source_verified": true
+        }
+      ],
+      "status": "verified",
+      "baseline_run_id": "run_1791816421_366bd20b",
+      "baseline_answer_sha256": "9f9c5a36e2a6b8dfc2b00de381c8f90a53c46c5987d5bd7ef62456683c55600a"
+    },
+    {
+      "query_id": "Q080",
+      "track": "t14_a",
+      "run_id": "t17_t14_a_Q080_1792075054",
+      "record_hash": "676e885939adeadae666daf539e415a54682d44153e0d15953daf5709547b43d",
+      "verdict": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "config는 환경설정·프로필·동적 규칙·camconst 등의 지속 사용자 데이터를, cache는 썸네일·메타데이터·사이드카·선택적 임베디드 프로필을 저장한다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/file_paths/",
+              "source_path": "data/rawpedia/file_paths.md",
+              "source_location": "{\"section_title\":\"File Paths\",\"source_segment\":{\"byte_end\":6876,\"byte_start\":107,\"char_end\":6876,\"char_start\":107,\"content_char_end\":6769,\"content_char_start\":0,\"doc_id\":\"rawpedia:file_paths\",\"json_pointer\":null,\"segment_sha256\":\"ccf5d9934cef4486b58ec37998ca453068ece3fc6ed1253270a0d51eb7ef4f44\",\"source_file_sha256\":\"3e973c93c09169953f632e83396da5a7d2271b4039452e45ca44e56af060005f\",\"source_path\":\"data/rawpedia/file_paths.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/file_paths/\"}}",
+              "source_verified": true
+            }
+          ]
+        },
+        {
+          "claim": "cache/images를 삭제해도 이미지 설정은 사라지지 않고 썸네일을 재생성한다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/file_paths/",
+              "source_path": "data/rawpedia/file_paths.md",
+              "source_location": "{\"section_title\":\"File Paths\",\"source_segment\":{\"byte_end\":6876,\"byte_start\":107,\"char_end\":6876,\"char_start\":107,\"content_char_end\":6769,\"content_char_start\":0,\"doc_id\":\"rawpedia:file_paths\",\"json_pointer\":null,\"segment_sha256\":\"ccf5d9934cef4486b58ec37998ca453068ece3fc6ed1253270a0d51eb7ef4f44\",\"source_file_sha256\":\"3e973c93c09169953f632e83396da5a7d2271b4039452e45ca44e56af060005f\",\"source_path\":\"data/rawpedia/file_paths.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/file_paths/\"}}",
+              "source_verified": true
+            }
+          ]
+        }
+      ],
+      "reason": "File Paths의 Config와 Cache 목록 및 Deleting the images sub-folder is safe 문장을 대조했다. 설정 보존과 재생성 범위를 정확히 설명한다.",
+      "caveats": [],
+      "evidence_links": [
+        {
+          "cid": "C1S1",
+          "target_url": "https://rawpedia.rawtherapee.com/file_paths/",
+          "source_path": "data/rawpedia/file_paths.md",
+          "source_location": "{\"section_title\":\"File Paths\",\"source_segment\":{\"byte_end\":6876,\"byte_start\":107,\"char_end\":6876,\"char_start\":107,\"content_char_end\":6769,\"content_char_start\":0,\"doc_id\":\"rawpedia:file_paths\",\"json_pointer\":null,\"segment_sha256\":\"ccf5d9934cef4486b58ec37998ca453068ece3fc6ed1253270a0d51eb7ef4f44\",\"source_file_sha256\":\"3e973c93c09169953f632e83396da5a7d2271b4039452e45ca44e56af060005f\",\"source_path\":\"data/rawpedia/file_paths.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/file_paths/\"}}",
+          "source_verified": true
+        }
+      ],
+      "status": "verified",
+      "baseline_run_id": "run_1791816432_2d74fd60",
+      "baseline_answer_sha256": "a688a3e320ce5f8416b7823108fcd0485628278b6f0b8da157174627cb316b93"
+    },
+    {
+      "query_id": "Q084",
+      "track": "t14_a",
+      "run_id": "t17_t14_a_Q084_1792075064",
+      "record_hash": "354b92b4499b650ca2567c3a9bfb97dfcbb871837742867cad62cc563d0b0a0d",
+      "verdict": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "LUT는 픽셀별 point-wise 함수이고 halation·grain은 이웃이 필요한 spatial 연산이므로 Film Simulation LUT에 직접 구현할 수 없다.",
+          "citation_ids": [
+            "C1S2"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S2",
+              "target_url": "https://github.com/artraweditor/ART/discussions/424#discussioncomment-15304221",
+              "source_path": "data/issues/snapshots/discussion-comments/15304221.json",
+              "source_location": "{\"section_title\":\"Halation,Grain and Upscaling\",\"source_segment\":{\"body_sha256\":\"536ddfc88c17ea6871223eaca9338c0082e4aaced1fef1502fefc113c689ffc2\",\"byte_end\":932,\"byte_start\":0,\"char_end\":932,\"char_start\":0,\"content_char_end\":1400,\"content_char_start\":468,\"curated\":true,\"curated_content_index\":1,\"doc_id\":\"discussion-comment:DC_kwDONWPV1M4A6YYd\",\"json_pointer\":\"/body\",\"ref_id\":\"discussion-comment:DC_kwDONWPV1M4A6YYd\",\"segment_sha256\":\"536ddfc88c17ea6871223eaca9338c0082e4aaced1fef1502fefc113c689ffc2\",\"source_file_sha256\":\"d8cfe115fff9c3907b3b094dfc86ea0b32c8189f4836a78dcdad123234688482\",\"source_path\":\"data/issues/snapshots/discussion-comments/15304221.json\",\"source_role\":\"discussion-comment\",\"target_url\":\"https://github.com/artraweditor/ART/discussions/424#discussioncomment-15304221\"}}",
+              "source_verified": true
+            }
+          ]
+        },
+        {
+          "claim": "Local Editing→Smoothing의 Halation·Add noise를 사용할 수 있고 Special Effects의 grain은 단순한 레시피다.",
+          "citation_ids": [
+            "C1S2"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S2",
+              "target_url": "https://github.com/artraweditor/ART/discussions/424#discussioncomment-15304221",
+              "source_path": "data/issues/snapshots/discussion-comments/15304221.json",
+              "source_location": "{\"section_title\":\"Halation,Grain and Upscaling\",\"source_segment\":{\"body_sha256\":\"536ddfc88c17ea6871223eaca9338c0082e4aaced1fef1502fefc113c689ffc2\",\"byte_end\":932,\"byte_start\":0,\"char_end\":932,\"char_start\":0,\"content_char_end\":1400,\"content_char_start\":468,\"curated\":true,\"curated_content_index\":1,\"doc_id\":\"discussion-comment:DC_kwDONWPV1M4A6YYd\",\"json_pointer\":\"/body\",\"ref_id\":\"discussion-comment:DC_kwDONWPV1M4A6YYd\",\"segment_sha256\":\"536ddfc88c17ea6871223eaca9338c0082e4aaced1fef1502fefc113c689ffc2\",\"source_file_sha256\":\"d8cfe115fff9c3907b3b094dfc86ea0b32c8189f4836a78dcdad123234688482\",\"source_path\":\"data/issues/snapshots/discussion-comments/15304221.json\",\"source_role\":\"discussion-comment\",\"target_url\":\"https://github.com/artraweditor/ART/discussions/424#discussioncomment-15304221\"}}",
+              "source_verified": true
+            }
+          ]
+        },
+        {
+          "claim": "Smoothing Add noise는 여러 인스턴스·마스킹을 제어하지만 다른 알고리즘으로 filmsim과 같지 않다.",
+          "citation_ids": [
+            "C1S2"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S2",
+              "target_url": "https://github.com/artraweditor/ART/discussions/424#discussioncomment-15304221",
+              "source_path": "data/issues/snapshots/discussion-comments/15304221.json",
+              "source_location": "{\"section_title\":\"Halation,Grain and Upscaling\",\"source_segment\":{\"body_sha256\":\"536ddfc88c17ea6871223eaca9338c0082e4aaced1fef1502fefc113c689ffc2\",\"byte_end\":932,\"byte_start\":0,\"char_end\":932,\"char_start\":0,\"content_char_end\":1400,\"content_char_start\":468,\"curated\":true,\"curated_content_index\":1,\"doc_id\":\"discussion-comment:DC_kwDONWPV1M4A6YYd\",\"json_pointer\":\"/body\",\"ref_id\":\"discussion-comment:DC_kwDONWPV1M4A6YYd\",\"segment_sha256\":\"536ddfc88c17ea6871223eaca9338c0082e4aaced1fef1502fefc113c689ffc2\",\"source_file_sha256\":\"d8cfe115fff9c3907b3b094dfc86ea0b32c8189f4836a78dcdad123234688482\",\"source_path\":\"data/issues/snapshots/discussion-comments/15304221.json\",\"source_role\":\"discussion-comment\",\"target_url\":\"https://github.com/artraweditor/ART/discussions/424#discussioncomment-15304221\"}}",
+              "source_verified": true
+            }
+          ]
+        }
+      ],
+      "reason": "Discussion #424 실제 답변 댓글 #15304221에 기술적 이유·대체 도구·알고리즘 차이가 모두 명시된다. ART와 해당 스냅샷으로 범위를 제한한다.",
+      "caveats": [],
+      "evidence_links": [
+        {
+          "cid": "C1S2",
+          "target_url": "https://github.com/artraweditor/ART/discussions/424#discussioncomment-15304221",
+          "source_path": "data/issues/snapshots/discussion-comments/15304221.json",
+          "source_location": "{\"section_title\":\"Halation,Grain and Upscaling\",\"source_segment\":{\"body_sha256\":\"536ddfc88c17ea6871223eaca9338c0082e4aaced1fef1502fefc113c689ffc2\",\"byte_end\":932,\"byte_start\":0,\"char_end\":932,\"char_start\":0,\"content_char_end\":1400,\"content_char_start\":468,\"curated\":true,\"curated_content_index\":1,\"doc_id\":\"discussion-comment:DC_kwDONWPV1M4A6YYd\",\"json_pointer\":\"/body\",\"ref_id\":\"discussion-comment:DC_kwDONWPV1M4A6YYd\",\"segment_sha256\":\"536ddfc88c17ea6871223eaca9338c0082e4aaced1fef1502fefc113c689ffc2\",\"source_file_sha256\":\"d8cfe115fff9c3907b3b094dfc86ea0b32c8189f4836a78dcdad123234688482\",\"source_path\":\"data/issues/snapshots/discussion-comments/15304221.json\",\"source_role\":\"discussion-comment\",\"target_url\":\"https://github.com/artraweditor/ART/discussions/424#discussioncomment-15304221\"}}",
+          "source_verified": true
+        }
+      ],
+      "status": "verified",
+      "baseline_run_id": "run_1791816444_4c30c335",
+      "baseline_answer_sha256": "9a104a67c850e37c7b075b02adfb7bd1f5111f60d9f200c078c8aa827049a424"
+    },
+    {
+      "query_id": "Q086",
+      "track": "t14_a",
+      "run_id": "t17_t14_a_Q086_1792075073",
+      "record_hash": "96b0fe865ea2b37d4a80ce63b9fa0e968608c4cce93279c2640a6564c282cb2a",
+      "verdict": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "마스크에 이름을 주면 이후 도구의 Linked mask로 나타나며 구체적 이름 입력 UI 조작은 문맥에 없다.",
+          "citation_ids": [
+            "C1S2"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S2",
+              "target_url": "https://github.com/artraweditor/ART/discussions/442#discussioncomment-15597989",
+              "source_path": "data/issues/snapshots/discussion-comments/15597989.json",
+              "source_location": "{\"section_title\":\"ART newbie: How to reuse the same mask I painted in one tool in one or more other tools?\",\"source_segment\":{\"body_sha256\":\"540f38a4657c23cd2ad26019a99b8c8eef3aad6a4953b64bb21e14862af3d394\",\"byte_end\":464,\"byte_start\":0,\"char_end\":464,\"char_start\":0,\"content_char_end\":1133,\"content_char_start\":669,\"curated\":true,\"curated_content_index\":1,\"doc_id\":\"discussion-comment:DC_kwDONWPV1M4A7gGl\",\"json_pointer\":\"/body\",\"ref_id\":\"discussion-comment:DC_kwDONWPV1M4A7gGl\",\"segment_sha256\":\"540f38a4657c23cd2ad26019a99b8c8eef3aad6a4953b64bb21e14862af3d394\",\"source_file_sha256\":\"861fd65f3393475d92fbb0c8bc83dc00b6c1e4af2908284c7f4316a6953fd83f\",\"source_path\":\"data/issues/snapshots/discussion-comments/15597989.json\",\"source_role\":\"discussion-comment\",\"target_url\":\"https://github.com/artraweditor/ART/discussions/442#discussioncomment-15597989\"}}",
+              "source_verified": true
+            }
+          ]
+        },
+        {
+          "claim": "후속은 원래 마스크를 정의한 도구·영역 뒤이며 화면 위→아래 처리 순서와 같다.",
+          "citation_ids": [
+            "C1S2",
+            "C1S3"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S2",
+              "target_url": "https://github.com/artraweditor/ART/discussions/442#discussioncomment-15597989",
+              "source_path": "data/issues/snapshots/discussion-comments/15597989.json",
+              "source_location": "{\"section_title\":\"ART newbie: How to reuse the same mask I painted in one tool in one or more other tools?\",\"source_segment\":{\"body_sha256\":\"540f38a4657c23cd2ad26019a99b8c8eef3aad6a4953b64bb21e14862af3d394\",\"byte_end\":464,\"byte_start\":0,\"char_end\":464,\"char_start\":0,\"content_char_end\":1133,\"content_char_start\":669,\"curated\":true,\"curated_content_index\":1,\"doc_id\":\"discussion-comment:DC_kwDONWPV1M4A7gGl\",\"json_pointer\":\"/body\",\"ref_id\":\"discussion-comment:DC_kwDONWPV1M4A7gGl\",\"segment_sha256\":\"540f38a4657c23cd2ad26019a99b8c8eef3aad6a4953b64bb21e14862af3d394\",\"source_file_sha256\":\"861fd65f3393475d92fbb0c8bc83dc00b6c1e4af2908284c7f4316a6953fd83f\",\"source_path\":\"data/issues/snapshots/discussion-comments/15597989.json\",\"source_role\":\"discussion-comment\",\"target_url\":\"https://github.com/artraweditor/ART/discussions/442#discussioncomment-15597989\"}}",
+              "source_verified": true
+            },
+            {
+              "cid": "C1S3",
+              "target_url": "https://github.com/artraweditor/ART/discussions/442#discussioncomment-15603701",
+              "source_path": "data/issues/snapshots/discussion-comments/15603701.json",
+              "source_location": "{\"section_title\":\"ART newbie: How to reuse the same mask I painted in one tool in one or more other tools?\",\"source_segment\":{\"body_sha256\":\"b0b16d65b5f7bc730a01267cfb7c1e5ac67444e0aba0315091ab159e55e81c49\",\"byte_end\":541,\"byte_start\":0,\"char_end\":541,\"char_start\":0,\"content_char_end\":1736,\"content_char_start\":1195,\"curated\":true,\"curated_content_index\":2,\"doc_id\":\"discussion-comment:DC_kwDONWPV1M4A7hf1\",\"json_pointer\":\"/body\",\"ref_id\":\"discussion-comment:DC_kwDONWPV1M4A7hf1\",\"segment_sha256\":\"b0b16d65b5f7bc730a01267cfb7c1e5ac67444e0aba0315091ab159e55e81c49\",\"source_file_sha256\":\"c12686c323b16578bcd6f171a971f66ec393e9f385f45632cfb6ff94c92705ac\",\"source_path\":\"data/issues/snapshots/discussion-comments/15603701.json\",\"source_role\":\"discussion-comment\",\"target_url\":\"https://github.com/artraweditor/ART/discussions/442#discussioncomment-15603701\"}}",
+              "source_verified": true
+            }
+          ]
+        },
+        {
+          "claim": "앞선 도구에는 linked reuse가 안 되지만 복사·붙여넣기는 가능하고 parametric mask는 위치에 따라 달라질 수 있다.",
+          "citation_ids": [
+            "C1S3"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S3",
+              "target_url": "https://github.com/artraweditor/ART/discussions/442#discussioncomment-15603701",
+              "source_path": "data/issues/snapshots/discussion-comments/15603701.json",
+              "source_location": "{\"section_title\":\"ART newbie: How to reuse the same mask I painted in one tool in one or more other tools?\",\"source_segment\":{\"body_sha256\":\"b0b16d65b5f7bc730a01267cfb7c1e5ac67444e0aba0315091ab159e55e81c49\",\"byte_end\":541,\"byte_start\":0,\"char_end\":541,\"char_start\":0,\"content_char_end\":1736,\"content_char_start\":1195,\"curated\":true,\"curated_content_index\":2,\"doc_id\":\"discussion-comment:DC_kwDONWPV1M4A7hf1\",\"json_pointer\":\"/body\",\"ref_id\":\"discussion-comment:DC_kwDONWPV1M4A7hf1\",\"segment_sha256\":\"b0b16d65b5f7bc730a01267cfb7c1e5ac67444e0aba0315091ab159e55e81c49\",\"source_file_sha256\":\"c12686c323b16578bcd6f171a971f66ec393e9f385f45632cfb6ff94c92705ac\",\"source_path\":\"data/issues/snapshots/discussion-comments/15603701.json\",\"source_role\":\"discussion-comment\",\"target_url\":\"https://github.com/artraweditor/ART/discussions/442#discussioncomment-15603701\"}}",
+              "source_verified": true
+            }
+          ]
+        }
+      ],
+      "reason": "Discussion #442 #15597989의 이름·후속·위→아래 조건과 #15603701의 later-only/복사붙여넣기/위치 의존성을 각각 대조했다. 원문 Liked mask 오기는 제품 명칭 Linked mask로 자연스럽게 해석했으며 이름 입력 UI를 발명하지 않았다.",
+      "caveats": [],
+      "evidence_links": [
+        {
+          "cid": "C1S2",
+          "target_url": "https://github.com/artraweditor/ART/discussions/442#discussioncomment-15597989",
+          "source_path": "data/issues/snapshots/discussion-comments/15597989.json",
+          "source_location": "{\"section_title\":\"ART newbie: How to reuse the same mask I painted in one tool in one or more other tools?\",\"source_segment\":{\"body_sha256\":\"540f38a4657c23cd2ad26019a99b8c8eef3aad6a4953b64bb21e14862af3d394\",\"byte_end\":464,\"byte_start\":0,\"char_end\":464,\"char_start\":0,\"content_char_end\":1133,\"content_char_start\":669,\"curated\":true,\"curated_content_index\":1,\"doc_id\":\"discussion-comment:DC_kwDONWPV1M4A7gGl\",\"json_pointer\":\"/body\",\"ref_id\":\"discussion-comment:DC_kwDONWPV1M4A7gGl\",\"segment_sha256\":\"540f38a4657c23cd2ad26019a99b8c8eef3aad6a4953b64bb21e14862af3d394\",\"source_file_sha256\":\"861fd65f3393475d92fbb0c8bc83dc00b6c1e4af2908284c7f4316a6953fd83f\",\"source_path\":\"data/issues/snapshots/discussion-comments/15597989.json\",\"source_role\":\"discussion-comment\",\"target_url\":\"https://github.com/artraweditor/ART/discussions/442#discussioncomment-15597989\"}}",
+          "source_verified": true
+        },
+        {
+          "cid": "C1S3",
+          "target_url": "https://github.com/artraweditor/ART/discussions/442#discussioncomment-15603701",
+          "source_path": "data/issues/snapshots/discussion-comments/15603701.json",
+          "source_location": "{\"section_title\":\"ART newbie: How to reuse the same mask I painted in one tool in one or more other tools?\",\"source_segment\":{\"body_sha256\":\"b0b16d65b5f7bc730a01267cfb7c1e5ac67444e0aba0315091ab159e55e81c49\",\"byte_end\":541,\"byte_start\":0,\"char_end\":541,\"char_start\":0,\"content_char_end\":1736,\"content_char_start\":1195,\"curated\":true,\"curated_content_index\":2,\"doc_id\":\"discussion-comment:DC_kwDONWPV1M4A7hf1\",\"json_pointer\":\"/body\",\"ref_id\":\"discussion-comment:DC_kwDONWPV1M4A7hf1\",\"segment_sha256\":\"b0b16d65b5f7bc730a01267cfb7c1e5ac67444e0aba0315091ab159e55e81c49\",\"source_file_sha256\":\"c12686c323b16578bcd6f171a971f66ec393e9f385f45632cfb6ff94c92705ac\",\"source_path\":\"data/issues/snapshots/discussion-comments/15603701.json\",\"source_role\":\"discussion-comment\",\"target_url\":\"https://github.com/artraweditor/ART/discussions/442#discussioncomment-15603701\"}}",
+          "source_verified": true
+        }
+      ],
+      "status": "verified",
+      "baseline_run_id": "run_1791816457_7032ccae",
+      "baseline_answer_sha256": "db179ee7cf648246544ee6f7ef52915ef1d02fd35d41a116eeee41bb43037f42"
+    },
+    {
+      "query_id": "Q092",
+      "track": "t14_a",
+      "run_id": "t17_t14_a_Q092_1792075080",
+      "record_hash": "8682fdea092cc7164edd7b526d7a13c4f4c643b62df88ca0647a140747b2565b",
+      "verdict": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "자가 빌드는 썸네일·편집기 모두 흰색이고 AppImage는 썸네일만 흰색이며 편집기 이미지는 정상이다.",
+          "citation_ids": [
+            "C1S2"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S2",
+              "target_url": "https://github.com/artraweditor/ART/issues/516#issuecomment-5102797884",
+              "source_path": "data/issues/snapshots/issue-comments/5102797884.json",
+              "source_location": "{\"section_title\":\"Canon EOS R8 images fully white\",\"source_segment\":{\"body_sha256\":\"1f1ba99d682f42d9b98755f7a0f195174aa341dfee0dfa2a96432fc6237b087d\",\"byte_end\":1307,\"byte_start\":0,\"char_end\":1307,\"char_start\":0,\"content_char_end\":1629,\"content_char_start\":322,\"curated\":true,\"curated_content_index\":1,\"doc_id\":\"issue-comment:5102797884\",\"json_pointer\":\"/body\",\"ref_id\":\"issue-comment:5102797884\",\"segment_sha256\":\"1f1ba99d682f42d9b98755f7a0f195174aa341dfee0dfa2a96432fc6237b087d\",\"source_file_sha256\":\"05d83f0385b3bec5fbc7df33205ccc5ec21448da8417ec5c7d8d0d7ced6d6200\",\"source_path\":\"data/issues/snapshots/issue-comments/5102797884.json\",\"source_role\":\"issue-comment\",\"target_url\":\"https://github.com/artraweditor/ART/issues/516#issuecomment-5102797884\"}}",
+              "source_verified": true
+            }
+          ]
+        },
+        {
+          "claim": "유지관리자는 낡은 스크립트와 AppImage·캐시 삭제를 안내했고 제보자가 캐시 삭제 효과를 확인했다.",
+          "citation_ids": [
+            "C1S3",
+            "C1S4"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S3",
+              "target_url": "https://github.com/artraweditor/ART/issues/516#issuecomment-5102851028",
+              "source_path": "data/issues/snapshots/issue-comments/5102851028.json",
+              "source_location": "{\"section_title\":\"Canon EOS R8 images fully white\",\"source_segment\":{\"body_sha256\":\"540894d153b194c0e2326ece36af92413d9d2ddfddd95cb62d86d7b43d8387f5\",\"byte_end\":305,\"byte_start\":0,\"char_end\":305,\"char_start\":0,\"content_char_end\":1977,\"content_char_start\":1672,\"curated\":true,\"curated_content_index\":2,\"doc_id\":\"issue-comment:5102851028\",\"json_pointer\":\"/body\",\"ref_id\":\"issue-comment:5102851028\",\"segment_sha256\":\"540894d153b194c0e2326ece36af92413d9d2ddfddd95cb62d86d7b43d8387f5\",\"source_file_sha256\":\"cda1f829009ace381da7db1df346a7420c48272560d0746be7c9120258bca928\",\"source_path\":\"data/issues/snapshots/issue-comments/5102851028.json\",\"source_role\":\"issue-comment\",\"target_url\":\"https://github.com/artraweditor/ART/issues/516#issuecomment-5102851028\"}}",
+              "source_verified": true
+            },
+            {
+              "cid": "C1S4",
+              "target_url": "https://github.com/artraweditor/ART/issues/516#issuecomment-5103254495",
+              "source_path": "data/issues/snapshots/issue-comments/5103254495.json",
+              "source_location": "{\"section_title\":\"Canon EOS R8 images fully white\",\"source_segment\":{\"body_sha256\":\"66b1fdba109e05a365a849e11af6e0559b18e0cb71701d1cbf0a51c366daa86d\",\"byte_end\":76,\"byte_start\":0,\"char_end\":76,\"char_start\":0,\"content_char_end\":2096,\"content_char_start\":2020,\"curated\":true,\"curated_content_index\":3,\"doc_id\":\"issue-comment:5103254495\",\"json_pointer\":\"/body\",\"ref_id\":\"issue-comment:5103254495\",\"segment_sha256\":\"66b1fdba109e05a365a849e11af6e0559b18e0cb71701d1cbf0a51c366daa86d\",\"source_file_sha256\":\"736082dd08fe1f4407016507535fbc7eccb6a1862a1175d2bce61823427801c3\",\"source_path\":\"data/issues/snapshots/issue-comments/5103254495.json\",\"source_role\":\"issue-comment\",\"target_url\":\"https://github.com/artraweditor/ART/issues/516#issuecomment-5103254495\"}}",
+              "source_verified": true
+            }
+          ]
+        }
+      ],
+      "reason": "Issue #516의 보고자 비교 #5102797884, 관리자 설명 #5102851028, 해결 확인 #5103254495를 구분해 대조했다. 일반적인 모든 Canon R8 원인으로 확장하지 않는다.",
+      "caveats": [],
+      "evidence_links": [
+        {
+          "cid": "C1S2",
+          "target_url": "https://github.com/artraweditor/ART/issues/516#issuecomment-5102797884",
+          "source_path": "data/issues/snapshots/issue-comments/5102797884.json",
+          "source_location": "{\"section_title\":\"Canon EOS R8 images fully white\",\"source_segment\":{\"body_sha256\":\"1f1ba99d682f42d9b98755f7a0f195174aa341dfee0dfa2a96432fc6237b087d\",\"byte_end\":1307,\"byte_start\":0,\"char_end\":1307,\"char_start\":0,\"content_char_end\":1629,\"content_char_start\":322,\"curated\":true,\"curated_content_index\":1,\"doc_id\":\"issue-comment:5102797884\",\"json_pointer\":\"/body\",\"ref_id\":\"issue-comment:5102797884\",\"segment_sha256\":\"1f1ba99d682f42d9b98755f7a0f195174aa341dfee0dfa2a96432fc6237b087d\",\"source_file_sha256\":\"05d83f0385b3bec5fbc7df33205ccc5ec21448da8417ec5c7d8d0d7ced6d6200\",\"source_path\":\"data/issues/snapshots/issue-comments/5102797884.json\",\"source_role\":\"issue-comment\",\"target_url\":\"https://github.com/artraweditor/ART/issues/516#issuecomment-5102797884\"}}",
+          "source_verified": true
+        },
+        {
+          "cid": "C1S3",
+          "target_url": "https://github.com/artraweditor/ART/issues/516#issuecomment-5102851028",
+          "source_path": "data/issues/snapshots/issue-comments/5102851028.json",
+          "source_location": "{\"section_title\":\"Canon EOS R8 images fully white\",\"source_segment\":{\"body_sha256\":\"540894d153b194c0e2326ece36af92413d9d2ddfddd95cb62d86d7b43d8387f5\",\"byte_end\":305,\"byte_start\":0,\"char_end\":305,\"char_start\":0,\"content_char_end\":1977,\"content_char_start\":1672,\"curated\":true,\"curated_content_index\":2,\"doc_id\":\"issue-comment:5102851028\",\"json_pointer\":\"/body\",\"ref_id\":\"issue-comment:5102851028\",\"segment_sha256\":\"540894d153b194c0e2326ece36af92413d9d2ddfddd95cb62d86d7b43d8387f5\",\"source_file_sha256\":\"cda1f829009ace381da7db1df346a7420c48272560d0746be7c9120258bca928\",\"source_path\":\"data/issues/snapshots/issue-comments/5102851028.json\",\"source_role\":\"issue-comment\",\"target_url\":\"https://github.com/artraweditor/ART/issues/516#issuecomment-5102851028\"}}",
+          "source_verified": true
+        },
+        {
+          "cid": "C1S4",
+          "target_url": "https://github.com/artraweditor/ART/issues/516#issuecomment-5103254495",
+          "source_path": "data/issues/snapshots/issue-comments/5103254495.json",
+          "source_location": "{\"section_title\":\"Canon EOS R8 images fully white\",\"source_segment\":{\"body_sha256\":\"66b1fdba109e05a365a849e11af6e0559b18e0cb71701d1cbf0a51c366daa86d\",\"byte_end\":76,\"byte_start\":0,\"char_end\":76,\"char_start\":0,\"content_char_end\":2096,\"content_char_start\":2020,\"curated\":true,\"curated_content_index\":3,\"doc_id\":\"issue-comment:5103254495\",\"json_pointer\":\"/body\",\"ref_id\":\"issue-comment:5103254495\",\"segment_sha256\":\"66b1fdba109e05a365a849e11af6e0559b18e0cb71701d1cbf0a51c366daa86d\",\"source_file_sha256\":\"736082dd08fe1f4407016507535fbc7eccb6a1862a1175d2bce61823427801c3\",\"source_path\":\"data/issues/snapshots/issue-comments/5103254495.json\",\"source_role\":\"issue-comment\",\"target_url\":\"https://github.com/artraweditor/ART/issues/516#issuecomment-5103254495\"}}",
+          "source_verified": true
+        }
+      ],
+      "status": "verified",
+      "baseline_run_id": "run_1791816470_b2d265fb",
+      "baseline_answer_sha256": "002bf28c6f76a79059c8876904c734f61eb9c89666544c1606b275fe335be2aa"
+    },
+    {
+      "query_id": "Q093",
+      "track": "t14_a",
+      "run_id": "t17_t14_a_Q093_1792075085",
+      "record_hash": "88b9f7259fed65b559b9f00ec8eba659a8d8f3b5104ddbb7e82760fb878159cc",
+      "verdict": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "보고된 Xubuntu 환경의 lensfun DB는 /usr/share/lensfun/version_1이며 ART options 설정 후 비활성 드롭다운이 해결됐다.",
+          "citation_ids": [
+            "C1S3"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S3",
+              "target_url": "https://github.com/artraweditor/ART/issues/521#issuecomment-5315824799",
+              "source_path": "data/issues/snapshots/issue-comments/5315824799.json",
+              "source_location": "{\"section_title\":\"[Solved] Lens correction profile not working?\",\"source_segment\":{\"body_sha256\":\"2c9a985b1cd4cce065cc60cf546c9d879a0bb6bb34c828722cd18849334f5225\",\"byte_end\":204,\"byte_start\":0,\"char_end\":204,\"char_start\":0,\"content_char_end\":999,\"content_char_start\":795,\"curated\":true,\"curated_content_index\":2,\"doc_id\":\"issue-comment:5315824799\",\"json_pointer\":\"/body\",\"ref_id\":\"issue-comment:5315824799\",\"segment_sha256\":\"2c9a985b1cd4cce065cc60cf546c9d879a0bb6bb34c828722cd18849334f5225\",\"source_file_sha256\":\"55a4ad01f214a571a42ba2669e6e3603d93751de4e4502bffcfc8b17aacfc058\",\"source_path\":\"data/issues/snapshots/issue-comments/5315824799.json\",\"source_role\":\"issue-comment\",\"target_url\":\"https://github.com/artraweditor/ART/issues/521#issuecomment-5315824799\"}}",
+              "source_verified": true
+            }
+          ]
+        }
+      ],
+      "reason": "Issue #521 해결 댓글 #5315824799의 실제 경로와 설정 후 정상화 문장이 일치한다. 해당 사용자의 환경으로 한정한다.",
+      "caveats": [],
+      "evidence_links": [
+        {
+          "cid": "C1S3",
+          "target_url": "https://github.com/artraweditor/ART/issues/521#issuecomment-5315824799",
+          "source_path": "data/issues/snapshots/issue-comments/5315824799.json",
+          "source_location": "{\"section_title\":\"[Solved] Lens correction profile not working?\",\"source_segment\":{\"body_sha256\":\"2c9a985b1cd4cce065cc60cf546c9d879a0bb6bb34c828722cd18849334f5225\",\"byte_end\":204,\"byte_start\":0,\"char_end\":204,\"char_start\":0,\"content_char_end\":999,\"content_char_start\":795,\"curated\":true,\"curated_content_index\":2,\"doc_id\":\"issue-comment:5315824799\",\"json_pointer\":\"/body\",\"ref_id\":\"issue-comment:5315824799\",\"segment_sha256\":\"2c9a985b1cd4cce065cc60cf546c9d879a0bb6bb34c828722cd18849334f5225\",\"source_file_sha256\":\"55a4ad01f214a571a42ba2669e6e3603d93751de4e4502bffcfc8b17aacfc058\",\"source_path\":\"data/issues/snapshots/issue-comments/5315824799.json\",\"source_role\":\"issue-comment\",\"target_url\":\"https://github.com/artraweditor/ART/issues/521#issuecomment-5315824799\"}}",
+          "source_verified": true
+        }
+      ],
+      "status": "verified",
+      "baseline_run_id": "run_1791816484_2da27107",
+      "baseline_answer_sha256": "e2b51a546cddfbd6461b761c5d98f006c115d244d240c258e8d2187bb2acb4a2"
+    },
+    {
+      "query_id": "Q096",
+      "track": "t14_a",
+      "run_id": "t17_t14_a_Q096_1792075090",
+      "record_hash": "34772ee356b160f6d27601c1d1094eb05d596f11106cd7b47023388a6e1e159b",
+      "verdict": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "JXL 품질 옵션이 없고 visually lossless로 고정돼 전용 슬라이더로 50을 설정할 절차는 없다.",
+          "citation_ids": [
+            "C1S2"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S2",
+              "target_url": "https://github.com/artraweditor/ART/issues/500#issuecomment-4711197631",
+              "source_path": "data/issues/snapshots/issue-comments/4711197631.json",
+              "source_location": "{\"section_title\":\"question: absolute no settings for jxl export?\",\"source_segment\":{\"body_sha256\":\"1a72636b6373fabc9ebbd0e99ee806d629fcf943837d8059a87a247e14473dc2\",\"byte_end\":67,\"byte_start\":0,\"char_end\":67,\"char_start\":0,\"content_char_end\":329,\"content_char_start\":262,\"curated\":true,\"curated_content_index\":1,\"doc_id\":\"issue-comment:4711197631\",\"json_pointer\":\"/body\",\"ref_id\":\"issue-comment:4711197631\",\"segment_sha256\":\"1a72636b6373fabc9ebbd0e99ee806d629fcf943837d8059a87a247e14473dc2\",\"source_file_sha256\":\"32dcb0afb1e0f5a456a78c7d3e16a4b512ad1d244b58f75af53a1895147d8cad\",\"source_path\":\"data/issues/snapshots/issue-comments/4711197631.json\",\"source_role\":\"issue-comment\",\"target_url\":\"https://github.com/artraweditor/ART/issues/500#issuecomment-4711197631\"}}",
+              "source_verified": true
+            }
+          ]
+        }
+      ],
+      "reason": "Issue #500 반증 댓글 #4711197631의 no option / fixed to visually lossless를 직접 인용하여 UNSUPPORTED로 판단한다. 슬라이더 활성화나 품질 50 조작법을 생성하지 않았다.",
+      "caveats": [],
+      "evidence_links": [
+        {
+          "cid": "C1S2",
+          "target_url": "https://github.com/artraweditor/ART/issues/500#issuecomment-4711197631",
+          "source_path": "data/issues/snapshots/issue-comments/4711197631.json",
+          "source_location": "{\"section_title\":\"question: absolute no settings for jxl export?\",\"source_segment\":{\"body_sha256\":\"1a72636b6373fabc9ebbd0e99ee806d629fcf943837d8059a87a247e14473dc2\",\"byte_end\":67,\"byte_start\":0,\"char_end\":67,\"char_start\":0,\"content_char_end\":329,\"content_char_start\":262,\"curated\":true,\"curated_content_index\":1,\"doc_id\":\"issue-comment:4711197631\",\"json_pointer\":\"/body\",\"ref_id\":\"issue-comment:4711197631\",\"segment_sha256\":\"1a72636b6373fabc9ebbd0e99ee806d629fcf943837d8059a87a247e14473dc2\",\"source_file_sha256\":\"32dcb0afb1e0f5a456a78c7d3e16a4b512ad1d244b58f75af53a1895147d8cad\",\"source_path\":\"data/issues/snapshots/issue-comments/4711197631.json\",\"source_role\":\"issue-comment\",\"target_url\":\"https://github.com/artraweditor/ART/issues/500#issuecomment-4711197631\"}}",
+          "source_verified": true
+        }
+      ],
+      "status": "verified",
+      "baseline_run_id": "run_1791816494_ebbb5582",
+      "baseline_answer_sha256": "870ec83de788d6828e3c7ea48b85d51106092e74a115c835ded6d3ba494b463f"
+    },
+    {
+      "query_id": "Q001",
+      "track": "t14_b",
+      "run_id": "t17_t14_b_Q001_1792075095",
+      "record_hash": "532d94f8298aa195b85343b4a9680aa0b59498983b0b6cbea80f80f3e0b06b3a",
+      "verdict": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "Auto Levels는 히스토그램을 분석해 노출을 조정하고 여섯 슬라이더만 사용한다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/exposure/",
+              "source_path": "data/rawpedia/Exposure.md",
+              "source_location": "{\"section_title\":\"Exposure\",\"source_segment\":{\"byte_end\":29445,\"byte_start\":138,\"char_end\":29437,\"char_start\":138,\"content_char_end\":29299,\"content_char_start\":0,\"doc_id\":\"rawpedia:Exposure\",\"json_pointer\":null,\"segment_sha256\":\"2a5e5b64b2950fc8ef622cf9ce50c253d3f35a1aed6583818ddc51375e58ae2b\",\"source_file_sha256\":\"6bf06463d4f46b5291459bd5b452d5b4b409f7362d3e73e8f0dfbd754a7a6ab1\",\"source_path\":\"data/rawpedia/Exposure.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/exposure/\"}}",
+              "source_verified": true
+            }
+          ]
+        }
+      ],
+      "reason": "Exposure Auto Levels 첫 두 문단과 분석 대상·노출 목적 및 Exposure compensation/Highlight compression/Highlight reconstruction/Black/Lightness/Contrast 여섯 항목을 대조했다.",
+      "caveats": [],
+      "evidence_links": [
+        {
+          "cid": "C1S1",
+          "target_url": "https://rawpedia.rawtherapee.com/exposure/",
+          "source_path": "data/rawpedia/Exposure.md",
+          "source_location": "{\"section_title\":\"Exposure\",\"source_segment\":{\"byte_end\":29445,\"byte_start\":138,\"char_end\":29437,\"char_start\":138,\"content_char_end\":29299,\"content_char_start\":0,\"doc_id\":\"rawpedia:Exposure\",\"json_pointer\":null,\"segment_sha256\":\"2a5e5b64b2950fc8ef622cf9ce50c253d3f35a1aed6583818ddc51375e58ae2b\",\"source_file_sha256\":\"6bf06463d4f46b5291459bd5b452d5b4b409f7362d3e73e8f0dfbd754a7a6ab1\",\"source_path\":\"data/rawpedia/Exposure.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/exposure/\"}}",
+          "source_verified": true
+        }
+      ],
+      "status": "verified",
+      "baseline_run_id": "run_1791816326_4bfaeb47",
+      "baseline_answer_sha256": "5c1b40b154c445385f1be0c5fc56d4b55d7cfb0e28c9b9940959e5888c0d20b8"
+    },
+    {
+      "query_id": "Q004",
+      "track": "t14_b",
+      "run_id": "t17_t14_b_Q004_1792075101",
+      "record_hash": "a1ce1785cada5aaa353c632fca51dee22ab5bfaf3a43922e5dbbbdbbbe903c2f",
+      "verdict": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "Amount 증가 시 압축이 강해져 전체 톤 범위가 좁아지며 히스토그램에서 확인한다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/dynamic_range_compression/",
+              "source_path": "data/rawpedia/Dynamic_Range_Compression.md",
+              "source_location": "{\"section_title\":\"Dynamic Range Compression\",\"source_segment\":{\"byte_end\":3921,\"byte_start\":141,\"char_end\":3919,\"char_start\":141,\"content_char_end\":3778,\"content_char_start\":0,\"doc_id\":\"rawpedia:Dynamic_Range_Compression\",\"json_pointer\":null,\"segment_sha256\":\"d06de8767563d92333ebb9fbfd4cfd64d6c29e2052b18913383d74c8d4141027\",\"source_file_sha256\":\"c0ad011fe62f78926cd63ef8464d0b43c1fc015f2a23fa0a94be69dfdb40d6c0\",\"source_path\":\"data/rawpedia/Dynamic_Range_Compression.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/dynamic_range_compression/\"}}",
+              "source_verified": true
+            }
+          ]
+        },
+        {
+          "claim": "Detail 양수는 압축을 줄여 로컬 대비를 보존하고 음수는 로컬 대비를 낮춘다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/dynamic_range_compression/",
+              "source_path": "data/rawpedia/Dynamic_Range_Compression.md",
+              "source_location": "{\"section_title\":\"Dynamic Range Compression\",\"source_segment\":{\"byte_end\":3921,\"byte_start\":141,\"char_end\":3919,\"char_start\":141,\"content_char_end\":3778,\"content_char_start\":0,\"doc_id\":\"rawpedia:Dynamic_Range_Compression\",\"json_pointer\":null,\"segment_sha256\":\"d06de8767563d92333ebb9fbfd4cfd64d6c29e2052b18913383d74c8d4141027\",\"source_file_sha256\":\"c0ad011fe62f78926cd63ef8464d0b43c1fc015f2a23fa0a94be69dfdb40d6c0\",\"source_path\":\"data/rawpedia/Dynamic_Range_Compression.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/dynamic_range_compression/\"}}",
+              "source_verified": true
+            }
+          ]
+        }
+      ],
+      "reason": "DRC의 Amount/Detail 원문과 각 슬라이더 방향·역할을 분리해 확인했다. 답변의 마지막 비교 문장도 두 설명의 정확한 요약이다. RawTherapee 범위다.",
+      "caveats": [],
+      "evidence_links": [
+        {
+          "cid": "C1S1",
+          "target_url": "https://rawpedia.rawtherapee.com/dynamic_range_compression/",
+          "source_path": "data/rawpedia/Dynamic_Range_Compression.md",
+          "source_location": "{\"section_title\":\"Dynamic Range Compression\",\"source_segment\":{\"byte_end\":3921,\"byte_start\":141,\"char_end\":3919,\"char_start\":141,\"content_char_end\":3778,\"content_char_start\":0,\"doc_id\":\"rawpedia:Dynamic_Range_Compression\",\"json_pointer\":null,\"segment_sha256\":\"d06de8767563d92333ebb9fbfd4cfd64d6c29e2052b18913383d74c8d4141027\",\"source_file_sha256\":\"c0ad011fe62f78926cd63ef8464d0b43c1fc015f2a23fa0a94be69dfdb40d6c0\",\"source_path\":\"data/rawpedia/Dynamic_Range_Compression.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/dynamic_range_compression/\"}}",
+          "source_verified": true
+        }
+      ],
+      "status": "verified",
+      "baseline_run_id": "run_1791816339_875dc379",
+      "baseline_answer_sha256": "2214244e54081c048f1992861f5fda835ffc38ced1b77b3b072926fe62e13dfa"
+    },
+    {
+      "query_id": "Q014",
+      "track": "t14_b",
+      "run_id": "t17_t14_b_Q014_1792075106",
+      "record_hash": "c1dcd979dd655d4e1d8e490fd84c566c5199be00424d62b0dc7ce50dd619be66",
+      "verdict": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "Depth Map을 켜며 밝은 색일수록 안개 제거가 더 강하게 적용된다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/haze_removal/",
+              "source_path": "data/rawpedia/Haze_Removal.md",
+              "source_location": "{\"section_title\":\"Haze Removal\",\"source_segment\":{\"byte_end\":678,\"byte_start\":119,\"char_end\":678,\"char_start\":119,\"content_char_end\":559,\"content_char_start\":0,\"doc_id\":\"rawpedia:Haze_Removal\",\"json_pointer\":null,\"segment_sha256\":\"901c0d8a89180288be11dca576f31743925928c096078b805313fa9cc6b7b5a0\",\"source_file_sha256\":\"1857dd49ce185f777ee7cd72eec8d0f11902ac4edb24bba4a1a9234706ab6a1d\",\"source_path\":\"data/rawpedia/Haze_Removal.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/haze_removal/\"}}",
+              "source_verified": true
+            }
+          ]
+        }
+      ],
+      "reason": "Haze Removal Usage와 기능명·밝기 방향이 일치한다. 기능 외 별도 UI 경로를 발명하지 않는다.",
+      "caveats": [],
+      "evidence_links": [
+        {
+          "cid": "C1S1",
+          "target_url": "https://rawpedia.rawtherapee.com/haze_removal/",
+          "source_path": "data/rawpedia/Haze_Removal.md",
+          "source_location": "{\"section_title\":\"Haze Removal\",\"source_segment\":{\"byte_end\":678,\"byte_start\":119,\"char_end\":678,\"char_start\":119,\"content_char_end\":559,\"content_char_start\":0,\"doc_id\":\"rawpedia:Haze_Removal\",\"json_pointer\":null,\"segment_sha256\":\"901c0d8a89180288be11dca576f31743925928c096078b805313fa9cc6b7b5a0\",\"source_file_sha256\":\"1857dd49ce185f777ee7cd72eec8d0f11902ac4edb24bba4a1a9234706ab6a1d\",\"source_path\":\"data/rawpedia/Haze_Removal.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/haze_removal/\"}}",
+          "source_verified": true
+        }
+      ],
+      "status": "verified",
+      "baseline_run_id": "run_1791816351_d2dbbd3e",
+      "baseline_answer_sha256": "ce5d571d4ad40ff6137bd07988d98690efc754b0febcd39eebb96b4b3f7fa0aa"
+    },
+    {
+      "query_id": "Q021",
+      "track": "t14_b",
+      "run_id": "t17_t14_b_Q021_1792075113",
+      "record_hash": "899e710eff8975cc8bceca9068142d0444f1633025121ce73098b850c8b73401",
+      "verdict": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "고채도 카메라 색도 데이터를 작은 색역으로 압축해 문제인 음수 색역 밖 값을 피한다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/gamut_compression/",
+              "source_path": "data/rawpedia/Gamut_compression.md",
+              "source_location": "{\"section_title\":\"Gamut Compression\",\"source_segment\":{\"byte_end\":8883,\"byte_start\":109,\"char_end\":8808,\"char_start\":109,\"content_char_end\":8699,\"content_char_start\":0,\"doc_id\":\"rawpedia:Gamut_compression\",\"json_pointer\":null,\"segment_sha256\":\"7fd925fce9e4056f9b7bde4d1bffb2c560acb483aa84a760b25794e1f799e7dc\",\"source_file_sha256\":\"d97cc4a36a67312b7398386398e0c7dc07f87d90106f0e0a40c25d6f46aeb125\",\"source_path\":\"data/rawpedia/Gamut_compression.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/gamut_compression/\"}}",
+              "source_verified": true
+            }
+          ]
+        },
+        {
+          "claim": "색역 변환과 구별되며 압축 후 작업 프로파일이 복원된다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/gamut_compression/",
+              "source_path": "data/rawpedia/Gamut_compression.md",
+              "source_location": "{\"section_title\":\"Gamut Compression\",\"source_segment\":{\"byte_end\":8883,\"byte_start\":109,\"char_end\":8808,\"char_start\":109,\"content_char_end\":8699,\"content_char_start\":0,\"doc_id\":\"rawpedia:Gamut_compression\",\"json_pointer\":null,\"segment_sha256\":\"7fd925fce9e4056f9b7bde4d1bffb2c560acb483aa84a760b25794e1f799e7dc\",\"source_file_sha256\":\"d97cc4a36a67312b7398386398e0c7dc07f87d90106f0e0a40c25d6f46aeb125\",\"source_path\":\"data/rawpedia/Gamut_compression.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/gamut_compression/\"}}",
+              "source_verified": true
+            }
+          ]
+        }
+      ],
+      "reason": "Gamut Compression 서두의 정의·음수 out-of-gamut 문제·not a conversion·working profile restored를 모두 대조했다.",
+      "caveats": [],
+      "evidence_links": [
+        {
+          "cid": "C1S1",
+          "target_url": "https://rawpedia.rawtherapee.com/gamut_compression/",
+          "source_path": "data/rawpedia/Gamut_compression.md",
+          "source_location": "{\"section_title\":\"Gamut Compression\",\"source_segment\":{\"byte_end\":8883,\"byte_start\":109,\"char_end\":8808,\"char_start\":109,\"content_char_end\":8699,\"content_char_start\":0,\"doc_id\":\"rawpedia:Gamut_compression\",\"json_pointer\":null,\"segment_sha256\":\"7fd925fce9e4056f9b7bde4d1bffb2c560acb483aa84a760b25794e1f799e7dc\",\"source_file_sha256\":\"d97cc4a36a67312b7398386398e0c7dc07f87d90106f0e0a40c25d6f46aeb125\",\"source_path\":\"data/rawpedia/Gamut_compression.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/gamut_compression/\"}}",
+          "source_verified": true
+        }
+      ],
+      "status": "verified",
+      "baseline_run_id": "run_1791816361_43493e75",
+      "baseline_answer_sha256": "42f7bf8404b4e6cc975d3fa32ef79e85c5bf911001a88ae47f8da9f423a8c319"
+    },
+    {
+      "query_id": "Q033",
+      "track": "t14_b",
+      "run_id": "t17_t14_b_Q033_1792075125",
+      "record_hash": "864883bd2ac8aa533271c1b15d4fd7b98595bdb57e58dda45253af5a57145c48",
+      "verdict": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "센서 RAW 숫자는 카메라별 입력 프로필을 통해 정확한 색으로 변환한다.",
+          "citation_ids": [
+            "C2S1",
+            "C4S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C2S1",
+              "target_url": "https://rawpedia.rawtherapee.com/how_to_create_dcp_color_profiles/",
+              "source_path": "data/rawpedia/How_to_create_DCP_color_profiles.md",
+              "source_location": "{\"section_title\":\"How to create DCP color profiles\",\"source_segment\":{\"byte_end\":15946,\"byte_start\":125,\"char_end\":15945,\"char_start\":125,\"content_char_end\":15820,\"content_char_start\":0,\"doc_id\":\"rawpedia:How_to_create_DCP_color_profiles\",\"json_pointer\":null,\"segment_sha256\":\"a0b75135e043af925d2806659c360dc3bb524c26cda120cc20e9e4cdef32bb50\",\"source_file_sha256\":\"0296cac7536d04ff0f92171b29f63b9df5fe02d780b98fc0206d9e70e9d34683\",\"source_path\":\"data/rawpedia/How_to_create_DCP_color_profiles.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/how_to_create_dcp_color_profiles/\"}}",
+              "source_verified": true
+            },
+            {
+              "cid": "C4S1",
+              "target_url": "https://rawpedia.rawtherapee.com/color_management/",
+              "source_path": "data/rawpedia/Color_Management.md",
+              "source_location": "{\"section_title\":\"Color Management\",\"source_segment\":{\"byte_end\":30242,\"byte_start\":171,\"char_end\":30233,\"char_start\":171,\"content_char_end\":30062,\"content_char_start\":0,\"doc_id\":\"rawpedia:Color_Management\",\"json_pointer\":null,\"segment_sha256\":\"736135f228f49d5716fac2245eb13cd3bb7c3972650bcbfc307681ca3356ea0c\",\"source_file_sha256\":\"593fa22c2225d2bc58e391882b3aed362bdaaceea8208952fe3609395990a783\",\"source_path\":\"data/rawpedia/Color_Management.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/color_management/\"}}",
+              "source_verified": true
+            }
+          ]
+        },
+        {
+          "claim": "DCP는 기본 색 재현에 쓰이고 dual illuminant는 주광·백열광에 맞추며 촬영 환경에 맞춘 차트로 프로필을 만들 수 있다.",
+          "citation_ids": [
+            "C2S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C2S1",
+              "target_url": "https://rawpedia.rawtherapee.com/how_to_create_dcp_color_profiles/",
+              "source_path": "data/rawpedia/How_to_create_DCP_color_profiles.md",
+              "source_location": "{\"section_title\":\"How to create DCP color profiles\",\"source_segment\":{\"byte_end\":15946,\"byte_start\":125,\"char_end\":15945,\"char_start\":125,\"content_char_end\":15820,\"content_char_start\":0,\"doc_id\":\"rawpedia:How_to_create_DCP_color_profiles\",\"json_pointer\":null,\"segment_sha256\":\"a0b75135e043af925d2806659c360dc3bb524c26cda120cc20e9e4cdef32bb50\",\"source_file_sha256\":\"0296cac7536d04ff0f92171b29f63b9df5fe02d780b98fc0206d9e70e9d34683\",\"source_path\":\"data/rawpedia/How_to_create_DCP_color_profiles.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/how_to_create_dcp_color_profiles/\"}}",
+              "source_verified": true
+            }
+          ]
+        },
+        {
+          "claim": "DCP는 기본 행렬에 LUT·톤곡선·룩 테이블·노출 오프셋을 추가할 수 있는 색 관리 프로필이다.",
+          "citation_ids": [
+            "C4S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C4S1",
+              "target_url": "https://rawpedia.rawtherapee.com/color_management/",
+              "source_path": "data/rawpedia/Color_Management.md",
+              "source_location": "{\"section_title\":\"Color Management\",\"source_segment\":{\"byte_end\":30242,\"byte_start\":171,\"char_end\":30233,\"char_start\":171,\"content_char_end\":30062,\"content_char_start\":0,\"doc_id\":\"rawpedia:Color_Management\",\"json_pointer\":null,\"segment_sha256\":\"736135f228f49d5716fac2245eb13cd3bb7c3972650bcbfc307681ca3356ea0c\",\"source_file_sha256\":\"593fa22c2225d2bc58e391882b3aed362bdaaceea8208952fe3609395990a783\",\"source_path\":\"data/rawpedia/Color_Management.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/color_management/\"}}",
+              "source_verified": true
+            }
+          ]
+        }
+      ],
+      "reason": "DCP 생성 문서 서두와 Color Management Input Profile 및 Third-Party DCP Support·Baseline Exposure 문단을 대조했다. 카메라별 매핑·조명·추가 요소 모두 직접 근거가 있다.",
+      "caveats": [
+        "동적 범위·노이즈·클리핑 복원 기술로 설명되지 않는다는 마지막 문장은 DCP의 색 관리 역할에 대한 범위 제한이며, 그 물리 현상을 별도로 입증하는 문서 인용은 아니다."
+      ],
+      "evidence_links": [
+        {
+          "cid": "C2S1",
+          "target_url": "https://rawpedia.rawtherapee.com/how_to_create_dcp_color_profiles/",
+          "source_path": "data/rawpedia/How_to_create_DCP_color_profiles.md",
+          "source_location": "{\"section_title\":\"How to create DCP color profiles\",\"source_segment\":{\"byte_end\":15946,\"byte_start\":125,\"char_end\":15945,\"char_start\":125,\"content_char_end\":15820,\"content_char_start\":0,\"doc_id\":\"rawpedia:How_to_create_DCP_color_profiles\",\"json_pointer\":null,\"segment_sha256\":\"a0b75135e043af925d2806659c360dc3bb524c26cda120cc20e9e4cdef32bb50\",\"source_file_sha256\":\"0296cac7536d04ff0f92171b29f63b9df5fe02d780b98fc0206d9e70e9d34683\",\"source_path\":\"data/rawpedia/How_to_create_DCP_color_profiles.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/how_to_create_dcp_color_profiles/\"}}",
+          "source_verified": true
+        },
+        {
+          "cid": "C4S1",
+          "target_url": "https://rawpedia.rawtherapee.com/color_management/",
+          "source_path": "data/rawpedia/Color_Management.md",
+          "source_location": "{\"section_title\":\"Color Management\",\"source_segment\":{\"byte_end\":30242,\"byte_start\":171,\"char_end\":30233,\"char_start\":171,\"content_char_end\":30062,\"content_char_start\":0,\"doc_id\":\"rawpedia:Color_Management\",\"json_pointer\":null,\"segment_sha256\":\"736135f228f49d5716fac2245eb13cd3bb7c3972650bcbfc307681ca3356ea0c\",\"source_file_sha256\":\"593fa22c2225d2bc58e391882b3aed362bdaaceea8208952fe3609395990a783\",\"source_path\":\"data/rawpedia/Color_Management.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/color_management/\"}}",
+          "source_verified": true
+        }
+      ],
+      "status": "verified",
+      "baseline_run_id": "run_1791816373_918ab1f3",
+      "baseline_answer_sha256": "339442b7c94314ca4c905c981bd2270fe522b1ad25637f3f8b0c88dc5cf7f19c"
+    },
+    {
+      "query_id": "Q044",
+      "track": "t14_b",
+      "run_id": "t17_t14_b_Q044_1792075136",
+      "record_hash": "4e229d9aa775b9b791477c870cf9e43ce2bca06b7df4eed0288b5531cacdf6c9",
+      "verdict": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "고비트심도는 색 정밀도·암부 계조를 늘려 포스터리제이션을 줄이며 8비트는 256값, 16비트 정수는 65536값이다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/bit_depth/",
+              "source_path": "data/rawpedia/bit_depth.md",
+              "source_location": "{\"section_title\":\"Bit Depth\",\"source_segment\":{\"byte_end\":8469,\"byte_start\":92,\"char_end\":8469,\"char_start\":92,\"content_char_end\":8377,\"content_char_start\":0,\"doc_id\":\"rawpedia:bit_depth\",\"json_pointer\":null,\"segment_sha256\":\"fba524e94b0166f98c86611b696350398c1f20a4db7fe7a14363ff63c2e5e9ed\",\"source_file_sha256\":\"4c378f5a9fa442308e9562fb5b894de97f8709c0cd36af606fe501facc200ae1\",\"source_path\":\"data/rawpedia/bit_depth.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/bit_depth/\"}}",
+              "source_verified": true
+            }
+          ]
+        },
+        {
+          "claim": "후처리 중간 파일에는 무손실 16비트가 적합하며 추가 편집이 없는 웹 감상 사진에는 대체로 8비트 JPEG가 충분하다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/bit_depth/",
+              "source_path": "data/rawpedia/bit_depth.md",
+              "source_location": "{\"section_title\":\"Bit Depth\",\"source_segment\":{\"byte_end\":8469,\"byte_start\":92,\"char_end\":8469,\"char_start\":92,\"content_char_end\":8377,\"content_char_start\":0,\"doc_id\":\"rawpedia:bit_depth\",\"json_pointer\":null,\"segment_sha256\":\"fba524e94b0166f98c86611b696350398c1f20a4db7fe7a14363ff63c2e5e9ed\",\"source_file_sha256\":\"4c378f5a9fa442308e9562fb5b894de97f8709c0cd36af606fe501facc200ae1\",\"source_path\":\"data/rawpedia/bit_depth.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/bit_depth/\"}}",
+              "source_verified": true
+            }
+          ]
+        },
+        {
+          "claim": "부동소수점은 넓은 값 범위·소수 정밀도·처리 중 over/undershoot 보존·부드러운 전환으로 하이라이트와 밴딩에 유리하다.",
+          "citation_ids": [
+            "C2S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C2S1",
+              "target_url": "https://rawpedia.rawtherapee.com/the_floating_point_engine/",
+              "source_path": "data/rawpedia/The_Floating_Point_Engine.md",
+              "source_location": "{\"section_title\":\"The Floating Point Engine\",\"source_segment\":{\"byte_end\":3589,\"byte_start\":121,\"char_end\":3589,\"char_start\":121,\"content_char_end\":3468,\"content_char_start\":0,\"doc_id\":\"rawpedia:The_Floating_Point_Engine\",\"json_pointer\":null,\"segment_sha256\":\"4044798e8e9a34b9f083d86c2b939d14bfab8c2b2e7d10f68e849d76b57e7a4e\",\"source_file_sha256\":\"431656fde224624d1541f34f361618d543ed498750bf76400122c1487061cc14\",\"source_path\":\"data/rawpedia/The_Floating_Point_Engine.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/the_floating_point_engine/\"}}",
+              "source_verified": true
+            }
+          ]
+        },
+        {
+          "claim": "고비트심도의 비용은 계산·RAM·저장공간이며 32비트 float는 약 43억값, 16비트 대비 약 2배 파일 크기와 낮은 소프트웨어 지원을 가진다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/bit_depth/",
+              "source_path": "data/rawpedia/bit_depth.md",
+              "source_location": "{\"section_title\":\"Bit Depth\",\"source_segment\":{\"byte_end\":8469,\"byte_start\":92,\"char_end\":8469,\"char_start\":92,\"content_char_end\":8377,\"content_char_start\":0,\"doc_id\":\"rawpedia:bit_depth\",\"json_pointer\":null,\"segment_sha256\":\"fba524e94b0166f98c86611b696350398c1f20a4db7fe7a14363ff63c2e5e9ed\",\"source_file_sha256\":\"4c378f5a9fa442308e9562fb5b894de97f8709c0cd36af606fe501facc200ae1\",\"source_path\":\"data/rawpedia/bit_depth.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/bit_depth/\"}}",
+              "source_verified": true
+            }
+          ]
+        },
+        {
+          "claim": "32비트 float 수치 표현은 16비트 정수보다 2배 RAM을 쓰고 큰 이미지에서 메모리·안정성 문제가 가능하다.",
+          "citation_ids": [
+            "C2S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C2S1",
+              "target_url": "https://rawpedia.rawtherapee.com/the_floating_point_engine/",
+              "source_path": "data/rawpedia/The_Floating_Point_Engine.md",
+              "source_location": "{\"section_title\":\"The Floating Point Engine\",\"source_segment\":{\"byte_end\":3589,\"byte_start\":121,\"char_end\":3589,\"char_start\":121,\"content_char_end\":3468,\"content_char_start\":0,\"doc_id\":\"rawpedia:The_Floating_Point_Engine\",\"json_pointer\":null,\"segment_sha256\":\"4044798e8e9a34b9f083d86c2b939d14bfab8c2b2e7d10f68e849d76b57e7a4e\",\"source_file_sha256\":\"431656fde224624d1541f34f361618d543ed498750bf76400122c1487061cc14\",\"source_path\":\"data/rawpedia/The_Floating_Point_Engine.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/the_floating_point_engine/\"}}",
+              "source_verified": true
+            }
+          ]
+        }
+      ],
+      "reason": "A의 무관한 다섯 문맥과 달리 B에는 Bit Depth와 The Floating Point Engine이 직접 제공된다. 두 원문의 정밀도·비트별 수치·중간파일·파일크기·호환성·메모리 설명을 전부 대조해 SUPPORTED 변화를 확인했다.",
+      "caveats": [
+        "RAM 2배는 원문의 숫자 표현량(32-bit float vs 16-bit integer) 비교이며 프로그램 전체 RSS가 언제나 정확히 2배라는 벤치마크 결과로 확대하면 안 된다. 답변은 문서 설명으로 한정한다."
+      ],
+      "evidence_links": [
+        {
+          "cid": "C1S1",
+          "target_url": "https://rawpedia.rawtherapee.com/bit_depth/",
+          "source_path": "data/rawpedia/bit_depth.md",
+          "source_location": "{\"section_title\":\"Bit Depth\",\"source_segment\":{\"byte_end\":8469,\"byte_start\":92,\"char_end\":8469,\"char_start\":92,\"content_char_end\":8377,\"content_char_start\":0,\"doc_id\":\"rawpedia:bit_depth\",\"json_pointer\":null,\"segment_sha256\":\"fba524e94b0166f98c86611b696350398c1f20a4db7fe7a14363ff63c2e5e9ed\",\"source_file_sha256\":\"4c378f5a9fa442308e9562fb5b894de97f8709c0cd36af606fe501facc200ae1\",\"source_path\":\"data/rawpedia/bit_depth.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/bit_depth/\"}}",
+          "source_verified": true
+        },
+        {
+          "cid": "C2S1",
+          "target_url": "https://rawpedia.rawtherapee.com/the_floating_point_engine/",
+          "source_path": "data/rawpedia/The_Floating_Point_Engine.md",
+          "source_location": "{\"section_title\":\"The Floating Point Engine\",\"source_segment\":{\"byte_end\":3589,\"byte_start\":121,\"char_end\":3589,\"char_start\":121,\"content_char_end\":3468,\"content_char_start\":0,\"doc_id\":\"rawpedia:The_Floating_Point_Engine\",\"json_pointer\":null,\"segment_sha256\":\"4044798e8e9a34b9f083d86c2b939d14bfab8c2b2e7d10f68e849d76b57e7a4e\",\"source_file_sha256\":\"431656fde224624d1541f34f361618d543ed498750bf76400122c1487061cc14\",\"source_path\":\"data/rawpedia/The_Floating_Point_Engine.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/the_floating_point_engine/\"}}",
+          "source_verified": true
+        }
+      ],
+      "status": "verified",
+      "baseline_run_id": "run_1791816390_2e04aa27",
+      "baseline_answer_sha256": "f09687281d5603996c1537c67612d64f357ba0effbfdbd6f01c27e06019975f2"
+    },
+    {
+      "query_id": "Q054",
+      "track": "t14_b",
+      "run_id": "t17_t14_b_Q054_1792075142",
+      "record_hash": "913acb54ed978c488b335c95007f6896dffd67f4c1eee6af34edb7769c09f91a",
+      "verdict": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "레벨 슬라이더를 1.0 미만으로 설정하면 해당 레벨 로컬 대비가 줄고 1.0 초과이면 증가한다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/contrast_by_detail_levels/",
+              "source_path": "data/rawpedia/Contrast_by_Detail_Levels.md",
+              "source_location": "{\"section_title\":\"Contrast by Detail Levels\",\"source_segment\":{\"byte_end\":5170,\"byte_start\":132,\"char_end\":5125,\"char_start\":132,\"content_char_end\":4993,\"content_char_start\":0,\"doc_id\":\"rawpedia:Contrast_by_Detail_Levels\",\"json_pointer\":null,\"segment_sha256\":\"5736db4f1a61da2a9b7657900799031b04016a6ab4093b1236e96ee1da26a2ca\",\"source_file_sha256\":\"d4206295c1d5443153ccc5664ba7f764a4c3ae9f12910158829ee698e84066ac\",\"source_path\":\"data/rawpedia/Contrast_by_Detail_Levels.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/contrast_by_detail_levels/\"}}",
+              "source_verified": true
+            }
+          ]
+        }
+      ],
+      "reason": "Contrast by Detail Levels의 less than 1.0 / higher value와 대비 방향이 일치한다. 질문의 두 경우를 모두 답하고 RawTherapee 제품 범위를 유지했다.",
+      "caveats": [],
+      "evidence_links": [
+        {
+          "cid": "C1S1",
+          "target_url": "https://rawpedia.rawtherapee.com/contrast_by_detail_levels/",
+          "source_path": "data/rawpedia/Contrast_by_Detail_Levels.md",
+          "source_location": "{\"section_title\":\"Contrast by Detail Levels\",\"source_segment\":{\"byte_end\":5170,\"byte_start\":132,\"char_end\":5125,\"char_start\":132,\"content_char_end\":4993,\"content_char_start\":0,\"doc_id\":\"rawpedia:Contrast_by_Detail_Levels\",\"json_pointer\":null,\"segment_sha256\":\"5736db4f1a61da2a9b7657900799031b04016a6ab4093b1236e96ee1da26a2ca\",\"source_file_sha256\":\"d4206295c1d5443153ccc5664ba7f764a4c3ae9f12910158829ee698e84066ac\",\"source_path\":\"data/rawpedia/Contrast_by_Detail_Levels.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/contrast_by_detail_levels/\"}}",
+          "source_verified": true
+        }
+      ],
+      "status": "verified",
+      "baseline_run_id": "run_1791816400_e0962d23",
+      "baseline_answer_sha256": "93c41fe0b25359245303d6685362ceca705265624f3a9949c549577747424c03"
+    },
+    {
+      "query_id": "Q063",
+      "track": "t14_b",
+      "run_id": "t17_t14_b_Q063_1792075148",
+      "record_hash": "b9d9456d11c900141701f20c73dbddbde62d7ec956d4f5ba6fa1e396ba03cefe",
+      "verdict": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "스팟 편집 모드를 활성화하고 대상(실선)을 Ctrl-click한 뒤 소스(점선)로 드래그해 소스가 대상을 대체한다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/spot_removal/",
+              "source_path": "data/rawpedia/Spot_Removal.md",
+              "source_location": "{\"section_title\":\"Spot Removal\",\"source_segment\":{\"byte_end\":1337,\"byte_start\":114,\"char_end\":1337,\"char_start\":114,\"content_char_end\":1223,\"content_char_start\":0,\"doc_id\":\"rawpedia:Spot_Removal\",\"json_pointer\":null,\"segment_sha256\":\"76eece2a206f724c974d348a94fd36138848be681065e320360251cdcc6c0e9a\",\"source_file_sha256\":\"bbfb6d2c66076e6509d788a3caae77ddf1d00a2a2bad63d1b30a22c582961174\",\"source_path\":\"data/rawpedia/Spot_Removal.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/spot_removal/\"}}",
+              "source_verified": true
+            }
+          ]
+        }
+      ],
+      "reason": "Spot Removal 원문의 편집모드 전제·Ctrl-click/drag 순서·대상/소스 및 실선/점선 구분을 대조했다. 역방향 조작이나 근거 밖 UI 위치를 만들지 않았다.",
+      "caveats": [],
+      "evidence_links": [
+        {
+          "cid": "C1S1",
+          "target_url": "https://rawpedia.rawtherapee.com/spot_removal/",
+          "source_path": "data/rawpedia/Spot_Removal.md",
+          "source_location": "{\"section_title\":\"Spot Removal\",\"source_segment\":{\"byte_end\":1337,\"byte_start\":114,\"char_end\":1337,\"char_start\":114,\"content_char_end\":1223,\"content_char_start\":0,\"doc_id\":\"rawpedia:Spot_Removal\",\"json_pointer\":null,\"segment_sha256\":\"76eece2a206f724c974d348a94fd36138848be681065e320360251cdcc6c0e9a\",\"source_file_sha256\":\"bbfb6d2c66076e6509d788a3caae77ddf1d00a2a2bad63d1b30a22c582961174\",\"source_path\":\"data/rawpedia/Spot_Removal.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/spot_removal/\"}}",
+          "source_verified": true
+        }
+      ],
+      "status": "verified",
+      "baseline_run_id": "run_1791816410_4f4a35ba",
+      "baseline_answer_sha256": "bacbd9bce813febf4181eb319fa0b9de238276d670b92dc86b5f02fca50e05fd"
+    },
+    {
+      "query_id": "Q072",
+      "track": "t14_b",
+      "run_id": "t17_t14_b_Q072_1792075154",
+      "record_hash": "c102e8d0c3fbd7e08bfc5ced2025afbab814320d87bd7bdb20c5cbc9d1875234",
+      "verdict": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "Fill은 누락 파라미터를 하드코딩 기본값으로 채워 기존 편집을 덮어쓴다.",
+          "citation_ids": [
+            "C2S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C2S1",
+              "target_url": "https://rawpedia.rawtherapee.com/sidecar_files_-_processing_profiles/",
+              "source_path": "data/rawpedia/Sidecar_Files_-_Processing_Profiles.md",
+              "source_location": "{\"section_title\":\"Sidecar Files - Processing Profiles\",\"source_segment\":{\"byte_end\":12423,\"byte_start\":135,\"char_end\":12423,\"char_start\":135,\"content_char_end\":12288,\"content_char_start\":0,\"doc_id\":\"rawpedia:Sidecar_Files_-_Processing_Profiles\",\"json_pointer\":null,\"segment_sha256\":\"6fadb5a56c883e0fef169bc7fdb810fb1d578e8f8f0a87b155aabdfcc290e302\",\"source_file_sha256\":\"16646b23c9d50e91ba8d35c6bd71ae7041e1ee418dfde096390051d17c7ed5e9\",\"source_path\":\"data/rawpedia/Sidecar_Files_-_Processing_Profiles.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/sidecar_files_-_processing_profiles/\"}}",
+              "source_verified": true
+            }
+          ]
+        },
+        {
+          "claim": "Preserve는 포함된 파라미터만 적용하고 누락된 기존값을 유지한다.",
+          "citation_ids": [
+            "C2S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C2S1",
+              "target_url": "https://rawpedia.rawtherapee.com/sidecar_files_-_processing_profiles/",
+              "source_path": "data/rawpedia/Sidecar_Files_-_Processing_Profiles.md",
+              "source_location": "{\"section_title\":\"Sidecar Files - Processing Profiles\",\"source_segment\":{\"byte_end\":12423,\"byte_start\":135,\"char_end\":12423,\"char_start\":135,\"content_char_end\":12288,\"content_char_start\":0,\"doc_id\":\"rawpedia:Sidecar_Files_-_Processing_Profiles\",\"json_pointer\":null,\"segment_sha256\":\"6fadb5a56c883e0fef169bc7fdb810fb1d578e8f8f0a87b155aabdfcc290e302\",\"source_file_sha256\":\"16646b23c9d50e91ba8d35c6bd71ae7041e1ee418dfde096390051d17c7ed5e9\",\"source_path\":\"data/rawpedia/Sidecar_Files_-_Processing_Profiles.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/sidecar_files_-_processing_profiles/\"}}",
+              "source_verified": true
+            }
+          ]
+        }
+      ],
+      "reason": "실제 B 인용 C2S1의 Partial Processing Profiles and Fill Modes와 sharpening 예시를 대조했다. A와 citation ID는 달라도 같은 직접 원문에 연결된다.",
+      "caveats": [],
+      "evidence_links": [
+        {
+          "cid": "C2S1",
+          "target_url": "https://rawpedia.rawtherapee.com/sidecar_files_-_processing_profiles/",
+          "source_path": "data/rawpedia/Sidecar_Files_-_Processing_Profiles.md",
+          "source_location": "{\"section_title\":\"Sidecar Files - Processing Profiles\",\"source_segment\":{\"byte_end\":12423,\"byte_start\":135,\"char_end\":12423,\"char_start\":135,\"content_char_end\":12288,\"content_char_start\":0,\"doc_id\":\"rawpedia:Sidecar_Files_-_Processing_Profiles\",\"json_pointer\":null,\"segment_sha256\":\"6fadb5a56c883e0fef169bc7fdb810fb1d578e8f8f0a87b155aabdfcc290e302\",\"source_file_sha256\":\"16646b23c9d50e91ba8d35c6bd71ae7041e1ee418dfde096390051d17c7ed5e9\",\"source_path\":\"data/rawpedia/Sidecar_Files_-_Processing_Profiles.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/sidecar_files_-_processing_profiles/\"}}",
+          "source_verified": true
+        }
+      ],
+      "status": "verified",
+      "baseline_run_id": "run_1791816421_366bd20b",
+      "baseline_answer_sha256": "9f9c5a36e2a6b8dfc2b00de381c8f90a53c46c5987d5bd7ef62456683c55600a"
+    },
+    {
+      "query_id": "Q080",
+      "track": "t14_b",
+      "run_id": "t17_t14_b_Q080_1792075160",
+      "record_hash": "a564f93ff23d54a669dee7146681502005701a7cbf3602f55c68e4e1e062796d",
+      "verdict": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "config는 환경설정·사용자 프로필·규칙·camconst 등 보존 파일, cache는 썸네일·메타데이터·사이드카·임베디드 프로필을 담는다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/file_paths/",
+              "source_path": "data/rawpedia/file_paths.md",
+              "source_location": "{\"section_title\":\"File Paths\",\"source_segment\":{\"byte_end\":6876,\"byte_start\":107,\"char_end\":6876,\"char_start\":107,\"content_char_end\":6769,\"content_char_start\":0,\"doc_id\":\"rawpedia:file_paths\",\"json_pointer\":null,\"segment_sha256\":\"ccf5d9934cef4486b58ec37998ca453068ece3fc6ed1253270a0d51eb7ef4f44\",\"source_file_sha256\":\"3e973c93c09169953f632e83396da5a7d2271b4039452e45ca44e56af060005f\",\"source_path\":\"data/rawpedia/file_paths.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/file_paths/\"}}",
+              "source_verified": true
+            }
+          ]
+        },
+        {
+          "claim": "cache/images 삭제는 편집 설정을 잃지 않고 썸네일을 다시 생성한다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/file_paths/",
+              "source_path": "data/rawpedia/file_paths.md",
+              "source_location": "{\"section_title\":\"File Paths\",\"source_segment\":{\"byte_end\":6876,\"byte_start\":107,\"char_end\":6876,\"char_start\":107,\"content_char_end\":6769,\"content_char_start\":0,\"doc_id\":\"rawpedia:file_paths\",\"json_pointer\":null,\"segment_sha256\":\"ccf5d9934cef4486b58ec37998ca453068ece3fc6ed1253270a0d51eb7ef4f44\",\"source_file_sha256\":\"3e973c93c09169953f632e83396da5a7d2271b4039452e45ca44e56af060005f\",\"source_path\":\"data/rawpedia/file_paths.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/file_paths/\"}}",
+              "source_verified": true
+            }
+          ]
+        }
+      ],
+      "reason": "File Paths의 Config/Cache 목록과 images 하위 폴더 삭제 문장을 대조했다. 캐시 전체와 images의 역할을 구분하고 설정 보존을 정확히 설명한다.",
+      "caveats": [],
+      "evidence_links": [
+        {
+          "cid": "C1S1",
+          "target_url": "https://rawpedia.rawtherapee.com/file_paths/",
+          "source_path": "data/rawpedia/file_paths.md",
+          "source_location": "{\"section_title\":\"File Paths\",\"source_segment\":{\"byte_end\":6876,\"byte_start\":107,\"char_end\":6876,\"char_start\":107,\"content_char_end\":6769,\"content_char_start\":0,\"doc_id\":\"rawpedia:file_paths\",\"json_pointer\":null,\"segment_sha256\":\"ccf5d9934cef4486b58ec37998ca453068ece3fc6ed1253270a0d51eb7ef4f44\",\"source_file_sha256\":\"3e973c93c09169953f632e83396da5a7d2271b4039452e45ca44e56af060005f\",\"source_path\":\"data/rawpedia/file_paths.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/file_paths/\"}}",
+          "source_verified": true
+        }
+      ],
+      "status": "verified",
+      "baseline_run_id": "run_1791816432_2d74fd60",
+      "baseline_answer_sha256": "a688a3e320ce5f8416b7823108fcd0485628278b6f0b8da157174627cb316b93"
+    },
+    {
+      "query_id": "Q084",
+      "track": "t14_b",
+      "run_id": "t17_t14_b_Q084_1792075169",
+      "record_hash": "71f0f0d6812986c16b460f0d7d2d4d2839b387967903a122540662baa79ae558",
+      "verdict": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "point-wise LUT는 픽셀 이웃이 필요한 spatial halation·grain을 직접 표현하지 못한다.",
+          "citation_ids": [
+            "C1S2"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S2",
+              "target_url": "https://github.com/artraweditor/ART/discussions/424#discussioncomment-15304221",
+              "source_path": "data/issues/snapshots/discussion-comments/15304221.json",
+              "source_location": "{\"section_title\":\"Halation,Grain and Upscaling\",\"source_segment\":{\"body_sha256\":\"536ddfc88c17ea6871223eaca9338c0082e4aaced1fef1502fefc113c689ffc2\",\"byte_end\":932,\"byte_start\":0,\"char_end\":932,\"char_start\":0,\"content_char_end\":1400,\"content_char_start\":468,\"curated\":true,\"curated_content_index\":1,\"doc_id\":\"discussion-comment:DC_kwDONWPV1M4A6YYd\",\"json_pointer\":\"/body\",\"ref_id\":\"discussion-comment:DC_kwDONWPV1M4A6YYd\",\"segment_sha256\":\"536ddfc88c17ea6871223eaca9338c0082e4aaced1fef1502fefc113c689ffc2\",\"source_file_sha256\":\"d8cfe115fff9c3907b3b094dfc86ea0b32c8189f4836a78dcdad123234688482\",\"source_path\":\"data/issues/snapshots/discussion-comments/15304221.json\",\"source_role\":\"discussion-comment\",\"target_url\":\"https://github.com/artraweditor/ART/discussions/424#discussioncomment-15304221\"}}",
+              "source_verified": true
+            }
+          ]
+        },
+        {
+          "claim": "대체 도구는 Local Editing→Smoothing의 Halation/Add noise이며 Special Effects grain은 단순하다.",
+          "citation_ids": [
+            "C1S2"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S2",
+              "target_url": "https://github.com/artraweditor/ART/discussions/424#discussioncomment-15304221",
+              "source_path": "data/issues/snapshots/discussion-comments/15304221.json",
+              "source_location": "{\"section_title\":\"Halation,Grain and Upscaling\",\"source_segment\":{\"body_sha256\":\"536ddfc88c17ea6871223eaca9338c0082e4aaced1fef1502fefc113c689ffc2\",\"byte_end\":932,\"byte_start\":0,\"char_end\":932,\"char_start\":0,\"content_char_end\":1400,\"content_char_start\":468,\"curated\":true,\"curated_content_index\":1,\"doc_id\":\"discussion-comment:DC_kwDONWPV1M4A6YYd\",\"json_pointer\":\"/body\",\"ref_id\":\"discussion-comment:DC_kwDONWPV1M4A6YYd\",\"segment_sha256\":\"536ddfc88c17ea6871223eaca9338c0082e4aaced1fef1502fefc113c689ffc2\",\"source_file_sha256\":\"d8cfe115fff9c3907b3b094dfc86ea0b32c8189f4836a78dcdad123234688482\",\"source_path\":\"data/issues/snapshots/discussion-comments/15304221.json\",\"source_role\":\"discussion-comment\",\"target_url\":\"https://github.com/artraweditor/ART/discussions/424#discussioncomment-15304221\"}}",
+              "source_verified": true
+            }
+          ]
+        },
+        {
+          "claim": "Add noise는 여러 인스턴스·마스킹 등 제어를 늘리지만 알고리즘이 달라 filmsim과 같지 않다.",
+          "citation_ids": [
+            "C1S2"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S2",
+              "target_url": "https://github.com/artraweditor/ART/discussions/424#discussioncomment-15304221",
+              "source_path": "data/issues/snapshots/discussion-comments/15304221.json",
+              "source_location": "{\"section_title\":\"Halation,Grain and Upscaling\",\"source_segment\":{\"body_sha256\":\"536ddfc88c17ea6871223eaca9338c0082e4aaced1fef1502fefc113c689ffc2\",\"byte_end\":932,\"byte_start\":0,\"char_end\":932,\"char_start\":0,\"content_char_end\":1400,\"content_char_start\":468,\"curated\":true,\"curated_content_index\":1,\"doc_id\":\"discussion-comment:DC_kwDONWPV1M4A6YYd\",\"json_pointer\":\"/body\",\"ref_id\":\"discussion-comment:DC_kwDONWPV1M4A6YYd\",\"segment_sha256\":\"536ddfc88c17ea6871223eaca9338c0082e4aaced1fef1502fefc113c689ffc2\",\"source_file_sha256\":\"d8cfe115fff9c3907b3b094dfc86ea0b32c8189f4836a78dcdad123234688482\",\"source_path\":\"data/issues/snapshots/discussion-comments/15304221.json\",\"source_role\":\"discussion-comment\",\"target_url\":\"https://github.com/artraweditor/ART/discussions/424#discussioncomment-15304221\"}}",
+              "source_verified": true
+            }
+          ]
+        }
+      ],
+      "reason": "Discussion #424 #15304221의 기술적 한계·두 모드 이름·Special Effects 및 알고리즘 차이까지 모두 대조했다. ART 해당 스냅샷 범위다.",
+      "caveats": [],
+      "evidence_links": [
+        {
+          "cid": "C1S2",
+          "target_url": "https://github.com/artraweditor/ART/discussions/424#discussioncomment-15304221",
+          "source_path": "data/issues/snapshots/discussion-comments/15304221.json",
+          "source_location": "{\"section_title\":\"Halation,Grain and Upscaling\",\"source_segment\":{\"body_sha256\":\"536ddfc88c17ea6871223eaca9338c0082e4aaced1fef1502fefc113c689ffc2\",\"byte_end\":932,\"byte_start\":0,\"char_end\":932,\"char_start\":0,\"content_char_end\":1400,\"content_char_start\":468,\"curated\":true,\"curated_content_index\":1,\"doc_id\":\"discussion-comment:DC_kwDONWPV1M4A6YYd\",\"json_pointer\":\"/body\",\"ref_id\":\"discussion-comment:DC_kwDONWPV1M4A6YYd\",\"segment_sha256\":\"536ddfc88c17ea6871223eaca9338c0082e4aaced1fef1502fefc113c689ffc2\",\"source_file_sha256\":\"d8cfe115fff9c3907b3b094dfc86ea0b32c8189f4836a78dcdad123234688482\",\"source_path\":\"data/issues/snapshots/discussion-comments/15304221.json\",\"source_role\":\"discussion-comment\",\"target_url\":\"https://github.com/artraweditor/ART/discussions/424#discussioncomment-15304221\"}}",
+          "source_verified": true
+        }
+      ],
+      "status": "verified",
+      "baseline_run_id": "run_1791816444_4c30c335",
+      "baseline_answer_sha256": "9a104a67c850e37c7b075b02adfb7bd1f5111f60d9f200c078c8aa827049a424"
+    },
+    {
+      "query_id": "Q086",
+      "track": "t14_b",
+      "run_id": "t17_t14_b_Q086_1792075176",
+      "record_hash": "6bf075687cb8abf6bf5a2b84255672a8f1dc9b68e697d8dedde9b4a1b24145e2",
+      "verdict": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "마스크에 이름을 부여하면 Linked mask로 나타나며 구체적인 이름 입력 UI는 텍스트에 없다.",
+          "citation_ids": [
+            "C1S2"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S2",
+              "target_url": "https://github.com/artraweditor/ART/discussions/442#discussioncomment-15597989",
+              "source_path": "data/issues/snapshots/discussion-comments/15597989.json",
+              "source_location": "{\"section_title\":\"ART newbie: How to reuse the same mask I painted in one tool in one or more other tools?\",\"source_segment\":{\"body_sha256\":\"540f38a4657c23cd2ad26019a99b8c8eef3aad6a4953b64bb21e14862af3d394\",\"byte_end\":464,\"byte_start\":0,\"char_end\":464,\"char_start\":0,\"content_char_end\":1133,\"content_char_start\":669,\"curated\":true,\"curated_content_index\":1,\"doc_id\":\"discussion-comment:DC_kwDONWPV1M4A7gGl\",\"json_pointer\":\"/body\",\"ref_id\":\"discussion-comment:DC_kwDONWPV1M4A7gGl\",\"segment_sha256\":\"540f38a4657c23cd2ad26019a99b8c8eef3aad6a4953b64bb21e14862af3d394\",\"source_file_sha256\":\"861fd65f3393475d92fbb0c8bc83dc00b6c1e4af2908284c7f4316a6953fd83f\",\"source_path\":\"data/issues/snapshots/discussion-comments/15597989.json\",\"source_role\":\"discussion-comment\",\"target_url\":\"https://github.com/artraweditor/ART/discussions/442#discussioncomment-15597989\"}}",
+              "source_verified": true
+            }
+          ]
+        },
+        {
+          "claim": "후속 도구는 원래 마스크 도구/영역 뒤이며 화면 위→아래 순서다.",
+          "citation_ids": [
+            "C1S2"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S2",
+              "target_url": "https://github.com/artraweditor/ART/discussions/442#discussioncomment-15597989",
+              "source_path": "data/issues/snapshots/discussion-comments/15597989.json",
+              "source_location": "{\"section_title\":\"ART newbie: How to reuse the same mask I painted in one tool in one or more other tools?\",\"source_segment\":{\"body_sha256\":\"540f38a4657c23cd2ad26019a99b8c8eef3aad6a4953b64bb21e14862af3d394\",\"byte_end\":464,\"byte_start\":0,\"char_end\":464,\"char_start\":0,\"content_char_end\":1133,\"content_char_start\":669,\"curated\":true,\"curated_content_index\":1,\"doc_id\":\"discussion-comment:DC_kwDONWPV1M4A7gGl\",\"json_pointer\":\"/body\",\"ref_id\":\"discussion-comment:DC_kwDONWPV1M4A7gGl\",\"segment_sha256\":\"540f38a4657c23cd2ad26019a99b8c8eef3aad6a4953b64bb21e14862af3d394\",\"source_file_sha256\":\"861fd65f3393475d92fbb0c8bc83dc00b6c1e4af2908284c7f4316a6953fd83f\",\"source_path\":\"data/issues/snapshots/discussion-comments/15597989.json\",\"source_role\":\"discussion-comment\",\"target_url\":\"https://github.com/artraweditor/ART/discussions/442#discussioncomment-15597989\"}}",
+              "source_verified": true
+            }
+          ]
+        },
+        {
+          "claim": "Linked reuse는 뒤쪽만 가능하고 복사붙여넣기는 자유롭지만 parametric mask의 결과는 적용 위치에 따라 달라질 수 있다.",
+          "citation_ids": [
+            "C1S3"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S3",
+              "target_url": "https://github.com/artraweditor/ART/discussions/442#discussioncomment-15603701",
+              "source_path": "data/issues/snapshots/discussion-comments/15603701.json",
+              "source_location": "{\"section_title\":\"ART newbie: How to reuse the same mask I painted in one tool in one or more other tools?\",\"source_segment\":{\"body_sha256\":\"b0b16d65b5f7bc730a01267cfb7c1e5ac67444e0aba0315091ab159e55e81c49\",\"byte_end\":541,\"byte_start\":0,\"char_end\":541,\"char_start\":0,\"content_char_end\":1736,\"content_char_start\":1195,\"curated\":true,\"curated_content_index\":2,\"doc_id\":\"discussion-comment:DC_kwDONWPV1M4A7hf1\",\"json_pointer\":\"/body\",\"ref_id\":\"discussion-comment:DC_kwDONWPV1M4A7hf1\",\"segment_sha256\":\"b0b16d65b5f7bc730a01267cfb7c1e5ac67444e0aba0315091ab159e55e81c49\",\"source_file_sha256\":\"c12686c323b16578bcd6f171a971f66ec393e9f385f45632cfb6ff94c92705ac\",\"source_path\":\"data/issues/snapshots/discussion-comments/15603701.json\",\"source_role\":\"discussion-comment\",\"target_url\":\"https://github.com/artraweditor/ART/discussions/442#discussioncomment-15603701\"}}",
+              "source_verified": true
+            }
+          ]
+        }
+      ],
+      "reason": "Discussion #442의 실제 댓글 #15597989와 #15603701을 직접 대조했다. 반드시 필요한 이름·후속·위→아래 조건을 모두 설명하고 UI 조작을 발명하지 않으며, 앞쪽 도구에 대한 복사붙여넣기 대안을 제한과 함께 제시한다.",
+      "caveats": [],
+      "evidence_links": [
+        {
+          "cid": "C1S2",
+          "target_url": "https://github.com/artraweditor/ART/discussions/442#discussioncomment-15597989",
+          "source_path": "data/issues/snapshots/discussion-comments/15597989.json",
+          "source_location": "{\"section_title\":\"ART newbie: How to reuse the same mask I painted in one tool in one or more other tools?\",\"source_segment\":{\"body_sha256\":\"540f38a4657c23cd2ad26019a99b8c8eef3aad6a4953b64bb21e14862af3d394\",\"byte_end\":464,\"byte_start\":0,\"char_end\":464,\"char_start\":0,\"content_char_end\":1133,\"content_char_start\":669,\"curated\":true,\"curated_content_index\":1,\"doc_id\":\"discussion-comment:DC_kwDONWPV1M4A7gGl\",\"json_pointer\":\"/body\",\"ref_id\":\"discussion-comment:DC_kwDONWPV1M4A7gGl\",\"segment_sha256\":\"540f38a4657c23cd2ad26019a99b8c8eef3aad6a4953b64bb21e14862af3d394\",\"source_file_sha256\":\"861fd65f3393475d92fbb0c8bc83dc00b6c1e4af2908284c7f4316a6953fd83f\",\"source_path\":\"data/issues/snapshots/discussion-comments/15597989.json\",\"source_role\":\"discussion-comment\",\"target_url\":\"https://github.com/artraweditor/ART/discussions/442#discussioncomment-15597989\"}}",
+          "source_verified": true
+        },
+        {
+          "cid": "C1S3",
+          "target_url": "https://github.com/artraweditor/ART/discussions/442#discussioncomment-15603701",
+          "source_path": "data/issues/snapshots/discussion-comments/15603701.json",
+          "source_location": "{\"section_title\":\"ART newbie: How to reuse the same mask I painted in one tool in one or more other tools?\",\"source_segment\":{\"body_sha256\":\"b0b16d65b5f7bc730a01267cfb7c1e5ac67444e0aba0315091ab159e55e81c49\",\"byte_end\":541,\"byte_start\":0,\"char_end\":541,\"char_start\":0,\"content_char_end\":1736,\"content_char_start\":1195,\"curated\":true,\"curated_content_index\":2,\"doc_id\":\"discussion-comment:DC_kwDONWPV1M4A7hf1\",\"json_pointer\":\"/body\",\"ref_id\":\"discussion-comment:DC_kwDONWPV1M4A7hf1\",\"segment_sha256\":\"b0b16d65b5f7bc730a01267cfb7c1e5ac67444e0aba0315091ab159e55e81c49\",\"source_file_sha256\":\"c12686c323b16578bcd6f171a971f66ec393e9f385f45632cfb6ff94c92705ac\",\"source_path\":\"data/issues/snapshots/discussion-comments/15603701.json\",\"source_role\":\"discussion-comment\",\"target_url\":\"https://github.com/artraweditor/ART/discussions/442#discussioncomment-15603701\"}}",
+          "source_verified": true
+        }
+      ],
+      "status": "verified",
+      "baseline_run_id": "run_1791816457_7032ccae",
+      "baseline_answer_sha256": "db179ee7cf648246544ee6f7ef52915ef1d02fd35d41a116eeee41bb43037f42"
+    },
+    {
+      "query_id": "Q092",
+      "track": "t14_b",
+      "run_id": "t17_t14_b_Q092_1792075183",
+      "record_hash": "e641ea293322534f551df02f3abb53afe851a6e26fd404af9c7d72f5574cc79e",
+      "verdict": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "자가 빌드에서는 브라우저·편집기 모두 흰색이고 AppImage는 브라우저만 흰색이며 편집기는 정상이다.",
+          "citation_ids": [
+            "C1S2"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S2",
+              "target_url": "https://github.com/artraweditor/ART/issues/516#issuecomment-5102797884",
+              "source_path": "data/issues/snapshots/issue-comments/5102797884.json",
+              "source_location": "{\"section_title\":\"Canon EOS R8 images fully white\",\"source_segment\":{\"body_sha256\":\"1f1ba99d682f42d9b98755f7a0f195174aa341dfee0dfa2a96432fc6237b087d\",\"byte_end\":1307,\"byte_start\":0,\"char_end\":1307,\"char_start\":0,\"content_char_end\":1629,\"content_char_start\":322,\"curated\":true,\"curated_content_index\":1,\"doc_id\":\"issue-comment:5102797884\",\"json_pointer\":\"/body\",\"ref_id\":\"issue-comment:5102797884\",\"segment_sha256\":\"1f1ba99d682f42d9b98755f7a0f195174aa341dfee0dfa2a96432fc6237b087d\",\"source_file_sha256\":\"05d83f0385b3bec5fbc7df33205ccc5ec21448da8417ec5c7d8d0d7ced6d6200\",\"source_path\":\"data/issues/snapshots/issue-comments/5102797884.json\",\"source_role\":\"issue-comment\",\"target_url\":\"https://github.com/artraweditor/ART/issues/516#issuecomment-5102797884\"}}",
+              "source_verified": true
+            }
+          ]
+        },
+        {
+          "claim": "스크립트가 오래되었고 AppImage 캐시 삭제 조치가 제시된 뒤 보고자가 해결을 확인했다.",
+          "citation_ids": [
+            "C1S3",
+            "C1S4"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S3",
+              "target_url": "https://github.com/artraweditor/ART/issues/516#issuecomment-5102851028",
+              "source_path": "data/issues/snapshots/issue-comments/5102851028.json",
+              "source_location": "{\"section_title\":\"Canon EOS R8 images fully white\",\"source_segment\":{\"body_sha256\":\"540894d153b194c0e2326ece36af92413d9d2ddfddd95cb62d86d7b43d8387f5\",\"byte_end\":305,\"byte_start\":0,\"char_end\":305,\"char_start\":0,\"content_char_end\":1977,\"content_char_start\":1672,\"curated\":true,\"curated_content_index\":2,\"doc_id\":\"issue-comment:5102851028\",\"json_pointer\":\"/body\",\"ref_id\":\"issue-comment:5102851028\",\"segment_sha256\":\"540894d153b194c0e2326ece36af92413d9d2ddfddd95cb62d86d7b43d8387f5\",\"source_file_sha256\":\"cda1f829009ace381da7db1df346a7420c48272560d0746be7c9120258bca928\",\"source_path\":\"data/issues/snapshots/issue-comments/5102851028.json\",\"source_role\":\"issue-comment\",\"target_url\":\"https://github.com/artraweditor/ART/issues/516#issuecomment-5102851028\"}}",
+              "source_verified": true
+            },
+            {
+              "cid": "C1S4",
+              "target_url": "https://github.com/artraweditor/ART/issues/516#issuecomment-5103254495",
+              "source_path": "data/issues/snapshots/issue-comments/5103254495.json",
+              "source_location": "{\"section_title\":\"Canon EOS R8 images fully white\",\"source_segment\":{\"body_sha256\":\"66b1fdba109e05a365a849e11af6e0559b18e0cb71701d1cbf0a51c366daa86d\",\"byte_end\":76,\"byte_start\":0,\"char_end\":76,\"char_start\":0,\"content_char_end\":2096,\"content_char_start\":2020,\"curated\":true,\"curated_content_index\":3,\"doc_id\":\"issue-comment:5103254495\",\"json_pointer\":\"/body\",\"ref_id\":\"issue-comment:5103254495\",\"segment_sha256\":\"66b1fdba109e05a365a849e11af6e0559b18e0cb71701d1cbf0a51c366daa86d\",\"source_file_sha256\":\"736082dd08fe1f4407016507535fbc7eccb6a1862a1175d2bce61823427801c3\",\"source_path\":\"data/issues/snapshots/issue-comments/5103254495.json\",\"source_role\":\"issue-comment\",\"target_url\":\"https://github.com/artraweditor/ART/issues/516#issuecomment-5103254495\"}}",
+              "source_verified": true
+            }
+          ]
+        }
+      ],
+      "reason": "Issue #516 세 댓글의 관찰·안내·확인 역할을 구분해 대조했다. 당시 보고 사례로 제한하며 확인되지 않은 빌드 의존성 변경이나 RAW 자체 손상을 원인으로 단정하지 않았다.",
+      "caveats": [],
+      "evidence_links": [
+        {
+          "cid": "C1S2",
+          "target_url": "https://github.com/artraweditor/ART/issues/516#issuecomment-5102797884",
+          "source_path": "data/issues/snapshots/issue-comments/5102797884.json",
+          "source_location": "{\"section_title\":\"Canon EOS R8 images fully white\",\"source_segment\":{\"body_sha256\":\"1f1ba99d682f42d9b98755f7a0f195174aa341dfee0dfa2a96432fc6237b087d\",\"byte_end\":1307,\"byte_start\":0,\"char_end\":1307,\"char_start\":0,\"content_char_end\":1629,\"content_char_start\":322,\"curated\":true,\"curated_content_index\":1,\"doc_id\":\"issue-comment:5102797884\",\"json_pointer\":\"/body\",\"ref_id\":\"issue-comment:5102797884\",\"segment_sha256\":\"1f1ba99d682f42d9b98755f7a0f195174aa341dfee0dfa2a96432fc6237b087d\",\"source_file_sha256\":\"05d83f0385b3bec5fbc7df33205ccc5ec21448da8417ec5c7d8d0d7ced6d6200\",\"source_path\":\"data/issues/snapshots/issue-comments/5102797884.json\",\"source_role\":\"issue-comment\",\"target_url\":\"https://github.com/artraweditor/ART/issues/516#issuecomment-5102797884\"}}",
+          "source_verified": true
+        },
+        {
+          "cid": "C1S3",
+          "target_url": "https://github.com/artraweditor/ART/issues/516#issuecomment-5102851028",
+          "source_path": "data/issues/snapshots/issue-comments/5102851028.json",
+          "source_location": "{\"section_title\":\"Canon EOS R8 images fully white\",\"source_segment\":{\"body_sha256\":\"540894d153b194c0e2326ece36af92413d9d2ddfddd95cb62d86d7b43d8387f5\",\"byte_end\":305,\"byte_start\":0,\"char_end\":305,\"char_start\":0,\"content_char_end\":1977,\"content_char_start\":1672,\"curated\":true,\"curated_content_index\":2,\"doc_id\":\"issue-comment:5102851028\",\"json_pointer\":\"/body\",\"ref_id\":\"issue-comment:5102851028\",\"segment_sha256\":\"540894d153b194c0e2326ece36af92413d9d2ddfddd95cb62d86d7b43d8387f5\",\"source_file_sha256\":\"cda1f829009ace381da7db1df346a7420c48272560d0746be7c9120258bca928\",\"source_path\":\"data/issues/snapshots/issue-comments/5102851028.json\",\"source_role\":\"issue-comment\",\"target_url\":\"https://github.com/artraweditor/ART/issues/516#issuecomment-5102851028\"}}",
+          "source_verified": true
+        },
+        {
+          "cid": "C1S4",
+          "target_url": "https://github.com/artraweditor/ART/issues/516#issuecomment-5103254495",
+          "source_path": "data/issues/snapshots/issue-comments/5103254495.json",
+          "source_location": "{\"section_title\":\"Canon EOS R8 images fully white\",\"source_segment\":{\"body_sha256\":\"66b1fdba109e05a365a849e11af6e0559b18e0cb71701d1cbf0a51c366daa86d\",\"byte_end\":76,\"byte_start\":0,\"char_end\":76,\"char_start\":0,\"content_char_end\":2096,\"content_char_start\":2020,\"curated\":true,\"curated_content_index\":3,\"doc_id\":\"issue-comment:5103254495\",\"json_pointer\":\"/body\",\"ref_id\":\"issue-comment:5103254495\",\"segment_sha256\":\"66b1fdba109e05a365a849e11af6e0559b18e0cb71701d1cbf0a51c366daa86d\",\"source_file_sha256\":\"736082dd08fe1f4407016507535fbc7eccb6a1862a1175d2bce61823427801c3\",\"source_path\":\"data/issues/snapshots/issue-comments/5103254495.json\",\"source_role\":\"issue-comment\",\"target_url\":\"https://github.com/artraweditor/ART/issues/516#issuecomment-5103254495\"}}",
+          "source_verified": true
+        }
+      ],
+      "status": "verified",
+      "baseline_run_id": "run_1791816470_b2d265fb",
+      "baseline_answer_sha256": "002bf28c6f76a79059c8876904c734f61eb9c89666544c1606b275fe335be2aa"
+    },
+    {
+      "query_id": "Q093",
+      "track": "t14_b",
+      "run_id": "t17_t14_b_Q093_1792075187",
+      "record_hash": "cb33a7e43711d563064f7454d1723b1e939029bb28c4217100bd249a7a80bc68",
+      "verdict": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "사용자 options에 설정한 lensfun DB 경로는 /usr/share/lensfun/version_1이며 이후 드롭다운이 정상화됐다.",
+          "citation_ids": [
+            "C1S3"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S3",
+              "target_url": "https://github.com/artraweditor/ART/issues/521#issuecomment-5315824799",
+              "source_path": "data/issues/snapshots/issue-comments/5315824799.json",
+              "source_location": "{\"section_title\":\"[Solved] Lens correction profile not working?\",\"source_segment\":{\"body_sha256\":\"2c9a985b1cd4cce065cc60cf546c9d879a0bb6bb34c828722cd18849334f5225\",\"byte_end\":204,\"byte_start\":0,\"char_end\":204,\"char_start\":0,\"content_char_end\":999,\"content_char_start\":795,\"curated\":true,\"curated_content_index\":2,\"doc_id\":\"issue-comment:5315824799\",\"json_pointer\":\"/body\",\"ref_id\":\"issue-comment:5315824799\",\"segment_sha256\":\"2c9a985b1cd4cce065cc60cf546c9d879a0bb6bb34c828722cd18849334f5225\",\"source_file_sha256\":\"55a4ad01f214a571a42ba2669e6e3603d93751de4e4502bffcfc8b17aacfc058\",\"source_path\":\"data/issues/snapshots/issue-comments/5315824799.json\",\"source_role\":\"issue-comment\",\"target_url\":\"https://github.com/artraweditor/ART/issues/521#issuecomment-5315824799\"}}",
+              "source_verified": true
+            }
+          ]
+        }
+      ],
+      "reason": "Issue #521 해결 댓글 #5315824799의 정확한 경로와 no grayed-out dropdowns를 대조했다. 해당 Xubuntu 보고로 범위를 제한한다.",
+      "caveats": [],
+      "evidence_links": [
+        {
+          "cid": "C1S3",
+          "target_url": "https://github.com/artraweditor/ART/issues/521#issuecomment-5315824799",
+          "source_path": "data/issues/snapshots/issue-comments/5315824799.json",
+          "source_location": "{\"section_title\":\"[Solved] Lens correction profile not working?\",\"source_segment\":{\"body_sha256\":\"2c9a985b1cd4cce065cc60cf546c9d879a0bb6bb34c828722cd18849334f5225\",\"byte_end\":204,\"byte_start\":0,\"char_end\":204,\"char_start\":0,\"content_char_end\":999,\"content_char_start\":795,\"curated\":true,\"curated_content_index\":2,\"doc_id\":\"issue-comment:5315824799\",\"json_pointer\":\"/body\",\"ref_id\":\"issue-comment:5315824799\",\"segment_sha256\":\"2c9a985b1cd4cce065cc60cf546c9d879a0bb6bb34c828722cd18849334f5225\",\"source_file_sha256\":\"55a4ad01f214a571a42ba2669e6e3603d93751de4e4502bffcfc8b17aacfc058\",\"source_path\":\"data/issues/snapshots/issue-comments/5315824799.json\",\"source_role\":\"issue-comment\",\"target_url\":\"https://github.com/artraweditor/ART/issues/521#issuecomment-5315824799\"}}",
+          "source_verified": true
+        }
+      ],
+      "status": "verified",
+      "baseline_run_id": "run_1791816484_2da27107",
+      "baseline_answer_sha256": "e2b51a546cddfbd6461b761c5d98f006c115d244d240c258e8d2187bb2acb4a2"
+    },
+    {
+      "query_id": "Q096",
+      "track": "t14_b",
+      "run_id": "t17_t14_b_Q096_1792075192",
+      "record_hash": "a0a530302711a7e518965f230b3187ad41ac8fa25f3532caccefb6f69ca78e46",
+      "verdict": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "JXL 내보내기에 품질 옵션이 없고 visually lossless로 고정되어 품질 50 슬라이더 조작은 지원되지 않는다.",
+          "citation_ids": [
+            "C1S2"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S2",
+              "target_url": "https://github.com/artraweditor/ART/issues/500#issuecomment-4711197631",
+              "source_path": "data/issues/snapshots/issue-comments/4711197631.json",
+              "source_location": "{\"section_title\":\"question: absolute no settings for jxl export?\",\"source_segment\":{\"body_sha256\":\"1a72636b6373fabc9ebbd0e99ee806d629fcf943837d8059a87a247e14473dc2\",\"byte_end\":67,\"byte_start\":0,\"char_end\":67,\"char_start\":0,\"content_char_end\":329,\"content_char_start\":262,\"curated\":true,\"curated_content_index\":1,\"doc_id\":\"issue-comment:4711197631\",\"json_pointer\":\"/body\",\"ref_id\":\"issue-comment:4711197631\",\"segment_sha256\":\"1a72636b6373fabc9ebbd0e99ee806d629fcf943837d8059a87a247e14473dc2\",\"source_file_sha256\":\"32dcb0afb1e0f5a456a78c7d3e16a4b512ad1d244b58f75af53a1895147d8cad\",\"source_path\":\"data/issues/snapshots/issue-comments/4711197631.json\",\"source_role\":\"issue-comment\",\"target_url\":\"https://github.com/artraweditor/ART/issues/500#issuecomment-4711197631\"}}",
+              "source_verified": true
+            }
+          ]
+        }
+      ],
+      "reason": "Issue #500의 #4711197631 직접 반증과 답변이 일치한다. UNSUPPORTED를 반환하고 슬라이더를 활성화하는 가상 절차를 만들지 않았다.",
+      "caveats": [],
+      "evidence_links": [
+        {
+          "cid": "C1S2",
+          "target_url": "https://github.com/artraweditor/ART/issues/500#issuecomment-4711197631",
+          "source_path": "data/issues/snapshots/issue-comments/4711197631.json",
+          "source_location": "{\"section_title\":\"question: absolute no settings for jxl export?\",\"source_segment\":{\"body_sha256\":\"1a72636b6373fabc9ebbd0e99ee806d629fcf943837d8059a87a247e14473dc2\",\"byte_end\":67,\"byte_start\":0,\"char_end\":67,\"char_start\":0,\"content_char_end\":329,\"content_char_start\":262,\"curated\":true,\"curated_content_index\":1,\"doc_id\":\"issue-comment:4711197631\",\"json_pointer\":\"/body\",\"ref_id\":\"issue-comment:4711197631\",\"segment_sha256\":\"1a72636b6373fabc9ebbd0e99ee806d629fcf943837d8059a87a247e14473dc2\",\"source_file_sha256\":\"32dcb0afb1e0f5a456a78c7d3e16a4b512ad1d244b58f75af53a1895147d8cad\",\"source_path\":\"data/issues/snapshots/issue-comments/4711197631.json\",\"source_role\":\"issue-comment\",\"target_url\":\"https://github.com/artraweditor/ART/issues/500#issuecomment-4711197631\"}}",
+          "source_verified": true
+        }
+      ],
+      "status": "verified",
+      "baseline_run_id": "run_1791816494_ebbb5582",
+      "baseline_answer_sha256": "870ec83de788d6828e3c7ea48b85d51106092e74a115c835ded6d3ba494b463f"
+    },
+    {
+      "query_id": "Q010",
+      "track": "t14_b_reg_Q010",
+      "run_id": "t17_t14_b_reg_Q010_Q010_1792075197",
+      "record_hash": "2ce5f0e6b5b02755e3a6acde29819e3c657ef53b8e3972e2e3bdcd975b1eeb4a",
+      "status": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "Darkness는 어두워진 영역, Lightness는 밝아진 영역을 변경하며 두 값 모두 0이면 도구가 비활성화된다.",
+          "citation_ids": [
+            "C1S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C1S1",
+              "target_url": "https://rawpedia.rawtherapee.com/local_contrast/",
+              "source_location": "{\"section_title\":\"Local Contrast\",\"source_segment\":{\"byte_end\":1967,\"byte_start\":128,\"char_end\":1967,\"char_start\":128,\"content_char_end\":1839,\"content_char_start\":0,\"doc_id\":\"rawpedia:Local_Contrast\",\"json_pointer\":null,\"segment_sha256\":\"76b782b309ed7b5bfd98dc767a5f420f80981b41e9a1b5b046f8db1d446e4c2c\",\"source_file_sha256\":\"a94e539a1b82a62b3ee9ece186b71b5009406d6654e904f46e8f0929f24dd2d0\",\"source_path\":\"data/rawpedia/Local_Contrast.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/local_contrast/\"}}"
+            }
+          ]
+        }
+      ],
+      "reason": "Local Contrast Darkness/Lightness Levels 원문에서 어두워진 영역/밝아진 영역, Darkness 증가·감소·0의 효과 및 두 값 모두 0이면 비활성화를 대조했다. 답변 전체가 RawTherapee 설명으로 한정된다.",
+      "caveats": [],
+      "baseline_run_id": null,
+      "baseline_answer_sha256": null
+    },
+    {
+      "query_id": "Q077",
+      "track": "t14_b_reg_Q077",
+      "run_id": "t17_t14_b_reg_Q077_Q077_1792075208",
+      "record_hash": "0e8ea23dd6c20726f2b030594ddf07cb691592ad5020cdce9d0cae74983a391c",
+      "status": "verified",
+      "reviewed_claims": [
+        {
+          "claim": "Ctrl+Save 후 파일명과 Save를 선택해 포함할 파라미터를 고른다.",
+          "citation_ids": [
+            "C3S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C3S1",
+              "target_url": "https://rawpedia.rawtherapee.com/creating_processing_profiles_for_general_use/",
+              "source_location": "{\"section_title\":\"Creating processing profiles for general use\",\"source_segment\":{\"byte_end\":5357,\"byte_start\":127,\"char_end\":5355,\"char_start\":127,\"content_char_end\":5228,\"content_char_start\":0,\"doc_id\":\"rawpedia:Creating_processing_profiles_for_general_use\",\"json_pointer\":null,\"segment_sha256\":\"10971313344216e37be297b80ff355c564d1b9446683e2dce787605702ab586a\",\"source_file_sha256\":\"92b3fa306941f14d7f11bbaaef1c9db8bbcfb140582798278ec32b61e9193d02\",\"source_path\":\"data/rawpedia/Creating_processing_profiles_for_general_use.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/creating_processing_profiles_for_general_use/\"}}"
+            }
+          ]
+        },
+        {
+          "claim": "최소 옵션과 Auto Levels를 권하고 사진별 ISO·화이트밸런스·기하 파라미터를 구분한다.",
+          "citation_ids": [
+            "C3S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C3S1",
+              "target_url": "https://rawpedia.rawtherapee.com/creating_processing_profiles_for_general_use/",
+              "source_location": "{\"section_title\":\"Creating processing profiles for general use\",\"source_segment\":{\"byte_end\":5357,\"byte_start\":127,\"char_end\":5355,\"char_start\":127,\"content_char_end\":5228,\"content_char_start\":0,\"doc_id\":\"rawpedia:Creating_processing_profiles_for_general_use\",\"json_pointer\":null,\"segment_sha256\":\"10971313344216e37be297b80ff355c564d1b9446683e2dce787605702ab586a\",\"source_file_sha256\":\"92b3fa306941f14d7f11bbaaef1c9db8bbcfb140582798278ec32b61e9193d02\",\"source_path\":\"data/rawpedia/Creating_processing_profiles_for_general_use.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/creating_processing_profiles_for_general_use/\"}}"
+            }
+          ]
+        },
+        {
+          "claim": "부분 프로필 적용에서 Preserve는 누락값 유지, Fill은 기본값 채움이다.",
+          "citation_ids": [
+            "C4S1"
+          ],
+          "evidence_links": [
+            {
+              "cid": "C4S1",
+              "target_url": "https://rawpedia.rawtherapee.com/sidecar_files_-_processing_profiles/",
+              "source_location": "{\"section_title\":\"Sidecar Files - Processing Profiles\",\"source_segment\":{\"byte_end\":12423,\"byte_start\":135,\"char_end\":12423,\"char_start\":135,\"content_char_end\":12288,\"content_char_start\":0,\"doc_id\":\"rawpedia:Sidecar_Files_-_Processing_Profiles\",\"json_pointer\":null,\"segment_sha256\":\"6fadb5a56c883e0fef169bc7fdb810fb1d578e8f8f0a87b155aabdfcc290e302\",\"source_file_sha256\":\"16646b23c9d50e91ba8d35c6bd71ae7041e1ee418dfde096390051d17c7ed5e9\",\"source_path\":\"data/rawpedia/Sidecar_Files_-_Processing_Profiles.md\",\"target_url\":\"https://rawpedia.rawtherapee.com/sidecar_files_-_processing_profiles/\"}}"
+            }
+          ]
+        }
+      ],
+      "reason": "Creating processing profiles의 Ctrl+Save→파일명→Save→파라미터 선택, 최소 옵션, 고정 노출 대신 Auto Levels, ISO·화이트밸런스·기하 설정 제외 이유를 대조했다. 추가 Fill/Preserve 설명도 Sidecar 원문과 일치하며 모두 RawTherapee 범위다.",
+      "caveats": [],
+      "baseline_run_id": null,
+      "baseline_answer_sha256": null
+    }
+  ]
+}

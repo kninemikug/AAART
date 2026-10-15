@@ -1,0 +1,66 @@
+{
+  "validation_exit_code": 0,
+  "readonly_input_verified": true,
+  "input_files_before_after": {
+    "independent_t14_review.json": {
+      "sha256": "eb601fb990c5738c88a7d094d4ee8063756836914b6aac4c7be26faa0c463792",
+      "mtime_ns": 1792077162008226748,
+      "size": 127335
+    },
+    "resume_evaluation.py": {
+      "sha256": "81197be9c2185015ee5975444395acc26d64829cb5c0e3ca006c80576c3b2b23",
+      "mtime_ns": 1792075017980196011,
+      "size": 4486
+    },
+    "report.md": {
+      "sha256": "22296de5861f95307d3ae1a7e92d9e62797b36e7161b1be24c0db91c06b183cc",
+      "mtime_ns": 1792077162455327779,
+      "size": 8190
+    },
+    "regression_records.jsonl": {
+      "sha256": "95fddb60421a92dccb3c8e169e977cb9081ea098b0100f069e9e7765b457cbb3",
+      "mtime_ns": 1792075208259419886,
+      "size": 589618
+    },
+    "comparison_review.json": {
+      "sha256": "d33ec9edf2850365571d57b83dcd57ee1642989bedda068856b2731a992dbd80",
+      "mtime_ns": 1792077162007029924,
+      "size": 169805
+    },
+    "execution_records.jsonl": {
+      "sha256": "6d1f209bfd0d98ca26af2eb3875a24a505dd059e575c21c6cdf60cb7a3871cd8",
+      "mtime_ns": 1792075192002623470,
+      "size": 8541752
+    },
+    "manual_reviews.json": {
+      "sha256": "93d45fddc3e1f24961f5b644df232efb7ed6b99b7dd9f164ec4c7e12d664cc6d",
+      "mtime_ns": 1792077162006448387,
+      "size": 63046
+    },
+    "resume_manifest.json": {
+      "sha256": "fdf554fb510c9a55cea2c3547f0cedbfda30c380adfa2d5c0e4a17535d184f55",
+      "mtime_ns": 1792074948620518824,
+      "size": 2284
+    }
+  },
+  "baseline_hashes": {
+    "docs/search_eval_queries.json": "91b7fb50b23c0514d3e3d24579cad32a07dc6dcc3c8a40774b9e2e9da0fa14e8",
+    "docs/T11_execution_records.jsonl": "5d3d9a7df432cbfac741d479c554aae69a6dfbc8039ed166331d7f5a8d1b64b7",
+    "data/eval/t14-conn/conn_20261015_pr/slice1_search.jsonl": "7362973a835ca69e3375e2980e6c79d83cccab31a221a750ee2b23724c520a4d",
+    "data/eval/t14-conn/conn_20261015_pr/ab_records.jsonl": "96f11d6d63f41896c1b8cf028f52b0932d121d3d5ad4093c69a33802ea0dfd0e"
+  },
+  "records": 47,
+  "reused": 9,
+  "fresh_generation": 38,
+  "statuses": {
+    "SUPPORTED": 41,
+    "INSUFFICIENT_EVIDENCE": 3,
+    "UNSUPPORTED": 3
+  },
+  "source_segments": 231,
+  "used_citations": 58,
+  "code_commits": [
+    "01e8fd206f11a6b97322ee40619a80c48883bca2",
+    "68673afd8ad4a9d6592fc7b9ff1f9043fed3dd17"
+  ]
+}

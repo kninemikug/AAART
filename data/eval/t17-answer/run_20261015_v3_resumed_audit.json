@@ -1,0 +1,23 @@
+{
+  "verdict": "PASS",
+  "fail_reasons": [],
+  "pending_reasons": [],
+  "input_hashes": {
+    "independent_t14_review.json": "eb601fb990c5738c88a7d094d4ee8063756836914b6aac4c7be26faa0c463792",
+    "resume_evaluation.py": "81197be9c2185015ee5975444395acc26d64829cb5c0e3ca006c80576c3b2b23",
+    "report.md": "22296de5861f95307d3ae1a7e92d9e62797b36e7161b1be24c0db91c06b183cc",
+    "regression_records.jsonl": "95fddb60421a92dccb3c8e169e977cb9081ea098b0100f069e9e7765b457cbb3",
+    "comparison_review.json": "d33ec9edf2850365571d57b83dcd57ee1642989bedda068856b2731a992dbd80",
+    "execution_records.jsonl": "6d1f209bfd0d98ca26af2eb3875a24a505dd059e575c21c6cdf60cb7a3871cd8",
+    "manual_reviews.json": "93d45fddc3e1f24961f5b644df232efb7ed6b99b7dd9f164ec4c7e12d664cc6d",
+    "resume_manifest.json": "fdf554fb510c9a55cea2c3547f0cedbfda30c380adfa2d5c0e4a17535d184f55"
+  },
+  "validator": {
+    "code_commit": "8658c289aaae3855df96ea58b7642fea890258a2",
+    "code_files": {
+      "src/artagent/answer.py": "6b9a2eb24f07db3e16025c385d93eae4975db5014efbb094a4786fcd24f8fb99",
+      "src/artagent/graph/answer.py": "0a8202bbadda1c4f2cbedd02fcfe66ae1fbb975b1e18dbbdcfc838de3ef26ba6",
+      "scripts/check_t17_answer.py": "92c33274f3bf51cbd3c4b06fca03aff50bd2a094b0e14a5a79e7a0e918312a61"
+    }
+  }
+}
