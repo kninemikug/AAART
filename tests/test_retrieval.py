@@ -770,3 +770,88 @@ def test_input_validation_and_errors(tmp_path: Path, spec: RetrievalSpec, sessio
     with pytest.raises(RuntimeError, match="저장소가 준비되지 않았습니다"):
         store.search("valid query", session)
     store._set_store_state("ready")
+
+
+# =========================================================================
+# 15. T14-CONN 선택적 출처(source_type) 및 대상 글(source_group_ids) 필터 계약
+# =========================================================================
+
+def test_search_source_type_and_group_filter(
+    tmp_path: Path, spec: RetrievalSpec, session: EncoderSession, source_root: Path, repro_dir: Path
+) -> None:
+    """T14-CONN: source_type, source_group_ids 선택적 필터 계약 검증."""
+    manifest_path = repro_dir / "chunks/manifest.json"
+    chunks = load_selected_chunks(manifest_path, spec, source_root)
+
+    persist_dir = tmp_path / "filter_test_db"
+    store = open_store(persist_dir, spec)
+    store.index_all(chunks, session, source_root=source_root)
+
+    query = "exposure compensation"
+
+    # 1. 무필터 기본 검색: top5 반환 확인
+    hits_default = store.search(query, session)
+    assert len(hits_default) == 5
+
+    # 2. source_type='rawpedia' 필터
+    hits_rawpedia = store.search(query, session, source_type="rawpedia")
+    assert len(hits_rawpedia) > 0
+    assert all(h.source_type == "rawpedia" for h in hits_rawpedia)
+
+    # 3. source_type='github' 필터
+    hits_github = store.search(query, session, source_type="github")
+    assert len(hits_github) > 0
+    assert all(h.source_type == "github" for h in hits_github)
+
+    # 4. 잘못된 source_type 거부
+    with pytest.raises(ValueError, match="지원하지 않는 source_type"):
+        store.search(query, session, source_type="invalid_type")
+
+    # 5. source_group_ids 단일 지정
+    target_group = hits_default[0].source_group_id
+    hits_single_group = store.search(query, session, source_group_ids=[target_group])
+    assert len(hits_single_group) > 0
+    assert all(h.source_group_id == target_group for h in hits_single_group)
+
+    # 6. source_group_ids 복수 지정
+    multi_groups = list({h.source_group_id for h in hits_default[:3]})
+    hits_multi_group = store.search(query, session, source_group_ids=multi_groups)
+    assert len(hits_multi_group) > 0
+    assert all(h.source_group_id in multi_groups for h in hits_multi_group)
+
+    # 7. source_group_ids 빈 시퀀스: 정상 빈 결과 반환
+    hits_empty = store.search(query, session, source_group_ids=[])
+    assert hits_empty == []
+
+    # 8. 존재하지 않는 group_id: 정상 빈 결과 반환
+    hits_nonexistent = store.search(query, session, source_group_ids=["nonexistent_group_12345"])
+    assert hits_nonexistent == []
+
+    # 9. source_key와 source_type / source_group_ids 호환 및 충돌
+    key = SourceKey(source_type=hits_default[0].source_type, source_group_id=hits_default[0].source_group_id)
+    # 호환: 동일 출처 및 포함 그룹
+    hits_compat = store.search(
+        query,
+        session,
+        source_key=key,
+        source_type=key.source_type,
+        source_group_ids=[key.source_group_id, "other_group"],
+    )
+    assert len(hits_compat) > 0
+    assert all(h.source_group_id == key.source_group_id for h in hits_compat)
+
+    # 충돌: source_type 불일치
+    wrong_type = "github" if key.source_type == "rawpedia" else "rawpedia"
+    with pytest.raises(ValueError, match="충돌"):
+        store.search(query, session, source_key=key, source_type=wrong_type)
+
+    # 충돌: source_group_ids에 key.source_group_id 미포함
+    with pytest.raises(ValueError, match="충돌"):
+        store.search(query, session, source_key=key, source_group_ids=["mismatch_group"])
+
+    # 10. 제외된 청크는 필터 조건이 맞아도 여전히 반환되지 않음
+    rep_ex = store.exclude_source(key)
+    assert rep_ex.excluded > 0
+    hits_after_exclude = store.search(query, session, source_type=key.source_type, source_group_ids=[key.source_group_id])
+    assert hits_after_exclude == []
+

@@ -2,6 +2,13 @@
 
 from .graph import create_router_graph
 from .router import analyze_signals, route_request
+from .search import (
+    create_search_github_node,
+    create_search_nodes,
+    create_search_rawpedia_node,
+    resolve_github_targets,
+    search_hits_to_evidences,
+)
 from .state import (
     AgentState,
     AnswerResult,
@@ -62,5 +69,10 @@ __all__ = [
     "RenderResult",
     "analyze_signals",
     "create_router_graph",
+    "create_search_github_node",
+    "create_search_nodes",
+    "create_search_rawpedia_node",
+    "resolve_github_targets",
     "route_request",
+    "search_hits_to_evidences",
 ]
