@@ -239,4 +239,3 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src /Users/user/Workspace/Programming/Proje
 ```
 
 T17 단독 연결 준비까지 완료했다. T13-2 실제 ANSWER 접합·T16 실제 재검색·CP3 통합 검증은 기존 계획의 별도 후속 범위다. 검색 설정·원문·질문셋·T11/T14 기준선은 변경하지 않았다.
-

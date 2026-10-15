@@ -297,4 +297,3 @@ def test_evaluate_gate_b_missing_capture_returns_pending(missing):
     verdict, fail_reasons, pending_reasons = evaluate_gate_b(records, reg, reviews)
     assert verdict == "PENDING", fail_reasons
     assert any("누락" in reason for reason in pending_reasons)
-
