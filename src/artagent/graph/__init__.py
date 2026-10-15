@@ -1,5 +1,6 @@
 """LangGraph routing and pipeline package for ART Master Agent."""
 
+from .answer import answer_query, answer_standalone, create_answer_node
 from .graph import create_router_graph
 from .router import analyze_signals, route_request
 from .search import (
@@ -68,6 +69,9 @@ __all__ = [
     "ValidationResult",
     "RenderResult",
     "analyze_signals",
+    "answer_query",
+    "answer_standalone",
+    "create_answer_node",
     "create_router_graph",
     "create_search_github_node",
     "create_search_nodes",
