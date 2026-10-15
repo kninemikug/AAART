@@ -11,13 +11,17 @@ docs/T17_fix_plan.md §3 (F01) requirements:
 
 from __future__ import annotations
 
+import copy
+from functools import lru_cache
+import hashlib
 import json
 from pathlib import Path
-import tempfile
+import subprocess
 from typing import Any
 import pytest
 
 from artagent.answer import sha256_str
+from artagent.answer_validation import record_digest, reference_cases
 from scripts.check_t17_answer import (
     FIXED_SLICE1_IDS,
     evaluate_gate_b,
@@ -25,153 +29,74 @@ from scripts.check_t17_answer import (
 )
 
 
-def _make_dummy_evidence(chunk_id: str = "C1", doc_id: str = "doc1", source_type: str = "rawpedia") -> dict[str, Any]:
-    return {
-        "chunk_id": chunk_id,
-        "doc_id": doc_id,
-        "source_group_id": "group1",
-        "source_type": source_type,
-        "source_path": f"{doc_id}.md",
-        "target_url": f"https://example.com/{doc_id}",
-        "product_scope": "RawTherapee" if source_type == "rawpedia" else "ART",
-        "text": "test text",
-        "source_location": json.dumps({
-            "section_title": "Section",
-            "source_segment": {
-                "doc_id": doc_id,
-                "source_path": f"{doc_id}.md",
-                "target_url": f"https://example.com/{doc_id}",
-                "json_pointer": None,
-                "char_start": 0,
-                "char_end": 9,
-                "byte_start": 0,
-                "byte_end": 9,
-                "source_file_sha256": "dummy",
-                "segment_sha256": "dummy",
-            }
-        }),
+ROOT = Path(__file__).resolve().parents[1]
+FROZEN_RUN = ROOT / "data/eval/t17-answer/run_20261015_v2"
+
+
+def _refresh_review_hashes(records, regressions, reviews):
+    """Keep review identity consistent so it cannot mask the tested condition."""
+    by_run = {r["run_id"]: r for r in records + regressions}
+    for review in reviews.values():
+        review["record_hash"] = record_digest(by_run[review["run_id"]])
+
+
+@lru_cache(maxsize=1)
+def _synthetic_dataset_template():
+    """Construct in-memory v3 controls; never promote or rewrite frozen runs.
+
+    Real queries, bundles, raw responses, process events, citations and outputs
+    come from v2. Only the new capture fields are simulated for these tests.
+    """
+    def load_records(filename):
+        return [json.loads(line) for line in (FROZEN_RUN / filename).read_text(encoding="utf-8").splitlines() if line]
+
+    records = load_records("execution_records.jsonl")
+    regressions = load_records("regression_records.jsonl")
+    reviews = json.loads((FROZEN_RUN / "manual_reviews.json").read_text(encoding="utf-8"))
+    cases = reference_cases(ROOT)
+    commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    paths = ("src/artagent/answer.py", "src/artagent/graph/answer.py", "scripts/check_t17_answer.py")
+    code_files = {
+        path: hashlib.sha256(subprocess.check_output(["git", "show", f"{commit}:{path}"], cwd=ROOT)).hexdigest()
+        for path in paths
     }
-
-
-def _make_dummy_record(
-    query_id: str,
-    track: str,
-    status: str = "SUPPORTED",
-    is_mock: bool = False,
-    has_prompt: bool = True,
-    has_raw: bool = True,
-    error: Any = None,
-    citations_count: int = 1,
-) -> dict[str, Any]:
-    cits = []
-    for i in range(citations_count):
-        cits.append({
-            "doc_id": "doc1",
-            "title": "Title",
-            "url": "https://example.com/doc1",
-            "source_location": "{}",
-            "citation_id": f"C1S{i+1}",
-        })
-    ev = _make_dummy_evidence(source_type="github" if query_id in ("Q084", "Q086", "Q092", "Q093", "Q096") else "rawpedia")
-    s_inst = "sys inst" if has_prompt else ""
-    u_prompt = "user prompt" if has_prompt else ""
-    p_hash = sha256_str(f"{s_inst}\n{u_prompt}") if has_prompt else ""
-
-    return {
-        "run_id": f"run_{query_id}_{track}",
-        "record_version": "t17-run-v2",
-        "track": track,
-        "query_id": query_id,
-        "query": f"Query {query_id}",
-        "decision_step_id": f"step_{query_id}",
-        "original_run_id": f"orig_{query_id}",
-        "input_file_sha": "some_sha",
-        "retrieval": {
-            "query": f"Query {query_id}",
-            "source_filter": "GITHUB" if query_id in ("Q084", "Q086", "Q092", "Q093", "Q096") else "RAWPEDIA",
-            "snapshot_ref": "snap",
-            "hits": [ev],
-        },
-        "prompt": {
-            "version": "t17-answer-v1",
-            "system_instruction": s_inst,
-            "user_prompt": u_prompt,
-            "prompt_hash": p_hash,
-        },
-        "generation": {
-            "provider": "codex-cli",
-            "model": "gpt-5.6-sol",
-            "is_mock": is_mock,
-            "raw_response": json.dumps({"status": status, "answer": "답변", "citation_ids": ["C1S1"]}) if has_raw else None,
-            "call_count": 1 if error is None else 0,
-        },
-        "output": {
-            "status": status,
-            "text": "답변 [출처: Title·https://example.com/doc1]",
-            "applicability": "제품 범위: RawTherapee",
-        },
-        "citations": cits,
-        "error": error,
-        "manual_review": {
-            "status": "pending",
-        },
-    }
+    for record in records + regressions:
+        record["record_schema"] = "t17-run-v3"
+        record["fixture_kind"] = "synthetic-v3-capture-on-frozen-v2"
+        record["input_reference"] = copy.deepcopy(cases[record["query_id"], record["track"]]["input_reference"])
+        record["runtime"] = {"code_commit": commit, "code_files": dict(code_files)}
+        prompt = record["prompt"]
+        full_prompt = (
+            f"{prompt['system_instruction']}\n\n{prompt['user_prompt']}\n\n"
+            "반드시 마크다운 코드블록(```json 등) 없이 순수 JSON 객체(키: status, answer, citation_ids) 하나만 출력하십시오."
+        )
+        record["generation"]["request"] = {
+            "kind": "codex", "full_prompt": full_prompt,
+            "sha256": sha256_str(full_prompt), "response_schema": "t17-answer-v1",
+            "prompt_version": prompt["version"],
+            "model": record["generation"]["model"],
+        }
+        record["generation"]["runtime_meta"]["_output_file_content"] = record["generation"]["raw_response"]
+    _refresh_review_hashes(records, regressions, reviews)
+    return records, regressions, reviews
 
 
 def _make_full_synthetic_dataset() -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
-    records = []
-    for qid in FIXED_SLICE1_IDS:
-        for tr in ("t11_replay", "t14_a", "t14_b"):
-            st = "INSUFFICIENT_EVIDENCE" if (qid == "Q086" and tr == "t11_replay") else ("UNSUPPORTED" if qid == "Q096" else "SUPPORTED")
-            cc = 0 if st == "INSUFFICIENT_EVIDENCE" else 1
-            records.append(_make_dummy_record(qid, tr, status=st, citations_count=cc))
-
-    reg_records = [
-        _make_dummy_record("Q010", "t14_b_reg_Q010", status="SUPPORTED", citations_count=1),
-        _make_dummy_record("Q077", "t14_b_reg_Q077", status="SUPPORTED", citations_count=1),
-    ]
-
-    # 19 required manual reviews: Q001 (3 tracks), Q086 (3 tracks), Q096 (3 tracks), CP2 5 queries (2 tracks A/B = 10, note Q001 already in Q001 tracks so 8 more), Q010 (1), Q077 (1) = 19
-    manual_reviews = {}
-    review_targets = [
-        ("Q001", "t11_replay"), ("Q001", "t14_a"), ("Q001", "t14_b"),
-        ("Q086", "t11_replay"), ("Q086", "t14_a"), ("Q086", "t14_b"),
-        ("Q096", "t11_replay"), ("Q096", "t14_a"), ("Q096", "t14_b"),
-        ("Q004", "t14_a"), ("Q004", "t14_b"),
-        ("Q014", "t14_a"), ("Q014", "t14_b"),
-        ("Q054", "t14_a"), ("Q054", "t14_b"),
-        ("Q063", "t14_a"), ("Q063", "t14_b"),
-        ("Q010", "t14_b_reg_Q010"),
-        ("Q077", "t14_b_reg_Q077"),
-    ]
-    for qid, tr in review_targets:
-        run_id = f"run_{qid}_{tr}"
-        manual_reviews[run_id] = {
-            "run_id": run_id,
-            "query_id": qid,
-            "track": tr,
-            "status": "verified",
-            "reviewed_claims": ["claim verified"],
-            "reason": "Verified against source document",
-        }
-
-    return records, reg_records, manual_reviews
+    return copy.deepcopy(_synthetic_dataset_template())
 
 
 def test_evaluate_gate_b_all_errors_returns_fail():
-    records = []
-    for qid in FIXED_SLICE1_IDS:
-        for tr in ("t11_replay", "t14_a", "t14_b"):
-            records.append(_make_dummy_record(qid, tr, error={"code": "ANSWER_GENERATION_FAILED", "message": "Failed"}))
+    records, _, _ = _make_full_synthetic_dataset()
+    for record in records:
+        record["output"]["error"] = {"code": "ANSWER_GENERATION_FAILED", "message": "Failed"}
     verdict, fail_reasons, pending_reasons = evaluate_gate_b(records, [])
     assert verdict == "FAIL"
     assert len(fail_reasons) > 0
 
 
 def test_evaluate_gate_b_missing_records_returns_pending():
-    # Only 10 records out of 45
-    records = [_make_dummy_record(FIXED_SLICE1_IDS[0], "t11_replay")]
-    verdict, fail_reasons, pending_reasons = evaluate_gate_b(records, [])
+    records, _, _ = _make_full_synthetic_dataset()
+    verdict, fail_reasons, pending_reasons = evaluate_gate_b(records[:1], [])
     assert verdict == "PENDING"
     assert any("누락" in r for r in pending_reasons)
 
@@ -179,6 +104,7 @@ def test_evaluate_gate_b_missing_records_returns_pending():
 def test_evaluate_gate_b_mock_returns_pending():
     records, reg, reviews = _make_full_synthetic_dataset()
     records[0]["generation"]["is_mock"] = True
+    _refresh_review_hashes(records, reg, reviews)
     verdict, fail_reasons, pending_reasons = evaluate_gate_b(records, reg, reviews, allow_mock=False)
     assert verdict == "PENDING"
     assert any("mock" in r.lower() or "모의" in r for r in pending_reasons)
@@ -196,6 +122,7 @@ def test_evaluate_gate_b_missing_manual_review_returns_pending():
 def test_evaluate_gate_b_citation_zero_on_supported_returns_fail():
     records, reg, reviews = _make_full_synthetic_dataset()
     records[0]["citations"] = []  # SUPPORTED with 0 citations
+    _refresh_review_hashes(records, reg, reviews)
     verdict, fail_reasons, pending_reasons = evaluate_gate_b(records, reg, reviews)
     assert verdict == "FAIL"
     assert any("인용" in r for r in fail_reasons)
@@ -229,9 +156,67 @@ def test_evaluate_gate_b_valid_synthetic_dataset_returns_pass():
     assert len(pending_reasons) == 0
 
 
+@pytest.mark.parametrize("missing", ["runtime_mock", "return_code"])
+def test_complete_fixture_requires_live_normal_process_evidence(missing):
+    records, regressions, reviews = _make_full_synthetic_dataset()
+    generation = records[0]["generation"]
+    if missing == "runtime_mock":
+        generation["runtime_meta"]["is_mock"] = True
+    else:
+        generation["trace"]["process_returncode"] = None
+        generation["runtime_meta"]["_trace"]["process_returncode"] = None
+    _refresh_review_hashes(records, regressions, reviews)
+    verdict, failures, pending = evaluate_gate_b(records, regressions, reviews)
+    assert verdict != "PASS", (failures, pending)
+
+
+@pytest.mark.parametrize("field", ["version", "generation_status", "hit_summary"])
+def test_capture_metadata_is_required_and_consistent(field):
+    records, regressions, reviews = _make_full_synthetic_dataset()
+    record = records[0]
+    if field == "version":
+        record["prompt"].pop("version")
+        record["generation"]["request"].pop("prompt_version")
+        record["generation"]["runtime_meta"]["generation_config"].pop("prompt_version")
+    elif field == "generation_status":
+        record["generation"]["status"] = "UNSUPPORTED"
+    else:
+        record["retrieval"]["hits_count"] = 0
+        record["retrieval"]["product_scopes"] = ["ART"]
+    _refresh_review_hashes(records, regressions, reviews)
+    verdict, failures, pending = evaluate_gate_b(records, regressions, reviews)
+    assert verdict == ("PENDING" if field == "version" else "FAIL"), (failures, pending)
+
+
+@pytest.mark.parametrize("raw_missing", [False, True])
+def test_api_capture_can_pass_or_report_missing_raw_without_false_failure(raw_missing):
+    records, regressions, reviews = _make_full_synthetic_dataset()
+    record = records[0]
+    gen, prompt = record["generation"], record["prompt"]
+    body = {"choices": [{"message": {"content": gen["raw_response"]}}]}
+    payload = {"model": gen["model"], "messages": [
+        {"role": "system", "content": prompt["system_instruction"]},
+        {"role": "user", "content": prompt["user_prompt"]},
+    ]}
+    from artagent.retrieval.provenance import canonical_json_str
+    gen["provider"] = gen["runtime_meta"]["llm_provider"] = "openai-compatible"
+    gen["trace"] = gen["runtime_meta"]["_trace"] = None
+    gen["runtime_meta"]["_response_body"] = body
+    gen["request"] = {"kind": "chat-completions", "payload": payload,
+                      "sha256": sha256_str(canonical_json_str(payload)),
+                      "response_schema": "t17-answer-v1", "model": gen["model"],
+                      "prompt_version": prompt["version"]}
+    if raw_missing:
+        gen["raw_response"] = None
+    _refresh_review_hashes(records, regressions, reviews)
+    verdict, failures, pending = evaluate_gate_b(records, regressions, reviews)
+    assert verdict == ("PENDING" if raw_missing else "PASS"), (failures, pending)
+
+
 def test_evaluate_gate_b_tampered_prompt_hash_returns_fail():
     records, reg, reviews = _make_full_synthetic_dataset()
     records[0]["prompt"]["prompt_hash"] = "tampered_hash_12345"
+    _refresh_review_hashes(records, reg, reviews)
     verdict, fail_reasons, pending_reasons = evaluate_gate_b(records, reg, reviews)
     assert verdict == "FAIL"
     assert any("프롬프트 해시 불일치" in r for r in fail_reasons)
@@ -245,6 +230,7 @@ def test_evaluate_gate_b_raw_response_status_mismatch_returns_fail():
         "answer": "반대 근거입니다.",
         "citation_ids": ["C1S1"],
     })
+    _refresh_review_hashes(records, reg, reviews)
     verdict, fail_reasons, pending_reasons = evaluate_gate_b(records, reg, reviews)
     assert verdict == "FAIL"
     assert any("원생성 응답의 status" in r for r in fail_reasons)
@@ -253,6 +239,7 @@ def test_evaluate_gate_b_raw_response_status_mismatch_returns_fail():
 def test_evaluate_gate_b_call_count_exceeded_returns_fail():
     records, reg, reviews = _make_full_synthetic_dataset()
     records[0]["generation"]["call_count"] = 2
+    _refresh_review_hashes(records, reg, reviews)
     verdict, fail_reasons, pending_reasons = evaluate_gate_b(records, reg, reviews)
     assert verdict == "FAIL"
     assert any("호출 수 초과" in r for r in fail_reasons)
@@ -260,27 +247,28 @@ def test_evaluate_gate_b_call_count_exceeded_returns_fail():
 
 def test_evaluate_gate_b_tampered_coordinates_returns_fail():
     records, reg, reviews = _make_full_synthetic_dataset()
-    # Point to a real hit or simulate coordinate validation failure with source_root
-    tmp_dir = Path(tempfile.mkdtemp())
-    try:
-        doc_path = tmp_dir / "test.md"
-        doc_path.write_text("abcdefghij", encoding="utf-8")
-        file_sha = sha256_str("abcdefghij")
+    evidence = records[0]["retrieval"]["hits"][0]
+    location = json.loads(evidence["source_location"])
+    location["source_segment"]["byte_start"] += 1
+    evidence["source_location"] = json.dumps(location)
+    _refresh_review_hashes(records, reg, reviews)
+    verdict, fail_reasons, pending_reasons = evaluate_gate_b(
+        records, reg, reviews, source_root=ROOT
+    )
+    assert verdict == "FAIL"
+    assert any("원문/좌표 독립 검증 실패" in r for r in fail_reasons)
 
-        ev = _make_dummy_evidence()
-        ev["source_path"] = "test.md"
-        loc = json.loads(ev["source_location"])
-        loc["source_segment"]["source_file_sha256"] = file_sha
-        loc["source_segment"]["byte_start"] = 99  # Tampered byte_start!
-        ev["source_location"] = json.dumps(loc)
-        records[0]["retrieval"]["hits"] = [ev]
 
-        verdict, fail_reasons, pending_reasons = evaluate_gate_b(
-            records, reg, reviews, source_root=tmp_dir
-        )
-        assert verdict == "FAIL"
-        assert any("원문/좌표 독립 검증 실패" in r for r in fail_reasons)
-    finally:
-        import shutil
-        shutil.rmtree(tmp_dir, ignore_errors=True)
+@pytest.mark.parametrize("missing", ["prompt", "raw_response"])
+def test_evaluate_gate_b_missing_capture_returns_pending(missing):
+    records, reg, reviews = _make_full_synthetic_dataset()
+    if missing == "prompt":
+        records[0]["prompt"] = {"version": "t17-answer-v1"}
+        records[0]["generation"].pop("request")
+    else:
+        records[0]["generation"]["raw_response"] = None
+    _refresh_review_hashes(records, reg, reviews)
+    verdict, fail_reasons, pending_reasons = evaluate_gate_b(records, reg, reviews)
+    assert verdict == "PENDING", fail_reasons
+    assert any("누락" in reason for reason in pending_reasons)
 

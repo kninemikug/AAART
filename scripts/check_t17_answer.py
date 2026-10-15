@@ -37,6 +37,7 @@ from artagent.graph.state import (
     RetrievalBundle,
 )
 from artagent.retrieval.types import SearchHit
+from artagent.answer_validation import capture_code_state, reference_cases
 
 FIXED_SLICE1_IDS = [
     "Q001", "Q004", "Q014", "Q021", "Q033",
@@ -189,9 +190,12 @@ def run_single_evaluation(
     source_root: Path,
     generate_fn: Optional[Callable[..., Any]] = None,
     context: Optional[Any] = None,
+    constraints: Optional[list[str]] = None,
 ) -> dict[str, Any]:
     started_at = datetime.now(timezone.utc).astimezone().isoformat()
     q_original = query_info["query"]
+    code_state = capture_code_state(REPO_ROOT)
+    input_reference = reference_cases(REPO_ROOT)[query_id, track]["input_reference"]
 
     observation: dict[str, Any] = {}
 
@@ -202,6 +206,7 @@ def run_single_evaluation(
         query=q_original,
         bundle=bundle,
         context=context,
+        constraints=constraints,
         generate=generate_fn,
         source_root=source_root,
         observe=_obs_cb,
@@ -211,12 +216,14 @@ def run_single_evaluation(
 
     rmeta = observation.get("runtime_meta") or {}
     trace = observation.get("trace") or rmeta.get("_trace")
-    is_mock = bool(rmeta.get("is_mock")) or rmeta.get("llm_provider") in ("mock", "custom")
+    is_mock = bool(observation.get("custom_generation")) or bool(rmeta.get("is_mock")) or rmeta.get("llm_provider") in ("mock", "custom")
     provider = rmeta.get("llm_provider")
     model = rmeta.get("model_id") or rmeta.get("model")
 
     record = {
-        "record_schema": "t17-run-v2",
+        "record_schema": "t17-run-v3",
+        "runtime": code_state,
+        "input_reference": input_reference,
         "run_id": run_id,
         "track": track,
         "query_id": query_id,
@@ -226,6 +233,7 @@ def run_single_evaluation(
             "query_original": q_original,
             "query_normalized": normalize_query(q_original),
             "confirmed_context": context,
+            "constraints": constraints or [],
         },
         "retrieval": {
             "query": bundle.query,
@@ -242,7 +250,8 @@ def run_single_evaluation(
             "prompt_hash": observation.get("prompt_hash"),
         },
         "generation": {
-            "call_count": 1 if err is None or err.code != "ANSWER_INPUT_INVALID" else 0,
+            "call_count": observation["call_count"],
+            "request": observation.get("request"),
             "provider": provider,
             "model": model,
             "is_mock": is_mock,
@@ -289,170 +298,12 @@ def evaluate_gate_b(
     source_root: Optional[Path] = None,
     allow_mock: bool = False,
 ) -> tuple[str, list[str], list[str]]:
-    """Gate B 판정 함수 (docs/T17_fix_plan.md §3).
-
-    결과: (verdict, fail_reasons, pending_reasons)
-    - FAIL: 검증 가능한 위반 (중복, 오류, 불일치 등)
-    - PENDING: 증거 누락, 모의 결과, 수동 검토 미결/누락
-    - PASS: 모든 필수 조건 완결
-    """
-    fail_reasons: list[str] = []
-    pending_reasons: list[str] = []
-
-    if regression_records is None:
-        regression_records = []
-    if manual_reviews is None:
-        manual_reviews = {}
-
-    seen_keys: set[tuple[str, str]] = set()
-    found_keys: set[tuple[str, str]] = set()
-
-    for r in records:
-        qid = r.get("query_id")
-        trk = r.get("track")
-        key = (qid, trk)
-        if key in seen_keys:
-            fail_reasons.append(f"중복 실행 기록 존재: ({qid}, {trk})")
-        seen_keys.add(key)
-        found_keys.add(key)
-
-        err = r.get("output", {}).get("error") or r.get("error")
-        if err is not None:
-            fail_reasons.append(f"실행 기술 오류 발생: {qid} ({trk}) - {err}")
-
-        orig_id = r.get("original_run_id")
-        if not orig_id:
-            pending_reasons.append(f"원본 실행 ID(original_run_id) 누락: {qid} ({trk})")
-
-        st = r.get("output", {}).get("status")
-        if st not in ("SUPPORTED", "UNSUPPORTED", "INSUFFICIENT_EVIDENCE"):
-            fail_reasons.append(f"유효하지 않은 status 값: {qid} ({trk}) - '{st}'")
-
-        cits = r.get("citations", [])
-        if st in ("SUPPORTED", "UNSUPPORTED") and len(cits) == 0:
-            fail_reasons.append(f"인용 없는 {st} 응답: {qid} ({trk})")
-
-        gen = r.get("generation", {})
-        call_count = gen.get("call_count", 0)
-        if call_count > 1:
-            fail_reasons.append(f"생성 호출 수 초과 (최대 1회 허용): {qid} ({trk}) - {call_count}")
-
-        if gen.get("is_mock") and not allow_mock:
-            pending_reasons.append(f"모의(mock) 생성 결과 포함: {qid} ({trk})")
-
-        prompt = r.get("prompt", {})
-        u_prompt = prompt.get("user_prompt")
-        s_inst = prompt.get("system_instruction")
-        p_hash = prompt.get("prompt_hash")
-        if not u_prompt:
-            pending_reasons.append(f"실제 전달 사용자 프롬프트 누락: {qid} ({trk})")
-        elif p_hash and s_inst:
-            expected_ph = sha256_str(f"{s_inst}\n{u_prompt}")
-            if p_hash != expected_ph:
-                fail_reasons.append(f"프롬프트 해시 불일치: {qid} ({trk}) (기대: {expected_ph}, 실제: {p_hash})")
-
-        raw_resp = gen.get("raw_response")
-        if raw_resp is None and err is None:
-            pending_reasons.append(f"원생성 응답(raw_response) 누락: {qid} ({trk})")
-        elif raw_resp is not None:
-            try:
-                cleaned_resp = raw_resp.strip()
-                if cleaned_resp.startswith("```"):
-                    lines_c = cleaned_resp.splitlines()
-                    if lines_c[0].startswith("```"):
-                        lines_c = lines_c[1:]
-                    if lines_c and lines_c[-1].startswith("```"):
-                        lines_c = lines_c[:-1]
-                    cleaned_resp = "\n".join(lines_c).strip()
-                parsed_resp = json.loads(cleaned_resp)
-                raw_st = parsed_resp.get("status")
-                if raw_st != st:
-                    fail_reasons.append(f"원생성 응답의 status('{raw_st}')와 출력 status('{st}') 불일치: {qid} ({trk})")
-            except Exception as pe:
-                fail_reasons.append(f"원생성 응답 JSON 파싱 실패: {qid} ({trk}) - {pe}")
-
-        # 원문 및 좌표 독립 검증
-        if source_root and r.get("retrieval", {}).get("hits"):
-            try:
-                evs = [parse_evidence_from_dict(h) for h in r["retrieval"]["hits"]]
-                b_check = RetrievalBundle(
-                    query=r.get("retrieval", {}).get("query", ""),
-                    source_filter=r.get("retrieval", {}).get("source_filter", "RAWPEDIA"),
-                    hits=evs,
-                    snapshot_ref=r.get("retrieval", {}).get("snapshot_ref", "snapshot"),
-                )
-                validate_and_project_bundle(b_check, source_root=source_root)
-            except Exception as ve:
-                fail_reasons.append(f"원문/좌표 독립 검증 실패: {qid} ({trk}) - {ve}")
-
-    # 45개 필수 Slice 1 레코드 존재 검사
-    for qid in FIXED_SLICE1_IDS:
-        for trk in ("t11_replay", "t14_a", "t14_b"):
-            if (qid, trk) not in found_keys:
-                pending_reasons.append(f"필수 Slice 1 레코드 누락: ({qid}, {trk})")
-
-    # Q010 / Q077 B 회귀 검사
-    q010_found = False
-    q077_found = False
-    for r in regression_records:
-        qid = r.get("query_id")
-        trk = r.get("track")
-        if not r.get("original_run_id"):
-            pending_reasons.append(f"Q010/Q077 B 회귀 원본 실행 ID(original_run_id) 누락: {qid} ({trk})")
-        if qid == "Q010":
-            q010_found = True
-            app = r.get("output", {}).get("applicability", "")
-            if "ART" in app and "RawTherapee" not in app:
-                fail_reasons.append(f"Q010 제품 범위 위반: RawTherapee 근거를 ART로 확정함 ('{app}')")
-        elif qid == "Q077":
-            q077_found = True
-            app = r.get("output", {}).get("applicability", "")
-            if "ART" in app and "RawTherapee" not in app:
-                fail_reasons.append(f"Q077 제품 범위 위반: RawTherapee 근거를 ART로 확정함 ('{app}')")
-
-        if source_root and r.get("retrieval", {}).get("hits"):
-            try:
-                evs = [parse_evidence_from_dict(h) for h in r["retrieval"]["hits"]]
-                b_check = RetrievalBundle(
-                    query=r.get("retrieval", {}).get("query", ""),
-                    source_filter=r.get("retrieval", {}).get("source_filter", "RAWPEDIA"),
-                    hits=evs,
-                    snapshot_ref=r.get("retrieval", {}).get("snapshot_ref", "snapshot"),
-                )
-                validate_and_project_bundle(b_check, source_root=source_root)
-            except Exception as ve:
-                fail_reasons.append(f"Q010/Q077 B 회귀 원문/좌표 독립 검증 실패: {qid} ({trk}) - {ve}")
-
-    if not q010_found:
-        pending_reasons.append("Q010 B 회귀 기록 누락")
-    if not q077_found:
-        pending_reasons.append("Q077 B 회귀 기록 누락")
-
-    # 필수 19개 수동 검토 검사
-    for qid, trk in REQUIRED_MANUAL_REVIEW_TARGETS:
-        rev = find_manual_review(manual_reviews, qid, trk)
-        if rev is None:
-            pending_reasons.append(f"필수 수동 검토 누락: ({qid}, {trk})")
-        else:
-            rev_status = rev.get("status")
-            if rev_status == "failed":
-                fail_reasons.append(f"수동 검토 불합격 판정: ({qid}, {trk}) - {rev.get('reason', '')}")
-            elif rev_status == "pending" or not rev_status:
-                pending_reasons.append(f"수동 검토 미결(pending): ({qid}, {trk})")
-            elif rev_status == "verified":
-                if not rev.get("reviewed_claims"):
-                    pending_reasons.append(f"수동 검토 검토 주장(reviewed_claims) 누락: ({qid}, {trk})")
-                if not rev.get("reason"):
-                    pending_reasons.append(f"수동 검토 판정 사유(reason) 누락: ({qid}, {trk})")
-            else:
-                fail_reasons.append(f"알 수 없는 수동 검토 상태: ({qid}, {trk}) - '{rev_status}'")
-
-    if fail_reasons:
-        return "FAIL", fail_reasons, pending_reasons
-    elif pending_reasons:
-        return "PENDING", fail_reasons, pending_reasons
-    else:
-        return "PASS", [], []
+    """Gate B always excludes mock evidence, including compatibility callers."""
+    from artagent.answer_validation import evaluate_records
+    return evaluate_records(
+        records, regression_records or [], manual_reviews or {},
+        source_root or REPO_ROOT, REPO_ROOT, REQUIRED_MANUAL_REVIEW_TARGETS,
+    )
 
 
 def generate_comparison_report(
@@ -646,11 +497,16 @@ def main() -> int:
 
     parser.add_argument("--manual-reviews", type=Path, default=None, help="수동 검토 JSON 파일 경로")
     parser.add_argument("--validate", type=Path, default=None, help="생성 없이 기존 실행 폴더만 오프라인 재검증")
+    parser.add_argument("--validation-output", type=Path, help="입력 폴더 밖의 새 JSON 파일에 검증 결과 저장")
 
     args = parser.parse_args()
 
     if args.validate:
         val_dir = args.validate.resolve()
+        if args.validation_output:
+            audit_path = args.validation_output.resolve()
+            if audit_path.is_relative_to(val_dir) or audit_path.exists():
+                parser.error("검증 결과는 입력 폴더 밖의 새 파일에 저장해야 합니다.")
         rec_file = val_dir / "execution_records.jsonl"
         if not rec_file.is_file():
             print(f"오류: 실행 기록 파일이 없습니다: {rec_file}")
@@ -674,16 +530,15 @@ def main() -> int:
             source_root=REPO_ROOT,
             allow_mock=False,
         )
-        report_text = generate_comparison_report(
-            records=records,
-            out_dir=val_dir,
-            q010_reg=next((r for r in reg_records if r.get("query_id") == "Q010"), None),
-            q077_reg=next((r for r in reg_records if r.get("query_id") == "Q077"), None),
-            manual_reviews=manual_reviews,
-            verdict=verdict,
-            fail_reasons=fail_reasons,
-            pending_reasons=pending_reasons,
-        )
+        if args.validation_output:
+            audit_path.parent.mkdir(parents=True, exist_ok=True)
+            with audit_path.open("x", encoding="utf-8") as stream:
+                json.dump({
+                    "verdict": verdict, "fail_reasons": fail_reasons,
+                    "pending_reasons": pending_reasons,
+                    "input_hashes": {p.name: sha256_bytes(p.read_bytes()) for p in val_dir.iterdir() if p.is_file()},
+                    "validator": capture_code_state(REPO_ROOT),
+                }, stream, ensure_ascii=False, indent=2)
         print(f"오프라인 재검증 완료 ({val_dir})")
         print(f"게이트 B 판정: {verdict}")
         if fail_reasons:
@@ -704,6 +559,7 @@ def main() -> int:
     # 1. 원본 파일 SHA 무결성 검증
     verify_file_sha(args.query_set, EXPECTED_QUERIES_SHA, "질문 원본")
     verify_file_sha(args.t11_records, EXPECTED_T11_RECORDS_SHA, "T11 실행 기록")
+    reference_cases(REPO_ROOT)
 
     queries = load_canonical_queries(args.query_set)
     t11_bundles = load_t11_bundles(args.t11_records)
@@ -711,7 +567,9 @@ def main() -> int:
 
     run_tag = f"run_{int(time.time())}"
     out_dir = args.out_dir or (REPO_ROOT / f"data/eval/t17-answer/{run_tag}")
-    out_dir.mkdir(parents=True, exist_ok=True)
+    if out_dir.exists():
+        parser.error("기존 실행 폴더에 추가 기록하지 않습니다. 새 출력 경로를 지정하십시오.")
+    out_dir.mkdir(parents=True)
 
     records_file = out_dir / "execution_records.jsonl"
     reg_records_file = out_dir / "regression_records.jsonl"
@@ -866,7 +724,7 @@ def main() -> int:
         regression_records=regression_records,
         manual_reviews=manual_reviews,
         source_root=source_root,
-        allow_mock=args.mock_llm,
+        allow_mock=False,
     )
 
     # Generate comparison report
