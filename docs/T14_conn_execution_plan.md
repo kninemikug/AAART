@@ -1,6 +1,6 @@
 # T14-CONN 실행 플랜 — A-14 최초 검색 연결
 
-작성일: 2026-10-14. 상태: 구현 인계용 실행 플랜. 이번 작업은 이 문서 작성까지이며 코드·테스트·태스크 카드·기존 실행 기록을 수정하거나 커밋·푸시·PR을 수행하지 않는다.
+작성일: 2026-10-14. 갱신일: 2026-10-15. 상태: 구현 기준 플랜. 후속 구현과 보완 검증의 현재 상태는 §12 및 최종 연결 보고서에서 확인한다.
 
 ## 1. 목적과 WBS 위치
 
@@ -14,7 +14,7 @@
 |---|---|
 | 이번에 연결 | `SEARCH_RAWPEDIA`·`SEARCH_GITHUB` 안의 최초 재작성, T9 출처/지정 글 필터, 실제 `Evidence` 변환·스냅샷 연결 |
 | 별도 정점 | 새 `REWRITE` 정점 없이 기존 `create_router_graph(node_overrides=...)` 사용 |
-| 변환 설정 | 연결 호출에서 `rewrite_enabled=True`, `hyde_enabled=False`; 비교에서는 재작성만 off/on |
+| 변환 설정 | 팩터리 기본 off를 유지하고, 검증된 인수 호출에서 `rewrite_enabled=True`, `hyde_enabled=False`를 명시. 비교는 off/on |
 | 이번 카드 밖 | T17 답변 상태·인용 구현, T16 재검색 루프, T15 리랭킹·k 튜닝, P3 서비스 구현, 추가 HyDE 실험 |
 | 공수 | A-14 전체의 기존 계획 3h 안에서 연결분을 분해. 실제 사용·잔여 예상 시간은 착수 시 기록하며 부모/하위 카드를 중복 집계하지 않음 |
 
@@ -134,9 +134,9 @@ Slice 1의 Q044·Q086은 기존 골드 미도달/한계 안내 사례다. 이를
 아래는 구현 이후 실행할 명령이다. 새 테스트·실행기는 아직 작성하지 않았다. 연결 실행기는 `scripts/check_t14_graph_connection.py`를 후보로 하며 세 집합 실행·기록 재검증을 담당하도록 범위를 제한한다.
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src venv/bin/python -m pytest -q -p no:cacheprovider tests/test_router.py tests/test_router_contracts.py tests/test_rewrite.py tests/test_t14_ab_eval.py tests/test_retrieval.py tests/test_answer.py tests/test_graph_search_connection.py
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 venv/bin/python -m pytest -q -p no:cacheprovider tests --tb=short
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src venv/bin/python scripts/run_t14_ab_eval.py validate --manifest data/eval/t14-live-20261014-final/manifest.json --records data/eval/t14-live-20261014-final/records.jsonl --cache data/eval/t14-live-20261014-final/generation_cache.json
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src venv/bin/python3 -m pytest -q -p no:cacheprovider tests/test_router.py tests/test_router_contracts.py tests/test_rewrite.py tests/test_t14_ab_eval.py tests/test_retrieval.py tests/test_answer.py tests/test_graph_search_connection.py
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 venv/bin/python3 -m pytest -q -p no:cacheprovider tests --tb=short
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src venv/bin/python3 scripts/run_t14_ab_eval.py validate --manifest data/eval/t14-live-20261014-final/manifest.json --records data/eval/t14-live-20261014-final/records.jsonl --cache data/eval/t14-live-20261014-final/generation_cache.json
 ```
 
 집계 검증에는 누락/중복 행, 잘못된 그룹·출처, k/스냅샷 변경, 골드 누출, 원문/순위/지표 변조, 대역을 실제 실행으로 표시한 반례를 포함한다. 기존 555개 테스트 통과 기록은 과거 기준이며 새 연결 테스트의 통과 수나 실제 연결 결과를 대신하지 않는다.
@@ -182,3 +182,108 @@ T22/T25는 골격과 세션 준비 외에 실제 검색·답변·계획된 폴�
 - [ ] 결과를 T15·최종 스택 선정·T23·T22/T25·최종 통합에 인계하며 완료 단위를 분리한다.
 
 이 체크리스트는 후속 구현 작업용이다. 이번 계획 작성에서는 실행하지 않았으며 기존 검증 결과를 새 연결 완료로 표시하지 않는다.
+
+
+## 9. 채택 보류 시점의 보완 검증 (2026-10-14, 과거 기록)
+
+초기 연결 기록은 GitHub 비저하 실패에도 종료 코드 0과 완료 상태를 남겼다. 완료 판정을 전체·RawPedia·GitHub 각각의 Hit@5/MRR@5와 G1~G3에 결합하고 `tasks/todo.md`의 세 번째 완료 기준을 다시 열었다. [이전 연결 보고서](../data/eval/t14-conn/conn_20261014_final_review/report.md)는 당시 판단 기록이며, 초기 보고서에는 완료 선언의 정정을 표시했다.
+
+- 생성 캐시는 질문 정본·모델·설정·실제 프롬프트·원응답·해시를 검증한 뒤 정확한 프롬프트만 재생한다. 같은 질의라도 제약이 바뀌면 기존 응답을 반환하지 않는다. 혼합 요청의 새로운 입력·제약 4건은 고정 런타임에서 새로 생성하여 별도 기록했다.
+- 원문 세그먼트 범위가 누락되거나 잘못되면 전체 부모 본문으로 대체하지 않고 `SEARCH_UNAVAILABLE`을 반환한다. `Evidence.source_location`은 `section_title`과 전체 `source_segment`를 담은 정규 JSON 문자열이다. 원문 파일·pointer·문자/바이트 구간·해시·URL을 보존한다.
+- 그래프 state의 쓰기 경계를 유지하고 선택적 `observe` 콜백으로 실제 입력·검색 호출·전체 `SearchHit`·Evidence·오류를 state 밖에 기록한다. Slice 1은 부모 청크 순위를 중복 없이 비교하고 세그먼트 텍스트·URL·위치를 모두 대조한다.
+- 새 실행은 이전 출력 경로를 덮어쓰지 않는다. 생성 출처와 스냅샷, 코드·질문·기준 기록 지문, 실제 호출/재생/시간을 저장한다. 기록 재검증은 누락·중복·변조뿐 아니라 원요청→계획→검색 항목→출처/그룹→원문→지표의 연결을 검사한다.
+
+경로 라벨 40/40과 Slice 1 검색 대조 30/30은 통과했다. 전체 A/B에서 GitHub Hit@5/MRR@5는 1.0000→0.9333이며 Q094의 숫자 보존 실패가 남아 G3는 실패다. Q060·Q070도 변환 실패로 검색하지 않은 행을 그대로 기록한다. 기본 재작성은 off로 유지하며 on 채택과 A-14 연결분 완료를 보류한다.
+
+보완 후 전체 `tests` 회귀는 731개 통과했다(262.10초). 원문 범위·해시, 변경된 제약의 캐시 재생, 기본 off, 파일 봉인을 다시 계산한 뒤의 원문·순위·경로·호출·시간·집계 변조, GitHub 저하 시 종료 코드 1을 검증했다. 커밋·푸시·PR은 수행하지 않았다.
+
+다음 작업은 세 실패 질의의 식별자·조건 보존을 보완하고, 변경된 프롬프트에 맞는 새 실제 생성 기록으로 같은 100개·k=5·출처 정책의 전체 A/B를 다시 수행하는 것이다. 실패 행만 교체하거나 기준을 완화하지 않는다. T17 실제 답변·인용과 T16 폴백·종료·재개는 기존 소유 카드에서 진행하며 CP3를 별도로 판정한다.
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 venv/bin/python3 scripts/check_t14_graph_connection.py --validate --output-dir data/eval/t14-conn/conn_20261014_final_review
+```
+
+당시 실행의 종료 코드 1은 G3 실패를 반영한 판정이었다. 이후 코드 지문이 변경됐으므로 현재 재검증은 아래 §10의 최종 기록을 사용한다.
+
+
+## 10. 원형 보존 보완 후 수치 통과 판정 (2026-10-14, 과거 기록)
+
+`literal_preservation_v1`을 최초 검색 경계에 추가했다. 원질문과 확정된 환경·목표 조건에서 제품/형식 약어·숫자·파일명·빌드명을 추출하여 실제 프롬프트의 JSON 데이터 목록으로 전달한다. 숫자의 영단어·서수 접미사 대체와 필수값 누락 검사를 완화하지 않았다. 이전 `rewrite_v2`·`hyde_v3` 프롬프트와 실제 캐시는 유지하여 과거 단독 기록을 보존한다.
+
+전체 100개와 혼합 요청의 고유 입력 4개를 새로 실제 생성했다. 건별 원응답·해시·모델/설정·호출·시간을 저장하여 고유 생성 104회, 보존 검사 실패 없음으로 끝났다. 실제 원문의 조직 Discussion URL도 지정 글로 제한하도록 보완한 후, 이 실제 생성 출처를 정확한 프롬프트와 정책에서 재생하여 최종 검색 연결을 다시 실행했다. 출처 인수는 생성·보존 헬퍼의 코드 지문, 정본·프롬프트·원응답·모델·결과를 독립 검증하며 이번 실제 호출과 과거 호출을 구분한다.
+
+당시 판단 기준은 [이전 보고서](../data/eval/t14-conn/conn_20261014_adopted/report.md)다. 최초 실제 생성 증거는 [원형 보존 실행](../data/eval/t14-conn/conn_20261014_preservation_v1/generation_events.json)이며, 이전 실패 실행을 덮어쓰거나 실패 행만 교체하지 않았다. 입력에 없는 제품명 추가가 남았으므로 이 수치 통과를 제품 범위 보존 완료로 해석한 판단은 §11에서 정정한다.
+
+| 지표 | A: off | B: on | 판정 |
+|---|---:|---:|---|
+| 전체 Hit@5 | 0.905263 (86/95) | 0.968421 (92/95) | 통과 |
+| 전체 MRR@5 | 0.861754 | 0.871930 | 통과 |
+| RawPedia Hit@5 | 0.887500 (71/80) | 0.962500 (77/80) | 통과 |
+| RawPedia MRR@5 | 0.835833 | 0.847917 | 통과 |
+| GitHub Hit@5 | 1.000000 (15/15) | 1.000000 (15/15) | 통과 |
+| GitHub MRR@5 | 1.000000 | 1.000000 | 통과 |
+
+경로 라벨 40/40, Slice 1 직접/그래프 검색 대조 30/30, 전체 A/B 200행과 원문·기록 재검증이 통과했다. 같은 질문·모델·스냅샷·출처/그룹 정책·k=5·HyDE off를 유지했고, 부정 반증 검색은 두 조건 모두 5/5다. 최종 실행은 신규 생성 0회, 기존 실제 호출 출처 104회와 재생 149회를 기록한다. 실제 생성 비용·시간은 원출처의 고유 이벤트에서 한 번만 집계한다.
+
+G1~G3가 모두 통과하여 T14-CONN과 WBS A-14의 연결분을 완료로 판정하고 재작성 on을 채택한다. 인수 호출은 `rewrite_enabled=True`, `hyde_enabled=False`를 명시하며 팩터리의 기존 기본값 off는 유지한다. T17 실제 답변·인용, T16 폴백과 CP3는 미완료다. [인계 문서](T14_conn_handoff.md)에 계약·담당·실행 순서를 기록했다.
+
+Q060·Q070·Q094는 모두 보존 검사를 통과하고 검색을 수행한다. Q094는 정답 원문 순위가 첫 번째다. Q070은 A/B 모두 정답 원문에 도달하지 못했고 Q024·Q030도 B의 미도달 사례다. 완벽한 검색이나 최종 답변 정확도를 주장하지 않는다. Q010·Q077에는 재작성의 ART 문맥 추가가 남아 있으며 근거의 `product_scope=RawTherapee`를 보존했다. 이 두 질문의 제품 적용 범위는 T17의 실제 답변·인용 검토로 인수한다.
+
+기존 100개는 탐색·회귀 자료다. 표본을 확대할 독립 질문·원문 준비 카드와 최종 스택 선정 게이트에서 별도 표본수·독립 문서/스레드 수·유형·담당·공수를 확정한다. T23의 기존 100개 RAGAS를 독립 홀드아웃이라고 표시하지 않는다.
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 venv/bin/python3 scripts/check_t14_graph_connection.py --validate --output-dir data/eval/t14-conn/conn_20261014_adopted
+```
+
+당시 이 명령은 기록 재검증과 수치 채택 기준을 통과하여 종료 코드 0을 반환했다. 이후 정책·코드가 바뀌었으므로 현재 재검증에는 §11의 새 실행을 사용한다.
+
+최종 전체 회귀는 766개 통과(258.21초), `git diff --check` 통과다. 커밋·푸시·PR은 수행하지 않았다.
+
+
+## 11. 입력에 없는 제품명 추가 차단 (2026-10-15)
+
+§10의 검사는 입력에 있던 필수값의 누락을 검출했지만 입력에 없던 제품명의 추가를 검출하지 못했다. Q010·Q077의 ART 추가는 T17의 답변 검토로 넘기지 않고 T14 검색 입력 경계에서 수정한다. 이전 결과와 생성 응답은 과거 기록으로 보존한다.
+
+`literal_preservation_v2`는 원질문과 명시 문맥에서 허용 제품 목록을 추출하여 별도 JSON 데이터로 전달한다. 목록이 비면 ART·RawTherapee 모두 추가할 수 없다. 생성 결과의 제품 집합을 실제 입력·문맥에서 다시 계산한 허용 집합과 대조하며, 프롬프트 역할·검색 코퍼스·정책 설명·제품 목록 메타데이터로 제품을 허가하지 않는다. 필수 식별자도 정책 설명을 제외한 실제 입력에서 검사한다.
+
+이번 제품 검사는 ART/RawTherapee 계약에 한정한다. 대소문자, 한국어 조사, 실행 파일·빌드명 표기와 `Another RawTherapee` 명칭을 처리한다. 모든 제품명이나 문장 전체의 의미 동등성을 판별한다고 주장하지 않는다. 허용 제품 추가는 `PRODUCT_SCOPE_VIOLATION`으로 거부하고 그래프는 `REWRITE_FAILED`, 검색 호출 0회를 기록한다. 기존 오류 종료 계약을 유지하며 별도 원문 재검색이나 T16의 재시도를 추가하지 않는다.
+
+Q010·Q077 및 표기 변형의 회귀 테스트에서 보완 전 13개 실패를 확인했다. 보완 후 제품 목록 위조·기존 명시 문맥·단어 경계·off/과거 단독 계약·두 검색 노드의 차단을 포함한 관련 테스트 107개가 통과했다. 새 정책과 과거 생성 출처의 혼용도 거부한다.
+
+v2의 [전체 실제 생성·검색 기록](../data/eval/t14-conn/conn_20261015_product_scope_v2_live/report.md)은 고유 입력 104개를 새로 생성했고 제품명 추가는 없었다. 다만 Q082의 `Flatpak-based`, Q094의 `1st`가 각각 필수값 `Flatpak`, `1`의 독립 보존 검사를 위반했다. GitHub Hit/MRR는 15/15→13/15로 낮아져 G3 실패·채택 보류·종료 코드 1이다. 두 실패 행을 숨기거나 교체하지 않았다. 실제 생성 104회·누적 생성 시간 536050.822ms는 이 실패 실행의 비용으로도 기록한다.
+
+`literal_preservation_v3`에서 보존값의 독립 토큰 복사, 하이픈·접사 결합 금지와 숫자 서수 접미사 금지를 명시했다. 원래 숫자·식별자 판정 기준은 그대로다. 강화 지시의 단위 검사에서 보완 전 2개 실패를 확인한 뒤 관련 테스트 110개가 통과했다.
+
+v3의 [실제 생성 실행](../data/eval/t14-conn/conn_20261015_product_scope_v3_live/report.md)은 고정 100개와 혼합 입력 4개를 모두 새로 생성해 104/104 보존 검사 통과, 제품 범위 위반 0건으로 끝났다. Q010·Q077에는 ART/RawTherapee 추가가 없으며 Q082의 `Flatpak`, Q094의 `1`도 독립된 값으로 보존했다. 실제 생성 104회·누적 생성 시간 502899.762ms를 기록했다. v2 실패 실행을 포함한 두 실제 실행은 총 208회이며 실패 실행의 시간을 최종 성공 실행에서 제외해 숨기지 않는다.
+
+이 출처를 같은 프롬프트·정책·생성 헬퍼 지문으로 재생한 [최종 연결 보고서](../data/eval/t14-conn/conn_20261015_pr/report.md)를 인수한다. 질문·정답 원문·임베딩 모델·저장소 스냅샷·출처/지정 글 필터·k=5와 HyDE off는 동일하다. 최종 실행은 원출처 104회·새 생성 0회·재생 149회를 구분한다.
+
+| 지표 | A: off | B: on | 판정 |
+|---|---:|---:|---|
+| 전체 Hit@5 | 0.905263 (86/95) | 0.968421 (92/95) | 통과 |
+| 전체 MRR@5 | 0.861754 | 0.880702 | 통과 |
+| RawPedia Hit@5 | 0.887500 (71/80) | 0.962500 (77/80) | 통과 |
+| RawPedia MRR@5 | 0.835833 | 0.858333 | 통과 |
+| GitHub Hit@5 | 1.000000 (15/15) | 1.000000 (15/15) | 통과 |
+| GitHub MRR@5 | 1.000000 | 1.000000 | 통과 |
+
+경로 40/40, Slice 1 직접/그래프 대조 30/30, 전체 A/B 200행과 독립 기록 검증이 통과했다. 부정 반증 검색은 두 조건 모두 5/5다. G1~G3와 종료 코드 0을 확인했다. 최종 전체 `tests` 회귀는 792개 통과(262.77초)이며 외부 패키지의 폐기 예정 경고 1건이 있다. 테스트 생략·판정 기준 완화는 없다. T14-CONN 완료와 명시적 on·HyDE off 인수를 다시 확정하고 기존 팩터리 기본 off는 유지한다.
+
+비저하는 전체·출처별 집계 기준이다. 양성 질문 10개는 A보다 개별 순위가 낮아졌으며 Q030은 A의 1위에서 B의 상위 5개 미도달로 바뀌었다. B의 전체 미도달은 Q024·Q030·Q070 세 건이다. 이 사례들은 T15 검색 튜닝 입력으로 넘기며 이번 제품 범위 보완이 검색 누락이나 모든 질문의 순위 저하를 해결했다고 주장하지 않는다. Q010·Q077의 B 순위는 각각 1·3위이고 실제 근거는 `product_scope=RawTherapee`를 유지한다.
+
+T17의 실제 답변·인용과 제품 적용 범위, T16 폴백 및 CP3는 별도 미완료다. 확대된 독립 평가 입력과 최종 스택 선정은 기존 후속 카드에서 수행한다. [검색 연결 인계](T14_conn_handoff.md)를 함께 인수한다.
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 venv/bin/python3 scripts/check_t14_graph_connection.py --validate --output-dir data/eval/t14-conn/conn_20261015_pr
+```
+
+최종 코드 검토에서 실제 입력과 정책 메타데이터의 구분, 과거 생성 출처의 정책·코드 불일치 거부, 오류 시 검색 0회, 기존 off·단독 캐시 계약의 보존을 확인했다. 새 의존성은 추가하지 않았다. 커밋·푸시·PR은 수행하지 않았다.
+
+
+## 12. PR 인수 전 기록 경로 재현성 (2026-10-15)
+
+PR 준비 검토에서 인계 기준 파일이 실행 폴더의 절대 경로로 기록되어 다른 체크아웃에서 검증이 실패할 수 있음을 확인했다. 새 기록은 저장소 상대 경로를 사용한다. 과거 절대 경로는 현재 저장소 `docs/`의 같은 이름 파일로 해석하고 기존 SHA-256·모델·스냅샷 검사를 그대로 적용한다. 상대 경로의 저장소 이탈은 거부하며 실행기의 새 기준 파일도 저장소 내부로 제한한다.
+
+다른 체크아웃 경로, 다른 작업 디렉터리, 기준 파일 해시 불일치와 저장소 이탈 회귀에서 보완 전 3개 실패·1개 통과를 확인한 뒤 4개 모두 통과했다. 생성·원형 보존 헬퍼와 프롬프트는 바꾸지 않았다. 고유 실제 생성 104개의 출처를 재사용하여 [PR 인수 기록](../data/eval/t14-conn/conn_20261015_pr/report.md)에 경로 40/40·Slice 1 대조 30/30·전체 A/B 200행과 G1~G3 통과를 새 코드 지문으로 남겼다. 추가 생성은 0회이며 검색 지표와 남은 한계는 §11과 동일하다.
+
+전체 회귀는 796개 통과(260.20초), 외부 패키지의 폐기 예정 경고 1건이다. 다른 작업 디렉터리에서 PR 인수 기록을 `--validate`로 검증해 G1~G3와 종료 코드 0을 확인했다. 이 결과로 국문 커밋·푸시·PR을 진행한다. 재작성 거부 시에는 `REWRITE_FAILED`와 검색 0회로 종료한다. 재작성 재시도나 원질문 검색 복귀는 추가하지 않았으며 T16의 근거 부족 재검색과 구분한다.

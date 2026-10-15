@@ -6,6 +6,8 @@ Evidence segment mapping, rewrite on/off behavior, error handling, and graph int
 
 from __future__ import annotations
 
+from dataclasses import replace
+import json
 from typing import Any, Optional, Sequence
 from unittest.mock import MagicMock
 import pytest
@@ -29,6 +31,88 @@ from artagent.graph import (
     search_hits_to_evidences,
 )
 from artagent.retrieval.types import SearchHit
+from artagent.retrieval.provenance import sha256_str
+
+
+def _test_hit(**fields: Any) -> SearchHit:
+    """테스트 원문에도 실제 본문/세그먼트 해시를 사용한다."""
+    content = fields["content"]
+    fields["content_sha256"] = sha256_str(content)
+    segments = fields["source_segments"]
+    for seg in segments:
+        seg.update(source_file_sha256="a" * 64,
+                   segment_sha256=sha256_str(content[seg["content_char_start"]:seg["content_char_end"]]))
+    fields["original_metadata"] = {**fields["original_metadata"], "source_segments": segments}
+    return SearchHit(**fields)
+
+
+def _segment_hit() -> SearchHit:
+    text = "first comment\nsecond comment"
+    segment = {
+        "doc_id": "issue-comment:1", "ref_id": "issue-comment:1",
+        "source_path": "data/issues/snapshots/issue-comments/1.json",
+        "target_url": "https://github.com/artraweditor/ART/issues/524#issuecomment-1",
+        "content_char_start": 0, "content_char_end": 13,
+        "char_start": 7, "char_end": 20, "json_pointer": "/body",
+        "source_file_sha256": "a" * 64, "segment_sha256": sha256_str(text[:13]),
+    }
+    return SearchHit(1, "chunk_segments", "github", "issue:524",
+                     "github:artraweditor/ART:issue:524", "thread title", text,
+                     sha256_str(text), [segment], {"source_segments": [segment]},
+                     0.1, "0.100000")
+
+
+@pytest.mark.parametrize("start,end", [(0, 999), (-1, 13), (13, 0), (None, 13), (0, "13"), (False, 13)])
+def test_mapping_rejects_invalid_segment_range(start: Any, end: Any) -> None:
+    hit = _segment_hit()
+    malformed = {**hit.source_segments[0], "content_char_start": start, "content_char_end": end}
+    with pytest.raises(ValueError, match="segment|세그먼트|범위"):
+        search_hits_to_evidences([replace(hit, source_segments=[malformed])])
+
+
+def test_mapping_preserves_exact_source_location() -> None:
+    hit = _segment_hit()
+    evidence = search_hits_to_evidences([hit])[0]
+    location = json.loads(evidence.source_location)
+    assert location["source_segment"] == hit.source_segments[0]
+    assert location["section_title"] == "thread title"
+    assert evidence.text == "first comment"
+    assert "second comment" not in evidence.text
+
+
+def test_mapping_rejects_missing_segments_and_changed_segment_body() -> None:
+    hit = _segment_hit()
+    with pytest.raises(ValueError):
+        search_hits_to_evidences([replace(hit, source_segments=[])])
+    changed = {**hit.source_segments[0], "segment_sha256": "b" * 64}
+    with pytest.raises(ValueError):
+        search_hits_to_evidences([replace(hit, source_segments=[changed])])
+
+
+@pytest.mark.parametrize("factory", [create_search_rawpedia_node, create_search_github_node])
+def test_mapping_failure_is_a_node_error(factory: Any) -> None:
+    hit = _segment_hit()
+    broken = {**hit.source_segments[0], "content_char_end": 999}
+    store = MagicMock()
+    store.search.return_value = [replace(hit, source_segments=[broken])]
+    result = factory(store, MagicMock(), rewrite_enabled=False)(
+        {"request": RequestInput(request_id="bad_segment", text="query")}
+    )
+    assert result["error"].code == "SEARCH_UNAVAILABLE"
+    assert "retrieval" not in result
+
+
+@pytest.mark.parametrize("factory", [create_search_rawpedia_node, create_search_github_node])
+def test_search_defaults_to_off_while_adoption_is_pending(factory: Any) -> None:
+    store = MagicMock()
+    store.search.return_value = []
+    generate = MagicMock(return_value="rewritten query")
+    result = factory(store, MagicMock(), generate=generate)(
+        {"request": RequestInput(request_id="pending_adoption", text="original query")}
+    )
+    assert result["error"] is None
+    assert result["retrieval"].query == "original query"
+    generate.assert_not_called()
 
 
 # =========================================================================
@@ -76,7 +160,7 @@ def test_resolve_github_targets() -> None:
 
 def test_search_hits_to_evidences() -> None:
     # 1. RawPedia 단일 세그먼트
-    hit_raw = SearchHit(
+    hit_raw = _test_hit(
         rank=1,
         chunk_id="chunk_r1",
         source_type="rawpedia",
@@ -90,7 +174,7 @@ def test_search_hits_to_evidences() -> None:
             "source_path": "data/rawpedia/Exposure.md",
             "target_url": "https://rawpedia.rawtherapee.com/exposure/",
             "content_char_start": 0,
-            "content_char_end": 62,
+            "content_char_end": len("This is the full text of exposure compensation in RawTherapee."),
         }],
         original_metadata={"source_path": "data/rawpedia/Exposure.md"},
         distance=0.12,
@@ -106,7 +190,7 @@ def test_search_hits_to_evidences() -> None:
     assert ev_raw[0].target_url == "https://rawpedia.rawtherapee.com/exposure/"
 
     # 2. GitHub 복수 세그먼트 (각 세그먼트별 개별 Evidence 분리)
-    hit_gh = SearchHit(
+    hit_gh = _test_hit(
         rank=1,
         chunk_id="chunk_g1",
         source_type="github",
@@ -128,7 +212,7 @@ def test_search_hits_to_evidences() -> None:
                 "source_path": "data/issues/snapshots/issue-comments/5648127070.json",
                 "target_url": "https://github.com/artraweditor/ART/issues/524#issuecomment-5648127070",
                 "content_char_start": 44,
-                "content_char_end": 66,
+                "content_char_end": len("Issue body text here... [comment separator] Comment 1 text here..."),
             },
         ],
         original_metadata={"source_path": "data/issues/snapshots/issues/524.json"},
@@ -156,7 +240,7 @@ def test_search_rawpedia_node_off_and_on() -> None:
     mock_store = MagicMock()
     mock_session = MagicMock()
 
-    mock_hit = SearchHit(
+    mock_hit = _test_hit(
         rank=1,
         chunk_id="chunk_1",
         source_type="rawpedia",
@@ -165,7 +249,11 @@ def test_search_rawpedia_node_off_and_on() -> None:
         section_title="Exposure",
         content="Exposure content",
         content_sha256="sha1",
-        source_segments=[],
+        source_segments=[{
+            "doc_id": "rawpedia:Exposure", "source_path": "data/rawpedia/Exposure.md",
+            "target_url": "https://rawpedia.rawtherapee.com/exposure/",
+            "content_char_start": 0, "content_char_end": len("Exposure content"),
+        }],
         original_metadata={},
         distance=0.1,
         distance_text="0.100000",
@@ -339,7 +427,7 @@ def test_router_graph_with_search_nodes_rawpedia() -> None:
     mock_store = MagicMock()
     mock_session = MagicMock()
 
-    mock_hit = SearchHit(
+    mock_hit = _test_hit(
         rank=1,
         chunk_id="chunk_exp",
         source_type="rawpedia",
@@ -426,7 +514,7 @@ def test_router_graph_with_search_nodes_github() -> None:
     mock_store = MagicMock()
     mock_session = MagicMock()
 
-    mock_hit = SearchHit(
+    mock_hit = _test_hit(
         rank=1,
         chunk_id="chunk_gh",
         source_type="github",
@@ -440,7 +528,7 @@ def test_router_graph_with_search_nodes_github() -> None:
             "source_path": "data/issues/snapshots/issues/524.json",
             "target_url": "https://github.com/artraweditor/ART/issues/524",
             "content_char_start": 0,
-            "content_char_end": 27,
+            "content_char_end": len("Fixed crash in spot removal"),
         }],
         original_metadata={},
         distance=0.03,

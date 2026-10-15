@@ -1,0 +1,107 @@
+{
+  "schema_version": 2,
+  "run_id": "conn_20261014_adopted",
+  "generated_at": "2026-10-14T10:50:14.527293+00:00",
+  "preservation_policy": "literal_preservation_v1",
+  "queries_sha256": "91b7fb50b23c0514d3e3d24579cad32a07dc6dcc3c8a40774b9e2e9da0fa14e8",
+  "cache_sha256": "f0fdc728cd1a583cfe50c7a5aeb5e55408588986d52c27eb2c9e70986784ee60",
+  "slice1_reference_sha256": "5d3d9a7df432cbfac741d479c554aae69a6dfbc8039ed166331d7f5a8d1b64b7",
+  "code_commit": "05dd15e8bf913a6efc2e3749c35caa3e1ba03e38",
+  "code_sha256": {
+    "scripts/check_t14_graph_connection.py": "c8bb375247cca3e6f8fb8b169ed5f3f96661bf44de3f12a3e5c5565a5f149ec7",
+    "scripts/run_t14_ab_eval.py": "12e518d5714ae180fd2981fe6f2481ce54fd559aefd1b0682697a8002cdeae7d",
+    "src/artagent/graph/search.py": "68b5eea884af60a46124d056b4911125b9fd1ab589896b2ceece0e1135aaed80",
+    "src/artagent/graph/rewrite.py": "b8697cbac41a4e7c272b2e0c22a644d8a19d6d2c2de22310499a8de297bf13e5",
+    "src/artagent/graph/router.py": "2cdb94b2ac1547c4e062b6a5329f36f3eacffcc5753938f4b45687c41fdf64fd",
+    "src/artagent/graph/graph.py": "0c646c187334bd7baf39c47d2eee80344b56a6ed6566771765c0fd0a331ed5eb",
+    "src/artagent/graph/nodes.py": "acacddb0e965bd41a91ef16048774f75835e36d8cba3e0a639fa2077c9e7bd44",
+    "src/artagent/graph/state.py": "712327096615cb3448d28e6d7a82e12ea0dad2f5f1d9007c9fac35b7d885a2da",
+    "src/artagent/retrieval/store.py": "a19372171f041c94911a48e9db91da92fa7d50349a04c90639c9183cd29ddfbf",
+    "src/artagent/retrieval/embedding.py": "9c1c670c75136f9d4cdc54851874cada6e0841f849e9768565d5600b30b5fa0e",
+    "src/artagent/retrieval/provenance.py": "d339cda46749f9db88fb73f09acc2c8b275f3a091ad29b40275ed576d403c204",
+    "tests/test_router.py": "cab92ab2d8723f483f043a006132e4f36eb9a371e09670fb06260acfc58640fd"
+  },
+  "runtime": {
+    "python": "3.14.3 (main, Feb  3 2026, 15:32:20) [Clang 17.0.0 (clang-1700.6.3.2)]",
+    "executable": "/Users/user/Workspace/Programming/Projects/AAART/venv/bin/python3"
+  },
+  "retrieval_contract": {
+    "reference_path": "/Users/user/orca/workspaces/AAART/T14-rewrite-hyde/docs/T08_2_t9_handoff_reference.json",
+    "reference_sha256": "2c7081ba6a7c37b00735b0be2ef362f5b0c2a86cd41fe97bbb2a3b5ebdc195bc",
+    "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+    "model_revision": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
+    "collection_name": "art_retrieval_t09_v1",
+    "k": 5,
+    "k0": 10,
+    "snapshot_sha256": "09e7ce0af1a4744bbb02f0d07eb716b5f0a4e2ba6d1e20d7a727707c8ffcbae6",
+    "snapshot_after_sha256": "09e7ce0af1a4744bbb02f0d07eb716b5f0a4e2ba6d1e20d7a727707c8ffcbae6",
+    "filter_policy": "route_source_and_request_issue_discussion"
+  },
+  "hyde_enabled": false,
+  "answer_test_double": true,
+  "capabilities_test_double": true,
+  "routes_pass_count": 40,
+  "slice1_match_count": 30,
+  "metrics_a": {
+    "total_count": 100,
+    "positive_count": 95,
+    "negative_count": 5,
+    "negative_counter_retrieved_count": 5,
+    "total_total": 95,
+    "total_hit_count": 86,
+    "total_hit": 0.9052631578947369,
+    "total_mrr": 0.8617543859649122,
+    "rawpedia_total": 80,
+    "rawpedia_hit_count": 71,
+    "rawpedia_hit": 0.8875,
+    "rawpedia_mrr": 0.8358333333333332,
+    "github_total": 15,
+    "github_hit_count": 15,
+    "github_hit": 1.0,
+    "github_mrr": 1.0
+  },
+  "metrics_b": {
+    "total_count": 100,
+    "positive_count": 95,
+    "negative_count": 5,
+    "negative_counter_retrieved_count": 5,
+    "total_total": 95,
+    "total_hit_count": 92,
+    "total_hit": 0.968421052631579,
+    "total_mrr": 0.8719298245614034,
+    "rawpedia_total": 80,
+    "rawpedia_hit_count": 77,
+    "rawpedia_hit": 0.9625,
+    "rawpedia_mrr": 0.8479166666666667,
+    "github_total": 15,
+    "github_hit_count": 15,
+    "github_hit": 1.0,
+    "github_mrr": 1.0
+  },
+  "execution_errors": 0,
+  "generation_totals": {
+    "unique_events": 104,
+    "reused_source_call_count": 104,
+    "source_elapsed_ms": 443021.0815798491,
+    "new_call_count": 0,
+    "replay_count": 149
+  },
+  "gates": {
+    "G1": true,
+    "G2": true,
+    "G3": true,
+    "accepted": true
+  },
+  "generation_source_contract": {
+    "run_path": "data/eval/t14-conn/conn_20261014_preservation_v1",
+    "protocol_sha256": "507028c39e8e9af9ab5cbf3399a3e35343ebcdb15a7b1bb4259c187e42f4974c",
+    "events_sha256": "2da34ea7d48e7003f5fc2933572724387f1278c7949e12cfb6f896ec4ced7190"
+  },
+  "artifact_sha256": {
+    "routes.jsonl": "1eb4d047c777de3e16d582b1cfb91afef4ff4f03aa32d81b11e48d3c66c9fab2",
+    "slice1_search.jsonl": "9a20400271483f03f92dc70b71d60cb1e0e6a39af39a1618ab8d21e1e52a072c",
+    "ab_records.jsonl": "80f5ede1d6b73d14d5ebcf000fe73dfb4fd7340e452a33e01d8f74af3b87ab1e",
+    "generation_events.json": "a67ba0dde08c0c38698050aaf63f616dc20160b7fa3832e6ccbfffdc0ec41106",
+    "store_snapshot.json": "24acff50ca725d4f7e98040c39a84c999525e9c5afd977fb3da7504d156f97a8"
+  }
+}
