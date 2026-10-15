@@ -188,8 +188,8 @@ def test_capture_metadata_is_required_and_consistent(field):
     assert verdict == ("PENDING" if field == "version" else "FAIL"), (failures, pending)
 
 
-@pytest.mark.parametrize("raw_missing", [False, True])
-def test_api_capture_can_pass_or_report_missing_raw_without_false_failure(raw_missing):
+@pytest.mark.parametrize("missing_field", [None, "raw_response", "_response_text"])
+def test_api_capture_can_pass_or_report_missing_evidence_without_false_failure(missing_field):
     records, regressions, reviews = _make_full_synthetic_dataset()
     record = records[0]
     gen, prompt = record["generation"], record["prompt"]
@@ -202,15 +202,41 @@ def test_api_capture_can_pass_or_report_missing_raw_without_false_failure(raw_mi
     gen["provider"] = gen["runtime_meta"]["llm_provider"] = "openai-compatible"
     gen["trace"] = gen["runtime_meta"]["_trace"] = None
     gen["runtime_meta"]["_response_body"] = body
+    gen["runtime_meta"]["_response_text"] = json.dumps(body)
     gen["request"] = {"kind": "chat-completions", "payload": payload,
                       "sha256": sha256_str(canonical_json_str(payload)),
                       "response_schema": "t17-answer-v1", "model": gen["model"],
                       "prompt_version": prompt["version"]}
-    if raw_missing:
+    if missing_field == "raw_response":
         gen["raw_response"] = None
+    elif missing_field == "_response_text":
+        gen["runtime_meta"].pop("_response_text")
     _refresh_review_hashes(records, regressions, reviews)
     verdict, failures, pending = evaluate_gate_b(records, regressions, reviews)
-    assert verdict == ("PENDING" if raw_missing else "PASS"), (failures, pending)
+    assert verdict == ("PENDING" if missing_field else "PASS"), (failures, pending)
+
+
+@pytest.mark.parametrize("response_text", ["not JSON", '{"choices": []}'])
+def test_api_original_response_must_match_parsed_copy(response_text):
+    from artagent.retrieval.provenance import canonical_json_str
+
+    records, regressions, reviews = _make_full_synthetic_dataset()
+    gen, prompt = records[0]["generation"], records[0]["prompt"]
+    gen["provider"] = gen["runtime_meta"]["llm_provider"] = "openai-compatible"
+    gen["trace"] = gen["runtime_meta"]["_trace"] = None
+    gen["runtime_meta"]["_response_body"] = {"choices": [{"message": {"content": gen["raw_response"]}}]}
+    gen["runtime_meta"]["_response_text"] = response_text
+    payload = {"model": gen["model"], "messages": [
+        {"role": "system", "content": prompt["system_instruction"]},
+        {"role": "user", "content": prompt["user_prompt"]},
+    ]}
+    gen["request"] = {"kind": "chat-completions", "payload": payload,
+                      "sha256": sha256_str(canonical_json_str(payload)),
+                      "response_schema": "t17-answer-v1", "model": gen["model"],
+                      "prompt_version": prompt["version"]}
+    _refresh_review_hashes(records, regressions, reviews)
+    verdict, failures, _ = evaluate_gate_b(records, regressions, reviews)
+    assert verdict == "FAIL", failures
 
 
 def test_evaluate_gate_b_tampered_prompt_hash_returns_fail():

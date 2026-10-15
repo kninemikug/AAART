@@ -276,6 +276,11 @@ def _check_record(record, case, source_root, failures, pending):
                 if runtime.get("_response_body") is None:
                     missing("실제 제공처 응답 누락")
                 else:
+                    response_text = runtime.get("_response_text")
+                    if response_text is None:
+                        missing("실제 제공처 원응답 문자열 누락")
+                    elif json.loads(response_text) != runtime["_response_body"]:
+                        fail("제공처 원응답과 파싱 사본 불일치")
                     api_parsed = json.loads(_extract_json_text(runtime["_response_body"]["choices"][0]["message"]["content"]))
                     _validate_llm_json_obj(api_parsed, schema="t17-answer-v1")
                     if parsed is not None and api_parsed != parsed:
