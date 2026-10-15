@@ -12,7 +12,7 @@ import subprocess
 import sys
 import time
 import unicodedata
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 import urllib.error
 import urllib.request
 import uuid
@@ -308,6 +308,7 @@ def build_prompt_and_citations(
     segments: Optional[list[dict[str, Any]]] = None,
     prompt_version: str = PROMPT_VERSION,
     confirmed_context: Optional[str] = None,
+    response_schema: Optional[str] = None,
 ) -> Tuple[str, dict[str, dict[str, Any]], list[str]]:
     """3.3 문맥 구성 및 인용 매핑 생성.
 
@@ -379,7 +380,7 @@ def build_prompt_and_citations(
     if confirmed_context and confirmed_context.strip():
         confirmed_block = f"[확정 문맥]\n{confirmed_context.strip()}\n\n"
 
-    if prompt_version == "t17-answer-v1":
+    if (response_schema or prompt_version) == "t17-answer-v1":
         user_prompt = (
             f"[검색 문맥]{context_str}\n\n"
             f"[제공된 인용 목록]\n{citation_list_preview}\n\n"
@@ -827,6 +828,9 @@ def generate_llm_response(
     context_citations: dict[str, dict[str, Any]],
     query_normalized: str,
     prompt_version: str = PROMPT_VERSION,
+    *,
+    response_schema: Optional[str] = None,
+    observe_request: Optional[Callable[[dict[str, Any]], None]] = None,
 ) -> Tuple[str, Optional[dict[str, Any]], dict[str, Any]]:
     """3.3 런타임 LLM 호출.
 
@@ -838,6 +842,7 @@ def generate_llm_response(
     import tempfile
 
     provider = os.getenv("LLM_PROVIDER", "codex").lower().strip()
+    schema = response_schema or prompt_version
 
     if provider == "codex":
         model_id = os.getenv("LLM_MODEL") or os.getenv("CODEX_MODEL") or "gpt-5.6-sol"
@@ -848,7 +853,7 @@ def generate_llm_response(
         cli_version = _get_codex_version(codex_bin)
         execution_policy = build_codex_execution_policy(model_id)
 
-        json_keys_desc = "키: status, answer, citation_ids" if prompt_version == "t17-answer-v1" else "키: answer, citation_ids"
+        json_keys_desc = "키: status, answer, citation_ids" if schema == "t17-answer-v1" else "키: answer, citation_ids"
         full_prompt = (
             f"{system_instruction}\n\n"
             f"{user_prompt}\n\n"
@@ -875,6 +880,12 @@ def generate_llm_response(
             ])
 
             process_error = None
+            if observe_request:
+                observe_request({"call_count": 1, "request": {
+                    "kind": "codex", "full_prompt": full_prompt,
+                    "sha256": sha256_str(full_prompt), "response_schema": schema,
+                    "prompt_version": prompt_version, "model": model_id,
+                }})
             try:
                 proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
                 proc_ret = proc.returncode
@@ -892,7 +903,7 @@ def generate_llm_response(
             raw_file_content = None
             if out_path.is_file():
                 try:
-                    raw_file_content = out_path.read_text(encoding="utf-8").strip()
+                    raw_file_content = out_path.read_text(encoding="utf-8")
                 except Exception:
                     pass
 
@@ -904,7 +915,7 @@ def generate_llm_response(
             execution_policy=execution_policy,
             cli_version=cli_version,
             process_error=process_error,
-            schema=prompt_version,
+            schema=schema,
         )
 
         # 실제 생성 함수에서 정상 종료와 엄격한 검증을 통과한 경우에만 trace의 정책 적용 상태를 confirmed / False로 확정
@@ -922,6 +933,7 @@ def generate_llm_response(
             },
             "_finish_reason": None,  # CLI에서 미제공된 finish_reason은 null
             "_trace": trace,
+            "_output_file_content": raw_file_content,
         }
         return json.dumps(parsed, ensure_ascii=False), usage, runtime_meta
 
@@ -948,23 +960,37 @@ def generate_llm_response(
             "response_format": {"type": "json_object"},
         }
         req = urllib.request.Request(api_url, data=json.dumps(payload).encode("utf-8"), headers=headers)
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+        if observe_request:
+            observe_request({"call_count": 1, "request": {
+                "kind": "chat-completions", "payload": payload,
+                "sha256": sha256_str(canonical_json_str(payload)),
+                "response_schema": schema, "prompt_version": prompt_version,
+                "model": model_id,
+            }})
+        runtime_meta = {
+            "llm_provider": "openai-compatible", "model_id": model_id,
+            "endpoint": api_url.split("?")[0],
+            "generation_config": {"temperature": 0.0, "prompt_version": prompt_version},
+            "_finish_reason": None, "_trace": None,
+        }
+        raw_content = ""
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                response_text = resp.read().decode("utf-8")
+            runtime_meta["_response_text"] = response_text
+            data = json.loads(response_text)
+            runtime_meta["_response_body"] = data
             raw_content = data["choices"][0]["message"]["content"]
             usage = data.get("usage")
-            finish_reason = data["choices"][0].get("finish_reason")
-            runtime_meta = {
-                "llm_provider": "openai-compatible",
-                "model_id": model_id,
-                "endpoint": api_url.split("?")[0],
-                "generation_config": {"temperature": 0.0, "prompt_version": prompt_version},
-                "_finish_reason": finish_reason,
-                "_trace": None,
-            }
-            cleaned = _extract_json_text(raw_content)
-            parsed = json.loads(cleaned)
-            _validate_llm_json_obj(parsed, schema=prompt_version)
+            runtime_meta["_finish_reason"] = data["choices"][0].get("finish_reason")
+            parsed = json.loads(_extract_json_text(raw_content))
+            _validate_llm_json_obj(parsed, schema=schema)
             return json.dumps(parsed, ensure_ascii=False), usage, runtime_meta
+        except Exception as exc:
+            raise GenerationError(
+                f"생성 제공처 응답 처리 실패: {exc}", raw_response=raw_content,
+                runtime_meta=runtime_meta,
+            ) from exc
 
     else:
         raise ValueError(f"지원되지 않는 LLM_PROVIDER입니다: '{provider}'. ('codex', 'openai' 중 선택)")

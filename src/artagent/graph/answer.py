@@ -294,6 +294,24 @@ def validate_and_project_bundle(
     return segments
 
 
+def serialize_confirmed_context(context, constraints=None) -> Optional[str]:
+    """Keep request context separate from source evidence in live and replay paths."""
+    parts = []
+    if isinstance(context, RequestContext):
+        for label, value in (("OS", context.os), ("ART Version", context.art_version), ("Confirmed Goal", context.confirmed_goal)):
+            if value:
+                parts.append(f"{label}: {value}")
+    elif isinstance(context, (list, tuple)):
+        parts.extend(str(value) for value in context if value)
+    elif isinstance(context, dict):
+        parts.extend(f"{key}: {value}" for key, value in context.items() if value)
+    elif isinstance(context, str) and context.strip():
+        parts.append(context.strip())
+    if constraints:
+        parts.append("Constraints:\n" + "\n".join(f"- {value}" for value in constraints if value))
+    return "\n".join(parts) or None
+
+
 def answer_standalone(
     query: str,
     bundle: Optional[RetrievalBundle],
@@ -310,6 +328,14 @@ def answer_standalone(
     검색 0회 / 재작성 0회 / 생성 1회(오류 시 0회)로 검증된 AnswerResult 또는 ErrorInfo를 반환한다.
     """
     started = time.perf_counter()
+    evidence = {"call_count": 0, "request": None, "custom_generation": False}
+
+    def capture_request(payload):
+        evidence.update(payload)
+
+    def emit(payload):
+        if observe:
+            observe({**evidence, **payload})
 
     # 1. 원질문 정규화 (T11 기본 정규화만 수행, T14 재작성/HyDE 재실행 금지)
     try:
@@ -322,7 +348,7 @@ def answer_standalone(
             recoverable=False,
         )
         if observe:
-            observe({
+            emit({
                 "query": query,
                 "error": error.__dict__,
                 "elapsed_ms": (time.perf_counter() - started) * 1000,
@@ -340,7 +366,7 @@ def answer_standalone(
             recoverable=False,
         )
         if observe:
-            observe({
+            emit({
                 "query": query_normalized,
                 "error": error.__dict__,
                 "elapsed_ms": (time.perf_counter() - started) * 1000,
@@ -348,27 +374,7 @@ def answer_standalone(
         return None, error
 
     # 3. 확정 문맥 및 제약 직렬화 (docs/T17_fix_plan.md §5: 별도 프롬프트 구역)
-    context_parts: list[str] = []
-    if isinstance(context, RequestContext):
-        if context.os:
-            context_parts.append(f"OS: {context.os}")
-        if context.art_version:
-            context_parts.append(f"ART Version: {context.art_version}")
-        if context.confirmed_goal:
-            context_parts.append(f"Confirmed Goal: {context.confirmed_goal}")
-    elif isinstance(context, (list, tuple)):
-        context_parts.extend(str(c) for c in context if c)
-    elif isinstance(context, dict):
-        context_parts.extend(f"{k}: {v}" for k, v in context.items() if v)
-    elif isinstance(context, str) and context.strip():
-        context_parts.append(context.strip())
-
-    if constraints:
-        c_lines = [f"- {c}" for c in constraints if c]
-        if c_lines:
-            context_parts.append("Constraints:\n" + "\n".join(c_lines))
-
-    confirmed_context_str: Optional[str] = "\n".join(context_parts) if context_parts else None
+    confirmed_context_str = serialize_confirmed_context(context, constraints)
 
     # 4. 프롬프트 및 인용 매핑 구성 (전체 세그먼트 투영, 5개 절단 금지)
     user_prompt, context_citations, context_citation_ids = build_prompt_and_citations(
@@ -376,6 +382,7 @@ def answer_standalone(
         segments=segments,
         prompt_version=T17_PROMPT_VERSION,
         confirmed_context=confirmed_context_str,
+        response_schema="t17-answer-v1",
     )
 
     prompt_hash = sha256_str(f"{SYSTEM_INSTRUCTION}\n{user_prompt}")
@@ -389,7 +396,7 @@ def answer_standalone(
             recoverable=False,
         )
         if observe:
-            observe({
+            emit({
                 "query": query_normalized,
                 "system_instruction": SYSTEM_INSTRUCTION,
                 "user_prompt": user_prompt,
@@ -410,6 +417,7 @@ def answer_standalone(
             import inspect
             sig = inspect.signature(generate)
             param_count = len(sig.parameters)
+            evidence.update(call_count=1, custom_generation=True)
             if param_count == 1:
                 call_res = generate(user_prompt)
             elif param_count == 4:
@@ -432,6 +440,8 @@ def answer_standalone(
                 context_citations=context_citations,
                 query_normalized=query_normalized,
                 prompt_version=T17_PROMPT_VERSION,
+                response_schema="t17-answer-v1",
+                observe_request=capture_request,
             )
     except Exception as e:
         error = ErrorInfo(
@@ -441,7 +451,7 @@ def answer_standalone(
             recoverable=False,
         )
         if observe:
-            observe({
+            emit({
                 "query": query_normalized,
                 "system_instruction": SYSTEM_INSTRUCTION,
                 "user_prompt": user_prompt,
@@ -496,7 +506,7 @@ def answer_standalone(
             recoverable=False,
         )
         if observe:
-            observe({
+            emit({
                 "query": query_normalized,
                 "system_instruction": SYSTEM_INSTRUCTION,
                 "user_prompt": user_prompt,
@@ -519,7 +529,7 @@ def answer_standalone(
                 recoverable=False,
             )
             if observe:
-                observe({
+                emit({
                     "query": query_normalized,
                     "system_instruction": SYSTEM_INSTRUCTION,
                     "user_prompt": user_prompt,
@@ -541,7 +551,7 @@ def answer_standalone(
                 recoverable=False,
             )
             if observe:
-                observe({
+                emit({
                     "query": query_normalized,
                     "system_instruction": SYSTEM_INSTRUCTION,
                     "user_prompt": user_prompt,
@@ -583,7 +593,7 @@ def answer_standalone(
             recoverable=False,
         )
         if observe:
-            observe({
+            emit({
                 "query": query_normalized,
                 "system_instruction": SYSTEM_INSTRUCTION,
                 "user_prompt": user_prompt,
@@ -632,7 +642,7 @@ def answer_standalone(
 
     elapsed_ms = (time.perf_counter() - started) * 1000
     if observe:
-        observe({
+        emit({
             "query": query_normalized,
             "system_instruction": SYSTEM_INSTRUCTION,
             "user_prompt": user_prompt,
