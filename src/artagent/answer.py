@@ -907,22 +907,6 @@ def generate_llm_response(
                 except Exception:
                     pass
 
-        parsed, usage, trace = validate_codex_execution(
-            stdout_raw=proc_stdout,
-            stderr_raw=proc_stderr,
-            process_returncode=proc_ret,
-            out_file_content=raw_file_content,
-            execution_policy=execution_policy,
-            cli_version=cli_version,
-            process_error=process_error,
-            schema=schema,
-        )
-
-        # 실제 생성 함수에서 정상 종료와 엄격한 검증을 통과한 경우에만 trace의 정책 적용 상태를 confirmed / False로 확정
-        if trace and "execution_policy" in trace:
-            trace["execution_policy"]["application_status"] = "confirmed"
-            trace["execution_policy"]["tools_enabled"] = False
-
         runtime_meta = {
             "llm_provider": "codex-cli",
             "model_id": model_id,
@@ -932,9 +916,30 @@ def generate_llm_response(
                 "prompt_version": prompt_version,
             },
             "_finish_reason": None,  # CLI에서 미제공된 finish_reason은 null
-            "_trace": trace,
+            "_trace": None,
             "_output_file_content": raw_file_content,
         }
+        try:
+            parsed, usage, trace = validate_codex_execution(
+                stdout_raw=proc_stdout,
+                stderr_raw=proc_stderr,
+                process_returncode=proc_ret,
+                out_file_content=raw_file_content,
+                execution_policy=execution_policy,
+                cli_version=cli_version,
+                process_error=process_error,
+                schema=schema,
+            )
+        except GenerationError as exc:
+            runtime_meta["_trace"] = exc.trace
+            exc.runtime_meta = runtime_meta
+            raise
+
+        # 정상 종료와 엄격한 검증을 통과한 경우에만 정책 적용을 확정한다.
+        if trace and "execution_policy" in trace:
+            trace["execution_policy"]["application_status"] = "confirmed"
+            trace["execution_policy"]["tools_enabled"] = False
+        runtime_meta["_trace"] = trace
         return json.dumps(parsed, ensure_ascii=False), usage, runtime_meta
 
     elif provider in ("openai", "openai-compatible"):

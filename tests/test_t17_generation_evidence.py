@@ -131,3 +131,33 @@ def test_api_invalid_answer_preserves_received_body(monkeypatch):
     assert evidence["raw_response"] == '{"status":'
     assert evidence["runtime_meta"]["_response_body"] == body
     assert evidence["runtime_meta"]["llm_provider"] == "openai-compatible"
+
+
+@pytest.mark.parametrize("timed_out", [False, True])
+def test_codex_failure_keeps_provider_model_and_actual_output(monkeypatch, timed_out):
+    from pathlib import Path
+
+    monkeypatch.setenv("LLM_PROVIDER", "codex")
+    monkeypatch.setenv("LLM_MODEL", "test-model")
+    monkeypatch.setattr("shutil.which", lambda _: "/fake/codex")
+    monkeypatch.setattr("artagent.answer._get_codex_version", lambda _: "test-version")
+
+    def run(command, **kwargs):
+        Path(command[command.index("-o") + 1]).write_text("partial output\n")
+        if timed_out:
+            raise subprocess.TimeoutExpired(command, 120, output="", stderr="timed out")
+        return SimpleNamespace(returncode=1, stdout="", stderr="usage limit")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    observed = []
+    with pytest.raises(GenerationError) as caught:
+        generate_llm_response(
+            "sys", "user", {}, "q", response_schema="t17-answer-v1",
+            observe_request=observed.append,
+        )
+    error = caught.value
+    assert observed[0]["call_count"] == 1
+    assert error.runtime_meta["llm_provider"] == "codex-cli"
+    assert error.runtime_meta["model_id"] == "test-model"
+    assert error.runtime_meta["_trace"] == error.trace
+    assert error.runtime_meta["_output_file_content"] == "partial output\n"
