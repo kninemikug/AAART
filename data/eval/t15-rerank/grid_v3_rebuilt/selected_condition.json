@@ -1,0 +1,200 @@
+{
+  "selected_condition": null,
+  "adoption_status": "B0_MAINTAINED",
+  "configuration": null,
+  "diagnostic_best_candidate": {
+    "condition_id": "R1_c20_k5_minNone",
+    "model": "R1",
+    "candidate_k": 20,
+    "top_k": 5,
+    "min_score": null,
+    "on_metrics": {
+      "positive_count": 95,
+      "negative_count": 5,
+      "negative_counter_retrieved_count": 5,
+      "total": {
+        "count": 95,
+        "precision": 0.28368421052631576,
+        "recall": 0.968421052631579,
+        "hit_at_5": 0.968421052631579,
+        "mrr_at_5": 0.9336842105263158,
+        "micro_precision": 0.2512437810945274,
+        "micro_recall": 0.9711538461538461
+      },
+      "rawpedia": {
+        "count": 80,
+        "precision": 0.23520833333333332,
+        "recall": 0.9625,
+        "hit_at_5": 0.9625,
+        "mrr_at_5": 0.92125,
+        "micro_precision": 0.21568627450980393,
+        "micro_recall": 0.9625
+      },
+      "github": {
+        "count": 15,
+        "precision": 0.5422222222222222,
+        "recall": 1.0,
+        "hit_at_5": 1.0,
+        "mrr_at_5": 1.0,
+        "micro_precision": 0.5333333333333333,
+        "micro_recall": 1.0
+      },
+      "slice1": {
+        "count": 14,
+        "precision": 0.3261904761904762,
+        "recall": 1.0,
+        "hit_at_5": 1.0,
+        "mrr_at_5": 1.0,
+        "micro_precision": 0.2982456140350877,
+        "micro_recall": 1.0
+      }
+    },
+    "off_metrics": {
+      "positive_count": 95,
+      "negative_count": 5,
+      "negative_counter_retrieved_count": 5,
+      "total": {
+        "count": 95,
+        "precision": 0.2573684210526316,
+        "recall": 0.8842105263157894,
+        "hit_at_5": 0.8842105263157894,
+        "mrr_at_5": 0.8214035087719298,
+        "micro_precision": 0.22962962962962963,
+        "micro_recall": 0.8942307692307693
+      },
+      "rawpedia": {
+        "count": 80,
+        "precision": 0.20395833333333332,
+        "recall": 0.8625,
+        "hit_at_5": 0.8625,
+        "mrr_at_5": 0.7879166666666666,
+        "micro_precision": 0.19166666666666668,
+        "micro_recall": 0.8625
+      },
+      "github": {
+        "count": 15,
+        "precision": 0.5422222222222222,
+        "recall": 1.0,
+        "hit_at_5": 1.0,
+        "mrr_at_5": 1.0,
+        "micro_precision": 0.5333333333333333,
+        "micro_recall": 1.0
+      },
+      "slice1": {
+        "count": 14,
+        "precision": 0.2952380952380952,
+        "recall": 0.8571428571428571,
+        "hit_at_5": 0.8571428571428571,
+        "mrr_at_5": 0.8571428571428571,
+        "micro_precision": 0.26785714285714285,
+        "micro_recall": 0.8823529411764706
+      }
+    },
+    "on_regressions": [
+      [
+        "Q003",
+        1,
+        2
+      ],
+      [
+        "Q012",
+        1,
+        5
+      ],
+      [
+        "Q057",
+        2,
+        null
+      ],
+      [
+        "Q074",
+        1,
+        2
+      ],
+      [
+        "Q075",
+        1,
+        2
+      ]
+    ],
+    "off_regressions": [
+      [
+        "Q007",
+        1,
+        3
+      ],
+      [
+        "Q008",
+        1,
+        2
+      ],
+      [
+        "Q014",
+        1,
+        null
+      ],
+      [
+        "Q017",
+        1,
+        2
+      ],
+      [
+        "Q041",
+        1,
+        2
+      ],
+      [
+        "Q048",
+        1,
+        2
+      ],
+      [
+        "Q049",
+        1,
+        4
+      ],
+      [
+        "Q051",
+        1,
+        2
+      ],
+      [
+        "Q057",
+        1,
+        4
+      ],
+      [
+        "Q074",
+        1,
+        null
+      ],
+      [
+        "Q075",
+        1,
+        5
+      ],
+      [
+        "Q076",
+        5,
+        null
+      ]
+    ],
+    "focus_ranks": {
+      "Q017": 1,
+      "Q024": null,
+      "Q025": 1,
+      "Q026": 1,
+      "Q030": 1,
+      "Q033": 1,
+      "Q041": 1,
+      "Q053": 1,
+      "Q055": 1,
+      "Q057": null,
+      "Q070": null,
+      "Q072": 1
+    },
+    "G2": false,
+    "G3": false
+  },
+  "rationale": "측정한 전체 조건에 양경로 비저하 후보 없음"
+}

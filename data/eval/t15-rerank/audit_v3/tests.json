@@ -1,0 +1,9 @@
+{
+  "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 /Users/user/Workspace/Programming/Projects/AAART/venv/bin/python3 -m pytest tests -q --tb=short",
+  "commit": "8984ecd44",
+  "passed": 950,
+  "warnings": 3,
+  "elapsed_seconds": 399.52,
+  "exit_code": 0,
+  "overlap": "후보40 격자 실행과 일부 겹침. 해당 시간은 운영 지연 측정이 아님."
+}

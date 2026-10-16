@@ -1,0 +1,32 @@
+[
+  {
+    "path": "docs/search_eval_queries.json",
+    "sha256": "91b7fb50b23c0514d3e3d24579cad32a07dc6dcc3c8a40774b9e2e9da0fa14e8",
+    "unchanged": true
+  },
+  {
+    "path": "data/eval/t14-conn/conn_20261015_pr/ab_records.jsonl",
+    "sha256": "96f11d6d63f41896c1b8cf028f52b0932d121d3d5ad4093c69a33802ea0dfd0e",
+    "unchanged": true
+  },
+  {
+    "path": "data/eval/t15-rerank/plan_v1/protocol.json",
+    "sha256": "08094210ece4f8e161403fb6a3f74a38aba11a46f5212e1d49256a4bb60ffcf0",
+    "unchanged": true
+  },
+  {
+    "path": "data/eval/t15-rerank/grid_v1/selected_condition.json",
+    "sha256": "91dd64d3be26c2a60555af6aafcffa9ba9c9f77528f1d41053e0b6d423ec2fed",
+    "unchanged": true
+  },
+  {
+    "path": "data/eval/t15-rerank/regression_v1/records.jsonl",
+    "sha256": "519e5e9b5b17a38704949b6f856e88bfd0172fc5ae9d20588a08bee49bb649fa",
+    "unchanged": true
+  },
+  {
+    "path": "data/eval/t15-rerank/t17_v1/t17_records.jsonl",
+    "sha256": "caefbe2598e952364196b53a912e5fe63413bfddb9a44bf09c543a4e15b97ef9",
+    "unchanged": true
+  }
+]

@@ -1,0 +1,144 @@
+{
+  "schema_version": 3,
+  "created_at": "2026-10-16T10:51:03.758348+00:00",
+  "inputs": {
+    "queries": {
+      "path": "docs/search_eval_queries.json",
+      "sha256": "91b7fb50b23c0514d3e3d24579cad32a07dc6dcc3c8a40774b9e2e9da0fa14e8"
+    },
+    "reference": {
+      "path": "docs/T08_2_t9_handoff_reference.json",
+      "sha256": "2c7081ba6a7c37b00735b0be2ef362f5b0c2a86cd41fe97bbb2a3b5ebdc195bc"
+    },
+    "ab_records": {
+      "path": "data/eval/t14-conn/conn_20261015_pr/ab_records.jsonl",
+      "sha256": "96f11d6d63f41896c1b8cf028f52b0932d121d3d5ad4093c69a33802ea0dfd0e"
+    },
+    "snapshot": {
+      "path": "data/eval/t14-conn/conn_20261015_pr/store_snapshot.json",
+      "sha256": "c02b59540fb5ba02485ec7e0a2b7ba20df7008fb478dc82a0259c71ccd89f1a8"
+    },
+    "generation_events": {
+      "path": "data/eval/t14-conn/conn_20261015_pr/generation_events.json",
+      "sha256": "0400beb4bca46d455add64c070c0b1a8072fb5a27a08fc0ed6a2887fd7ca0082"
+    },
+    "generation_source_events": {
+      "path": "data/eval/t14-conn/conn_20261015_product_scope_v3_live/generation_events.json",
+      "sha256": "0432c7ed390d20cf1f915edcfab1ced893d685671960741fc1eaae8f6e521621"
+    },
+    "generation_source_protocol": {
+      "path": "data/eval/t14-conn/conn_20261015_product_scope_v3_live/protocol.json",
+      "sha256": "6d824a36960bd704c92c091ae38ac92996437aafe8a084fd8a8bf18db2eb9cc6"
+    },
+    "generation_cache": {
+      "path": "data/eval/t14-live-20261014-final/generation_cache.json",
+      "sha256": "f0fdc728cd1a583cfe50c7a5aeb5e55408588986d52c27eb2c9e70986784ee60"
+    },
+    "slice1": {
+      "path": "docs/T11_execution_records.jsonl",
+      "sha256": "5d3d9a7df432cbfac741d479c554aae69a6dfbc8039ed166331d7f5a8d1b64b7"
+    }
+  },
+  "snapshot_fingerprint": "09e7ce0af1a4744bbb02f0d07eb716b5f0a4e2ba6d1e20d7a727707c8ffcbae6",
+  "code_commit": "461282082ac4b829601755bc812bbf9d4d8b5be3",
+  "code_sha256": {
+    "scripts/eval_t15_rerank.py": "a75b1e9eed359d3dc6fc4914e777ecf699816e4e22b420a85f0abbc4e7a746c9",
+    "scripts/t15_evaluation.py": "b730d622cdc95322b73502f09931b95b42e70ca006d6d8e1207be7218747c9e8",
+    "scripts/check_t14_graph_connection.py": "d3e75fbea4269e1c7b28507d68fe699ebac08eacd608f1208e0d73749e869175",
+    "scripts/run_t14_ab_eval.py": "12e518d5714ae180fd2981fe6f2481ce54fd559aefd1b0682697a8002cdeae7d",
+    "tests/test_router.py": "cab92ab2d8723f483f043a006132e4f36eb9a371e09670fb06260acfc58640fd",
+    "src/artagent/retrieval/__init__.py": "a690a6d2e91c5bce11aba318bb949760711401ee9a5befa0b62473f0b06f09f3",
+    "src/artagent/retrieval/embedding.py": "9c1c670c75136f9d4cdc54851874cada6e0841f849e9768565d5600b30b5fa0e",
+    "src/artagent/retrieval/provenance.py": "d339cda46749f9db88fb73f09acc2c8b275f3a091ad29b40275ed576d403c204",
+    "src/artagent/retrieval/rerank.py": "a94d77e5b3d2c6567e590777beb2e6765e5c4106e43ac6f92695a64875fce06f",
+    "src/artagent/retrieval/store.py": "405f847cec288a5790a25ed0ff8b05eb0c5b5d6314d31f32ad3b7599a7fbb3df",
+    "src/artagent/retrieval/types.py": "68d06c6c35f0ca420e72ca708c505ecd9af65f338019debd022dd0903716afb7",
+    "src/artagent/graph/__init__.py": "c1648aafc0fa6074a610d32859dcde605ad5f61fa489df0558aa9df878426cc0",
+    "src/artagent/graph/answer.py": "0a8202bbadda1c4f2cbedd02fcfe66ae1fbb975b1e18dbbdcfc838de3ef26ba6",
+    "src/artagent/graph/graph.py": "0c646c187334bd7baf39c47d2eee80344b56a6ed6566771765c0fd0a331ed5eb",
+    "src/artagent/graph/nodes.py": "acacddb0e965bd41a91ef16048774f75835e36d8cba3e0a639fa2077c9e7bd44",
+    "src/artagent/graph/rewrite.py": "d282071e35d2e220113c30d6333661edb6fa789fcb3f08f7c76d3057fdc54861",
+    "src/artagent/graph/router.py": "2cdb94b2ac1547c4e062b6a5329f36f3eacffcc5753938f4b45687c41fdf64fd",
+    "src/artagent/graph/search.py": "c80e67cfdaa311558605423f2594175b1c4a19b77a19d0fcb23c976452b57ec6",
+    "src/artagent/graph/state.py": "712327096615cb3448d28e6d7a82e12ea0dad2f5f1d9007c9fac35b7d885a2da",
+    "src/artagent/answer.py": "6b9a2eb24f07db3e16025c385d93eae4975db5014efbb094a4786fcd24f8fb99",
+    "src/artagent/answer_validation.py": "4976f2a3accfc6ac7a008bd909a8e05faa307ea18f5c1d4c0548edddbeaa4488"
+  },
+  "models": {
+    "R1": {
+      "model_id": "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1",
+      "revision": "1427fd652930e4ba29e8149678df786c240d8825",
+      "cache_path": "/Users/user/.cache/huggingface/hub/models--cross-encoder--mmarco-mMiniLMv2-L12-H384-v1/snapshots/1427fd652930e4ba29e8149678df786c240d8825",
+      "files": {
+        "config.json": "cc2cfe51aa3fd759d21d21acf5dfd6994aa67a3c9210636d22e143699d336c77",
+        "model.safetensors": "5daeca2481a76b5976a2bdc32f0a78532b6716da4f8cd3ff59460ef8d2f359b4",
+        "sentencepiece.bpe.model": "cfc8146abe2a0488e9e2a0c56de7952f7c11ab059eca145a0a727afce0db2865",
+        "special_tokens_map.json": "378eb3bf733eb16e65792d7e3fda5b8a4631387ca04d2015199c4d4f22ae554d",
+        "tokenizer.json": "62c24cdc13d4c9952d63718d6c9fa4c287974249e16b7ade6d5a85e7bbb75626",
+        "tokenizer_config.json": "e7fbfbfa6347b4e414c1cee50d142e2c2f9a895dad68b068ae83a8b564c3837e"
+      },
+      "max_length": 512,
+      "overlap_tokens": 64,
+      "max_header_tokens": 32,
+      "aggregation": "max_window_v2_offsets"
+    },
+    "R2": {
+      "model_id": "cross-encoder/ms-marco-MiniLM-L6-v2",
+      "revision": "233902d25c440f23af6f7d6e94d2946bac0bee0a",
+      "cache_path": "/Users/user/.cache/huggingface/hub/models--cross-encoder--ms-marco-MiniLM-L6-v2/snapshots/233902d25c440f23af6f7d6e94d2946bac0bee0a",
+      "files": {
+        "config.json": "380e02c93f431831be65d99a4e7e5f67c133985bf2e77d9d4eba46847190bacc",
+        "model.safetensors": "821d1aa69520101d6e0737f78a042ae25b19e5cb9160701909d10434f4aeb0ae",
+        "special_tokens_map.json": "3c3507f36dff57bce437223db3b3081d1e2b52ec3e56ee55438193ecb2c94dd6",
+        "tokenizer.json": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+        "tokenizer_config.json": "a5c2e5a7b1a29a0702cd28c08a399b5ecc110c263009d17f7e3b415f25905fd8",
+        "vocab.txt": "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3"
+      },
+      "max_length": 512,
+      "overlap_tokens": 64,
+      "max_header_tokens": 32,
+      "aggregation": "max_window_v2_offsets"
+    },
+    "R3": {
+      "model_id": "lexical_bm25",
+      "corpus_fingerprint": "f0a4afa910d3843c1b779aa44cf49fd4396b408c09721533bc1df9b82108e8fa",
+      "n_docs": 154,
+      "k1": 1.5,
+      "b": 0.75,
+      "tokenizer": "unicode_word_v1"
+    }
+  },
+  "grid": {
+    "candidate_k": [
+      20,
+      40
+    ],
+    "top_k": [
+      3,
+      5,
+      10,
+      20
+    ],
+    "min_score": [
+      null,
+      0.0,
+      0.2,
+      0.5,
+      0.7
+    ]
+  },
+  "runtime": {
+    "python": "3.14.3 (main, Feb  3 2026, 15:32:20) [Clang 17.0.0 (clang-1700.6.3.2)]",
+    "executable": "/Users/user/Workspace/Programming/Projects/AAART/venv/bin/python3",
+    "device": "cpu",
+    "threads": 4,
+    "seed": 0
+  },
+  "selection": "both_paths_no_regression_v1",
+  "repeat_count": 3,
+  "answer": {
+    "provider": "codex-cli",
+    "model": "gpt-5.6-sol",
+    "prompt_version": "t17-answer-v1"
+  }
+}

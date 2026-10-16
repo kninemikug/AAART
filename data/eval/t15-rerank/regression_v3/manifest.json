@@ -1,0 +1,11 @@
+{
+  "schema_version": 3,
+  "phase": "regression",
+  "protocol_path": "data/eval/t15-rerank/plan_v3_rebuilt/protocol.json",
+  "protocol_sha256": "aad01fd71e6b9173576c2071178cc6d47ec4ace334b7925f8324074a463fea2e",
+  "artifacts": {
+    "skipped.json": "23ea4431d372da6012c452018c0670bb201521c977fe3cfe6e8077df9c15b2d3"
+  },
+  "selected_sha256": "64f4eb8cc5be319ee0bd826b6e4251e8b185e31717a8942cfb416c7f4cce3092",
+  "selected_path": "data/eval/t15-rerank/grid_v3_rebuilt/selected_condition.json"
+}

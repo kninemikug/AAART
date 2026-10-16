@@ -1,0 +1,236 @@
+{
+  "overall_verdict": "FAIL",
+  "scope": "기존 기록의 확인 가능한 위반만 판정. 실행 증거 부족은 별도 PENDING.",
+  "regressions": {
+    "A": [
+      [
+        "Q007",
+        1,
+        3
+      ],
+      [
+        "Q014",
+        1,
+        null
+      ],
+      [
+        "Q017",
+        1,
+        2
+      ],
+      [
+        "Q041",
+        1,
+        2
+      ],
+      [
+        "Q048",
+        1,
+        4
+      ],
+      [
+        "Q049",
+        1,
+        4
+      ],
+      [
+        "Q057",
+        1,
+        3
+      ],
+      [
+        "Q074",
+        1,
+        null
+      ],
+      [
+        "Q075",
+        1,
+        5
+      ],
+      [
+        "Q076",
+        5,
+        null
+      ],
+      [
+        "Q080",
+        1,
+        2
+      ]
+    ],
+    "B": [
+      [
+        "Q003",
+        1,
+        2
+      ],
+      [
+        "Q012",
+        1,
+        5
+      ],
+      [
+        "Q057",
+        2,
+        null
+      ],
+      [
+        "Q074",
+        1,
+        2
+      ],
+      [
+        "Q075",
+        1,
+        2
+      ]
+    ]
+  },
+  "metrics": {
+    "A": {
+      "positive_count": 95,
+      "negative_count": 5,
+      "negative_counter_retrieved_count": 5,
+      "total": {
+        "count": 95,
+        "precision": 0.25859649122807016,
+        "recall": 0.8842105263157894,
+        "hit_at_5": 0.8842105263157894,
+        "mrr_at_5": 0.8249122807017543,
+        "micro_precision": 0.23076923076923078,
+        "micro_recall": 0.8942307692307693
+      },
+      "rawpedia": {
+        "count": 80,
+        "precision": 0.20541666666666666,
+        "recall": 0.8625,
+        "hit_at_5": 0.8625,
+        "mrr_at_5": 0.7920833333333334,
+        "micro_precision": 0.19273743016759776,
+        "micro_recall": 0.8625
+      },
+      "github": {
+        "count": 15,
+        "precision": 0.5422222222222222,
+        "recall": 1.0,
+        "hit_at_5": 1.0,
+        "mrr_at_5": 1.0,
+        "micro_precision": 0.5333333333333333,
+        "micro_recall": 1.0
+      },
+      "slice1": {
+        "count": 14,
+        "precision": 0.2952380952380952,
+        "recall": 0.8571428571428571,
+        "hit_at_5": 0.8571428571428571,
+        "mrr_at_5": 0.8214285714285714,
+        "micro_precision": 0.2727272727272727,
+        "micro_recall": 0.8823529411764706
+      }
+    },
+    "B": {
+      "positive_count": 95,
+      "negative_count": 5,
+      "negative_counter_retrieved_count": 5,
+      "total": {
+        "count": 95,
+        "precision": 0.2770175438596491,
+        "recall": 0.968421052631579,
+        "hit_at_5": 0.968421052631579,
+        "mrr_at_5": 0.9336842105263158,
+        "micro_precision": 0.24815724815724816,
+        "micro_recall": 0.9711538461538461
+      },
+      "rawpedia": {
+        "count": 80,
+        "precision": 0.22729166666666667,
+        "recall": 0.9625,
+        "hit_at_5": 0.9625,
+        "mrr_at_5": 0.92125,
+        "micro_precision": 0.212707182320442,
+        "micro_recall": 0.9625
+      },
+      "github": {
+        "count": 15,
+        "precision": 0.5422222222222222,
+        "recall": 1.0,
+        "hit_at_5": 1.0,
+        "mrr_at_5": 1.0,
+        "micro_precision": 0.5333333333333333,
+        "micro_recall": 1.0
+      },
+      "slice1": {
+        "count": 14,
+        "precision": 0.3261904761904762,
+        "recall": 1.0,
+        "hit_at_5": 1.0,
+        "mrr_at_5": 1.0,
+        "micro_precision": 0.2982456140350877,
+        "micro_recall": 1.0
+      }
+    }
+  },
+  "answer_violations": [
+    {
+      "query_id": "Q024",
+      "track": "b0",
+      "status": "ERROR",
+      "reason": "기술 오류"
+    },
+    {
+      "query_id": "Q024",
+      "track": "t15",
+      "status": "ERROR",
+      "reason": "기술 오류"
+    },
+    {
+      "query_id": "Q097",
+      "track": "b0",
+      "status": "SUPPORTED",
+      "reason": "부정 질문의 거짓 지원"
+    },
+    {
+      "query_id": "Q097",
+      "track": "t15",
+      "status": "SUPPORTED",
+      "reason": "부정 질문의 거짓 지원"
+    },
+    {
+      "query_id": "Q098",
+      "track": "b0",
+      "status": "SUPPORTED",
+      "reason": "부정 질문의 거짓 지원"
+    },
+    {
+      "query_id": "Q098",
+      "track": "t15",
+      "status": "SUPPORTED",
+      "reason": "부정 질문의 거짓 지원"
+    },
+    {
+      "query_id": "Q099",
+      "track": "b0",
+      "status": "SUPPORTED",
+      "reason": "부정 질문의 거짓 지원"
+    },
+    {
+      "query_id": "Q099",
+      "track": "t15",
+      "status": "SUPPORTED",
+      "reason": "부정 질문의 거짓 지원"
+    },
+    {
+      "query_id": "Q100",
+      "track": "b0",
+      "status": "SUPPORTED",
+      "reason": "부정 질문의 거짓 지원"
+    },
+    {
+      "query_id": "Q100",
+      "track": "t15",
+      "status": "SUPPORTED",
+      "reason": "부정 질문의 거짓 지원"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "overall_verdict": "FAIL",
+  "exit_code": 1,
+  "selected_condition": null,
+  "adoption_status": "B0_MAINTAINED",
+  "conditions": 120,
+  "record_count": 24000,
+  "summary_verified": true
+}
