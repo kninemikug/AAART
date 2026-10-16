@@ -1,0 +1,96 @@
+{
+  "condition_id": "R1_k5_minNone",
+  "status": "PENDING_G3",
+  "reranker": "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1",
+  "candidate_k": 20,
+  "top_k": 5,
+  "min_score": null,
+  "rationale": "R1(mmarco-mMiniLMv2-L12-H384-v1)이 다국어 질의를 효과적으로 처리하며, B0 대비 집계 비저하(G2)를 완벽 충족함 (prec 0.277018 >= 0.267368, rec 0.968421 >= 0.968421). Q030 및 A-저하 10개 중 9개를 1위로 회복함. 다만 Q057(2위->6위) 등 5개 개별 순위 변동으로 G3는 PENDING_G3로 보류 인계함.",
+  "exclusions": {
+    "R3_BM25": "어휘 불일치로 회귀 발생 및 recall 저하 (G2/G3 위반).",
+    "R2_MiniLM6": "영어 특화 모델로 한국어 원문/질의 처리 한계, Slice 1에서 Q014 1위->2위 회귀 발생.",
+    "R1_k20": "k=20 확대로 recall은 0.989로 증가하나, 문서 precision이 0.140으로 급감하여 G2 집계 비저하 게이트 탈락."
+  },
+  "metrics_summary": {
+    "positive_count": 95,
+    "negative_count": 5,
+    "negative_counter_retrieved_count": 0,
+    "total": {
+      "count": 95,
+      "precision": 0.2770175438596491,
+      "recall": 0.968421052631579,
+      "hit_at_5": 0.968421052631579,
+      "mrr_at_5": 0.9336842105263158,
+      "micro_precision": 0.24815724815724816,
+      "micro_recall": 0.9711538461538461
+    },
+    "rawpedia": {
+      "count": 80,
+      "precision": 0.22729166666666667,
+      "recall": 0.9625,
+      "hit_at_5": 0.9625,
+      "mrr_at_5": 0.92125,
+      "micro_precision": 0.212707182320442,
+      "micro_recall": 0.9625
+    },
+    "github": {
+      "count": 15,
+      "precision": 0.5422222222222222,
+      "recall": 1.0,
+      "hit_at_5": 1.0,
+      "mrr_at_5": 1.0,
+      "micro_precision": 0.5333333333333333,
+      "micro_recall": 1.0
+    },
+    "slice1": {
+      "count": 14,
+      "precision": 0.3261904761904762,
+      "recall": 1.0,
+      "hit_at_5": 1.0,
+      "mrr_at_5": 1.0,
+      "micro_precision": 0.2982456140350877,
+      "micro_recall": 1.0
+    }
+  },
+  "regressions": [
+    [
+      "Q003",
+      1,
+      2
+    ],
+    [
+      "Q012",
+      1,
+      5
+    ],
+    [
+      "Q057",
+      2,
+      null
+    ],
+    [
+      "Q074",
+      1,
+      2
+    ],
+    [
+      "Q075",
+      1,
+      2
+    ]
+  ],
+  "focus_ranks": {
+    "Q017": 1,
+    "Q024": null,
+    "Q025": 1,
+    "Q026": 1,
+    "Q030": 1,
+    "Q033": 1,
+    "Q041": 1,
+    "Q053": 1,
+    "Q055": 1,
+    "Q057": null,
+    "Q070": null,
+    "Q072": 1
+  }
+}

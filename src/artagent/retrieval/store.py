@@ -378,20 +378,20 @@ class RetrievalStore:
                 status="success",
             )
 
-    def search(
+    def search_candidates(
         self,
         query: str,
         session: EncoderSession,
         *,
+        candidate_k: int = 10,
         source_key: Optional[SourceKey] = None,
         source_type: Optional[str] = None,
         source_group_ids: Optional[Sequence[str]] = None,
     ) -> list[SearchHit]:
-        """T09 검색 계약에 따라 query 임베딩 후 top5 SearchHit 반환.
+        """후보 검색 계약에 따라 query 임베딩 후 candidate_k SearchHit 후보 목록 반환."""
+        if candidate_k <= 0:
+            raise ValueError(f"candidate_k는 양의 정수여야 합니다: {candidate_k}")
 
-        출처(source_type) 및 대상 글(source_group_ids) 필터를 선택적으로 지원하며,
-        기존 source_key와의 호환성 및 교집합을 보장한다.
-        """
         with self._lock:
             state = self._get_store_state()
             if state != "ready":
@@ -450,14 +450,14 @@ class RetrievalStore:
             # 검색 가능한 ID 수 확인
             searchable = self.collection.get(
                 where=where_clause,
-                limit=10,
+                limit=candidate_k,
                 include=[],
             )
             searchable_count = len(searchable["ids"])
             if searchable_count == 0:
                 return []
 
-            n_results = min(10, searchable_count)
+            n_results = min(candidate_k, searchable_count)
 
             res = self.collection.query(
                 query_embeddings=[q_vec.tolist()],
@@ -479,10 +479,10 @@ class RetrievalStore:
             # 정렬 계약: (round(float(distance), 6), str(chunk_id)) 오름차순
             candidates.sort(key=lambda item: (round(float(item[3]), 6), str(item[0])))
 
-            top5 = candidates[:5]
+            top_candidates = candidates[:candidate_k]
 
             hits: list[SearchHit] = []
-            for rank_idx, (cid, doc, meta, dist) in enumerate(top5, start=1):
+            for rank_idx, (cid, doc, meta, dist) in enumerate(top_candidates, start=1):
                 chunk = deserialize_chunk(cid, doc, meta)
 
                 calc_sha = sha256_str(doc)
@@ -510,6 +510,30 @@ class RetrievalStore:
                 )
 
             return hits
+
+    def search(
+        self,
+        query: str,
+        session: EncoderSession,
+        *,
+        source_key: Optional[SourceKey] = None,
+        source_type: Optional[str] = None,
+        source_group_ids: Optional[Sequence[str]] = None,
+    ) -> list[SearchHit]:
+        """T09 검색 계약에 따라 query 임베딩 후 top5 SearchHit 반환.
+
+        출처(source_type) 및 대상 글(source_group_ids) 필터를 선택적으로 지원하며,
+        기존 source_key와의 호환성 및 교집합을 보장한다.
+        """
+        hits = self.search_candidates(
+            query,
+            session,
+            candidate_k=10,
+            source_key=source_key,
+            source_type=source_type,
+            source_group_ids=source_group_ids,
+        )
+        return hits[:5]
 
 
 def open_store(persist_dir: Path, spec: RetrievalSpec) -> RetrievalStore:
