@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import asdict, dataclass
+import hashlib
 import math
 import re
 from typing import Any, Optional, Sequence
@@ -109,10 +110,10 @@ class CrossEncoderReranker:
         window_count: 평가된 윈도우 수
         """
         q_ids = self.tokenizer(query, add_special_tokens=False, verbose=False)["input_ids"]
-        # Special tokens: [CLS] query [SEP] passage [SEP] (3 tokens)
-        if len(q_ids) + 3 >= self.max_length:
+        num_special = getattr(self.tokenizer, "num_special_tokens_to_add", lambda pair: 4)(pair=True)
+        if len(q_ids) + num_special >= self.max_length:
             raise ValueError(
-                f"질의 토큰 수({len(q_ids)})가 리랭커 토크나이저 최대 길이({self.max_length - 3})를 초과합니다."
+                f"질의 토큰 수({len(q_ids)})가 리랭커 토크나이저 최대 길이({self.max_length - num_special})를 초과합니다."
             )
 
         t_ids: list[int] = []
@@ -123,7 +124,7 @@ class CrossEncoderReranker:
             ]
             header_text = self.tokenizer.decode(t_ids, skip_special_tokens=True).strip()
 
-        budget = self.max_length - 3 - len(q_ids) - len(t_ids)
+        budget = self.max_length - num_special - len(q_ids) - len(t_ids)
         if budget <= self.overlap_tokens:
             raise ValueError(
                 f"질의 및 제목 길이가 너무 길어 본문 윈도우 예산이 부족합니다: budget={budget}, overlap={self.overlap_tokens}"
@@ -131,23 +132,27 @@ class CrossEncoderReranker:
 
         c_ids = self.tokenizer(hit.content, add_special_tokens=False, verbose=False)["input_ids"]
 
+        def _make_safe_window(c_slice: list[int]) -> str:
+            sub = self.tokenizer.decode(c_slice, skip_special_tokens=True)
+            w = f"{header_text}\n\n{sub}" if header_text else sub
+            # 재인코딩 팽창 대비 실제 pair 길이 검증
+            pair_enc = self.tokenizer(query, w, add_special_tokens=True)["input_ids"]
+            if len(pair_enc) > self.max_length:
+                overflow = len(pair_enc) - self.max_length
+                safe_slice = c_slice[:-overflow] if overflow < len(c_slice) else c_slice[:1]
+                sub = self.tokenizer.decode(safe_slice, skip_special_tokens=True)
+                w = f"{header_text}\n\n{sub}" if header_text else sub
+            return w
+
         if len(c_ids) <= budget:
-            if header_text:
-                windows = [f"{header_text}\n\n{hit.content}"]
-            else:
-                windows = [hit.content]
+            windows = [_make_safe_window(c_ids)]
         else:
             step = max(1, budget - self.overlap_tokens)
             windows = []
             start = 0
             while start < len(c_ids):
                 end = min(start + budget, len(c_ids))
-                sub_text = self.tokenizer.decode(c_ids[start:end], skip_special_tokens=True)
-                if header_text:
-                    window_text = f"{header_text}\n\n{sub_text}"
-                else:
-                    window_text = sub_text
-                windows.append(window_text)
+                windows.append(_make_safe_window(c_ids[start:end]))
                 if end == len(c_ids):
                     break
                 start += step
@@ -194,6 +199,7 @@ class BM25Reranker:
         self.avgdl: float = 1.0
         self.doc_freqs: dict[str, int] = {}
         self.n_docs: int = 0
+        self.corpus_fingerprint: str = ""
 
         if corpus_texts:
             self.fit(corpus_texts)
@@ -210,6 +216,9 @@ class BM25Reranker:
         self.n_docs = len(corpus_texts)
         self.doc_len = []
         self.doc_freqs = Counter()
+        self.corpus_fingerprint = hashlib.sha256(
+            "\n".join(corpus_texts).encode("utf-8")
+        ).hexdigest()
 
         for doc in corpus_texts:
             tokens = self.tokenize(doc)
@@ -223,6 +232,8 @@ class BM25Reranker:
 
     def score_hit(self, query: str, hit: SearchHit) -> tuple[float, float, int]:
         """(query, hit) BM25 점수 및 s / (1 + s) selection_score 반환."""
+        if self.n_docs == 0:
+            raise ValueError("BM25Reranker가 코퍼스에 적합(fit)되지 않은 상태입니다.")
         combined_text = (
             f"{hit.section_title}\n\n{hit.content}" if hit.section_title else hit.content
         )

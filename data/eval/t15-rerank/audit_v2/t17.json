@@ -1,0 +1,12 @@
+{
+  "run_dir": "/Users/user/orca/workspaces/AAART/T15-rerank/data/eval/t15-rerank/t17_v2",
+  "validated_at": "2026-10-16T09:44:46.078063+00:00",
+  "record_count": 31,
+  "error_count": 0,
+  "unsupported_as_supported_count": 4,
+  "product_scope_safe": true,
+  "G5_status": "FAIL",
+  "overall_verdict": "FAIL",
+  "exit_code": 1,
+  "rationale": "모의 생성기(mock LLM) 사용 확인 및 기술 오류/부정 질문 허위 지원 검출에 따른 엄격 판정."
+}
