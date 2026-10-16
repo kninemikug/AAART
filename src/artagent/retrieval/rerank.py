@@ -7,7 +7,7 @@ with max_window_v1 aggregation, and top-k/min_score candidate selection.
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass, field
 import hashlib
 import math
 import re
@@ -30,6 +30,7 @@ class RerankRecord:
     selection_score: float
     window_count: int
     excluded_reason: Optional[str] = None
+    windows: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -43,6 +44,7 @@ class RerankRecord:
             "window_count": self.window_count,
             "excluded_reason": self.excluded_reason,
             "distance": self.hit.distance,
+            "windows": self.windows,
         }
 
 
@@ -83,20 +85,31 @@ class CrossEncoderReranker:
         max_length: Optional[int] = None,
         overlap_tokens: int = 64,
         max_header_tokens: int = 32,
+        revision: Optional[str] = None,
+        local_files_only: bool = False,
     ) -> None:
         from sentence_transformers import CrossEncoder
 
         self.model_name = model_name_or_path
         self.device = device
-        self.model = CrossEncoder(model_name_or_path, device=device)
+        self.model = CrossEncoder(
+            model_name_or_path, device=device, revision=revision,
+            local_files_only=local_files_only,
+        )
         self.tokenizer = self.model.tokenizer
 
         tok_max = getattr(self.tokenizer, "model_max_length", 512)
         if tok_max is None or tok_max > 512:
             tok_max = 512
         self.max_length = max_length if max_length is not None else tok_max
+        if type(self.max_length) is not int or not 0 < self.max_length <= tok_max:
+            raise ValueError("max_length는 모델 한도 이하의 양의 정수여야 합니다.")
+        if type(overlap_tokens) is not int or overlap_tokens < 0:
+            raise ValueError("overlap_tokens는 음이 아닌 정수여야 합니다.")
+        self.model.max_length = self.max_length
         self.overlap_tokens = overlap_tokens
         self.max_header_tokens = max_header_tokens
+        self.last_windows: list[dict[str, Any]] = []
 
     @property
     def model_id(self) -> str:
@@ -109,66 +122,69 @@ class CrossEncoderReranker:
         selection_score: sigmoid(raw_score) ∈ [0, 1]
         window_count: 평가된 윈도우 수
         """
+        self.last_windows = []
         q_ids = self.tokenizer(query, add_special_tokens=False, verbose=False)["input_ids"]
-        num_special = getattr(self.tokenizer, "num_special_tokens_to_add", lambda pair: 4)(pair=True)
+        num_special = self.tokenizer.num_special_tokens_to_add(pair=True)
         if len(q_ids) + num_special >= self.max_length:
-            raise ValueError(
-                f"질의 토큰 수({len(q_ids)})가 리랭커 토크나이저 최대 길이({self.max_length - num_special})를 초과합니다."
-            )
+            raise ValueError(f"질의 토큰 수({len(q_ids)})가 최대 길이를 초과합니다.")
 
-        t_ids: list[int] = []
-        header_text = ""
-        if hit.section_title:
-            t_ids = self.tokenizer(hit.section_title, add_special_tokens=False, verbose=False)["input_ids"][
-                : self.max_header_tokens
-            ]
-            header_text = self.tokenizer.decode(t_ids, skip_special_tokens=True).strip()
-
-        budget = self.max_length - num_special - len(q_ids) - len(t_ids)
+        title = hit.section_title
+        if title:
+            encoded_title = self.tokenizer(title, add_special_tokens=False,
+                                           return_offsets_mapping=True, verbose=False)
+            offsets = encoded_title["offset_mapping"]
+            if len(offsets) > self.max_header_tokens:
+                title = title[:offsets[self.max_header_tokens - 1][1]] if self.max_header_tokens else ""
+        title_tokens = len(self.tokenizer(title, add_special_tokens=False, verbose=False)["input_ids"])
+        budget = self.max_length - num_special - len(q_ids) - title_tokens
         if budget <= self.overlap_tokens:
-            raise ValueError(
-                f"질의 및 제목 길이가 너무 길어 본문 윈도우 예산이 부족합니다: budget={budget}, overlap={self.overlap_tokens}"
-            )
+            raise ValueError("질의 및 제목 길이가 너무 길어 본문 윈도우 예산이 부족합니다.")
 
-        c_ids = self.tokenizer(hit.content, add_special_tokens=False, verbose=False)["input_ids"]
-
-        def _make_safe_window(c_slice: list[int]) -> str:
-            sub = self.tokenizer.decode(c_slice, skip_special_tokens=True)
-            w = f"{header_text}\n\n{sub}" if header_text else sub
-            # 재인코딩 팽창 대비 실제 pair 길이 검증
-            pair_enc = self.tokenizer(query, w, add_special_tokens=True)["input_ids"]
-            if len(pair_enc) > self.max_length:
-                overflow = len(pair_enc) - self.max_length
-                safe_slice = c_slice[:-overflow] if overflow < len(c_slice) else c_slice[:1]
-                sub = self.tokenizer.decode(safe_slice, skip_special_tokens=True)
-                w = f"{header_text}\n\n{sub}" if header_text else sub
-            return w
-
-        if len(c_ids) <= budget:
-            windows = [_make_safe_window(c_ids)]
-        else:
-            step = max(1, budget - self.overlap_tokens)
-            windows = []
-            start = 0
-            while start < len(c_ids):
-                end = min(start + budget, len(c_ids))
-                windows.append(_make_safe_window(c_ids[start:end]))
-                if end == len(c_ids):
+        # 토큰을 decode하여 원문을 바꾸지 않고 실제 문자열의 좌표로 자른다.
+        encoded = self.tokenizer(hit.content, add_special_tokens=False,
+                                 return_offsets_mapping=True, verbose=False)
+        offsets = encoded["offset_mapping"]
+        pairs: list[list[str]] = []
+        start = 0
+        while True:
+            end = min(start + budget, len(offsets))
+            char_start = offsets[start][0] if start else 0
+            while True:
+                char_end = len(hit.content) if end == len(offsets) else offsets[end - 1][1]
+                body = hit.content[char_start:char_end]
+                passage = f"{title}\n\n{body}" if title else body
+                pair_length = len(self.tokenizer(query, passage, add_special_tokens=True,
+                                                 truncation=False, verbose=False)["input_ids"])
+                if pair_length <= self.max_length:
                     break
-                start += step
+                end -= 1
+                if end <= start:
+                    raise ValueError("원문을 보존하는 채점 윈도우를 만들 수 없습니다.")
+            pairs.append([query, passage])
+            self.last_windows.append({
+                "token_start": start, "token_end": end,
+                "content_char_start": char_start, "content_char_end": char_end,
+                "content_byte_start": len(hit.content[:char_start].encode("utf-8")),
+                "content_byte_end": len(hit.content[:char_end].encode("utf-8")),
+                "pair_tokens": pair_length,
+            })
+            if end == len(offsets):
+                break
+            # 실제로 소비한 끝에서 이동해야 줄어든 마지막 부분도 다음에 채점된다.
+            start = max(start + 1, end - self.overlap_tokens)
 
-        pairs = [[query, w] for w in windows]
-        raw_logits = np.atleast_1d(self.model.predict(pairs, apply_activation=False))
-
-        # max_window_v1
-        best_idx = int(np.argmax(raw_logits))
-        best_raw = float(raw_logits[best_idx])
-
-        if math.isnan(best_raw) or math.isinf(best_raw):
-            raise ValueError(f"비유한 점수 검출: {best_raw}")
-
-        selection_score = float(1.0 / (1.0 + math.exp(-best_raw)))
-        return best_raw, selection_score, len(windows)
+        raw_logits = np.asarray(self.model.predict(pairs, apply_activation=False)).reshape(-1)
+        if len(raw_logits) != len(pairs) or not np.isfinite(raw_logits).all():
+            raise ValueError("리랭커 점수 개수 또는 유한성 계약 위반")
+        for window, value in zip(self.last_windows, raw_logits):
+            window["raw_score"] = float(value)
+        best_raw = float(np.max(raw_logits))
+        if best_raw >= 0:
+            selection_score = 1.0 / (1.0 + math.exp(-best_raw))
+        else:
+            exp_score = math.exp(best_raw)
+            selection_score = exp_score / (1.0 + exp_score)
+        return best_raw, selection_score, len(pairs)
 
     def score_candidates(
         self, query: str, hits: Sequence[SearchHit]
@@ -298,8 +314,12 @@ def rerank_candidates(
 
     # 1. 채점
     scored_items: list[tuple[SearchHit, int, float, float, int]] = []
+    windows_by_id: dict[str, list[dict[str, Any]]] = {}
     for dense_idx, hit in enumerate(hits, start=1):
         raw_score, sel_score, w_count = reranker.score_hit(search_query, hit)
+        if not math.isfinite(raw_score) or not math.isfinite(sel_score) or not 0 <= sel_score <= 1:
+            raise ValueError("리랭커 점수 계약 위반")
+        windows_by_id[hit.chunk_id] = [dict(w) for w in getattr(reranker, "last_windows", [])]
         scored_items.append((hit, dense_idx, raw_score, sel_score, w_count))
 
     # 2. 정렬: (-selection_score, dense_rank, chunk_id)
@@ -326,6 +346,7 @@ def rerank_candidates(
                         raw_score=raw_score,
                         selection_score=sel_score,
                         window_count=w_count,
+                        windows=windows_by_id[hit.chunk_id],
                         excluded_reason="min_score_threshold",
                     )
                 )
@@ -339,6 +360,7 @@ def rerank_candidates(
                         raw_score=raw_score,
                         selection_score=sel_score,
                         window_count=w_count,
+                        windows=windows_by_id[hit.chunk_id],
                         excluded_reason=None,
                     )
                 )
@@ -354,6 +376,7 @@ def rerank_candidates(
                     raw_score=raw_score,
                     selection_score=sel_score,
                     window_count=w_count,
+                    windows=windows_by_id[hit.chunk_id],
                     excluded_reason="top_k_cut",
                 )
             )

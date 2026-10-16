@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 import pytest
 
@@ -229,6 +230,88 @@ def test_cross_encoder_query_overflow_error():
 
     with pytest.raises(ValueError, match=r"질의 토큰 수.*초과"):
         reranker.score_hit(huge_query, hit)
+
+
+@pytest.fixture(scope="module")
+def r1_tokenizer():
+    """재인코딩 경계 검증에는 실제 로컬 R1 토크나이저를 사용한다."""
+    from transformers import AutoTokenizer
+
+    return AutoTokenizer.from_pretrained(
+        "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1",
+        local_files_only=True,
+    )
+
+
+@pytest.fixture
+def capture_r1_scoring_pairs(monkeypatch, r1_tokenizer):
+    """실제 토큰화를 유지하고 비용이 큰 추론 호출의 입력만 수집한다."""
+    import sentence_transformers
+
+    captured = {"pairs": [], "models": []}
+
+    def create_model(_model_name, **kwargs):
+        def predict(pairs, **_kwargs):
+            captured["pairs"].extend(pairs)
+            return [0.0] * len(pairs)
+
+        model = SimpleNamespace(
+            tokenizer=r1_tokenizer,
+            max_length=kwargs.get("max_length", 512),
+            predict=predict,
+        )
+        captured["models"].append(model)
+        return model
+
+    monkeypatch.setattr(sentence_transformers, "CrossEncoder", create_model)
+    return captured
+
+
+def test_cross_encoder_windows_preserve_document_tail(capture_r1_scoring_pairs):
+    """pair 예산을 맞추며 자른 마지막 토큰도 다음 윈도우에서 채점해야 한다."""
+    reranker = CrossEncoderReranker()
+    content = "The quick brown fox jumps over the lazy dog. " * 408 + "ENDMARKER"
+    hit = _create_hit(1, "long-tail", section_title="Highlight clipping", content=content)
+
+    _, _, window_count = reranker.score_hit("histogram exposure", hit)
+
+    pairs = capture_r1_scoring_pairs["pairs"]
+    assert window_count == len(pairs) > 1
+    assert any("ENDMARKER" in document for _, document in pairs), (
+        "마지막 원문 토큰이 모든 채점 윈도우에서 누락되었습니다."
+    )
+
+
+@pytest.mark.parametrize("max_length", [96, 128, 512])
+def test_cross_encoder_windows_fit_actual_pair_budget(
+    max_length, capture_r1_scoring_pairs, r1_tokenizer
+):
+    """분리 인코딩 추정치 대신 실제 모델 입력 pair 길이를 검증한다."""
+    reranker = CrossEncoderReranker(max_length=max_length, overlap_tokens=16)
+    hit = _create_hit(
+        1,
+        "pair-budget",
+        section_title="Highlight clipping",
+        content="The quick brown fox jumps over the lazy dog. " * 408 + "ENDMARKER",
+    )
+
+    reranker.score_hit("histogram exposure", hit)
+
+    pairs = capture_r1_scoring_pairs["pairs"]
+    assert len(pairs) > 1
+    lengths = [
+        len(r1_tokenizer(query, document, add_special_tokens=True)["input_ids"])
+        for query, document in pairs
+    ]
+    assert max(lengths) <= max_length
+
+
+def test_cross_encoder_applies_max_length_to_model(capture_r1_scoring_pairs):
+    """사용자가 지정한 한도와 실제 predict 모델 한도가 일치해야 한다."""
+    reranker = CrossEncoderReranker(max_length=128, overlap_tokens=16)
+
+    assert reranker.max_length == 128
+    assert capture_r1_scoring_pairs["models"][0].max_length == 128
 
 
 def test_graph_search_node_with_reranker():

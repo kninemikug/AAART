@@ -15,6 +15,7 @@ import copy
 from dataclasses import asdict
 from datetime import datetime, timezone
 import hashlib
+from functools import lru_cache
 import json
 import math
 from pathlib import Path
@@ -59,6 +60,25 @@ SLICE1_QIDS = [
 
 def sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+@lru_cache(maxsize=128)
+def _historical_code_matches(name: str, digest: str) -> bool:
+    """T15 착수 전 Git 이력에 실제 보존된 소스 바이트와만 대조한다.
+
+    T14 실행 중 수정한 파일은 code_commit보다 나중에 커밋된 경우가 있다.
+    현재 파일이 확장됐더라도 당시 기록한 소스를 실제 Git 객체로 확인한다.
+    """
+    history = subprocess.run(
+        ["git", "log", "aaa70c0ce", "--format=%H", "--", name],
+        cwd=ROOT, capture_output=True, check=True, text=True,
+    )
+    for commit in history.stdout.splitlines():
+        source = subprocess.run(["git", "show", f"{commit}:{name}"],
+                                cwd=ROOT, capture_output=True)
+        if source.returncode == 0 and hashlib.sha256(source.stdout).hexdigest() == digest:
+            return True
+    return False
 
 
 def _recorded_reference_path(value: str) -> Path:
@@ -424,10 +444,8 @@ def _validate_artifacts(out_dir: Path, query_path: Path, cache_path: Path) -> di
             raise ValueError(f"증거 파일 변경: {name}")
     for name, digest in protocol["code_sha256"].items():
         if sha256_file(ROOT / name) != digest:
-            import os, warnings
-            if os.environ.get("STRICT_T14_CODE_CHECK", "0") == "1":
+            if not _historical_code_matches(name, digest):
                 raise ValueError(f"실행 코드 변경: {name}")
-            warnings.warn(f"후속 태스크에 따른 실행 코드 확장 감지: {name}", UserWarning)
     contract = protocol["retrieval_contract"]
     spec = load_spec(_recorded_reference_path(contract["reference_path"]))
     if (spec.reference_sha256 != contract["reference_sha256"]
