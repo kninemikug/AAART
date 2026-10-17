@@ -18,7 +18,7 @@ from artagent.graph.state import RetrievalBundle
 
 ROOT = Path(__file__).resolve().parents[1]
 MODEL_IDS = {"R1": "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1", "R2": "cross-encoder/ms-marco-MiniLM-L6-v2"}
-CODE_PATHS = ["scripts/eval_t15_rerank.py", "scripts/t15_evaluation.py", "scripts/check_t14_graph_connection.py",
+CODE_PATHS = ["scripts/eval_t15_rerank.py", "scripts/t15_evaluation.py", "scripts/t15_answer_validation.py", "scripts/check_t14_graph_connection.py",
               "scripts/run_t14_ab_eval.py", "tests/test_router.py"] + [str(p.relative_to(ROOT)) for folder in ("retrieval", "graph")
               for p in sorted((ROOT / "src/artagent" / folder).glob("*.py"))] + ["src/artagent/answer.py", "src/artagent/answer_validation.py"]
 SLICE1_QIDS = ['Q001','Q004','Q014','Q021','Q033','Q044','Q054','Q063','Q072','Q080','Q084','Q086','Q092','Q093','Q096']
@@ -610,61 +610,5 @@ def audit_run(run_dir: Path, protocol_path: Optional[Path] = None,
 
 def audit_answers(run_dir: Path, protocol: dict, manifest: dict,
                   verifier: RecordVerifier, manual_path: Optional[Path]) -> dict:
-    from artagent.answer_validation import _check_record, _check_code_state, record_digest
-
-    if (run_dir / "skipped.json").exists():
-        return {"overall_verdict": "PENDING", "exit_code": 2, "adoption_status": "B0_MAINTAINED",
-                "reason": json.loads((run_dir / "skipped.json").read_bytes())["reason"]}
-    parent_dir = ROOT / manifest["retrieval_run"]
-    if sha256_file(parent_dir / "manifest.json") != manifest["retrieval_manifest_sha256"]:
-        raise ValueError("T17 입력 검색 실행 연결 불일치")
-    parent_result = audit_run(parent_dir)
-    if parent_result["repeated"] != "PASS" or any(parent_result["gates"][name]["status"] != "PASS" for name in ("G0", "G1", "G2", "G3", "G4")):
-        raise ValueError("검색 품질 미달 후보의 실제 답변 채택 평가")
-    cases = json.loads((run_dir / "cases.json").read_bytes())
-    rows = read_rows(run_dir / "answer_records.jsonl")
-    indexed = unique_rows(rows, ("query_id", "track"))
-    expected = {(case["query_id"], case["track"]) for case in cases}
-    if len(expected) < 62 or set(indexed) != expected:
-        raise ValueError("실제 T17 짝지은 실행의 중복/누락")
-    required = {(qid, track) for qid in T17_CRITICAL_31_QIDS for track in ("B0", "T15")}
-    if not required <= expected:
-        raise ValueError("필수31개 B0/후보 대조 누락")
-    trial_map = {(row["query_id"], row["condition"]): row for row in read_rows(parent_dir / "records.jsonl.gz") if row["repeat_index"] == 1}
-    baseline_map = {(row["query_id"], row["condition"]): row for row in read_rows(parent_dir / "baseline_records.jsonl.gz")}
-    path = manual_path or run_dir / "manual_reviews.json"
-    reviews = json.loads(path.read_bytes()) if path.exists() else {}
-    failures, pending, checked = [], [], set()
-    for case in cases:
-        row = indexed[case["query_id"], case["track"]]
-        if case["query"] != verifier.questions[case["query_id"]]["query"]:
-            raise ValueError("T17 원질문 변경")
-        if case["track"] == "T15":
-            if digest(case["retrieval"]) != trial_map[case["query_id"], "B"]["bundle_digest"]:
-                raise ValueError("선정 bundle과 실제 생성 입력 불일치")
-        else:
-            search = baseline_map[case["query_id"], "B"]
-            bundle = RetrievalBundle(search["search_query"], search["source_type"].upper(),
-                                     search_hits_to_evidences(verifier.search(search)[:5]), protocol["snapshot_fingerprint"])
-            if digest(case["retrieval"]) != digest(asdict(bundle)):
-                raise ValueError("B0 bundle과 실제 생성 입력 불일치")
-        reference = {"query": case["query"], "retrieval": case["retrieval"],
-                     "parent": case["parent"], "input_reference": {
-                         "path": str((run_dir / "cases.json").relative_to(ROOT)),
-                         "sha256": sha256_file(run_dir / "cases.json")}}
-        _check_record(row, reference, ROOT, failures, pending)
-        _check_code_state(row, ROOT, checked, failures, pending)
-        if not verifier.questions[case["query_id"]]["gold_support_doc_ids"] and row["output"]["status"] == "SUPPORTED":
-            failures.append(f"부정 질문 허위 지원: {case['query_id']}")
-        review = reviews.get(row["run_id"])
-        if not review or review.get("verdict") == "PENDING":
-            pending.append(f"수동 검토 미완료: {row['run_id']}")
-        elif (review.get("record_digest") != record_digest(row) or not review.get("reviewer")
-              or not review.get("claims") or review.get("verdict") != "PASS"):
-            failures.append(f"검토 연결/의미 판정 위반: {row['run_id']}")
-    verdict = "FAIL" if failures else ("PENDING" if pending else "PASS")
-    return {"overall_verdict": verdict, "exit_code": {"PASS": 0, "FAIL": 1, "PENDING": 2}[verdict],
-            "adoption_status": "PASS" if verdict == "PASS" else "B0_MAINTAINED",
-            "record_count": len(rows), "failures": failures, "pending": pending}
-
-
+    from scripts.t15_answer_validation import audit_answers as validate_answers
+    return validate_answers(run_dir, protocol, manifest, verifier, manual_path)

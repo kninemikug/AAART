@@ -374,26 +374,27 @@ def run_t17(protocol, protocol_path, selected_path, retrieval_run, out):
     from artagent.answer_validation import capture_code_state
     provider = os.getenv("LLM_PROVIDER", "codex").lower().strip()
     model_id = os.getenv("LLM_MODEL") or os.getenv("CODEX_MODEL") or "gpt-5.6-sol"
-    if provider != "codex" or model_id != protocol["answer"]["model"]:
+    if provider != "codex" or protocol["answer"] != {"provider": "codex-cli", "model": model_id,
+                                                     "prompt_version": T17_PROMPT_VERSION}:
         raise ValueError("사전 등록한 답변 생성 설정과 다릅니다.")
     verifier = RecordVerifier(protocol)
     searches = {(r["condition"], r["query_id"]): r for r in read_rows(retrieval_run / "search_records.jsonl.gz") if r["repeat_index"] == 1}
-    baselines = {(r["condition"], r["query_id"]): r for r in read_rows(retrieval_run / "baseline_records.jsonl.gz")}
-    trials = {(r["condition"], r["query_id"]): r for r in read_rows(retrieval_run / "records.jsonl.gz") if r["repeat_index"] == 1}
-    needed = set(T17_CRITICAL_31_QIDS)
-    for qid in verifier.questions:
-        if trials["B", qid]["selected_chunk_ids"] != [h.chunk_id for h in verifier.search(baselines["B", qid])[:5]]:
-            needed.add(qid)
+    from scripts.t15_answer_validation import comparison_inputs
+    needed, baseline_bundles, trials = comparison_inputs(verifier, retrieval_run)
     cases = []
     for qid in sorted(needed):
         for track in ("B0", "T15"):
-            search = baselines["B", qid] if track == "B0" else searches["B", qid]
-            hits = verifier.search(search)
-            wanted = [h.chunk_id for h in hits[:5]] if track == "B0" else trials["B", qid]["selected_chunk_ids"]
-            by_id = {h.chunk_id: h for h in hits}
-            bundle = RetrievalBundle(search["search_query"], search["source_type"].upper(), search_hits_to_evidences([by_id[cid] for cid in wanted]), protocol["snapshot_fingerprint"])
+            if track == "B0":
+                bundle_dict = baseline_bundles[qid]
+            else:
+                search = searches["B", qid]
+                by_id = {h.chunk_id: h for h in verifier.search(search)}
+                bundle = RetrievalBundle(search["search_query"], search["source_type"].upper(),
+                                         search_hits_to_evidences([by_id[cid] for cid in trials[qid]["selected_chunk_ids"]]),
+                                         protocol["snapshot_fingerprint"])
+                bundle_dict = asdict(bundle)
             cases.append({"query_id": qid, "track": track, "query": verifier.questions[qid]["query"],
-                          "retrieval": asdict(bundle), "parent": f"{retrieval_run.name}:{track}:{qid}"})
+                          "retrieval": bundle_dict, "parent": f"{retrieval_run.name}:{track}:{qid}"})
     write_json(out / "cases.json", cases)
     with row_writer(out / "answer_records.jsonl") as emit:
         for case in cases:
