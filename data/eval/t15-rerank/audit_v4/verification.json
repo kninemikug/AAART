@@ -1,0 +1,26 @@
+{
+  "scope": "답변 감사 보완 검증. 새 검색/실제 T17 실험이 아님.",
+  "code_commit": "ad8e17bacf21befbf91b1f05f38a86f1af495f75",
+  "reproduction_before_fix": {
+    "failed": 22,
+    "passed": 4,
+    "seconds": 20.57
+  },
+  "focused_tests": {
+    "passed": 35,
+    "warnings": 1,
+    "seconds": 32.49
+  },
+  "full_tests": {
+    "passed": 985,
+    "warnings": 3,
+    "seconds": 330.84,
+    "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 /Users/user/Workspace/Programming/Projects/AAART/venv/bin/python3 -m pytest -p no:cacheprovider tests -q --tb=short"
+  },
+  "retrieval_inputs_models_grid_unchanged": true,
+  "answer_audit_code_fingerprinted": true,
+  "new_protocol": "data/eval/t15-rerank/plan_v4/protocol.json",
+  "adoption_status": "B0_MAINTAINED",
+  "t17_live_comparison": "PENDING",
+  "CP3": "PENDING"
+}

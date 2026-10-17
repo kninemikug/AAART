@@ -22,7 +22,7 @@ R1/R2/BM25를 전체 A/B에서 같은 격자로 비교하며 필요하면 후보
 
 ## 검증 증거와 판정
 
-- 최종 코드 전체 테스트: `950 passed, 3 warnings, 399.52s`. 마지막 벡터 복원 수정 후 평가 집중 테스트23개와 추가 판정 대조를 포함한 무결성 테스트21개도 통과했다. 경고는 Chroma와 추론 라이브러리의 폐기 예정 속성이다.
+- v3 코드 전체 테스트: `950 passed, 3 warnings, 399.52s`. 마지막 벡터 복원 수정 후 평가 집중 테스트23개와 추가 판정 대조를 포함한 무결성 테스트21개도 통과했다. 경고는 Chroma와 추론 라이브러리의 폐기 예정 속성이다.
 - 원래 고정 입력6개는 [보존 해시 대조](../data/eval/t15-rerank/audit_v3/original_inputs.json)에서 모두 일치했다.
 - v1 [검색 감사](../data/eval/t15-rerank/audit_v3/regression_v1.json)와 [답변 감사](../data/eval/t15-rerank/audit_v3/t17_v1.json)는 실행 증거의 완전성을 확인할 수 없어 PENDING이다. 별도의 [확인 가능한 위반 재집계](../data/eval/t15-rerank/audit_v3/v1_known_violations.json)는 A/B 순위 저하11/5건과 답변 오류·부정 질문의 거짓 지원10건으로 FAIL이다. 증거 부족이 이미 확인한 위반을 상쇄하지 않는다.
 - 최종 격자 결과와 후속 검증 상태는 아래에 기록했다.
@@ -46,7 +46,19 @@ $PY scripts/eval_t15_rerank.py run --protocol data/eval/t15-rerank/plan_next/pro
 
 실제 T17은 `answer_standalone`에 검증된 B0/후보 bundle을 각각 주며 필수31개와 나머지 문맥 변화 질문을 짝지어 실행한다. 최소62개 실제 요청·원응답·제공처 trace·인용·코드 지문을 보존하고 기존 T17 검증기를 재사용한다. 실제 생성이나 필수 수동 검토가 없으면 G5는 PENDING이다. Q010/Q077의 제품 범위 승격과 부정5개의 거짓 SUPPORTED는 실패다.
 
-수동 검토는 봉인된 실행 폴더 밖의 새 파일에 기록하고 `check --manual-reviews <검토 파일> --audit-output <새 감사 파일>`로 연결한다. 실행 폴더에 파일을 추가하면 manifest의 파일 목록 대조가 실패한다. 검토 파일은 run ID를 키로 쓰며 각 항목에 `record_digest`(기존 T17 `record_digest(record)`), `reviewer`, `verdict`(`PASS`/`FAIL`/`PENDING`), `claims`를 둔다. 각 주장에는 사실·상태 판정, 사용 인용 ID·원문 위치, 제품 범위와 B0 대비 변화, 판정 사유를 기록한다. 실제 검토 없이 빈 항목을 합격으로 채우지 않는다.
+수동 검토는 봉인된 실행 폴더 밖의 새 파일에 기록하고 `check --manual-reviews <검토 파일> --audit-output <새 감사 파일>`로 연결한다. 실행 폴더에 파일을 추가하면 manifest의 파일 목록 대조가 실패한다. 검토 파일은 run ID를 키로 쓰며 각 항목에 아래 구조를 둔다. `record_digest(record)`는 기존 T17 함수를 사용한다.
+
+| 필드 | 필수 내용 |
+| --- | --- |
+| `record_digest` | 검토한 해당 답변 레코드의 해시 |
+| `baseline_record_digest` | 같은 질문의 짝지은 B0 답변 레코드 해시. B0 검토도 자기 B0 해시를 기록 |
+| `reviewer`, `verdict` | 비어 있지 않은 검토자 문자열과 `PASS`/`FAIL`/`PENDING` |
+| `claims[]` | 하나 이상의 객체. 각 객체에 비어 있지 않은 `claim`, `reason`과 `verdict` |
+| `claims[].citation_ids` | 해당 주장의 실제 사용 인용 ID 배열. 지원·반증 답변은 인용이 필수 |
+| `claims[].evidence_links` | 각 인용의 `cid`, `target_url`, `source_location`. 답변의 `used_citations_provenance` 값과 일치해야 함 |
+| `claims[].checks` | `status`, `product_scope`, `baseline` 각각에 `verdict`와 비어 있지 않은 `reason` |
+
+사용한 모든 인용을 주장 검토에 포함한다. 무인용 `INSUFFICIENT_EVIDENCE`는 빈 인용/원문 연결 배열을 허용하되 주장·사유·상태·제품 범위·B0 대조 검토는 필수다. 빈 주장이나 누락된 검토 증거는 PENDING이고, 명시적 불합격·잘못된 CID/URL/원문 위치·오래된 답변 해시는 FAIL이다. 확인된 FAIL이 증거 부족보다 우선한다. 검증기는 이 연결과 완전성을 검사하며 사실의 의미 판정은 실제 수동 검토가 담당한다.
 
 ## 잔여와 CP3
 
@@ -120,3 +132,17 @@ Q030은1위 복구, Q024·Q070은 미도달이며 Q057은 B0의2위에서 미도
 검색 합격 후보가 없어 [전체3회 후보 회귀](../data/eval/t15-rerank/regression_v3/skipped.json)와 [실제 T17 대조](../data/eval/t15-rerank/t17_v3/skipped.json)는 선행 조건 미달로 보류했다. 각 실행의 종료 코드는2이며,600건 반복이나 실제 답변62개를 실행한 것으로 기록하지 않았다. G5와 CP3는 미완료다.
 
 후보20의 단일 전체 채점 시간은 [계측 요약](../data/eval/t15-rerank/audit_v3/scoring20.json)에 있다. R1 p50/p95 약5.24/7.35초, R2 약2.66/3.81초, BM25 약8.09/11.22ms다. 후보40의 일부 구간은 전체 테스트와 겹쳤고 캐시에서 새 후보만 추가 채점했으므로 전체 warm 지연 비교에 쓰지 않는다.
+
+## 답변 감사 후속 보완
+
+2026-10-18, 구현 커밋 `ad8e17bac`. [검증 요약](../data/eval/t15-rerank/audit_v4/verification.json): 새 집중 테스트35개 통과, 전체 **985 passed, 3 warnings, 330.84s**. 새 [준비 protocol](../data/eval/t15-rerank/plan_v4/protocol.json)은 이 구현 커밋과 추가 답변 검증기의 지문을 포함하며 기존 검색 입력·모델·격자가 같음을 확인했다. 준비 기록은 새 검색/실제 답변 실험의 결과가 아니다.
+
+v3 후속 리뷰에서 빈 주장 객체, 문맥 변경 질문의 비교 누락, 등록한 제공처·모델·프롬프트 버전 불일치가 답변 감사에서 PASS되는 문제를 재현했다. 답변 전용 검증을 `scripts/t15_answer_validation.py`로 분리하고 기존 감사 진입점과 연결했다. 새 파일도 protocol의 코드 지문 대상이다.
+
+실행기와 감사기는 동일한 `comparison_inputs`로 부모의 전체100개 B0/후보 bundle 해시를 비교해 필수31개와 모든 문맥 변경 질문을 도출한다. `cases.json`과 실제 답변 기록은 이 질문들의 B0/T15 쌍과 정확히 일치해야 하며 중복·불명 track·한쪽 누락은 실패한다. 각 답변의 제공처·모델·프롬프트 버전은 등록 조건과 대조하고, 실제 생성 전에 런타임 조건도 같은 세 항목을 확인한다.
+
+새 테스트는 완전한62건과 문맥 변경 Q002를 포함한64건의 양성 대조를 포함한다. 부모 검색 선행 판정만 대역이며 원문·답변·인용·코드 검증은 실제 함수를 실행한다. 테스트용 응답은 실측 T17 기록으로 저장하지 않는다. 실제 T17 비교와 CP3는 여전히 보류다.
+
+이번 변경은 검색 알고리즘·가중치·k·임계값을 바꾸지 않는다. 기존120개 조건·24,000건의 검색 실험은 다시 실행하지 않았고 v3 원본도 수정하지 않았다. [동결 기록 검사](../data/eval/t15-rerank/audit_v4/frozen_v3_integrity.json)는 당시 코드 `8984ecd44`의 바이트와 protocol 지문, 입력·산출물10개·manifest의 해시 일치를 확인한 것이며 새 품질 재평가가 아니다. v3의 B0 유지 결론을 보존한다.
+
+현재 코드는 감사 규칙과 코드 지문 목록이 바뀌었으므로 v3 protocol을 새 코드의 실행 증거로 재사용하면 코드 지문 검사에서 거부된다. 새 검색/실제 답변 평가가 필요하면 위의 `prepare`부터 새 폴더에서 시작한다. 과거 protocol의 해시를 새 코드 값으로 고쳐 통과시키지 않는다.
