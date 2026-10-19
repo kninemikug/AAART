@@ -31,6 +31,7 @@ class RerankRecord:
     window_count: int
     excluded_reason: Optional[str] = None
     windows: list[dict[str, Any]] = field(default_factory=list)
+    ranking_score: Optional[float] = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -41,6 +42,7 @@ class RerankRecord:
             "final_rank": self.final_rank,
             "raw_score": self.raw_score,
             "selection_score": self.selection_score,
+            "ranking_score": self.ranking_score,
             "window_count": self.window_count,
             "excluded_reason": self.excluded_reason,
             "distance": self.hit.distance,
@@ -57,12 +59,14 @@ class RerankResult:
     reranker_id: str
     top_k: int
     min_score: Optional[float]
+    rerank_weight: float = 1.0
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "reranker_id": self.reranker_id,
             "top_k": self.top_k,
             "min_score": self.min_score,
+            "rerank_weight": self.rerank_weight,
             "selected_chunk_ids": [h.chunk_id for h in self.selected_hits],
             "records": [r.to_dict() for r in self.records],
         }
@@ -284,6 +288,32 @@ class BM25Reranker:
         return [(hit, self.score_hit(query, hit)[1]) for hit in hits]
 
 
+def fusion_score(distance: float, selection_score: float, rerank_weight: float = 1.0) -> float:
+    """기존 거리 표시 정밀도의 cosine similarity와 리랭커 점수를 선형 결합한다.
+
+    결합 점수는 정렬 전용이며 min_score는 원래 리랭커 점수에 적용한다.
+    weight=1은 기존 정렬이며 원본 거리와 근거는 변경하지 않는다.
+    """
+    if (type(rerank_weight) not in (int, float) or not math.isfinite(rerank_weight)
+            or not 0 <= rerank_weight <= 1):
+        raise ValueError("rerank_weight는 0부터 1 사이의 유한한 수여야 합니다.")
+    if not math.isfinite(selection_score) or not 0 <= selection_score <= 1:
+        raise ValueError("리랭커 점수 계약 위반")
+    if rerank_weight == 1:
+        return selection_score
+    if not math.isfinite(distance):
+        raise ValueError("결합할 dense 거리가 유한하지 않습니다.")
+    return (1 - rerank_weight) * (1 - round(distance, 6)) + rerank_weight * selection_score
+
+
+def rank_scored_hits(hits: Sequence[SearchHit], scores: dict[str, float],
+                     rerank_weight: float = 1.0) -> list[SearchHit]:
+    """런타임과 증거 감사가 공유하는 결정적 정렬. 질문 ID나 정답을 받지 않는다."""
+    fusion_score(0., 0., rerank_weight)
+    return sorted(hits, key=lambda h: (-fusion_score(h.distance, scores[h.chunk_id], rerank_weight),
+                                       h.rank, h.chunk_id))
+
+
 def rerank_candidates(
     search_query: str,
     hits: Sequence[SearchHit],
@@ -291,13 +321,15 @@ def rerank_candidates(
     *,
     top_k: int = 5,
     min_score: Optional[float] = None,
+    rerank_weight: float = 1.0,
 ) -> RerankResult:
     """후보 SearchHit 목록을 reranker로 재정렬하고 top_k 및 min_score 선택을 수행.
 
-    정렬 계약: (-selection_score, dense_rank, chunk_id)
+    정렬 계약: (-결합 점수, dense_rank, chunk_id). 기본 가중치 1은 기존 점수 정렬.
     top_k 컷 이후 min_score 필터를 적용하고 빈자리를 다른 후보로 채우지 않는다.
     SearchHit의 원래 rank, distance, content 등은 변경하지 않는다.
     """
+    fusion_score(0., 0., rerank_weight)
     if top_k <= 0:
         raise ValueError(f"top_k는 양의 정수여야 합니다: {top_k}")
     if min_score is not None and not (0.0 <= min_score <= 1.0):
@@ -310,6 +342,7 @@ def rerank_candidates(
             reranker_id=getattr(reranker, "model_id", "unknown"),
             top_k=top_k,
             min_score=min_score,
+            rerank_weight=rerank_weight,
         )
 
     # 1. 채점
@@ -324,7 +357,7 @@ def rerank_candidates(
 
     # 2. 정렬: (-selection_score, dense_rank, chunk_id)
     scored_items.sort(
-        key=lambda item: (-item[3], item[1], str(item[0].chunk_id))
+        key=lambda item: (-fusion_score(item[0].distance, item[3], rerank_weight), item[1], str(item[0].chunk_id))
     )
 
     # 3. 컷 및 임계값 적용
@@ -345,6 +378,7 @@ def rerank_candidates(
                         final_rank=None,
                         raw_score=raw_score,
                         selection_score=sel_score,
+                        ranking_score=fusion_score(hit.distance, sel_score, rerank_weight),
                         window_count=w_count,
                         windows=windows_by_id[hit.chunk_id],
                         excluded_reason="min_score_threshold",
@@ -359,6 +393,7 @@ def rerank_candidates(
                         final_rank=final_counter,
                         raw_score=raw_score,
                         selection_score=sel_score,
+                        ranking_score=fusion_score(hit.distance, sel_score, rerank_weight),
                         window_count=w_count,
                         windows=windows_by_id[hit.chunk_id],
                         excluded_reason=None,
@@ -375,6 +410,7 @@ def rerank_candidates(
                     final_rank=None,
                     raw_score=raw_score,
                     selection_score=sel_score,
+                    ranking_score=fusion_score(hit.distance, sel_score, rerank_weight),
                     window_count=w_count,
                     windows=windows_by_id[hit.chunk_id],
                     excluded_reason="top_k_cut",
@@ -387,4 +423,5 @@ def rerank_candidates(
         reranker_id=getattr(reranker, "model_id", "unknown"),
         top_k=top_k,
         min_score=min_score,
+        rerank_weight=rerank_weight,
     )

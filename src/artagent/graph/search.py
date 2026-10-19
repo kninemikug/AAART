@@ -15,7 +15,7 @@ from ..retrieval.embedding import EncoderSession
 from ..retrieval.store import RetrievalStore
 from ..retrieval.types import SearchHit
 from ..retrieval.provenance import canonical_json_str, sha256_str
-from ..retrieval.rerank import RerankResult, rerank_candidates
+from ..retrieval.rerank import RerankResult, rerank_candidates, fusion_score
 from .rewrite import build_preservation_constraints, prepare_search_input
 from .state import AgentState, ErrorInfo, Evidence, RetrievalBundle
 
@@ -156,6 +156,7 @@ def create_search_rawpedia_node(
     candidate_k: int = 10,
     top_k: int = 5,
     min_score: Optional[float] = None,
+    rerank_weight: float = 1.0,
     observe: Optional[Callable[[dict[str, Any]], None]] = None,
 ) -> Callable[[AgentState], dict[str, Any]]:
     """SEARCH_RAWPEDIA 노드 팩토리. 비저하 채택 전에는 재작성을 명시적으로 켠다."""
@@ -172,6 +173,7 @@ def create_search_rawpedia_node(
         candidate_k=candidate_k,
         top_k=top_k,
         min_score=min_score,
+        rerank_weight=rerank_weight,
         observe=observe,
     )
 
@@ -188,6 +190,7 @@ def create_search_github_node(
     candidate_k: int = 10,
     top_k: int = 5,
     min_score: Optional[float] = None,
+    rerank_weight: float = 1.0,
     observe: Optional[Callable[[dict[str, Any]], None]] = None,
 ) -> Callable[[AgentState], dict[str, Any]]:
     """SEARCH_GITHUB 노드 팩토리."""
@@ -204,6 +207,7 @@ def create_search_github_node(
         candidate_k=candidate_k,
         top_k=top_k,
         min_score=min_score,
+        rerank_weight=rerank_weight,
         observe=observe,
     )
 
@@ -221,9 +225,13 @@ def _create_search_node(
     candidate_k: int = 10,
     top_k: int = 5,
     min_score: Optional[float] = None,
+    rerank_weight: float = 1.0,
     observe: Optional[Callable[[dict[str, Any]], None]],
 ) -> Callable[[AgentState], dict[str, Any]]:
     """검색 관측은 state 밖으로 전달하며 원본 SearchHit을 손실 없이 보존한다."""
+    fusion_score(0., 0., rerank_weight)
+    if reranker is None and rerank_weight != 1:
+        raise ValueError("rerank_weight 변경에는 리랭커가 필요합니다.")
     if candidate_k <= 0 or top_k <= 0:
         raise ValueError("candidate_k와 top_k는 양의 정수여야 합니다.")
     if top_k > candidate_k:
@@ -293,6 +301,7 @@ def _create_search_node(
                             reranker,
                             top_k=top_k,
                             min_score=min_score,
+                            rerank_weight=rerank_weight,
                         )
                         hits = rerank_res.selected_hits
                     else:
@@ -329,6 +338,7 @@ def _create_search_node(
                 "candidate_k": candidate_k,
                 "top_k": top_k,
                 "min_score": min_score,
+                "rerank_weight": rerank_weight,
             }
             if candidate_hits:
                 obs_payload["candidates"] = [asdict(c) for c in candidate_hits]
@@ -366,6 +376,7 @@ def create_search_nodes(
     candidate_k: int = 10,
     top_k: int = 5,
     min_score: Optional[float] = None,
+    rerank_weight: float = 1.0,
     observe: Optional[Callable[[dict[str, Any]], None]] = None,
 ) -> dict[str, Callable[[AgentState], dict[str, Any]]]:
     """SEARCH_RAWPEDIA 및 SEARCH_GITHUB 노드 override 매핑 생성."""
@@ -381,6 +392,7 @@ def create_search_nodes(
             candidate_k=candidate_k,
             top_k=top_k,
             min_score=min_score,
+            rerank_weight=rerank_weight,
             observe=observe,
         ),
         "SEARCH_GITHUB": create_search_github_node(
@@ -394,6 +406,7 @@ def create_search_nodes(
             candidate_k=candidate_k,
             top_k=top_k,
             min_score=min_score,
+            rerank_weight=rerank_weight,
             observe=observe,
         ),
     }

@@ -11,14 +11,14 @@ import math
 
 import numpy as np
 from artagent.retrieval.types import SearchHit
-from artagent.retrieval.rerank import BM25Reranker
+from artagent.retrieval.rerank import BM25Reranker, rank_scored_hits
 from artagent.retrieval.provenance import canonical_json_str, deserialize_chunk, validate_provenance
 from artagent.graph.search import search_hits_to_evidences, resolve_github_targets
 from artagent.graph.state import RetrievalBundle
 
 ROOT = Path(__file__).resolve().parents[1]
 MODEL_IDS = {"R1": "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1", "R2": "cross-encoder/ms-marco-MiniLM-L6-v2"}
-CODE_PATHS = ["scripts/eval_t15_rerank.py", "scripts/t15_evaluation.py", "scripts/t15_answer_validation.py", "scripts/check_t14_graph_connection.py",
+CODE_PATHS = ["scripts/eval_t15_rerank.py", "scripts/t15_evaluation.py", "scripts/t15_answer_validation.py", "scripts/t15_score_archive.py", "scripts/check_t14_graph_connection.py",
               "scripts/run_t14_ab_eval.py", "tests/test_router.py"] + [str(p.relative_to(ROOT)) for folder in ("retrieval", "graph")
               for p in sorted((ROOT / "src/artagent" / folder).glob("*.py"))] + ["src/artagent/answer.py", "src/artagent/answer_validation.py"]
 SLICE1_QIDS = ['Q001','Q004','Q014','Q021','Q033','Q044','Q054','Q063','Q072','Q080','Q084','Q086','Q092','Q093','Q096']
@@ -254,7 +254,10 @@ def verify_protocol(path: Path) -> dict:
         raise MissingEvidence("v3 프로토콜·원시 증거가 필요합니다. 과거 기록은 소급 보완하지 않습니다.")
     if set(protocol["code_sha256"]) != set(CODE_PATHS):
         raise ValueError("실행 코드 지문 목록 누락/추가")
-    if protocol["grid"] != {"candidate_k": [20, 40], "top_k": [3, 5, 10, 20], "min_score": [None, 0., .2, .5, .7]}:
+    expected_grid = {"candidate_k": [20, 40], "top_k": [3, 5, 10, 20], "min_score": [None, 0., .2, .5, .7]}
+    if "rerank_weight" in protocol["grid"]:
+        expected_grid["rerank_weight"] = [.05, .1, .2, .25, .5, 1.]
+    if protocol["grid"] != expected_grid:
         raise ValueError("고정 격자 조건 변경")
     if set(protocol["models"]) != {"R1", "R2", "R3"}:
         raise ValueError("사전 등록한 후보 누락")
@@ -404,9 +407,10 @@ class RecordVerifier:
                     raise ValueError("윈도우 누락/집계 점수 불일치")
             if abs(expected - selection) > 1e-12:
                 raise ValueError("점수 변환 불일치")
-        ordered = sorted(zip(candidates, scored["scores"]), key=lambda pair: (-pair[1]["selection_score"], pair[0].rank, pair[0].chunk_id))
-        chosen = [h for h, score in ordered[:config["top_k"]]
-                  if config["min_score"] is None or score["selection_score"] >= config["min_score"]]
+        scores = {s['chunk_id']: s['selection_score'] for s in scored['scores']}
+        ordered = rank_scored_hits(candidates, scores, config.get('rerank_weight', 1.))
+        chosen = [h for h in ordered[:config["top_k"]]
+                  if config["min_score"] is None or scores[h.chunk_id] >= config["min_score"]]
         return chosen, summarize(chosen, self.questions[search["query_id"]])
 
 
@@ -498,6 +502,11 @@ def audit_run(run_dir: Path, protocol_path: Optional[Path] = None,
         return audit_answers(run_dir, protocol, manifest, verifier, manual_path)
     search_rows = read_rows(run_dir / "search_records.jsonl.gz")
     score_rows = read_rows(run_dir / "score_records.jsonl.gz")
+    archive = None
+    if phase == 'grid' and protocol.get('score_archive'):
+        from scripts.t15_score_archive import ScoreArchive
+        archive = ScoreArchive(protocol, ROOT / protocol['score_archive']['run_dir'],
+                               ROOT / protocol['inputs']['score_archive_audit']['path'])
     searches = unique_rows(search_rows, ("condition", "query_id", "candidate_k", "repeat_index"))
     scores = unique_rows(score_rows, ("model", "condition", "query_id", "candidate_k", "repeat_index"))
     # 전체 후보와 윈도우는 컷/필터 조건 수와 무관하게 한 번만 검증한다.
@@ -505,6 +514,10 @@ def audit_run(run_dir: Path, protocol_path: Optional[Path] = None,
     for key, scored in scores.items():
         model, condition, qid, pool, repetition = key
         search = searches[condition, qid, pool, repetition]
+        if archive is not None and digest(scored) != digest(archive.score(model, search)):
+            raise ValueError('재사용 채점 원본 연결 불일치')
+        if phase == 'regression' and scored.get('measurement') != 'fresh_inference':
+            raise ValueError('전체 회귀는 새 실제 채점이 필요합니다.')
         hits, _ = verifier.selected(search, scored, {"model": model, "top_k": pool, "min_score": None})
         verified[key] = hits
     baseline = {"A": {}, "B": {}}
@@ -534,7 +547,8 @@ def audit_run(run_dir: Path, protocol_path: Optional[Path] = None,
     for row in trials:
         config = configs[row["condition_id"]]
         key = (config["model"], row["condition"], row["query_id"], config["candidate_k"], row["repeat_index"])
-        ordered = verified[key]
+        ordered = rank_scored_hits(verified[key], {s['chunk_id']: s['selection_score'] for s in scores[key]['scores']},
+                                   config.get('rerank_weight', 1.))
         score = scores[key]
         value_by_id = {item["chunk_id"]: item for item in score["scores"]}
         chosen = [h for h in ordered[:config["top_k"]] if config["min_score"] is None
@@ -580,11 +594,13 @@ def audit_run(run_dir: Path, protocol_path: Optional[Path] = None,
             raise ValueError("리랭커 비교 누락")
         pool20 = [row for row in summaries if row["candidate_k"] == 20]
         pools = {c["candidate_k"] for c in configs.values()}
-        expected_configs = {(model, pool, k, threshold) for model in models for pool in pools
-                            for k in protocol["grid"]["top_k"] for threshold in protocol["grid"]["min_score"]}
-        if {(c["model"], c["candidate_k"], c["top_k"], c["min_score"]) for c in configs.values()} != expected_configs:
+        expected_configs = {(model, pool, k, threshold, weight) for model in models for pool in pools
+                            for k in protocol["grid"]["top_k"] for threshold in protocol["grid"]["min_score"]
+                            for weight in protocol['grid'].get('rerank_weight', [1.])}
+        if {(c["model"], c["candidate_k"], c["top_k"], c["min_score"], c.get('rerank_weight', 1.)) for c in configs.values()} != expected_configs:
             raise ValueError("사전 등록한 격자 조합 누락")
-        focus = next(row["focus_ranks"] for row in pool20 if row["model"] == "R1" and row["top_k"] == 5 and row["min_score"] is None)
+        focus = next(row["focus_ranks"] for row in pool20 if row["model"] == "R1" and row["top_k"] == 5 and row["min_score"] is None
+                     and row.get('rerank_weight', 1.) == 1.)
         if should_expand_candidates(pool20, focus) and {c["candidate_k"] for c in configs.values()} != {20, 40}:
             raise ValueError("필수 후보40 확대 미실행")
         if digest(summaries) != digest(read_rows(run_dir / "grid_records.jsonl")):

@@ -12,6 +12,7 @@ import copy
 from dataclasses import asdict
 from datetime import datetime, timezone
 import gzip
+from itertools import product
 import json
 import os
 from pathlib import Path
@@ -33,7 +34,7 @@ from scripts.t15_evaluation import (
     regressions, result_digest, score_result_digest, select_condition, sha256_file, should_expand_candidates,
     summarize, verify_manifest, verify_protocol, verify_routes,
 )
-from artagent.retrieval.rerank import CrossEncoderReranker
+from artagent.retrieval.rerank import CrossEncoderReranker, rank_scored_hits
 from artagent.retrieval.embedding import embed_chunks, embed_query, load_encoder
 from artagent.retrieval.provenance import deserialize_chunk
 from artagent.retrieval.store import open_store
@@ -91,6 +92,10 @@ def cmd_prepare(args) -> int:
              "generation_source_events": ROOT / GENERATION_SOURCE / "generation_events.json",
              "generation_source_protocol": ROOT / GENERATION_SOURCE / "protocol.json",
              "generation_cache": ROOT / CACHE, "slice1": ROOT / "docs/T11_execution_records.jsonl"}
+    archive_run = getattr(args, 'score_source_run', None)
+    if archive_run:
+        paths['score_archive_manifest'] = Path(archive_run).resolve() / 'manifest.json'
+        paths['score_archive_audit'] = ROOT / 'data/eval/t15-rerank/audit_v4/frozen_v3_integrity.json'
     inputs = {name: {"path": str(path.relative_to(ROOT)), "sha256": sha256_file(path)} for name, path in paths.items()}
     snapshot = json.loads(paths["snapshot"].read_bytes())
     if digest(snapshot) != "09e7ce0af1a4744bbb02f0d07eb716b5f0a4e2ba6d1e20d7a727707c8ffcbae6":
@@ -102,11 +107,17 @@ def cmd_prepare(args) -> int:
     protocol = {"schema_version": 3, "created_at": datetime.now(timezone.utc).isoformat(), "inputs": inputs,
                 "snapshot_fingerprint": digest(snapshot), "code_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
                 "code_sha256": {name: sha256_file(ROOT / name) for name in CODE_PATHS}, "models": models,
-                "grid": {"candidate_k": [20, 40], "top_k": [3, 5, 10, 20], "min_score": [None, 0., .2, .5, .7]},
+                "grid": {"candidate_k": [20, 40], "top_k": [3, 5, 10, 20], "min_score": [None, 0., .2, .5, .7],
+                         "rerank_weight": [.05, .1, .2, .25, .5, 1.]},
                 "runtime": {"python": sys.version, "executable": sys.executable, "device": "cpu", "threads": 4, "seed": 0},
                 "selection": "both_paths_no_regression_v1", "repeat_count": 3,
                 "store_restore": "rebuild_original_embeddings_v1",
                 "answer": {"provider": "codex-cli", "model": "gpt-5.6-sol", "prompt_version": "t17-answer-v1"}}
+    if archive_run:
+        protocol['score_archive'] = {'run_dir': str(Path(archive_run).resolve().relative_to(ROOT)),
+                                     'scope': '격자 채점만 기존 실제 추론 증거 재사용. 회귀는 새 검색·채점.'}
+        from scripts.t15_score_archive import ScoreArchive
+        ScoreArchive(protocol, Path(archive_run).resolve(), paths['score_archive_audit'])
     write_json(out / "protocol.json", protocol)
     verify_protocol(out / "protocol.json")
     RecordVerifier(protocol)
@@ -184,7 +195,8 @@ def score_record(model, name, search, hits, cache=None):
 
 def trial(search, score, hits, config, protocol, question):
     values = {value["chunk_id"]: value for value in score["scores"]}
-    ordered = sorted(hits, key=lambda h: (-values[h.chunk_id]["selection_score"], h.rank, h.chunk_id))
+    ordered = rank_scored_hits(hits, {cid: value['selection_score'] for cid, value in values.items()},
+                               config.get('rerank_weight', 1.))
     chosen = [h for h in ordered[:config["top_k"]] if config["min_score"] is None
               or values[h.chunk_id]["selection_score"] >= config["min_score"]]
     bundle = RetrievalBundle(search["search_query"], search["source_type"].upper(), search_hits_to_evidences(chosen), protocol["snapshot_fingerprint"])
@@ -222,7 +234,8 @@ def run_routes(store, session, protocol, out, reranker=None, config=None):
                                         observe=observations.append, reranker=reranker,
                                         candidate_k=config["candidate_k"] if config else 10,
                                         top_k=config["top_k"] if config else 5,
-                                        min_score=config["min_score"] if config else None)
+                                        min_score=config["min_score"] if config else None,
+                                        rerank_weight=config.get('rerank_weight', 1.) if config else 1.)
             def wrap(node):
                 def invoke(state):
                     recorder.context = _extract_query_and_constraints(state, preserve_literals=True)
@@ -264,7 +277,12 @@ def run_grid(protocol, protocol_path, out):
         routes = run_routes(store, session, protocol, out)
         if routes["passed"] != 40:
             raise ValueError("기준선 실제 그래프 경로 실패")
-        models = {name: load_reranker(protocol, name) for name in protocol["models"]}
+        archive = None
+        if protocol.get('score_archive'):
+            from scripts.t15_score_archive import ScoreArchive
+            archive = ScoreArchive(protocol, ROOT / protocol['score_archive']['run_dir'],
+                                   ROOT / protocol['inputs']['score_archive_audit']['path'])
+        models = {name: None if archive else load_reranker(protocol, name) for name in protocol["models"]}
         with row_writer(out / "search_records.jsonl.gz") as search_emit, row_writer(out / "score_records.jsonl.gz") as score_emit, row_writer(out / "records.jsonl.gz") as trial_emit:
             for pool in (20, 40):
                 searches, all_hits, scores = {}, {}, {}
@@ -274,15 +292,16 @@ def run_grid(protocol, protocol_path, out):
                         searches[condition, qid], all_hits[condition, qid] = search, hits
                         search_emit(search)
                         for name, model in models.items():
-                            scored = score_record(model, name, search, hits, score_cache)
+                            scored = archive.score(name, search) if archive else score_record(model, name, search, hits, score_cache)
                             score_emit(scored)
                             scores[name, condition, qid] = scored
                         if index % 10 == 0:
-                            print(f"후보{pool} {condition}: {index}/100 실제 채점", flush=True)
+                            print(f"후보{pool} {condition}: {index}/100 실제 검색·{'기존 채점 연결' if archive else '실제 채점'}", flush=True)
                 for name in models:
                     for k in protocol["grid"]["top_k"]:
-                        for threshold in protocol["grid"]["min_score"]:
-                            config = {"condition_id": f"{name}_c{pool}_k{k}_min{threshold}", "model": name, "candidate_k": pool, "top_k": k, "min_score": threshold}
+                        for threshold, weight in product(protocol["grid"]["min_score"], protocol['grid'].get('rerank_weight', [1.])):
+                            config = {"condition_id": f"{name}_c{pool}_k{k}_min{threshold}_w{weight}", "model": name,
+                                      "candidate_k": pool, "top_k": k, "min_score": threshold, "rerank_weight": weight}
                             configs.append(config)
                             per_condition = {"A": {}, "B": {}}
                             for condition in ("A", "B"):
@@ -291,7 +310,8 @@ def run_grid(protocol, protocol_path, out):
                                     trial_emit(row)
                                     per_condition[condition][qid] = row["metrics"]
                             summaries.append(grid_summary(config, per_condition, baseline, verifier.questions))
-                focus = next(row["focus_ranks"] for row in summaries if row["model"] == "R1" and row["top_k"] == 5 and row["min_score"] is None)
+                focus = next(row["focus_ranks"] for row in summaries if row["model"] == "R1" and row["top_k"] == 5 and row["min_score"] is None
+                             and row['rerank_weight'] == 1.)
                 if pool == 20 and not should_expand_candidates(summaries, focus):
                     break
     write_json(out / "conditions.json", configs)
@@ -448,6 +468,7 @@ def main():
     prepare.add_argument("--reference", default=str(ROOT / "docs/T08_2_t9_handoff_reference.json"))
     prepare.add_argument("--t14-run", default=str(ROOT / T14))
     prepare.add_argument("--output-dir", required=True)
+    prepare.add_argument("--score-source-run", help="격자의 기존 실제 채점 증거 폴더. 반복 회귀에는 재사용하지 않음")
     run = commands.add_parser("run")
     run.add_argument("--protocol", required=True)
     run.add_argument("--phase", required=True, choices=["grid", "regression", "t17"])

@@ -176,6 +176,50 @@ def test_rerank_candidates_validation():
         rerank_candidates("query", [h], reranker, top_k=5, min_score=1.5)
 
 
+def test_dense_fusion_preserves_relevant_head_without_ignoring_reranker():
+    hits = [_create_hit(i, f"c{i}", distance=d) for i, d in enumerate((.1, .3, .31), 1)]
+    scorer = DummyReranker({"c1": 0., "c2": -1., "c3": 2.})
+    pure = rerank_candidates("query", hits, scorer, top_k=2)
+    fused = rerank_candidates("query", hits, scorer, top_k=2, rerank_weight=.1)
+    assert [h.chunk_id for h in pure.selected_hits] == ["c3", "c1"]
+    assert [h.chunk_id for h in fused.selected_hits] == ["c1", "c3"]
+    record = next(r for r in fused.records if r.hit.chunk_id == "c1")
+    assert record.selection_score == .5
+    assert record.ranking_score == pytest.approx(.9 * .9 + .1 * .5)
+    assert fused.to_dict()["rerank_weight"] == .1
+    assert hits[0].rank == 1 and hits[0].distance == .1
+
+
+def test_fusion_threshold_uses_reranker_score_after_top_k_without_backfill():
+    hits = [_create_hit(1, "c1", distance=.1), _create_hit(2, "c2", distance=.4)]
+    result = rerank_candidates("q", hits, DummyReranker({"c1": -2., "c2": 2.}),
+                               top_k=1, min_score=.5, rerank_weight=.05)
+    assert result.selected_hits == []
+    assert [r.excluded_reason for r in result.records] == ["min_score_threshold", "top_k_cut"]
+
+
+@pytest.mark.parametrize("weight", [-.1, 1.1, float("nan"), float("inf"), True, "0.1"])
+def test_invalid_fusion_weights_are_rejected(weight):
+    with pytest.raises(ValueError, match="rerank_weight"):
+        rerank_candidates("q", [], DummyReranker({}), rerank_weight=weight)
+
+
+def test_graph_accepts_and_records_fusion_weight():
+    hits = [_create_hit(1, "c1", distance=.1), _create_hit(2, "c2", distance=.5)]
+    store = MagicMock()
+    store.search_candidates.return_value = hits
+    observations = []
+    nodes = create_search_nodes(store, MagicMock(), candidate_k=2, top_k=1,
+                                reranker=DummyReranker({"c1": -1., "c2": 2.}),
+                                rerank_weight=.1, observe=observations.append)
+    state: AgentState = {"request": RequestInput(request_id="fusion", text="test query"),
+                         "decision": RouteDecision(plan=[PlanStep(step_id="s1", path=Path.DOC_QA, query="test query")]),
+                         "cursor": 0, "trace": []}
+    result = nodes["SEARCH_RAWPEDIA"](state)
+    assert result["retrieval"].hits[0].chunk_id == "c1"
+    assert observations[0]["rerank"]["rerank_weight"] == .1
+
+
 def test_bm25_reranker_scoring():
     corpus = [
         "Exposure compensation and highlight reconstruction in RawTherapee",
