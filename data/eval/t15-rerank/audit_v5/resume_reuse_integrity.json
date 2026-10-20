@@ -1,0 +1,31 @@
+{
+  "verified_imported_records": 123,
+  "source_counts": [
+    {
+      "path": "data/eval/t15-rerank/t17_v5",
+      "count": 86,
+      "manifest_sha256": "fcf591e371841ea040622777423191865c2232dd2baac531f25462cc0895a5c6"
+    },
+    {
+      "path": "data/eval/t15-rerank/t17_v5_retry_20261019",
+      "count": 37,
+      "manifest_sha256": "95e47845f87a7f742b57426f4c5833ea19618622137c9ec09792dd6866ee9400"
+    }
+  ],
+  "allowed_difference": [
+    "input_reference.path"
+  ],
+  "unchanged_fields": [
+    "run_id",
+    "input",
+    "retrieval",
+    "prompt",
+    "generation",
+    "citations",
+    "used_citations_provenance",
+    "output",
+    "runtime",
+    "verification"
+  ],
+  "verdict": "PASS"
+}

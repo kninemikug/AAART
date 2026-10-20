@@ -1,0 +1,18 @@
+{
+  "command": [
+    "/Users/user/Workspace/Programming/Projects/AAART/venv/bin/python3",
+    "scripts/resume_t15_answers.py",
+    "--check-run",
+    "data/eval/t15-rerank/t17_v5_resumed_20261020_final",
+    "--manual-reviews",
+    "data/eval/t15-rerank/review_v5_resumed_20261020_final/manual_reviews.json"
+  ],
+  "cwd": "/Users/user/orca/workspaces/AAART/T15-rerank",
+  "exit_code": 1,
+  "expect_matched": false,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "4b4df22e01adb52aed3495574b0206602711a7ceb1d5a4b40d4b509109777876",
+  "error": "ValueError: 필수31개·문맥 변경 질문의 B0/T15 비교 누락/추가",
+  "overall_verdict": "FAIL",
+  "adoption_status": "B0_MAINTAINED"
+}

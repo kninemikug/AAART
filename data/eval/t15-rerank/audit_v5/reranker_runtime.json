@@ -1,0 +1,67 @@
+{
+  "scope": "선정 BM25의 별도 프로세스 시작/코퍼스 적합과 새 회귀600건 계측. 전체 서비스 cold start/LLM 비용 측정이 아님.",
+  "code_commit": "7c78e7893199ca5dcd6bbbc898597ed7e618f12a",
+  "cold_process_samples": [
+    {
+      "fit_ms": 44.63058337569237,
+      "peak_process_rss_bytes": 543506432,
+      "corpus_fingerprint": "f0a4afa910d3843c1b779aa44cf49fd4396b408c09721533bc1df9b82108e8fa",
+      "n_docs": 154,
+      "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+      "repetition": 1,
+      "cold_process_wall_ms": 3468.788292258978
+    },
+    {
+      "fit_ms": 44.95095834136009,
+      "peak_process_rss_bytes": 544260096,
+      "corpus_fingerprint": "f0a4afa910d3843c1b779aa44cf49fd4396b408c09721533bc1df9b82108e8fa",
+      "n_docs": 154,
+      "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+      "repetition": 2,
+      "cold_process_wall_ms": 3422.5909588858485
+    },
+    {
+      "fit_ms": 45.243333093822,
+      "peak_process_rss_bytes": 545964032,
+      "corpus_fingerprint": "f0a4afa910d3843c1b779aa44cf49fd4396b408c09721533bc1df9b82108e8fa",
+      "n_docs": 154,
+      "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+      "repetition": 3,
+      "cold_process_wall_ms": 3388.7008326128125
+    }
+  ],
+  "fresh_regression": {
+    "A": {
+      "search_capture_ms": {
+        "count": 300,
+        "p50": 13.295000419020653,
+        "p95": 16.564368829131126
+      },
+      "fresh_bm25_ms": {
+        "count": 300,
+        "p50": 7.465791422873735,
+        "p95": 10.701513942331076
+      }
+    },
+    "B": {
+      "search_capture_ms": {
+        "count": 300,
+        "p50": 9.806395974010229,
+        "p95": 11.449056398123503
+      },
+      "fresh_bm25_ms": {
+        "count": 300,
+        "p50": 8.471145760267973,
+        "p95": 11.429572710767388
+      }
+    }
+  },
+  "reranker_external_request_count": 0,
+  "reranker_external_inference_fee": 0,
+  "limits": [
+    "peak RSS는 Python·import 라이브러리를 포함한 전체 프로세스의 최대치다. 리랭커 전용 추가 메모리로 해석하지 않는다.",
+    "cold_process_wall_ms는 새 프로세스 시작과 import·BM25 fit을 포함한다. OS 파일 캐시를 비우지 않았다.",
+    "search_capture_ms는 평가기의 질의 벡터 재기록을 포함한다. 서비스 응답 지연이 아니다.",
+    "실제 T17 생성의 외부 요청/사용량·가격은 별도이며 0원으로 보고하지 않는다."
+  ]
+}

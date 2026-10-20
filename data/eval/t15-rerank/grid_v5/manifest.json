@@ -1,0 +1,18 @@
+{
+  "schema_version": 3,
+  "phase": "grid",
+  "protocol_path": "data/eval/t15-rerank/plan_v5/protocol.json",
+  "protocol_sha256": "d79eb3a838113f7e00988b0ad44d0ee79d97afb3fab88649a58382052977bcb0",
+  "artifacts": {
+    "baseline_records.jsonl.gz": "332c3c5c0e0393cd7298a742d43bab9221bd2f67f21f88fd12539196d82afca9",
+    "conditions.json": "e43d139fb931188de9f3a7299355816b40b16f480229508f860a84afb39ab7ba",
+    "grid_records.jsonl": "419d927798ed90e1d1d6cd04bdfbc11ca48d011fb3593f06e7edbf64700982e8",
+    "records.jsonl.gz": "0a41291d58afa588cd1adfddcbc19e1fc98de09491da625304c739cbd1a93ec0",
+    "report.md": "91bb8a06b23680ebf463d08bce1632757b7374670ded93cfc2682cbe75101aa7",
+    "routes.jsonl": "0094e21f93d78343d3a0c9cdc2b0337f4572b02f5feccbdb6504a559aefbdbf3",
+    "score_records.jsonl.gz": "7a2d2fc7151979a97744abfe33747d3879f4727de509d9adedc557fb57805743",
+    "search_records.jsonl.gz": "e11094d97f897a5a4342e01619709efa1356c3e1be00323e77988f9e232b02e5",
+    "selected_condition.json": "ece0719ba81e7e2a46bbf75c4ee15b743cc97015ea1eb5959581de39ab0854d1",
+    "validation.json": "e7ce3cee9693f9ed1e8e09373726f7294ef0a3bb82844ca3f0a84c3ccfd4c0bd"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 3,
+  "phase": "regression",
+  "protocol_path": "data/eval/t15-rerank/plan_v5/protocol.json",
+  "protocol_sha256": "d79eb3a838113f7e00988b0ad44d0ee79d97afb3fab88649a58382052977bcb0",
+  "artifacts": {
+    "baseline_records.jsonl.gz": "937d3f87d284f88a6988749dc49bb9b1e64323b4ac3c176585abe27c28232106",
+    "conditions.json": "bc0e238b69aa57c000b28a8fa8c0dbdb96286788cb828e63636ecd9dc4e2634e",
+    "records.jsonl.gz": "c709bff90f3e03e6640e36743eb217a9c88f19eb74b0034927933614a35f0078",
+    "repeat_records.jsonl": "2c04154fb14789e8d719b22b353d782fc0dc89c22e53b47d049a373d2b9a1764",
+    "routes.jsonl": "b05270553853470e28caecec53bc505ed7d673363f603b3c3422b053ccc8aab9",
+    "score_records.jsonl.gz": "0a1715111bc5f7967817340c9fc3041778b135f0ebc12f9bb2745d865ffd9dfd",
+    "search_records.jsonl.gz": "8ebea98b15086a299043dbd7ad9c89620b6e1cdf105f2bf8cb1494f26212c352",
+    "validation.json": "4e296641685d34ccaffd0d6e023a18b82534f97f623896bc3ecccd0188327810"
+  },
+  "selected_sha256": "ece0719ba81e7e2a46bbf75c4ee15b743cc97015ea1eb5959581de39ab0854d1",
+  "selected_path": "data/eval/t15-rerank/grid_v5/selected_condition.json"
+}

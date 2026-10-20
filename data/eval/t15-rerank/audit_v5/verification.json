@@ -1,0 +1,98 @@
+{
+  "date": "2026-10-20",
+  "search_code_commit": "7c78e7893199ca5dcd6bbbc898597ed7e618f12a",
+  "resume_helper_commit": "b56e63e5c",
+  "protocol_sha256": "d79eb3a838113f7e00988b0ad44d0ee79d97afb3fab88649a58382052977bcb0",
+  "tests": {
+    "exit_code": 0,
+    "passed": 1002,
+    "warnings": 3,
+    "seconds": 332.86,
+    "summary": "1002 passed, 3 warnings in 332.86s (0:05:32)"
+  },
+  "grid": {
+    "conditions": 720,
+    "observations": 144000,
+    "selected_condition": "R3_c20_k5_min0.5_w0.25",
+    "quality": "PASS",
+    "independent_evaluation": false
+  },
+  "regression": {
+    "fresh_records": 600,
+    "repeats": 3,
+    "result_hashes_equal": true,
+    "gates_G0_G4": "PASS",
+    "graph_routes": 40,
+    "independent_bm25_scores_recomputed": 9690
+  },
+  "answer": {
+    "required_pairs": 138,
+    "successful_pairs": 129,
+    "latest_record_count": 130,
+    "failed_pairs": 1,
+    "unattempted_pairs": 8,
+    "remaining": [
+      [
+        "Q096",
+        "T15"
+      ],
+      [
+        "Q097",
+        "B0"
+      ],
+      [
+        "Q097",
+        "T15"
+      ],
+      [
+        "Q098",
+        "B0"
+      ],
+      [
+        "Q098",
+        "T15"
+      ],
+      [
+        "Q099",
+        "B0"
+      ],
+      [
+        "Q099",
+        "T15"
+      ],
+      [
+        "Q100",
+        "B0"
+      ],
+      [
+        "Q100",
+        "T15"
+      ]
+    ],
+    "reviewed_records": 129,
+    "pending_reviewed_rows": 1,
+    "final_command": {
+      "command": [
+        "/Users/user/Workspace/Programming/Projects/AAART/venv/bin/python3",
+        "scripts/resume_t15_answers.py",
+        "--check-run",
+        "data/eval/t15-rerank/t17_v5_resumed_20261020_final",
+        "--manual-reviews",
+        "data/eval/t15-rerank/review_v5_resumed_20261020_final/manual_reviews.json"
+      ],
+      "cwd": "/Users/user/orca/workspaces/AAART/T15-rerank",
+      "exit_code": 1,
+      "expect_matched": false,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "4b4df22e01adb52aed3495574b0206602711a7ceb1d5a4b40d4b509109777876",
+      "error": "ValueError: 필수31개·문맥 변경 질문의 B0/T15 비교 누락/추가",
+      "overall_verdict": "FAIL",
+      "adoption_status": "B0_MAINTAINED"
+    },
+    "stop_after_first_error_verified": true,
+    "resume_remaining_offline_plan_exit_code": 2
+  },
+  "adoption_status": "B0_MAINTAINED",
+  "overall_verdict": "FAIL",
+  "scope": "검색 게이트는 PASS. 실제 답변 필수 쌍의 시간 초과/누락으로 최종 채택은 미완료. T16/CP3 및 별도 독립 평가를 완료로 보지 않음."
+}

@@ -1,0 +1,14 @@
+{
+  "schema_version": 3,
+  "phase": "t17",
+  "protocol_path": "data/eval/t15-rerank/plan_v5/protocol.json",
+  "protocol_sha256": "d79eb3a838113f7e00988b0ad44d0ee79d97afb3fab88649a58382052977bcb0",
+  "artifacts": {
+    "answer_records.jsonl": "66303786b3906d19620f48e03de6d09caad0867f49b952132d16c78515712083",
+    "cases.json": "01b739e144d6d82d1c4b1851a613e5cecad531b95165f29dd3f29149ec1451e4"
+  },
+  "retrieval_run": "data/eval/t15-rerank/regression_v5",
+  "retrieval_manifest_sha256": "2d39a9c5f4693172c1a94b41157da20e8f2fa0f27bba6aa377e659591a626c52",
+  "selected_sha256": "ece0719ba81e7e2a46bbf75c4ee15b743cc97015ea1eb5959581de39ab0854d1",
+  "selected_path": "data/eval/t15-rerank/grid_v5/selected_condition.json"
+}
