@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/Users/user/Workspace/Programming/Projects/AAART/venv/bin/python3",
+    "scripts/resume_t15_answers.py",
+    "--check-run",
+    "data/eval/t15-rerank/t17_v5_complete_20261020_r3",
+    "--manual-reviews",
+    "data/eval/t15-rerank/review_v5_complete_20261020/manual_reviews.json"
+  ],
+  "cwd": "/Users/user/orca/workspaces/AAART/T15-rerank",
+  "exit_code": 0,
+  "expect_matched": true,
+  "stdout_sha256": "1658e4dad0ad91f90422e7bcee25b67e0de3d0baca335a5f691e3a9f1eb1f044",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

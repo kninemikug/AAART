@@ -1,0 +1,9 @@
+{
+  "overall_verdict": "PENDING",
+  "exit_code": 2,
+  "selected_condition": "R3_c20_k5_min0.5_w0.25",
+  "adoption_status": "B0_MAINTAINED",
+  "conditions": 720,
+  "record_count": 144000,
+  "summary_verified": true
+}

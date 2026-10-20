@@ -1,10 +1,10 @@
 # Task 15 추가 튜닝과 실제 답변 대조
 
-2026-10-19 검색 실험, 2026-10-20 답변 이어 실행. 검색 구현 `7c78e7893`, 답변 재개 도구 `b56e63e5c`. 기존100개 질문은 튜닝·회귀 입력이며 독립 평가셋이 아니다. Slice1 15개는 이100개의 부분집합이다.
+2026-10-19 검색 실험, 2026-10-20 답변 이어 실행. 검색 구현 `7c78e7893`, 답변 재개 도구 `b56e63e5c`, 재개 경계 보완 `08e484294`. 기존100개 질문은 튜닝·회귀 입력이며 독립 평가셋이 아니다. Slice1 15개는 이100개의 부분집합이다.
 
 ## 현재 판정
 
-검색 품질·원시 증거 감사·실제600건 반복 회귀를 통과했다. 실제 답변은 성공129건을 보존했고9건이 미완료다. 최종 답변 감사는 필수 쌍 누락으로 FAIL이며 **B0 유지·T15 후보 채택 보류**다. T15 전체 완료로 표시하지 않는다. T16과 CP3도 별도 미완료다.
+검색 품질·원시 증거 감사·실제600건 반복 회귀와 **실제 답변138건의 주장·인용·제품 범위 검토를 모두 통과**했다. [최종 감사](../data/eval/t15-rerank/audit_v6/answers.json)는 PASS/exit0이며 미검토·오류·누락은0이다. T15 범위의 채택 게이트를 충족했고 아래 명시 연결 설정을 인수한다. 기존100개 입력의 튜닝·회귀 결과이며 서비스 배포나 T16/CP3 전체 완료를 뜻하지 않는다.
 
 ## 설정과 기준선
 
@@ -74,7 +74,7 @@ BM25 리랭킹에는 외부 추론 요청이나 외부 추론 요금이 없다. 
 
 ## 연결과 롤백 설정
 
-최종 게이트 합격 시 인수하는 명시 설정은 `create_search_nodes(..., rewrite_enabled=True, hyde_enabled=False, reranker=bm25, candidate_k=20, top_k=5, min_score=0.5, rerank_weight=0.25)`다. `bm25`는 고정 스냅샷154청크를 `section_title + "\n\n" + 본문`(제목이 없으면 본문만)으로 구성한 코퍼스에 적합한다. 순서·전처리는 `fit_bm25_from_snapshot`과 같으며 코퍼스 지문은 `f0a4afa910d3843c1b779aa44cf49fd4396b408c09721533bc1df9b82108e8fa`, `k1=1.5`, `b=0.75`다.
+최종 게이트를 통과한 명시 인수 설정은 `create_search_nodes(..., rewrite_enabled=True, hyde_enabled=False, reranker=bm25, candidate_k=20, top_k=5, min_score=0.5, rerank_weight=0.25)`다. `bm25`는 고정 스냅샷154청크를 `section_title + "\n\n" + 본문`(제목이 없으면 본문만)으로 구성한 코퍼스에 적합한다. 순서·전처리는 `fit_bm25_from_snapshot`과 같으며 코퍼스 지문은 `f0a4afa910d3843c1b779aa44cf49fd4396b408c09721533bc1df9b82108e8fa`, `k1=1.5`, `b=0.75`다.
 
 T13-2 그래프에는 이 노드 매핑을 `create_router_graph(node_overrides=...)`로 전달한다. 실제40건의 경로 시험은 검색 노드 연결과 상태·필터 계약을 확인한 것이며, 답변은 별도의 실제 `answer_standalone` 대조다. 실제 그래프의 ANSWER/T16 폴백 통합 완료 증거로 확대하지 않는다. 팩터리의 rewrite off·무리랭크 기본값은 그대로다.
 
@@ -94,13 +94,24 @@ T13-2 그래프에는 이 노드 매핑을 `create_router_graph(node_overrides=.
 
 [첫 재개](../data/eval/t15-rerank/t17_v5_resumed_20261020/manifest.json)는123건 재사용 후3건이 새로 성공하고 Q093 B0의120초 시간 초과에서 즉시 중단했다. 전체 테스트를 마친 뒤 [한 차례 후속 재개](../data/eval/t15-rerank/t17_v5_resumed_20261020_final/manifest.json)는126건을 재사용하고3건이 새로 성공했으며 Q096 T15의120초 시간 초과에서 즉시 멈췄다. 두 재개 모두 새 요청4회이며, 오류 뒤 나머지 질문을 호출하지 않았다. 추가 전체 재생성은 없다.
 
-최신 기록은130행(성공129·오류1)이고 필수138개 중8개는 호출하지 않았다. 미성공9개는 **Q096 T15와 Q097~Q100의 B0/T15**다. [원문 검토](../data/eval/t15-rerank/review_v5_resumed_20261020_final/review_meta.json)는 성공129건을 검토했고 오류1건은 PENDING이다. 미실행8건의 검토나 응답을 채워 넣지 않았다. Q010·Q077의 제품 범위는 검토한 실제 양쪽 응답에서 보존됐지만, 부정5개 전체의 답변 게이트는 아직 완료되지 않았다.
+재개 전 기록(`4d010a367` 시점)은130행(성공129·오류1)이고 필수138개 중8개는 호출하지 않았다. 당시 미성공9개는 **Q096 T15와 Q097~Q100의 B0/T15**였다. [원문 검토](../data/eval/t15-rerank/review_v5_resumed_20261020_final/review_meta.json)는 성공129건을 검토했고 오류1건은 PENDING이다. 미실행8건의 검토나 응답을 채워 넣지 않았다. Q010·Q077의 제품 범위는 검토한 실제 양쪽 응답에서 보존됐지만, 부정5개 전체의 답변 게이트는 아직 완료되지 않았다.
 
-[재사용123건 독립 대조](../data/eval/t15-rerank/audit_v5/resume_reuse_integrity.json)와 각 재개의 원본 연결 감사는 통과했다. [최종 명령 판정](../data/eval/t15-rerank/audit_v5/t17_final_command.json)은 필수 쌍 누락으로 exit1/FAIL이며, 검색 비저하를 실제 답변 전체 합격으로 확대하지 않는다. 봉인한 과거 실행의 PENDING/FAIL도 소급 변경하지 않는다.
+[재사용123건 독립 대조](../data/eval/t15-rerank/audit_v5/resume_reuse_integrity.json)와 각 재개의 원본 연결 감사는 통과했다. [당시 명령 판정](../data/eval/t15-rerank/audit_v5/t17_final_command.json)은 필수 쌍 누락으로 exit1/FAIL이며, 검색 비저하를 실제 답변 전체 합격으로 확대하지 않는다. 봉인한 과거 실행의 PENDING/FAIL도 소급 변경하지 않는다.
+
+
+### 남은9건 완료와 최종 감사
+
+성공129건의 원응답·요청·인용·코드 지문을 그대로 재사용하고, 남은9건만 이어 실행했다. [첫 후속 실행](../data/eval/t15-rerank/t17_v5_completed_20261020/manifest.json)은3건 성공 후 Q098 B0의120초 시간 초과, [두 번째](../data/eval/t15-rerank/t17_v5_complete_20261020_r2/manifest.json)는3건 성공 후 Q099 T15의120초 시간 초과에서 각각 즉시 멈췄다. [세 번째](../data/eval/t15-rerank/t17_v5_complete_20261020_r3/manifest.json)는남은3건만 성공했다. 실제 요청11회 중9회 성공·시간 초과2회이며, 성공한 답변의 중복 호출은0회다.
+
+최종 집계는69문항의 B0/T15 **138건: SUPPORTED122·UNSUPPORTED10·INSUFFICIENT_EVIDENCE6, 오류0**이다. [전체 주장 검토](../data/eval/t15-rerank/review_v5_complete_20261020/review_meta.json)는138건 검토·미검토0이다. Q010·Q077의 RawTherapee 제품 범위, 부정5문항의 양쪽 UNSUPPORTED, Q024·Q030·Q070 양쪽의 근거 부족 유지를 확인했다.
+
+[최종 감사](../data/eval/t15-rerank/audit_v6/answers.json)는 실제 제공처·모델·프롬프트, 원문 좌표·인용·현재/B0 답변 해시·재사용 계보를 검증해 **PASS/exit0**을 반환했다. [원본 보존 대조](../data/eval/t15-rerank/audit_v6/preservation.json)는129건의 입력 파일 경로 외 모든 필드가 같고, 신규 성공은 정확히누락9건임을 별도 확인한다. 과거 오류 행은 원본 실행에 남겨두고 최종 집계의 성공을 대체 생성으로 연결했다.
+
+[구현 점검](T15_review_20261020.md)에서 미응답 case의 부모 입력 연결·재사용 계보·실패 판정 출력의 결함을 재현하고 수정했다. 등록한23개 검색/생성 코드 파일과 기존 protocol은 변경하지 않았다. 과거 도구 바이트는 Git으로 검증하고 새 재개 도구 원본은 실행과 함께 봉인한다.
 
 ## 검증과 재실행
 
-최신 구현의 전체 테스트 **1,002개·경고3개·332.86초**를 통과했다. 재개 전 검색 구현은997개·336.08초였으며, 결합/증거 연결 집중27개·기존 평가/감사64개·재개 집중5개도 통과했다. 경고는 Chroma와 추론 라이브러리의 폐기 예정 속성이다. [완료 조건](../GATES.md)은 검색 검증과 실제 답변 검증을 구분한다.
+최신 보완 구현의 전체 테스트 **1,015개·경고3개·334.60초**를 통과했다. 보완 전1,002개·332.86초의 기록도 보존한다. 재개 전 검색 구현은997개·336.08초였으며, 결합/증거 연결 집중27개·기존 평가/감사64개·재개 집중18개도 통과했다. 경고는 Chroma와 추론 라이브러리의 폐기 예정 속성이다. [완료 조건](../GATES.md)은 검색 검증과 실제 답변 검증을 구분한다.
 
 새 출력 폴더를 사용한다. 코드 지문이 바뀌면 새 prepare부터 시작하며 과거 protocol을 수정하지 않는다.
 
@@ -116,15 +127,14 @@ $PY scripts/eval_t15_rerank.py run --protocol data/eval/t15-rerank/plan_next/pro
 
 실제 검토 파일은 봉인한 실행 폴더 밖에 두고 `check --manual-reviews <새 검토 파일> --audit-output <새 감사 파일>`로 연결한다. T23은 고정100문항에서 RAGAS 지표를 측정하는 후속 작업이며 독립 홀드아웃 평가로 부르지 않는다. 별도 최종 스택 선정의 독립 평가와 T16/CP3 통합 증거도 이 반복 튜닝으로 대체하지 않는다.
 
-이미 실제 답변 기록이 있다면 위 `--phase t17` 전체 실행을 반복하지 않는다. 아래 명령은 저장된 성공을 검증하고 누락만 실행하며, 이후 재개에서도 같은 규칙을 적용한다. `--execute-missing`을 생략하면 오프라인 계획만 기록하고 생성하지 않는다.
+이미 실제 답변 기록이 있다면 위 `--phase t17` 전체 실행을 반복하지 않는다. 반드시 성공이 가장 많이 모인 최신 집계 실행을 입력으로 사용한다. 아래 명령은 현재 성공138건의 재사용과 누락0건을 확인하는 오프라인 계획이며 생성하지 않는다. 이후 별도 실행에 누락이 있을 때만 그 최신 집계를 입력으로 `--execute-missing`을 붙인다.
 
 ```bash
-$PY scripts/resume_t15_answers.py --source-run data/eval/t15-rerank/t17_v5 --source-run data/eval/t15-rerank/t17_v5_retry_20261019 --output-dir data/eval/t15-rerank/t17_resume_next --execute-missing
-$PY scripts/resume_t15_answers.py --check-run data/eval/t15-rerank/t17_resume_next --manual-reviews data/eval/t15-rerank/review_resume_next/manual_reviews.json
+$PY scripts/resume_t15_answers.py --source-run data/eval/t15-rerank/t17_v5_complete_20261020_r3 --output-dir data/eval/t15-rerank/resume_plan_next
 ```
 
-현재 남은9건의 재개 입력은 최신 집계 실행 하나면 충분하다. 아래 명령의 성공129건은 검증·재사용하며 다시 호출하지 않는다. 오류가 발생하면 중단하므로, 미완료가 생겼을 때는 새 집계 실행을 다음 재개의 입력으로 사용한다.
+최종 집계의 성공138건은 모두 보존돼 있다. 같은 입력의 완료 여부는 아래 저장 증거 감사로 확인하며 답변을 다시 생성하지 않는다. 이후 별도 실행에 누락이 생긴 경우만 그 최신 집계 실행을 `--source-run`으로 주어 재개한다.
 
 ```bash
-$PY scripts/resume_t15_answers.py --source-run data/eval/t15-rerank/t17_v5_resumed_20261020_final --output-dir data/eval/t15-rerank/t17_resume_next --execute-missing
+$PY scripts/resume_t15_answers.py --check-run data/eval/t15-rerank/t17_v5_complete_20261020_r3 --manual-reviews data/eval/t15-rerank/review_v5_complete_20261020/manual_reviews.json
 ```

@@ -1,0 +1,25 @@
+{
+  "schema_version": 3,
+  "phase": "t17",
+  "protocol_path": "data/eval/t15-rerank/plan_v5/protocol.json",
+  "protocol_sha256": "d79eb3a838113f7e00988b0ad44d0ee79d97afb3fab88649a58382052977bcb0",
+  "artifacts": {
+    "answer_records.jsonl": "76058c6a8406e85065c1dad5d275dfd5307f28e39386faa4f17a91532f513bd1",
+    "cases.json": "01b739e144d6d82d1c4b1851a613e5cecad531b95165f29dd3f29149ec1451e4",
+    "origins.json": "ea9ee49fbb93b320c6ef47b175dcaf15e8ec027aa33cb0e98dfb371fe7b9fcae",
+    "resume_plan.json": "3b564b74140b397b6eb4dd64cd8932ecdf47e604ae5cc69662df9c3864664513"
+  },
+  "retrieval_run": "data/eval/t15-rerank/regression_v5",
+  "retrieval_manifest_sha256": "2d39a9c5f4693172c1a94b41157da20e8f2fa0f27bba6aa377e659591a626c52",
+  "selected_path": "data/eval/t15-rerank/grid_v5/selected_condition.json",
+  "selected_sha256": "ece0719ba81e7e2a46bbf75c4ee15b743cc97015ea1eb5959581de39ab0854d1",
+  "resumption": {
+    "helper_sha256": "65c963c791d8eeeea73addc2a62382e79557d0fda39bf71d4b22b0f0bb507aee",
+    "sources": [
+      {
+        "path": "data/eval/t15-rerank/t17_v5_resumed_20261020_final",
+        "manifest_sha256": "290e9cfd49c28d220b80d8d0fae660e039419ea05243eadc96cef0b6c05f5a6e"
+      }
+    ]
+  }
+}

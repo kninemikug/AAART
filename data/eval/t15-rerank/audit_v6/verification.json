@@ -1,0 +1,85 @@
+{
+  "date": "2026-10-20",
+  "overall_verdict": "PASS",
+  "adoption_status": "PASS",
+  "scope": "Task15 명시 연결 설정의 검색·실제 답변 채택 게이트. 서비스 배포와 T16/CP3는 별도.",
+  "search_code_commit": "7c78e7893199ca5dcd6bbbc898597ed7e618f12a",
+  "resume_hardening_commit": "08e484294",
+  "registered_code_unchanged": 23,
+  "tests": {
+    "passed": 1015,
+    "warnings": 3,
+    "seconds": 334.6,
+    "exit_code": 0,
+    "focused_resume_tests": 18,
+    "pre_fix_failure_reproductions": 8
+  },
+  "grid": {
+    "conditions": 720,
+    "observations": 144000,
+    "summary_verified": true,
+    "selected_condition": "R3_c20_k5_min0.5_w0.25",
+    "input_questions": 100,
+    "independent_evaluation": false
+  },
+  "regression": {
+    "fresh_search_and_score_records": 600,
+    "repeats": 3,
+    "routes": 40,
+    "status": "PASS",
+    "new_audit": "stored_records_only"
+  },
+  "answers": {
+    "query_count": 69,
+    "record_count": 138,
+    "reviewed": 138,
+    "pending": 0,
+    "errors": 0,
+    "statuses": {
+      "SUPPORTED": 122,
+      "INSUFFICIENT_EVIDENCE": 6,
+      "UNSUPPORTED": 10
+    },
+    "preserved_successes": 129,
+    "new_successes": 9,
+    "new_attempts": 11,
+    "new_timeouts": 2,
+    "successful_regeneration_count": 0,
+    "strict_audit_exit_code": 0,
+    "cases_sha256": "01b739e144d6d82d1c4b1851a613e5cecad531b95165f29dd3f29149ec1451e4",
+    "records_sha256": "1de9f658e6634c12ad889bf5e175d11ff47acfcc49e2a051c2876871c727bf79",
+    "manual_reviews_sha256": "8680c6d9ba31bee63b6a4f3dd20820f0cbebf6639ab51383123ec0550a6650a2"
+  },
+  "gates": {
+    "G0": {
+      "status": "PASS",
+      "detail": "기준선 원시 결과 대조"
+    },
+    "G1": {
+      "status": "PASS",
+      "detail": "실제 그래프 경로40건·필터·상태 검증"
+    },
+    "G2": {
+      "status": "PASS",
+      "detail": "양경로·전체/출처/Slice 1 비저하"
+    },
+    "G3": {
+      "status": "PASS",
+      "detail": "B 순위저하 0건·A 순위저하 0건"
+    },
+    "G4": {
+      "status": "PASS",
+      "detail": "전수 기록·집중12개 검증"
+    },
+    "G5": {
+      "status": "PASS",
+      "detail": "실제69문항138답변·전체주장/인용/제품범위검토 및 원본계보감사PASS"
+    }
+  },
+  "remaining_scope": [
+    "B Q024/Q030/Q070 top5 미도달",
+    "외부 실제 생성120초 시간 초과 원인 미확정",
+    "T16/그래프 전체 ANSWER 연결/CP3",
+    "별도 최종 스택 선정 독립 평가와 T23"
+  ]
+}

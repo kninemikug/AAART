@@ -1,0 +1,27 @@
+{
+  "schema_version": 3,
+  "phase": "t17",
+  "protocol_path": "data/eval/t15-rerank/plan_v5/protocol.json",
+  "protocol_sha256": "d79eb3a838113f7e00988b0ad44d0ee79d97afb3fab88649a58382052977bcb0",
+  "artifacts": {
+    "answer_records.jsonl": "1de9f658e6634c12ad889bf5e175d11ff47acfcc49e2a051c2876871c727bf79",
+    "cases.json": "01b739e144d6d82d1c4b1851a613e5cecad531b95165f29dd3f29149ec1451e4",
+    "origins.json": "8b119dd6de84fd8797d54ea247da3fb08cb7ea5f56005f204fd0c196c72bb10f",
+    "resume_helper.py": "32be7925409604540302f7dfecf9009e2f4de3f5adfe10d00f3d8013a77e90dd",
+    "resume_plan.json": "4662d412256c9488328909241861de4364bf718c25f12081994704286d62d806"
+  },
+  "retrieval_run": "data/eval/t15-rerank/regression_v5",
+  "retrieval_manifest_sha256": "2d39a9c5f4693172c1a94b41157da20e8f2fa0f27bba6aa377e659591a626c52",
+  "selected_path": "data/eval/t15-rerank/grid_v5/selected_condition.json",
+  "selected_sha256": "ece0719ba81e7e2a46bbf75c4ee15b743cc97015ea1eb5959581de39ab0854d1",
+  "resumption": {
+    "helper_sha256": "32be7925409604540302f7dfecf9009e2f4de3f5adfe10d00f3d8013a77e90dd",
+    "helper_source": "resume_helper.py",
+    "sources": [
+      {
+        "path": "data/eval/t15-rerank/t17_v5_complete_20261020_r2",
+        "manifest_sha256": "e5ec0a349115194969ead9cfc384f120a9a0e5f0add7f2c422d49e7cb158c85b"
+      }
+    ]
+  }
+}

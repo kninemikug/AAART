@@ -1,0 +1,13 @@
+{
+  "resumption": {
+    "reused_record_count": 135,
+    "fresh_attempt_count": 3,
+    "missing_count": 0
+  },
+  "overall_verdict": "PASS",
+  "exit_code": 0,
+  "adoption_status": "PASS",
+  "record_count": 138,
+  "failures": [],
+  "pending": []
+}
