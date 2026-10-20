@@ -280,4 +280,3 @@ def test_evaluate_gates_verdicts_and_exit_codes():
     )
     assert res_off_fail["overall_verdict"] == "FAIL"
     assert res_off_fail["gates"]["G2"]["status"] == "FAIL"
-
