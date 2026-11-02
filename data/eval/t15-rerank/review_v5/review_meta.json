@@ -1,0 +1,9 @@
+{
+  "run_dir": "data/eval/t15-rerank/t17_v5",
+  "answer_records_sha256": "66303786b3906d19620f48e03de6d09caad0867f49b952132d16c78515712083",
+  "review_notes_sha256": "377ea053bf123e4e3b780733089a40f2ae2c65687bc822e8535aca1c0b3cc553",
+  "manual_reviews_sha256": "da098f58044dd1cd17f7c2d389cf809f17991212a8ba25c1c44a7035f54edcc9",
+  "reviewed_record_count": 86,
+  "pending_record_count": 52,
+  "scope": "실제 응답과 원문에 대한 검토 기록. 생성 오류는 미검토로 보존하며 전체 합격을 의미하지 않음."
+}

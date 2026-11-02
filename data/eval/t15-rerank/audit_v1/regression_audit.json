@@ -1,0 +1,203 @@
+{
+  "run_dir": "/Users/user/orca/workspaces/AAART/T15-rerank/data/eval/t15-rerank/regression_v1",
+  "validated_at": "2026-10-16T09:04:23.276618+00:00",
+  "record_count": 200,
+  "schema_violations": [],
+  "on_metrics": {
+    "positive_count": 95,
+    "negative_count": 5,
+    "negative_counter_retrieved_count": 5,
+    "total": {
+      "count": 95,
+      "precision": 0.2770175438596491,
+      "recall": 0.968421052631579,
+      "hit_at_5": 0.968421052631579,
+      "mrr_at_5": 0.9336842105263158,
+      "micro_precision": 0.24815724815724816,
+      "micro_recall": 0.9711538461538461
+    },
+    "rawpedia": {
+      "count": 80,
+      "precision": 0.22729166666666667,
+      "recall": 0.9625,
+      "hit_at_5": 0.9625,
+      "mrr_at_5": 0.92125,
+      "micro_precision": 0.212707182320442,
+      "micro_recall": 0.9625
+    },
+    "github": {
+      "count": 15,
+      "precision": 0.5422222222222222,
+      "recall": 1.0,
+      "hit_at_5": 1.0,
+      "mrr_at_5": 1.0,
+      "micro_precision": 0.5333333333333333,
+      "micro_recall": 1.0
+    },
+    "slice1": {
+      "count": 14,
+      "precision": 0.3261904761904762,
+      "recall": 1.0,
+      "hit_at_5": 1.0,
+      "mrr_at_5": 1.0,
+      "micro_precision": 0.2982456140350877,
+      "micro_recall": 1.0
+    }
+  },
+  "off_metrics": {
+    "positive_count": 95,
+    "negative_count": 5,
+    "negative_counter_retrieved_count": 5,
+    "total": {
+      "count": 95,
+      "precision": 0.25859649122807016,
+      "recall": 0.8842105263157894,
+      "hit_at_5": 0.8842105263157894,
+      "mrr_at_5": 0.8249122807017543,
+      "micro_precision": 0.23076923076923078,
+      "micro_recall": 0.8942307692307693
+    },
+    "rawpedia": {
+      "count": 80,
+      "precision": 0.20541666666666666,
+      "recall": 0.8625,
+      "hit_at_5": 0.8625,
+      "mrr_at_5": 0.7920833333333334,
+      "micro_precision": 0.19273743016759776,
+      "micro_recall": 0.8625
+    },
+    "github": {
+      "count": 15,
+      "precision": 0.5422222222222222,
+      "recall": 1.0,
+      "hit_at_5": 1.0,
+      "mrr_at_5": 1.0,
+      "micro_precision": 0.5333333333333333,
+      "micro_recall": 1.0
+    },
+    "slice1": {
+      "count": 14,
+      "precision": 0.2952380952380952,
+      "recall": 0.8571428571428571,
+      "hit_at_5": 0.8571428571428571,
+      "mrr_at_5": 0.8214285714285714,
+      "micro_precision": 0.2727272727272727,
+      "micro_recall": 0.8823529411764706
+    }
+  },
+  "on_regressions_count": 5,
+  "on_regressions": [
+    [
+      "Q003",
+      1,
+      2
+    ],
+    [
+      "Q012",
+      1,
+      5
+    ],
+    [
+      "Q057",
+      2,
+      null
+    ],
+    [
+      "Q074",
+      1,
+      2
+    ],
+    [
+      "Q075",
+      1,
+      2
+    ]
+  ],
+  "off_regressions_count": 11,
+  "off_regressions": [
+    [
+      "Q007",
+      1,
+      3
+    ],
+    [
+      "Q014",
+      1,
+      null
+    ],
+    [
+      "Q017",
+      1,
+      2
+    ],
+    [
+      "Q041",
+      1,
+      2
+    ],
+    [
+      "Q048",
+      1,
+      4
+    ],
+    [
+      "Q049",
+      1,
+      4
+    ],
+    [
+      "Q057",
+      1,
+      3
+    ],
+    [
+      "Q074",
+      1,
+      null
+    ],
+    [
+      "Q075",
+      1,
+      5
+    ],
+    [
+      "Q076",
+      5,
+      null
+    ],
+    [
+      "Q080",
+      1,
+      2
+    ]
+  ],
+  "gate_verdicts": {
+    "G0": {
+      "status": "PASS",
+      "detail": "A0/B0 메트릭 및 원기록 100% 일치"
+    },
+    "G1": {
+      "status": "PASS",
+      "detail": "라우터 40 경로 전수 통과 (40/40)"
+    },
+    "G2": {
+      "status": "FAIL",
+      "detail": "집계 저하 발생: Off total prec (0.258596 < 0.259474), Off total recall (0.884211 < 0.905263), Off total hit@5 (0.884211 < 0.905263), Off total mrr@5 (0.824912 < 0.861754), Off rawpedia prec (0.205417 < 0.206458), Off rawpedia recall (0.862500 < 0.887500), Off rawpedia hit@5 (0.862500 < 0.887500), Off rawpedia mrr@5 (0.792083 < 0.835833), Off slice1 prec (0.295238 < 0.305952), Off slice1 recall (0.857143 < 0.928571), Off slice1 hit@5 (0.857143 < 0.928571), Off slice1 mrr@5 (0.821429 < 0.928571)"
+    },
+    "G3": {
+      "status": "FAIL",
+      "detail": "On 순위저하 5건 (['Q003', 'Q012', 'Q057', 'Q074', 'Q075']); Off 순위저하 11건 (['Q007', 'Q014', 'Q017', 'Q041', 'Q048', 'Q049', 'Q057', 'Q074', 'Q075', 'Q076', 'Q080'])"
+    },
+    "G4": {
+      "status": "PASS",
+      "detail": "100개 On/Off 전수, Slice 1, 집중 12개 현황 보고 작성 완료"
+    },
+    "G5": {
+      "status": "PASS",
+      "detail": "Slice 1 3회 반복 정확 일치 (prec=0.326190, rec=1.000000)"
+    }
+  },
+  "overall_verdict": "FAIL",
+  "exit_code": 1,
+  "adoption_status": "B0_MAINTAINED"
+}

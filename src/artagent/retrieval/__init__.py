@@ -9,6 +9,13 @@ from .provenance import (
     serialize_metadata,
     validate_provenance,
 )
+from .rerank import (
+    BM25Reranker,
+    CrossEncoderReranker,
+    RerankRecord,
+    RerankResult,
+    rerank_candidates,
+)
 from .store import RetrievalStore, open_store
 from .types import IndexReport, RetrievalSpec, SearchHit, SourceKey, load_spec
 
@@ -30,4 +37,9 @@ __all__ = [
     "embed_query",
     "RetrievalStore",
     "open_store",
+    "CrossEncoderReranker",
+    "BM25Reranker",
+    "RerankRecord",
+    "RerankResult",
+    "rerank_candidates",
 ]

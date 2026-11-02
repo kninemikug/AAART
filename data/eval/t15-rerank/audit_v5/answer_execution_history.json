@@ -1,0 +1,47 @@
+{
+  "runs": [
+    {
+      "path": "data/eval/t15-rerank/t17_v5",
+      "record_count": 138,
+      "actual_attempt_count": 138,
+      "actual_success_count": 86,
+      "error_count": 52,
+      "usage_limit_errors": 52,
+      "timeout_errors": 0,
+      "manifest_sha256": "fcf591e371841ea040622777423191865c2232dd2baac531f25462cc0895a5c6"
+    },
+    {
+      "path": "data/eval/t15-rerank/t17_v5_retry_20261019",
+      "record_count": 138,
+      "actual_attempt_count": 138,
+      "actual_success_count": 123,
+      "error_count": 15,
+      "usage_limit_errors": 15,
+      "timeout_errors": 0,
+      "manifest_sha256": "95e47845f87a7f742b57426f4c5833ea19618622137c9ec09792dd6866ee9400"
+    },
+    {
+      "path": "data/eval/t15-rerank/t17_v5_resumed_20261020",
+      "record_count": 127,
+      "actual_attempt_count": 4,
+      "actual_success_count": 3,
+      "error_count": 1,
+      "usage_limit_errors": 0,
+      "timeout_errors": 1,
+      "manifest_sha256": "5aa53764c8a780e4b676c14ecf33efdaa7548561455ae2a518622fc3a5fc17e5"
+    },
+    {
+      "path": "data/eval/t15-rerank/t17_v5_resumed_20261020_final",
+      "record_count": 130,
+      "actual_attempt_count": 4,
+      "actual_success_count": 3,
+      "error_count": 1,
+      "usage_limit_errors": 0,
+      "timeout_errors": 1,
+      "manifest_sha256": "290e9cfd49c28d220b80d8d0fae660e039419ea05243eadc96cef0b6c05f5a6e"
+    }
+  ],
+  "separate_probe_count": 1,
+  "all_attempts_including_probe": 285,
+  "fee": "실제 제공처 요금은 측정하지 않음. 호출 횟수를 요금으로 환산하지 않음."
+}

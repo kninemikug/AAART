@@ -1,0 +1,31 @@
+{
+  "verdict": "PASS",
+  "protocol_sha256": "d79eb3a838113f7e00988b0ad44d0ee79d97afb3fab88649a58382052977bcb0",
+  "frozen_search_code_commit": "7c78e7893199ca5dcd6bbbc898597ed7e618f12a",
+  "resume_helper_commit": "b56e63e5c",
+  "frozen_code_file_count": 23,
+  "current_registered_code_equal_to_frozen_commit": true,
+  "input_model_snapshot_hashes_verified": true,
+  "runs": {
+    "grid_v5": {
+      "manifest_sha256": "d0e629e24432d24cc4cc693363ee12418100f6aaa9a8b70e14bc5e067543dbfb",
+      "artifact_count": 10
+    },
+    "regression_v5": {
+      "manifest_sha256": "2d39a9c5f4693172c1a94b41157da20e8f2fa0f27bba6aa377e659591a626c52",
+      "artifact_count": 8
+    },
+    "t17_v5": {
+      "manifest_sha256": "fcf591e371841ea040622777423191865c2232dd2baac531f25462cc0895a5c6",
+      "artifact_count": 2
+    },
+    "t17_v5_retry_20261019": {
+      "manifest_sha256": "95e47845f87a7f742b57426f4c5833ea19618622137c9ec09792dd6866ee9400",
+      "artifact_count": 2
+    },
+    "t17_v5_resumed_20261020": {
+      "manifest_sha256": "5aa53764c8a780e4b676c14ecf33efdaa7548561455ae2a518622fc3a5fc17e5",
+      "artifact_count": 4
+    }
+  }
+}

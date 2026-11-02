@@ -1,0 +1,110 @@
+[
+  {
+    "condition_id": "R3_c20_k5_min0.5_w0.25",
+    "model": "R3",
+    "candidate_k": 20,
+    "top_k": 5,
+    "min_score": 0.5,
+    "rerank_weight": 0.25,
+    "on_metrics": {
+      "positive_count": 95,
+      "negative_count": 5,
+      "negative_counter_retrieved_count": 5,
+      "total": {
+        "count": 95,
+        "precision": 0.26842105263157895,
+        "recall": 0.968421052631579,
+        "hit_at_5": 0.968421052631579,
+        "mrr_at_5": 0.8947368421052632,
+        "micro_precision": 0.2422062350119904,
+        "micro_recall": 0.9711538461538461
+      },
+      "rawpedia": {
+        "count": 80,
+        "precision": 0.21708333333333335,
+        "recall": 0.9625,
+        "hit_at_5": 0.9625,
+        "mrr_at_5": 0.875,
+        "micro_precision": 0.20698924731182797,
+        "micro_recall": 0.9625
+      },
+      "github": {
+        "count": 15,
+        "precision": 0.5422222222222222,
+        "recall": 1.0,
+        "hit_at_5": 1.0,
+        "mrr_at_5": 1.0,
+        "micro_precision": 0.5333333333333333,
+        "micro_recall": 1.0
+      },
+      "slice1": {
+        "count": 14,
+        "precision": 0.32023809523809527,
+        "recall": 1.0,
+        "hit_at_5": 1.0,
+        "mrr_at_5": 0.9642857142857143,
+        "micro_precision": 0.29310344827586204,
+        "micro_recall": 1.0
+      }
+    },
+    "off_metrics": {
+      "positive_count": 95,
+      "negative_count": 5,
+      "negative_counter_retrieved_count": 5,
+      "total": {
+        "count": 95,
+        "precision": 0.26859649122807017,
+        "recall": 0.9157894736842105,
+        "hit_at_5": 0.9157894736842105,
+        "mrr_at_5": 0.8675438596491228,
+        "micro_precision": 0.24552429667519182,
+        "micro_recall": 0.9230769230769231
+      },
+      "rawpedia": {
+        "count": 80,
+        "precision": 0.21729166666666666,
+        "recall": 0.9,
+        "hit_at_5": 0.9,
+        "mrr_at_5": 0.8427083333333334,
+        "micro_precision": 0.20809248554913296,
+        "micro_recall": 0.9
+      },
+      "github": {
+        "count": 15,
+        "precision": 0.5422222222222222,
+        "recall": 1.0,
+        "hit_at_5": 1.0,
+        "mrr_at_5": 1.0,
+        "micro_precision": 0.5333333333333333,
+        "micro_recall": 1.0
+      },
+      "slice1": {
+        "count": 14,
+        "precision": 0.3190476190476191,
+        "recall": 0.9285714285714286,
+        "hit_at_5": 0.9285714285714286,
+        "mrr_at_5": 0.9285714285714286,
+        "micro_precision": 0.32,
+        "micro_recall": 0.9411764705882353
+      }
+    },
+    "on_regressions": [],
+    "off_regressions": [],
+    "focus_ranks": {
+      "Q017": 2,
+      "Q024": null,
+      "Q025": 2,
+      "Q026": 1,
+      "Q030": null,
+      "Q033": 2,
+      "Q041": 2,
+      "Q053": 3,
+      "Q055": 2,
+      "Q057": 2,
+      "Q070": null,
+      "Q072": 1
+    },
+    "G2": true,
+    "G3": true
+  }
+]

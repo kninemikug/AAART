@@ -1,0 +1,144 @@
+{
+  "plan_version": "t15-v1",
+  "created_at": "2026-10-16T03:10:56.490830+00:00",
+  "input_files": {
+    "queries": "/Users/user/orca/workspaces/AAART/T15-rerank/docs/search_eval_queries.json",
+    "queries_sha256": "91b7fb50b23c0514d3e3d24579cad32a07dc6dcc3c8a40774b9e2e9da0fa14e8",
+    "reference": "/Users/user/orca/workspaces/AAART/T15-rerank/docs/T08_2_t9_handoff_reference.json",
+    "reference_sha256": "2c7081ba6a7c37b00735b0be2ef362f5b0c2a86cd41fe97bbb2a3b5ebdc195bc",
+    "ab_records": "/Users/user/orca/workspaces/AAART/T15-rerank/data/eval/t14-conn/conn_20261015_pr/ab_records.jsonl",
+    "ab_records_sha256": "96f11d6d63f41896c1b8cf028f52b0932d121d3d5ad4093c69a33802ea0dfd0e",
+    "store_snapshot": "/Users/user/orca/workspaces/AAART/T15-rerank/data/eval/t14-conn/conn_20261015_pr/store_snapshot.json",
+    "snapshot_fingerprint": "09e7ce0af1a4744bbb02f0d07eb716b5f0a4e2ba6d1e20d7a727707c8ffcbae6"
+  },
+  "code_sha256": {
+    "src/artagent/retrieval/rerank.py": "3fa91b90d6f1767733bc5a7a1c904a5bc010288011677b8a955121dfef5297b1",
+    "src/artagent/retrieval/store.py": "405f847cec288a5790a25ed0ff8b05eb0c5b5d6314d31f32ad3b7599a7fbb3df",
+    "src/artagent/graph/search.py": "c80e67cfdaa311558605423f2594175b1c4a19b77a19d0fcb23c976452b57ec6"
+  },
+  "environment": {
+    "python_executable": "/Users/user/Workspace/Programming/Projects/AAART/venv/bin/python3",
+    "python_version": "3.14.3 (main, Feb  3 2026, 15:32:20) [Clang 17.0.0 (clang-1700.6.3.2)]",
+    "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+    "torch_version": "2.14.0"
+  },
+  "baseline_metrics": {
+    "B0": {
+      "positive_count": 95,
+      "negative_count": 5,
+      "negative_counter_retrieved_count": 0,
+      "total": {
+        "count": 95,
+        "precision": 0.2673684210526316,
+        "recall": 0.968421052631579,
+        "hit_at_5": 0.968421052631579,
+        "mrr_at_5": 0.880701754385965,
+        "micro_precision": 0.24162679425837322,
+        "micro_recall": 0.9711538461538461
+      },
+      "rawpedia": {
+        "count": 80,
+        "precision": 0.21583333333333332,
+        "recall": 0.9625,
+        "hit_at_5": 0.9625,
+        "mrr_at_5": 0.8583333333333334,
+        "micro_precision": 0.2064343163538874,
+        "micro_recall": 0.9625
+      },
+      "github": {
+        "count": 15,
+        "precision": 0.5422222222222222,
+        "recall": 1.0,
+        "hit_at_5": 1.0,
+        "mrr_at_5": 1.0,
+        "micro_precision": 0.5333333333333333,
+        "micro_recall": 1.0
+      },
+      "slice1": {
+        "count": 14,
+        "precision": 0.32023809523809527,
+        "recall": 1.0,
+        "hit_at_5": 1.0,
+        "mrr_at_5": 0.9285714285714286,
+        "micro_precision": 0.29310344827586204,
+        "micro_recall": 1.0
+      }
+    },
+    "A0": {
+      "positive_count": 95,
+      "negative_count": 5,
+      "negative_counter_retrieved_count": 0,
+      "total": {
+        "count": 95,
+        "precision": 0.2594736842105263,
+        "recall": 0.9052631578947369,
+        "hit_at_5": 0.9052631578947369,
+        "mrr_at_5": 0.8617543859649122,
+        "micro_precision": 0.22946859903381642,
+        "micro_recall": 0.9134615384615384
+      },
+      "rawpedia": {
+        "count": 80,
+        "precision": 0.20645833333333333,
+        "recall": 0.8875,
+        "hit_at_5": 0.8875,
+        "mrr_at_5": 0.8358333333333332,
+        "micro_precision": 0.19241192411924118,
+        "micro_recall": 0.8875
+      },
+      "github": {
+        "count": 15,
+        "precision": 0.5422222222222222,
+        "recall": 1.0,
+        "hit_at_5": 1.0,
+        "mrr_at_5": 1.0,
+        "micro_precision": 0.5333333333333333,
+        "micro_recall": 1.0
+      },
+      "slice1": {
+        "count": 14,
+        "precision": 0.3059523809523809,
+        "recall": 0.9285714285714286,
+        "hit_at_5": 0.9285714285714286,
+        "mrr_at_5": 0.9285714285714286,
+        "micro_precision": 0.27586206896551724,
+        "micro_recall": 0.9411764705882353
+      }
+    }
+  },
+  "candidate_models": {
+    "R1": "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1",
+    "R2": "cross-encoder/ms-marco-MiniLM-L6-v2",
+    "R3": "lexical_bm25"
+  },
+  "grid_search_space": {
+    "candidate_k": [
+      20
+    ],
+    "top_k": [
+      3,
+      5,
+      10,
+      20
+    ],
+    "min_score": [
+      null,
+      0.0,
+      0.2,
+      0.5,
+      0.7
+    ],
+    "rewrites": [
+      "on",
+      "off"
+    ]
+  },
+  "gates": {
+    "G0": "A0/B0 메트릭 및 원기록 해시 100% 일치",
+    "G1": "기본 호출 호환, 라우터 40 경로 유지, 예외/오류 및 출처 필터 보존",
+    "G2": "전체, RawPedia, GitHub, Slice 1 문서 precision/recall 및 Hit@5/MRR@5 비저하",
+    "G3": "개별 최초 골드 순위 저하 0건 및 부정 질문 반증 보존",
+    "G4": "100개 On/Off 전수, Slice 1 대조, 집중 12개 복구 현황 보고",
+    "G5": "3회 반복 재현, T17 핵심 31개 답변/인용 영향 검증 완료"
+  }
+}

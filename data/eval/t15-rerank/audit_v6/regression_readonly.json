@@ -1,0 +1,34 @@
+{
+  "gates": {
+    "G0": {
+      "status": "PASS",
+      "detail": "기준선 원시 결과 대조"
+    },
+    "G1": {
+      "status": "PASS",
+      "detail": "실제 그래프 경로40건·필터·상태 검증"
+    },
+    "G2": {
+      "status": "PASS",
+      "detail": "양경로·전체/출처/Slice 1 비저하"
+    },
+    "G3": {
+      "status": "PASS",
+      "detail": "B 순위저하 0건·A 순위저하 0건"
+    },
+    "G4": {
+      "status": "PASS",
+      "detail": "전수 기록·집중12개 검증"
+    },
+    "G5": {
+      "status": "PENDING",
+      "detail": "전체200개×3회=PASS; 실제 답변/인용·수동 검토=PENDING"
+    }
+  },
+  "overall_verdict": "PENDING",
+  "exit_code": 2,
+  "adoption_status": "B0_MAINTAINED",
+  "violations": [],
+  "record_count": 600,
+  "repeated": "PASS"
+}

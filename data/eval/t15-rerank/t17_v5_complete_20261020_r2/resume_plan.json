@@ -1,0 +1,32 @@
+{
+  "required": 138,
+  "reused": 132,
+  "missing": [
+    [
+      "Q098",
+      "B0"
+    ],
+    [
+      "Q098",
+      "T15"
+    ],
+    [
+      "Q099",
+      "B0"
+    ],
+    [
+      "Q099",
+      "T15"
+    ],
+    [
+      "Q100",
+      "B0"
+    ],
+    [
+      "Q100",
+      "T15"
+    ]
+  ],
+  "execute_missing": true,
+  "stop_after_first_error": true
+}

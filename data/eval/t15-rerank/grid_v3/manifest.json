@@ -1,0 +1,11 @@
+{
+  "schema_version": 3,
+  "phase": "grid",
+  "protocol_path": "data/eval/t15-rerank/plan_v3_final/protocol.json",
+  "protocol_sha256": "c57f0677818c53114107d2efa169aa3302dc3779001439b43749faeeca1b8fb2",
+  "artifacts": {
+    "baseline_records.jsonl.gz": "2e1d83b0b1891cdac46eaf796acfb8f615e8204c791f5f398435f05f4b35de1d",
+    "failure.json": "101aacf8a01a45f80905d702f6b5d1515c508b6d52e74b6dfcf2dc9820177a03"
+  },
+  "execution_error": true
+}

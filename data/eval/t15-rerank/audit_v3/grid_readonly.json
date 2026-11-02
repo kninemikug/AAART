@@ -1,0 +1,70 @@
+{
+  "result": {
+    "overall_verdict": "FAIL",
+    "exit_code": 1,
+    "selected_condition": null,
+    "adoption_status": "B0_MAINTAINED",
+    "conditions": 120,
+    "record_count": 24000,
+    "summary_verified": true
+  },
+  "no_inference": true,
+  "inputs_unchanged": true,
+  "files": {
+    "conditions.json": {
+      "sha256": "edf836a2eba782c04453b6366e1ed89ff320beb72dbb82a184ace454317a1a1d",
+      "size": 15531,
+      "mtime_ns": 1792150747104125776
+    },
+    "grid_records.jsonl": {
+      "sha256": "bb3dda1138a4ef2773ca672dc8f2d0e83c352c3dd5b635d7451170a009848a6d",
+      "size": 315397,
+      "mtime_ns": 1792150747107302372
+    },
+    "report.md": {
+      "sha256": "529cb4e9494fea3d8e4693a0bd260130916b9eacafcb1856873f30f993826931",
+      "size": 184,
+      "mtime_ns": 1792150777659478547
+    },
+    "baseline_records.jsonl.gz": {
+      "sha256": "3f1f8c1d6b6f58d44635f9e0e49b5841540ad62776f2c5ac3cdc300dc999aa5b",
+      "size": 840143,
+      "mtime_ns": 1792148056101934389
+    },
+    "search_records.jsonl.gz": {
+      "sha256": "66ae54bb14ccabc93b3332fa56c51843cccb09dd732ac34135ec16b7eb749ef7",
+      "size": 1918804,
+      "mtime_ns": 1792150747101017097
+    },
+    "validation.json": {
+      "sha256": "4a5c83a1d8bd1ef7ef51d92b967313181562c1e25ba5a3eb0e67634d4838e585",
+      "size": 192,
+      "mtime_ns": 1792150777659357505
+    },
+    "manifest.json": {
+      "sha256": "52849cbc35b9843217be6435698cd9a830977704a298d6f83221ba8525cb2805",
+      "size": 1166,
+      "mtime_ns": 1792150777675675403
+    },
+    "score_records.jsonl.gz": {
+      "sha256": "3461db1ede4bd4092d541dfdad96fd9271c76452e4026f206092892d7fab5323",
+      "size": 8517862,
+      "mtime_ns": 1792150747100982930
+    },
+    "selected_condition.json": {
+      "sha256": "64f4eb8cc5be319ee0bd826b6e4251e8b185e31717a8942cfb416c7f4cce3092",
+      "size": 3972,
+      "mtime_ns": 1792150747107874374
+    },
+    "records.jsonl.gz": {
+      "sha256": "3711dfb3a7b69bc10fd1b072a2323ea456abf4b06cbd9d1f1bb9e89043b3d706",
+      "size": 5720074,
+      "mtime_ns": 1792150747100073301
+    },
+    "routes.jsonl": {
+      "sha256": "7c6f9bd7f3d3f688bfdde9153df388883d1d73014275627669300deb2fd812a2",
+      "size": 6859585,
+      "mtime_ns": 1792148056559266304
+    }
+  }
+}

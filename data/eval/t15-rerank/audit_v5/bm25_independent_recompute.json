@@ -1,0 +1,7 @@
+{
+  "scope": "실제 회귀600건의 BM25 원시 점수를 코퍼스154개에서 다시 계산. 검색·생성 호출 없음.",
+  "matched": true,
+  "recomputed_score_count": 9690,
+  "score_records_sha256": "0a1715111bc5f7967817340c9fc3041778b135f0ebc12f9bb2745d865ffd9dfd",
+  "corpus_fingerprint": "f0a4afa910d3843c1b779aa44cf49fd4396b408c09721533bc1df9b82108e8fa"
+}

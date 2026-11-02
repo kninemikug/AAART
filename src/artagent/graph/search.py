@@ -15,6 +15,7 @@ from ..retrieval.embedding import EncoderSession
 from ..retrieval.store import RetrievalStore
 from ..retrieval.types import SearchHit
 from ..retrieval.provenance import canonical_json_str, sha256_str
+from ..retrieval.rerank import RerankResult, rerank_candidates, fusion_score
 from .rewrite import build_preservation_constraints, prepare_search_input
 from .state import AgentState, ErrorInfo, Evidence, RetrievalBundle
 
@@ -151,13 +152,30 @@ def create_search_rawpedia_node(
     snapshot_ref: str = "",
     rewrite_enabled: bool = False,
     hyde_enabled: bool = False,
+    reranker: Optional[Any] = None,
+    candidate_k: int = 10,
+    top_k: int = 5,
+    min_score: Optional[float] = None,
+    rerank_weight: float = 1.0,
     observe: Optional[Callable[[dict[str, Any]], None]] = None,
 ) -> Callable[[AgentState], dict[str, Any]]:
     """SEARCH_RAWPEDIA 노드 팩토리. 비저하 채택 전에는 재작성을 명시적으로 켠다."""
 
-    return _create_search_node(store, session, source_type="rawpedia", generate=generate,
-                               snapshot_ref=snapshot_ref, rewrite_enabled=rewrite_enabled,
-                               hyde_enabled=hyde_enabled, observe=observe)
+    return _create_search_node(
+        store,
+        session,
+        source_type="rawpedia",
+        generate=generate,
+        snapshot_ref=snapshot_ref,
+        rewrite_enabled=rewrite_enabled,
+        hyde_enabled=hyde_enabled,
+        reranker=reranker,
+        candidate_k=candidate_k,
+        top_k=top_k,
+        min_score=min_score,
+        rerank_weight=rerank_weight,
+        observe=observe,
+    )
 
 
 def create_search_github_node(
@@ -168,22 +186,61 @@ def create_search_github_node(
     snapshot_ref: str = "",
     rewrite_enabled: bool = False,
     hyde_enabled: bool = False,
+    reranker: Optional[Any] = None,
+    candidate_k: int = 10,
+    top_k: int = 5,
+    min_score: Optional[float] = None,
+    rerank_weight: float = 1.0,
     observe: Optional[Callable[[dict[str, Any]], None]] = None,
 ) -> Callable[[AgentState], dict[str, Any]]:
     """SEARCH_GITHUB 노드 팩토리."""
 
-    return _create_search_node(store, session, source_type="github", generate=generate,
-                               snapshot_ref=snapshot_ref, rewrite_enabled=rewrite_enabled,
-                               hyde_enabled=hyde_enabled, observe=observe)
+    return _create_search_node(
+        store,
+        session,
+        source_type="github",
+        generate=generate,
+        snapshot_ref=snapshot_ref,
+        rewrite_enabled=rewrite_enabled,
+        hyde_enabled=hyde_enabled,
+        reranker=reranker,
+        candidate_k=candidate_k,
+        top_k=top_k,
+        min_score=min_score,
+        rerank_weight=rerank_weight,
+        observe=observe,
+    )
 
 
 def _create_search_node(
-    store: RetrievalStore, session: EncoderSession, *, source_type: str,
-    generate: Optional[Callable[[str], str]], snapshot_ref: str,
-    rewrite_enabled: bool, hyde_enabled: bool,
+    store: RetrievalStore,
+    session: EncoderSession,
+    *,
+    source_type: str,
+    generate: Optional[Callable[[str], str]],
+    snapshot_ref: str,
+    rewrite_enabled: bool,
+    hyde_enabled: bool,
+    reranker: Optional[Any] = None,
+    candidate_k: int = 10,
+    top_k: int = 5,
+    min_score: Optional[float] = None,
+    rerank_weight: float = 1.0,
     observe: Optional[Callable[[dict[str, Any]], None]],
 ) -> Callable[[AgentState], dict[str, Any]]:
     """검색 관측은 state 밖으로 전달하며 원본 SearchHit을 손실 없이 보존한다."""
+    fusion_score(0., 0., rerank_weight)
+    if reranker is None and rerank_weight != 1:
+        raise ValueError("rerank_weight 변경에는 리랭커가 필요합니다.")
+    if candidate_k <= 0 or top_k <= 0:
+        raise ValueError("candidate_k와 top_k는 양의 정수여야 합니다.")
+    if top_k > candidate_k:
+        raise ValueError(f"top_k({top_k})는 candidate_k({candidate_k})보다 클 수 없습니다.")
+    if reranker is None and min_score is not None:
+        raise ValueError("리랭커가 없는 조건에서는 min_score를 설정할 수 없습니다.")
+    if min_score is not None and not (0.0 <= min_score <= 1.0):
+        raise ValueError(f"min_score는 0.0과 1.0 사이여야 합니다: {min_score}")
+
     def search(state: AgentState) -> dict[str, Any]:
         node_name = "SEARCH_RAWPEDIA" if source_type == "rawpedia" else "SEARCH_GITHUB"
         trace = list(state.get("trace", []))
@@ -201,25 +258,60 @@ def _create_search_node(
         )
 
         hits: list[SearchHit] = []
+        candidate_hits: list[SearchHit] = []
+        rerank_res: Optional[RerankResult] = None
         search_calls = 0
         evidence_list: list[Evidence] = []
         error = None
         if search_input.status == "error":
             error = ErrorInfo(
-                    code="REWRITE_FAILED",
-                    message=f"Query rewrite failed: {search_input.error_category}: {search_input.error_message}",
-                    node=node_name,
-                    recoverable=False,
-                )
+                code="REWRITE_FAILED",
+                message=f"Query rewrite failed: {search_input.error_category}: {search_input.error_message}",
+                node=node_name,
+                recoverable=False,
+            )
         else:
             try:
                 filters: dict[str, Any] = {"source_type": source_type}
                 if source_type == "github":
                     filters["source_group_ids"] = target_group_ids
                 search_calls = 1
-                hits = store.search(search_input.search_query, session, **filters)
-                if any(hit.source_type != source_type or (target_group_ids and hit.source_group_id not in target_group_ids)
-                       for hit in hits):
+
+                if reranker is None and candidate_k == 10 and top_k == 5 and min_score is None:
+                    # 기존 10->5 B 기준선 호환 경로
+                    hits = store.search(search_input.search_query, session, **filters)
+                    candidate_hits = hits
+                else:
+                    if hasattr(store, "search_candidates"):
+                        candidate_hits = store.search_candidates(
+                            search_input.search_query,
+                            session,
+                            candidate_k=candidate_k,
+                            **filters,
+                        )
+                    else:
+                        candidate_hits = store.search(
+                            search_input.search_query, session, **filters
+                        )
+
+                    if reranker is not None:
+                        rerank_res = rerank_candidates(
+                            search_input.search_query,
+                            candidate_hits,
+                            reranker,
+                            top_k=top_k,
+                            min_score=min_score,
+                            rerank_weight=rerank_weight,
+                        )
+                        hits = rerank_res.selected_hits
+                    else:
+                        hits = candidate_hits[:top_k]
+
+                if any(
+                    hit.source_type != source_type
+                    or (target_group_ids and hit.source_group_id not in target_group_ids)
+                    for hit in hits
+                ):
                     raise ValueError("검색 출처·대상 글 계약 위반")
                 evidence_list = search_hits_to_evidences(hits)
             except Exception as ex:
@@ -232,14 +324,28 @@ def _create_search_node(
         if observe is not None:
             decision = state.get("decision")
             cursor = state.get("cursor", 0)
-            observe({
-                "node": node_name, "step_id": decision.plan[cursor].step_id if decision else "",
-                "source_type": source_type, "source_group_ids": target_group_ids,
-                "search_input": asdict(search_input), "hits": [asdict(hit) for hit in hits],
+            obs_payload: dict[str, Any] = {
+                "node": node_name,
+                "step_id": decision.plan[cursor].step_id if decision else "",
+                "source_type": source_type,
+                "source_group_ids": target_group_ids,
+                "search_input": asdict(search_input),
+                "hits": [asdict(hit) for hit in hits],
                 "evidences": [asdict(ev) for ev in evidence_list],
-                "search_call_count": search_calls, "elapsed_ms": (time.perf_counter() - started) * 1000,
+                "search_call_count": search_calls,
+                "elapsed_ms": (time.perf_counter() - started) * 1000,
                 "error": asdict(error) if error else None,
-            })
+                "candidate_k": candidate_k,
+                "top_k": top_k,
+                "min_score": min_score,
+                "rerank_weight": rerank_weight,
+            }
+            if candidate_hits:
+                obs_payload["candidates"] = [asdict(c) for c in candidate_hits]
+            if rerank_res is not None:
+                obs_payload["rerank"] = rerank_res.to_dict()
+            observe(obs_payload)
+
         if error is not None:
             return {"error": error, "trace": trace}
         bundle = RetrievalBundle(
@@ -266,6 +372,11 @@ def create_search_nodes(
     snapshot_ref: str = "",
     rewrite_enabled: bool = False,
     hyde_enabled: bool = False,
+    reranker: Optional[Any] = None,
+    candidate_k: int = 10,
+    top_k: int = 5,
+    min_score: Optional[float] = None,
+    rerank_weight: float = 1.0,
     observe: Optional[Callable[[dict[str, Any]], None]] = None,
 ) -> dict[str, Callable[[AgentState], dict[str, Any]]]:
     """SEARCH_RAWPEDIA 및 SEARCH_GITHUB 노드 override 매핑 생성."""
@@ -277,6 +388,11 @@ def create_search_nodes(
             snapshot_ref=snapshot_ref,
             rewrite_enabled=rewrite_enabled,
             hyde_enabled=hyde_enabled,
+            reranker=reranker,
+            candidate_k=candidate_k,
+            top_k=top_k,
+            min_score=min_score,
+            rerank_weight=rerank_weight,
             observe=observe,
         ),
         "SEARCH_GITHUB": create_search_github_node(
@@ -286,6 +402,11 @@ def create_search_nodes(
             snapshot_ref=snapshot_ref,
             rewrite_enabled=rewrite_enabled,
             hyde_enabled=hyde_enabled,
+            reranker=reranker,
+            candidate_k=candidate_k,
+            top_k=top_k,
+            min_score=min_score,
+            rerank_weight=rerank_weight,
             observe=observe,
         ),
     }

@@ -1,0 +1,40 @@
+{"rewrite_enabled": true, "case_id": "Q001", "query": "RawPedia 설명에서 Auto Levels는 무엇을 분석해 Exposure 설정을 조정하나요?", "status": "PASS", "hits_count": 5}
+{"rewrite_enabled": true, "case_id": "Q008", "query": "Tone Mapping 적용 후 만화 같은 과장된 외관(cartoonish appearance)이나 소프트 후광 문제가 발생할 때 어떤 옵션 값을 올려야 하나요?", "status": "PASS", "hits_count": 5}
+{"rewrite_enabled": true, "case_id": "Q010", "query": "Local Contrast 도구에서 Darkness Level과 Lightness Level 슬라이더는 각각 어떤 영역을 변경하며, 둘 다 0으로 설정하면 도구는 어떻게 동작하나요?", "status": "PASS", "hits_count": 5}
+{"rewrite_enabled": true, "case_id": "Q017", "query": "White Balance 도구의 temperature 슬라이더는 어떤 색상 축을 기준으로 이미지를 조절하나요?", "status": "PASS", "hits_count": 5}
+{"rewrite_enabled": true, "case_id": "Q018", "query": "RAW 이미지에서 화이트 밸런스가 RGB 채널 가중치로 변환될 때 클리핑 제어 방식과, Temperature correlation 알고리즘이 잘못된 결과를 낼 수 있는 조명 조건은 무엇인가요?", "status": "PASS", "hits_count": 5}
+{"rewrite_enabled": true, "case_id": "Q036", "query": "Dual Demosaic 방식(예: AMaZE+VNG4)의 영역 분할 장점과 연산상의 단점은 무엇인가요?", "status": "PASS", "hits_count": 5}
+{"rewrite_enabled": true, "case_id": "Q051", "query": "Noise Reduction 도구에서 휘도 노이즈(Luminance noise)와 색상 노이즈(Chrominance noise)에 대한 시각적 특성과 제거 필요성의 차이는 무엇인가요?", "status": "PASS", "hits_count": 5}
+{"rewrite_enabled": true, "case_id": "Q063", "query": "Spot Removal 도구에서 새로운 스팟을 추가할 때 마우스 조작 방법(Ctrl-click 및 드래그)은 무엇인가요?", "status": "PASS", "hits_count": 5}
+{"rewrite_enabled": true, "case_id": "Q072", "query": "RawTherapee에서 부분 처리 프로필(partial profile)을 적용할 때 Fill 모드와 Preserve 모드의 동작 차이 및 누락된 파라미터 처리 방식은 무엇인가요?", "status": "PASS", "hits_count": 5}
+{"rewrite_enabled": true, "case_id": "Q077", "query": "범용으로 재사용 가능한 처리 프로필을 만들 때 필요한 파라미터만 부분 저장(Ctrl+Save)하는 방법과, 다양한 사진 간 호환성을 위해 노출값 대신 Auto Levels 사용 및 불필요한 설정(WB, 노이즈 감소 등) 배제를 권장하는 이유는 무엇인가요?", "status": "PASS", "hits_count": 5}
+{"rewrite_enabled": true, "case_id": "Q084", "query": "GitHub Discussion #424 설명 기준, ART의 Film Simulation에서 LUT가 점 단위(point-wise) 연산만 지원하여 halation과 grain을 직접 포함하지 못하는 기술적 이유와 ART 내의 대체 도구 경로는 무엇인가요?", "status": "PASS", "hits_count": 2}
+{"rewrite_enabled": true, "case_id": "Q089", "query": "GitHub Discussion #494에서 Fedora 환경의 Flatpak 패키지로 설치한 ART가 홈 디렉토리 외의 로컬 디스크 드라이브에 접근하지 못할 때 제시된 의심 원인과 검증된 해결 방법은 무엇인가요?", "status": "PASS", "hits_count": 4}
+{"rewrite_enabled": true, "case_id": "Q092", "query": "GitHub Issue #516에서 Canon EOS R8 RAW 파일이 흰색으로 표시될 때 구형 빌드 스크립트로 생성한 자가 빌드와 AppImage 간의 동작 차이 및 썸네일 정상화를 위해 확인된 조치는 무엇인가요?", "status": "PASS", "hits_count": 4}
+{"rewrite_enabled": true, "case_id": "Q095", "query": "GitHub Issue #524에서 스팟 제거 활성화 후 100% 확대 시 발생하는 동결/크래시 버그의 구체적인 재현 절차와 개발자가 안내한 Debug 빌드 생성 옵션은 무엇인가요?", "status": "PASS", "hits_count": 6}
+{"rewrite_enabled": true, "case_id": "Q096", "query": "GitHub Issue #500 설명 기준으로, ART의 내보내기 대화상자에서 JPEG XL(JXL) 전용 품질 슬라이더를 활성화하여 압축 품질을 50으로 직접 설정하는 절차는 무엇인가요?", "status": "PASS", "hits_count": 2}
+{"rewrite_enabled": true, "case_id": "M01", "query": "화이트밸런스 어떻게 조절하고 바로 이 사진에 적용해줘.", "status": "PASS", "hits_count": 5}
+{"rewrite_enabled": true, "case_id": "M02", "query": "이 RAW에 노이즈 감소를 켜면 ART가 종료돼. 관련 보고와 우회 설정을 확인한 뒤 그 설정을 적용해 JPEG로 저장해줘.", "status": "PASS", "hits_count": 14}
+{"rewrite_enabled": true, "case_id": "M03", "query": "사진이 너무 노래요. 좀 봐주세요.", "status": "PASS", "hits_count": 5}
+{"rewrite_enabled": true, "case_id": "M04", "query": "노출을 +0.7 EV로 보정해서 JPEG로 저장해줘.", "status": "PASS", "hits_count": 5}
+{"rewrite_enabled": true, "case_id": "M05", "query": "화이트밸런스 조절 방법도 알려주고, ART에서 값을 바꿔도 미리보기가 갱신되지 않는 원인을 확인해줘. 파일에는 적용하지 마.", "status": "PASS", "hits_count": 14}
+{"rewrite_enabled": false, "case_id": "Q001", "query": "RawPedia 설명에서 Auto Levels는 무엇을 분석해 Exposure 설정을 조정하나요?", "status": "PASS", "hits_count": 5}
+{"rewrite_enabled": false, "case_id": "Q008", "query": "Tone Mapping 적용 후 만화 같은 과장된 외관(cartoonish appearance)이나 소프트 후광 문제가 발생할 때 어떤 옵션 값을 올려야 하나요?", "status": "PASS", "hits_count": 5}
+{"rewrite_enabled": false, "case_id": "Q010", "query": "Local Contrast 도구에서 Darkness Level과 Lightness Level 슬라이더는 각각 어떤 영역을 변경하며, 둘 다 0으로 설정하면 도구는 어떻게 동작하나요?", "status": "PASS", "hits_count": 5}
+{"rewrite_enabled": false, "case_id": "Q017", "query": "White Balance 도구의 temperature 슬라이더는 어떤 색상 축을 기준으로 이미지를 조절하나요?", "status": "PASS", "hits_count": 5}
+{"rewrite_enabled": false, "case_id": "Q018", "query": "RAW 이미지에서 화이트 밸런스가 RGB 채널 가중치로 변환될 때 클리핑 제어 방식과, Temperature correlation 알고리즘이 잘못된 결과를 낼 수 있는 조명 조건은 무엇인가요?", "status": "PASS", "hits_count": 5}
+{"rewrite_enabled": false, "case_id": "Q036", "query": "Dual Demosaic 방식(예: AMaZE+VNG4)의 영역 분할 장점과 연산상의 단점은 무엇인가요?", "status": "PASS", "hits_count": 5}
+{"rewrite_enabled": false, "case_id": "Q051", "query": "Noise Reduction 도구에서 휘도 노이즈(Luminance noise)와 색상 노이즈(Chrominance noise)에 대한 시각적 특성과 제거 필요성의 차이는 무엇인가요?", "status": "PASS", "hits_count": 5}
+{"rewrite_enabled": false, "case_id": "Q063", "query": "Spot Removal 도구에서 새로운 스팟을 추가할 때 마우스 조작 방법(Ctrl-click 및 드래그)은 무엇인가요?", "status": "PASS", "hits_count": 5}
+{"rewrite_enabled": false, "case_id": "Q072", "query": "RawTherapee에서 부분 처리 프로필(partial profile)을 적용할 때 Fill 모드와 Preserve 모드의 동작 차이 및 누락된 파라미터 처리 방식은 무엇인가요?", "status": "PASS", "hits_count": 5}
+{"rewrite_enabled": false, "case_id": "Q077", "query": "범용으로 재사용 가능한 처리 프로필을 만들 때 필요한 파라미터만 부분 저장(Ctrl+Save)하는 방법과, 다양한 사진 간 호환성을 위해 노출값 대신 Auto Levels 사용 및 불필요한 설정(WB, 노이즈 감소 등) 배제를 권장하는 이유는 무엇인가요?", "status": "PASS", "hits_count": 5}
+{"rewrite_enabled": false, "case_id": "Q084", "query": "GitHub Discussion #424 설명 기준, ART의 Film Simulation에서 LUT가 점 단위(point-wise) 연산만 지원하여 halation과 grain을 직접 포함하지 못하는 기술적 이유와 ART 내의 대체 도구 경로는 무엇인가요?", "status": "PASS", "hits_count": 2}
+{"rewrite_enabled": false, "case_id": "Q089", "query": "GitHub Discussion #494에서 Fedora 환경의 Flatpak 패키지로 설치한 ART가 홈 디렉토리 외의 로컬 디스크 드라이브에 접근하지 못할 때 제시된 의심 원인과 검증된 해결 방법은 무엇인가요?", "status": "PASS", "hits_count": 4}
+{"rewrite_enabled": false, "case_id": "Q092", "query": "GitHub Issue #516에서 Canon EOS R8 RAW 파일이 흰색으로 표시될 때 구형 빌드 스크립트로 생성한 자가 빌드와 AppImage 간의 동작 차이 및 썸네일 정상화를 위해 확인된 조치는 무엇인가요?", "status": "PASS", "hits_count": 4}
+{"rewrite_enabled": false, "case_id": "Q095", "query": "GitHub Issue #524에서 스팟 제거 활성화 후 100% 확대 시 발생하는 동결/크래시 버그의 구체적인 재현 절차와 개발자가 안내한 Debug 빌드 생성 옵션은 무엇인가요?", "status": "PASS", "hits_count": 6}
+{"rewrite_enabled": false, "case_id": "Q096", "query": "GitHub Issue #500 설명 기준으로, ART의 내보내기 대화상자에서 JPEG XL(JXL) 전용 품질 슬라이더를 활성화하여 압축 품질을 50으로 직접 설정하는 절차는 무엇인가요?", "status": "PASS", "hits_count": 2}
+{"rewrite_enabled": false, "case_id": "M01", "query": "화이트밸런스 어떻게 조절하고 바로 이 사진에 적용해줘.", "status": "PASS", "hits_count": 5}
+{"rewrite_enabled": false, "case_id": "M02", "query": "이 RAW에 노이즈 감소를 켜면 ART가 종료돼. 관련 보고와 우회 설정을 확인한 뒤 그 설정을 적용해 JPEG로 저장해줘.", "status": "PASS", "hits_count": 14}
+{"rewrite_enabled": false, "case_id": "M03", "query": "사진이 너무 노래요. 좀 봐주세요.", "status": "PASS", "hits_count": 5}
+{"rewrite_enabled": false, "case_id": "M04", "query": "노출을 +0.7 EV로 보정해서 JPEG로 저장해줘.", "status": "PASS", "hits_count": 5}
+{"rewrite_enabled": false, "case_id": "M05", "query": "화이트밸런스 조절 방법도 알려주고, ART에서 값을 바꿔도 미리보기가 갱신되지 않는 원인을 확인해줘. 파일에는 적용하지 마.", "status": "PASS", "hits_count": 14}

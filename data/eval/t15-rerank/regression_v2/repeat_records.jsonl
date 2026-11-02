@@ -1,0 +1,3 @@
+{"repeat_index": 1, "elapsed_s": 54.089802666567266, "slice1_positive_count": 14, "slice1_precision": 0.3261904761904762, "slice1_recall": 1.0}
+{"repeat_index": 2, "elapsed_s": 53.991329916752875, "slice1_positive_count": 14, "slice1_precision": 0.3261904761904762, "slice1_recall": 1.0}
+{"repeat_index": 3, "elapsed_s": 54.076984291896224, "slice1_positive_count": 14, "slice1_precision": 0.3261904761904762, "slice1_recall": 1.0}
