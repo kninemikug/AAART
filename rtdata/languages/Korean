@@ -1,4 +1,26 @@
 #00 Korea - Korean
+CHAT_ANSWER;답변
+CHAT_CANCELLED;요청을 취소했습니다.
+CHAT_CLEAR;내역 지우기
+CHAT_EXAMPLE;예시: Auto Levels
+CHAT_EXAMPLE_QUESTION;RawPedia 설명에서 Auto Levels는 무엇을 분석해 Exposure 설정을 조정하나요?
+CHAT_CONNECTION_ERROR;연결하지 못했습니다. 아래 연결 설정을 확인해주세요.
+CHAT_NOTICE;안내
+CHAT_PLACEHOLDER;ART 사용법을 질문해보세요…
+CHAT_PYTHON;Python 실행 파일
+CHAT_QUESTION;질문
+CHAT_READY;질문을 입력해주세요.
+CHAT_SEND;보내기
+CHAT_SETTINGS;연결 설정
+CHAT_SETTINGS_ERROR;연결 설정을 저장하지 못했습니다.
+CHAT_SOURCE;프로젝트 폴더
+CHAT_STORE;검색 저장소 폴더
+CHAT_TIMEOUT;응답 시간이 초과되었습니다. 다시 시도해주세요.
+CHAT_TITLE;채팅
+CHAT_TOGGLE;채팅 패널 열기·접기
+CHAT_WELCOME;ART 사용법과 보정 방법을 질문해보세요. 답변에 출처를 함께 표시합니다. 프로필 적용·재조정은 아직 지원하지 않습니다.
+CHAT_WORKING;답변을 준비하고 있습니다…
+CHAT_YOU;나
 #01 2021-10-22 Ohnishi, Yasuo, initial translation for 1.10.1
 #02 2021-12-01 Ohnishi, Yasuo, some fixes and updated for 1.11
 #03 2021-12-27 Ohnishi, Yasuo, some refinements and updated for 1.12

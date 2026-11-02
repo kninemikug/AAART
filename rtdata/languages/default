@@ -7,6 +7,28 @@ ABOUT_TAB_CREDITS;Credits
 ABOUT_TAB_LICENSE;License
 ABOUT_TAB_RELEASENOTES;Release Notes
 ABOUT_TAB_SPLASH;Splash
+CHAT_ANSWER;Answer
+CHAT_CANCELLED;The request was cancelled.
+CHAT_CLEAR;Clear
+CHAT_EXAMPLE;Example: Auto Levels
+CHAT_EXAMPLE_QUESTION;What does Auto Levels analyze to adjust exposure?
+CHAT_CONNECTION_ERROR;Unable to connect. Check the connection settings below.
+CHAT_NOTICE;Notice
+CHAT_PLACEHOLDER;Ask about ART…
+CHAT_PYTHON;Python executable
+CHAT_QUESTION;Question
+CHAT_READY;Ready
+CHAT_SEND;Send
+CHAT_SETTINGS;Connection settings
+CHAT_SETTINGS_ERROR;Unable to save connection settings.
+CHAT_SOURCE;Project folder
+CHAT_STORE;Search database folder
+CHAT_TIMEOUT;The request timed out. Please try again.
+CHAT_TITLE;Chat
+CHAT_TOGGLE;Show or hide the chat panel
+CHAT_WELCOME;Ask about ART's features and editing techniques. Answers include sources. Profile application and adjustments are not supported yet.
+CHAT_WORKING;Preparing your answer…
+CHAT_YOU;You
 ADJUSTER_RESET_TO_DEFAULT;<b>Click</b> - reset to default value.\n<b>Ctrl</b>+<b>click</b> - reset to last saved value.
 CTL_SIGMOID;Sigmoid tone mapper
 CTL_SIGMOID_BASE_PRIMARIES;Base primaries
