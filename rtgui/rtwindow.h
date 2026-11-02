@@ -28,6 +28,7 @@
 #include <set>
 
 class EditWindow;
+class ChatPanel;
 
 class MessageWindow: public Gtk::Window {
 public:
@@ -135,6 +136,7 @@ private:
     // sigc::connection reveal_conn_;
 
     Gtk::Notebook *mainNB;
+    ChatPanel *chatpanel_;
     BatchQueuePanel *bpanel;
     std::set<Glib::ustring> filesEdited;
     std::map<Glib::ustring, EditorPanel *> epanels;

@@ -509,6 +509,15 @@ int main(int argc, char **argv)
                   // handling, so we call it ourselves now
     Gio::init();
 
+#if defined(__APPLE__) && defined(ART_GTK_IM_MODULE_FILE)
+    // Local .app builds still use the installed GTK runtime. The distribution
+    // launcher sets its bundled cache explicitly and takes precedence here.
+    if (!g_getenv("GTK_IM_MODULE_FILE")
+        && g_file_test(ART_GTK_IM_MODULE_FILE, G_FILE_TEST_IS_REGULAR)) {
+        Glib::setenv("GTK_IM_MODULE_FILE", ART_GTK_IM_MODULE_FILE);
+    }
+#endif
+
 #ifdef WIN32
     if (GetFileType(GetStdHandle(STD_OUTPUT_HANDLE)) == 0x0003) {
         // started from msys2 console => do not buffer stdout

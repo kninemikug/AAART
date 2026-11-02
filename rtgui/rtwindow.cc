@@ -19,6 +19,7 @@
  */
 
 #include "rtwindow.h"
+#include "chatpanel.h"
 #include "../rtengine/profilestore.h"
 #include "cursormanager.h"
 #include "editwindow.h"
@@ -200,7 +201,7 @@ RTWindow::RTWindow()
       // msg_revealer_(nullptr),
       // info_label_(nullptr),
       // info_msg_num_(0),
-      mainNB(nullptr), bpanel(nullptr), splash(nullptr),
+      mainNB(nullptr), chatpanel_(nullptr), bpanel(nullptr), splash(nullptr),
       btn_fullscreen(nullptr), browser_tab_label_(nullptr),
       is_application_(false)
 {
@@ -529,7 +530,26 @@ RTWindow::RTWindow()
         }
     }
 
-    init(main_widget);
+    auto layout = Gtk::manage(new Gtk::Box(Gtk::ORIENTATION_VERTICAL));
+    auto toolbar = Gtk::manage(new Gtk::Box(Gtk::ORIENTATION_HORIZONTAL));
+    auto toggle = Gtk::manage(new Gtk::ToggleButton(M("CHAT_TITLE")));
+    auto split = Gtk::manage(new Gtk::Paned(Gtk::ORIENTATION_HORIZONTAL));
+    auto reveal = Gtk::manage(new Gtk::Revealer());
+    chatpanel_ = Gtk::manage(new ChatPanel());
+    reveal->add(*chatpanel_);
+    reveal->set_transition_type(Gtk::REVEALER_TRANSITION_TYPE_SLIDE_LEFT);
+    reveal->set_reveal_child(true);
+    toggle->set_active(true);
+    toggle->set_tooltip_text(M("CHAT_TOGGLE"));
+    toggle->signal_toggled().connect([toggle, reveal]() {
+        reveal->set_reveal_child(toggle->get_active());
+    });
+    toolbar->pack_end(*toggle, Gtk::PACK_SHRINK);
+    split->pack1(*main_widget, true, false);
+    split->pack2(*reveal, false, false);
+    layout->pack_start(*toolbar, Gtk::PACK_SHRINK);
+    layout->pack_start(*split);
+    init(layout);
 
     cacheMgr->setProgressListener(this);
     ProfileStore::getInstance()->setProgressListener(this);
@@ -581,6 +601,9 @@ bool RTWindow::on_draw(const ::Cairo::RefPtr<::Cairo::Context> &cr)
 
 RTWindow::~RTWindow()
 {
+    if (chatpanel_) {
+        chatpanel_->stop();
+    }
     idle_register.destroy();
 
     cacheMgr->setProgressListener(nullptr);
@@ -886,6 +909,10 @@ bool RTWindow::keyPressed(GdkEventKey *event)
         toggle_fullscreen();
     }
 
+    if (chatpanel_ && chatpanel_->containsFocus()) {
+        return false;
+    }
+
     if (simpleEditor)
     // in simpleEditor mode, there's no other tab that can handle pressed keys,
     // so we can send the event to editor panel then return
@@ -938,6 +965,9 @@ bool RTWindow::keyPressed(GdkEventKey *event)
 
 bool RTWindow::keyPressedBefore(GdkEventKey *event)
 {
+    if (chatpanel_ && chatpanel_->containsFocus()) {
+        return chatpanel_->handleKeyPress(event);
+    }
     if (simpleEditor) {
         return epanel->keyPressedBefore(event);
     };
@@ -957,6 +987,9 @@ bool RTWindow::keyPressedBefore(GdkEventKey *event)
 
 bool RTWindow::keyReleased(GdkEventKey *event)
 {
+    if (chatpanel_ && chatpanel_->containsFocus()) {
+        return false;
+    }
     if (simpleEditor) {
         return epanel->keyReleased(event);
     } else if (mainNB->get_current_page() == mainNB->page_num(*fpanel)) {
@@ -972,6 +1005,9 @@ bool RTWindow::keyReleased(GdkEventKey *event)
 
 bool RTWindow::scrollPressed(GdkEventScroll *event)
 {
+    if (chatpanel_ && chatpanel_->containsFocus()) {
+        return false;
+    }
     if (simpleEditor) {
         return epanel->scrollPressed(event);
     } else if (mainNB->get_current_page() == mainNB->page_num(*fpanel)) {
@@ -1032,6 +1068,10 @@ bool RTWindow::on_delete_event(GdkEventAny *event)
 
     if (isProcessing) {
         return true;
+    }
+
+    if (chatpanel_) {
+        chatpanel_->stop();
     }
 
     if (fpanel) {

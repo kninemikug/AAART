@@ -14,6 +14,9 @@ set(CLISOURCEFILES
     )
 
 set(NONCLISOURCEFILES
+    chatconnection.cc
+    chatinput.cc
+    chatpanel.cc
     adjuster.cc
     alignedmalloc.cc
     batchqueue.cc
@@ -177,7 +180,34 @@ set(NONCLISOURCEFILES
 
 include_directories(BEFORE "${CMAKE_CURRENT_BINARY_DIR}")
 
+# Use the project's existing environment for worktree builds; paths remain
+# editable in the chat panel for installed applications and other machines.
+set(ART_AGENT_SOURCE_DIR "${PROJECT_SOURCE_DIR}" CACHE PATH "Chat source root")
+set(ART_AGENT_STORE_DIR "${PROJECT_SOURCE_DIR}/data/vector-store/t09"
+    CACHE PATH "Existing chat retrieval store")
+execute_process(COMMAND git -C "${PROJECT_SOURCE_DIR}" rev-parse --git-common-dir
+    OUTPUT_VARIABLE _agent_git_dir OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET)
+get_filename_component(_agent_repo "${_agent_git_dir}/.." ABSOLUTE
+    BASE_DIR "${PROJECT_SOURCE_DIR}")
+find_program(ART_AGENT_PYTHON NAMES python3 python
+    HINTS "${PROJECT_SOURCE_DIR}/venv/bin" "${_agent_repo}/venv/bin")
+if(NOT ART_AGENT_PYTHON)
+    set(ART_AGENT_PYTHON "python3")
+endif()
+find_program(ART_AGENT_ANSWER_RUNTIME NAMES codex)
+if(NOT ART_AGENT_ANSWER_RUNTIME)
+    set(ART_AGENT_ANSWER_RUNTIME "")
+endif()
+
 if(APPLE)
+    # A local .app redirects GTK's default module lookup into the bundle.
+    # Packaged builds supply their cache through the launcher environment.
+    pkg_get_variable(_gtk_binary_version gtk+-3.0 gtk_binary_version)
+    find_file(ART_GTK_IM_MODULE_FILE NAMES immodules.cache
+        HINTS ${GTK_LIBRARY_DIRS}
+        PATH_SUFFIXES "gtk-3.0/${_gtk_binary_version}"
+        NO_DEFAULT_PATH)
     pkg_check_modules(MacIntegration gtk-mac-integration-gtk3)
     if(NOT MacIntegration_FOUND)
         find_package(MacIntegration REQUIRED)
@@ -365,7 +395,7 @@ endif()
 # Create config.h which defines where data are stored
 if(APPLE_NEW_BUNDLE)
     foreach(_v DATADIR DOCDIR CREDITSDIR LICENCEDIR LENSFUNDBDIR)
-        if(${_v})
+        if(${_v} AND NOT IS_ABSOLUTE "${${_v}}")
             set(${_v} "../../${${_v}}")
         endif()
     endforeach()
