@@ -65,6 +65,17 @@ public:
 
     void add(std::function<bool()> function,
              gint priority = G_PRIORITY_DEFAULT_IDLE);
+    // Keep a validated result in the same GUI dispatch as its state check.
+    void addOrRun(std::function<bool()> function)
+    {
+        if (g_main_context_is_owner(g_main_context_default())) {
+            if (function()) {
+                add(std::move(function));
+            }
+        } else {
+            add(std::move(function));
+        }
+    }
     void destroy();
 
 private:

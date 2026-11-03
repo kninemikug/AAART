@@ -510,7 +510,7 @@ void FilmNegative::filmRefValuesChanged(const RGB &refInput,
                                         const RGB &refOutput)
 {
 
-    idle_register.add([this, refInput, refOutput]() -> bool {
+    idle_register.addOrRun([this, refInput, refOutput]() -> bool {
         refInputValues = refInput;
         paramsUpgraded = true;
 

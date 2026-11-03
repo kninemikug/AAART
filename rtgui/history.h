@@ -148,6 +148,11 @@ public:
 
     void activateNextSnapshot();
     void activatePrevSnapshot();
+
+    size_t getHistorySize() const;
+    bool getHistoryRow(size_t index, Glib::ustring &text, Glib::ustring &value,
+                       rtengine::ProcEvent &ev,
+                       rtengine::procparams::ProcParams &params) const;
 };
 
 #endif

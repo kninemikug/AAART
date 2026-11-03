@@ -35,6 +35,7 @@
 #include "soundman.h"
 #include "version.h"
 #include "wbprovider.h"
+#include "liveparamserver.h"
 #include <cstdlib>
 #include <cstring>
 #include <giomm.h>
@@ -242,10 +243,20 @@ bool init_rt()
 
 #endif
 
+#ifdef __APPLE__
+    const char *liveParam = g_getenv("ART_LIVE_PARAM");
+    if (liveParam && std::strcmp(liveParam, "1") == 0) {
+        art::liveparam::LiveParamServer::getInstance().start();
+    }
+#endif
     return true;
 }
 
-void cleanup_rt() { rtengine::cleanup(); }
+void cleanup_rt()
+{
+    art::liveparam::LiveParamServer::getInstance().stop();
+    rtengine::cleanup();
+}
 
 RTWindow *create_rt_window()
 {
@@ -267,10 +278,14 @@ static gboolean osx_open_file_cb(GtkosxApplication *a, gchar *pth,
 
 #endif // __APPLE__
 
+#ifndef ART_APPLICATION_ID
+#define ART_APPLICATION_ID "us.pixls.art.ART"
+#endif
+
 class RTApplication: public Gtk::Application {
 public:
     RTApplication()
-        : Gtk::Application("us.pixls.art.ART",
+        : Gtk::Application(ART_APPLICATION_ID,
                            Gio::APPLICATION_SEND_ENVIRONMENT |
                                Gio::APPLICATION_HANDLES_COMMAND_LINE),
           rtWindow(nullptr)

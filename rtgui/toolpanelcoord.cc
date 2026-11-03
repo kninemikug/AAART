@@ -52,6 +52,153 @@ private:
 
 } // namespace
 
+// One bridge per open image. Worker notifications only copy owned values;
+// the GUI checks the originating snapshot before touching a panel or nextParams.
+class ToolPanelCoordinator::DerivedBridge final:
+    public rtengine::AutoExpListener,
+    public rtengine::AutoLogListener,
+    public rtengine::AutoDeconvRadiusListener,
+    public rtengine::AutoChromaListener,
+    public rtengine::AutoWBListener,
+    public rtengine::FrameCountListener,
+    public rtengine::FlatFieldAutoClipListener,
+    public rtengine::ImageTypeListener,
+    public rtengine::FilmNegListener {
+public:
+    class Contrast final: public rtengine::AutoContrastListener {
+    public:
+        Contrast(DerivedBridge &bridge, bool bayer)
+            : bridge_(bridge), bayer_(bayer) {}
+        void setProcessingContext(const rtengine::ProcessingContext &ctx) override
+        {
+            context_ = ctx;
+        }
+        void autoContrastChanged(double value) override
+        {
+            const bool bayer = bayer_;
+            bridge_.post(context_, [this, bayer, value](ProcParams *pp) {
+                if (bayer) {
+                    bridge_.owner_.bayerprocess->autoContrastChanged(value);
+                    pp->raw.bayersensor.dualDemosaicContrast = value;
+                } else {
+                    bridge_.owner_.xtransprocess->autoContrastChanged(value);
+                    pp->raw.xtranssensor.dualDemosaicContrast = value;
+                }
+            });
+        }
+    private:
+        DerivedBridge &bridge_;
+        const bool bayer_;
+        rtengine::ProcessingContext context_;
+    };
+
+    DerivedBridge(ToolPanelCoordinator &owner, rtengine::StagedImageProcessor *ipc)
+        : bayer(*this, true), xtrans(*this, false), owner_(owner), ipc_(ipc) {}
+
+    ~DerivedBridge() { idle_.destroy(); }
+    void invalidate() { active_.store(false); }
+
+    void setProcessingContext(const rtengine::ProcessingContext &ctx) override
+    {
+        context_ = ctx;
+    }
+    void autoMatchedToneCurveChanged(const std::vector<double> &a,
+                                    const std::vector<double> &b) override
+    {
+        post(context_, [this, a, b](ProcParams *pp) {
+            owner_.toneCurve->autoMatchedToneCurveChanged(a, b);
+            pp->toneCurve.curve = a;
+            pp->toneCurve.curve2 = b;
+            pp->toneCurve.fromHistMatching = true;
+        });
+    }
+    void logEncodingChanged(const LogEncodingParams &value) override
+    {
+        post(context_, [this, value](ProcParams *pp) {
+            owner_.logenc->logEncodingChanged(value);
+            pp->logenc.gain = value.gain;
+            pp->logenc.blackEv = value.blackEv;
+            pp->logenc.whiteEv = value.whiteEv;
+        });
+    }
+    void autoDeconvRadiusChanged(float value) override
+    {
+        post(context_, [this, value](ProcParams *pp) {
+            owner_.sharpening->autoDeconvRadiusChanged(value);
+            if (value >= 0) {
+                pp->sharpening.deconvradius = value;
+            }
+        });
+    }
+    void chromaChanged(double value, double red, double blue) override
+    {
+        post(context_, [this, value, red, blue](ProcParams *pp) {
+            owner_.denoise->chromaChanged(value, red, blue);
+            pp->denoise.chrominance = value;
+            pp->denoise.chrominanceRedGreen = red;
+            pp->denoise.chrominanceBlueYellow = blue;
+        });
+    }
+    void noiseChanged(double, double) override {}
+    void noiseTilePrev(int, int, int, int, int, int) override {}
+    void WBChanged(rtengine::ColorTemp value) override
+    {
+        post(context_, [this, value](ProcParams *pp) {
+            owner_.whitebalance->WBChanged(value);
+            pp->wb.temperature = value.getTemp();
+            pp->wb.green = value.getGreen();
+        });
+    }
+    void FrameCountChanged(int n, int frame) override
+    {
+        post(context_, [this, n, frame](ProcParams *) {
+            owner_.bayerprocess->FrameCountChanged(n, frame);
+        });
+    }
+    void flatFieldAutoClipValueChanged(int value) override
+    {
+        post(context_, [this, value](ProcParams *pp) {
+            owner_.flatfield->flatFieldAutoClipValueChanged(value);
+            pp->raw.ff_clipControl = value;
+        });
+    }
+    void imageTypeChanged(bool raw, bool bayer, bool xtrans, bool mono) override
+    {
+        post(context_, [this, raw, bayer, xtrans, mono](ProcParams *) {
+            owner_.imageTypeChanged(raw, bayer, xtrans, mono);
+        });
+    }
+    void filmRefValuesChanged(const FilmNegativeParams::RGB &input,
+                             const FilmNegativeParams::RGB &output) override
+    {
+        post(context_, [this, input, output](ProcParams *pp) {
+            owner_.filmNegative->filmRefValuesChanged(input, output);
+            pp->filmNegative.refInput = input;
+            pp->filmNegative.refOutput = output;
+            pp->filmNegative.backCompat = FilmNegativeParams::BackCompat::CURRENT;
+        });
+    }
+
+    Contrast bayer;
+    Contrast xtrans;
+private:
+    void post(rtengine::ProcessingContext context,
+              std::function<void(ProcParams *)> apply)
+    {
+        idle_.add([this, context, apply]() -> bool {
+            if (active_.load() && owner_.ipc == ipc_) {
+                ipc_->mergeDerivedParams(context, apply);
+            }
+            return false;
+        });
+    }
+    ToolPanelCoordinator &owner_;
+    rtengine::StagedImageProcessor *const ipc_;
+    std::atomic<bool> active_{true};
+    rtengine::ProcessingContext context_;
+    IdleRegister idle_;
+};
+
 ToolPanelCoordinator::ToolPanelCoordinator(bool batch)
     : ipc(nullptr), favoritePanelSW(nullptr), hasChanged(false),
       editDataProvider(nullptr)
@@ -403,7 +550,7 @@ void ToolPanelCoordinator::imageTypeChanged(bool isRaw, bool isBayer,
 {
     if (isRaw) {
         if (isBayer) {
-            idle_register.add([this]() -> bool {
+            idle_register.addOrRun([this]() -> bool {
                 rawPanelSW->set_sensitive(true);
                 sensorxtrans->FoldableToolPanel::hide();
                 sensorbayer->FoldableToolPanel::show();
@@ -413,7 +560,7 @@ void ToolPanelCoordinator::imageTypeChanged(bool isRaw, bool isBayer,
                 return false;
             });
         } else if (isXtrans) {
-            idle_register.add([this]() -> bool {
+            idle_register.addOrRun([this]() -> bool {
                 rawPanelSW->set_sensitive(true);
                 sensorxtrans->FoldableToolPanel::show();
                 sensorbayer->FoldableToolPanel::hide();
@@ -423,7 +570,7 @@ void ToolPanelCoordinator::imageTypeChanged(bool isRaw, bool isBayer,
                 return false;
             });
         } else if (isMono) {
-            idle_register.add([this]() -> bool {
+            idle_register.addOrRun([this]() -> bool {
                 rawPanelSW->set_sensitive(true);
                 sensorbayer->FoldableToolPanel::hide();
                 sensorxtrans->FoldableToolPanel::hide();
@@ -433,7 +580,7 @@ void ToolPanelCoordinator::imageTypeChanged(bool isRaw, bool isBayer,
                 return false;
             });
         } else {
-            idle_register.add([this]() -> bool {
+            idle_register.addOrRun([this]() -> bool {
                 rawPanelSW->set_sensitive(true);
                 sensorbayer->FoldableToolPanel::hide();
                 sensorxtrans->FoldableToolPanel::hide();
@@ -444,7 +591,7 @@ void ToolPanelCoordinator::imageTypeChanged(bool isRaw, bool isBayer,
             });
         }
     } else {
-        idle_register.add([this]() -> bool {
+        idle_register.addOrRun([this]() -> bool {
             rawPanelSW->set_sensitive(false);
 
             return false;
@@ -470,6 +617,12 @@ void ToolPanelCoordinator::unsetTweakOperator(
 void ToolPanelCoordinator::refreshPreview(const rtengine::ProcEvent &event)
 {
     if (!ipc) {
+        return;
+    }
+
+    if (event == rtengine::EvMonitorTransform) {
+        ipc->startProcessing(
+            rtengine::RefreshMapper::getInstance()->getAction(event));
         return;
     }
 
@@ -686,19 +839,22 @@ void ToolPanelCoordinator::initImage(rtengine::StagedImageProcessor *ipc_,
             ipc->getInitialImage()->getMetaData();
         metadata->setImageData(pMetaData);
 
-        ipc->setAutoExpListener(this);
-        ipc->setFrameCountListener(bayerprocess);
-        ipc->setFlatFieldAutoClipListener(flatfield);
-        ipc->setBayerAutoContrastListener(bayerprocess);
-        ipc->setXtransAutoContrastListener(xtransprocess);
-        ipc->setAutoWBListener(whitebalance);
-        ipc->setAutoChromaListener(denoise);
         ipc->setSizeListener(crop);
         ipc->setSizeListener(resize);
-        ipc->setImageTypeListener(this);
-        ipc->setAutoLogListener(logenc);
-        ipc->setAutoDeconvRadiusListener(sharpening);
-        ipc->setFilmNegListener(filmNegative);
+
+        derivedBridge_.reset(new DerivedBridge(*this, ipc));
+        auto *bridge = derivedBridge_.get();
+        ipc->setAutoExpListener(bridge);
+        ipc->setFrameCountListener(bridge);
+        ipc->setFlatFieldAutoClipListener(bridge);
+        ipc->setBayerAutoContrastListener(&bridge->bayer);
+        ipc->setXtransAutoContrastListener(&bridge->xtrans);
+        ipc->setAutoWBListener(bridge);
+        ipc->setAutoChromaListener(bridge);
+        ipc->setImageTypeListener(bridge);
+        ipc->setAutoLogListener(bridge);
+        ipc->setAutoDeconvRadiusListener(bridge);
+        ipc->setFilmNegListener(bridge);
 
         auto dn = Glib::path_get_dirname(ipc->getInitialImage()->getFileName());
         flatfield->setShortcutPath(dn);
@@ -722,9 +878,38 @@ void ToolPanelCoordinator::closeImage()
     editModeSwitchedOff();
     
     if (ipc) {
+        if (derivedBridge_) {
+            derivedBridge_->invalidate();
+        }
         ipc->stopProcessing();
+        if (derivedBridge_) {
+            ipc->clearProcessingResultListeners();
+        }
+        derivedBridge_.reset();
         ipc = nullptr;
     }
+}
+
+bool ToolPanelCoordinator::isExposureEnabled() const
+{
+    return exposure && exposure->getEnabled();
+}
+
+double ToolPanelCoordinator::getExposureCompensation() const
+{
+    if (exposure) {
+        return exposure->getExpComp();
+    }
+    return 0.0;
+}
+
+bool ToolPanelCoordinator::applyExternalExposure(double expcomp)
+{
+    if (!ipc || !exposure || !exposure->getEnabled()) {
+        return false;
+    }
+    exposure->setExpComp(expcomp, true);
+    return true;
 }
 
 void ToolPanelCoordinator::closeAllTools()
@@ -807,9 +992,9 @@ void ToolPanelCoordinator::sharpMaskSelected(bool sharpMask)
     if (!ipc) {
         return;
     }
-    ipc->beginUpdateParams();
     ipc->setSharpMask(sharpMask);
-    ipc->endUpdateParams(rtengine::EvShrEnabled);
+    ipc->startProcessing(rtengine::RefreshMapper::getInstance()->getAction(
+        rtengine::EvShrEnabled));
 }
 
 int ToolPanelCoordinator::getSpotWBRectSize() const

@@ -246,7 +246,7 @@ void XTransProcess::checkBoxToggled(CheckBox *c, CheckValue newval) {}
 
 void XTransProcess::autoContrastChanged(double autoContrast)
 {
-    idle_register.add([this, autoContrast]() -> bool {
+    idle_register.addOrRun([this, autoContrast]() -> bool {
         disableListener();
         dualDemosaicContrast->setValue(autoContrast);
         enableListener();

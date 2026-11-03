@@ -27,6 +27,7 @@
 #include "cropwindow.h"
 #include "guiutils.h"
 #include "imagearea.h"
+#include "liveparamcontroller.h"
 #include <cstring>
 
 #include "../rtengine/threadpool.h"
@@ -172,29 +173,65 @@ CropHandler::CropHandler()
 
 CropHandler::~CropHandler()
 {
+    newImage(nullptr, false);
     idle_register.destroy();
+}
 
-    if (ipc) {
-        ipc->delSizeListener(this);
+void CropHandler::cancelZoomUpdate()
+{
+    zoom_conn_.disconnect();
+    if (pendingHighQuality_) {
+        pendingHighQuality_ = false;
+        if (editorPanel_) {
+            art::liveparam::LiveParamController::getInstance()
+                .onNavigatorDelay(editorPanel_, false);
+        }
     }
+}
 
-    setEnabled(false);
-
-    if (crop) {
-        // crop->destroy ();
-        delete crop; // will do the same than destroy, plus delete the object
-        crop = nullptr;
+void CropHandler::setEditorPanel(EditorPanel *panel, bool mainCrop)
+{
+    cancelZoomUpdate();
+    editorPanel_ = panel;
+    mainCrop_ = mainCrop;
+    if (ipc) {
+        publishViewport();
     }
 }
 
 void CropHandler::setEditSubscriber(EditSubscriber *newSubscriber)
 {
-    (static_cast<rtengine::Crop *>(crop))->setEditSubscriber(newSubscriber);
+    if (crop) {
+        (static_cast<rtengine::Crop *>(crop))->setEditSubscriber(newSubscriber);
+    }
 }
 
 void CropHandler::newImage(std::shared_ptr<StagedImageProcessor> ipc_,
                            bool isDetailWindow)
 {
+    cancelZoomUpdate();
+    if (ipc) {
+        ipc->delSizeListener(this);
+    }
+    if (crop) {
+        crop->setListener(nullptr);
+        delete crop;
+        crop = nullptr;
+    }
+
+    // No producer can enqueue more work for the old image now.
+    idle_register.destroy();
+    {
+        MyMutex::MyLock lock(cimg);
+        redraw_needed = false;
+        cropimg.clear();
+        cropimgtrue.clear();
+        cropPixbuf.clear();
+        cropPixbuftrue.clear();
+        ++viewport_.generation;
+        viewport_.revision = -1;
+        viewport_.w = -1;
+    }
     ipc = ipc_;
     cx = 0;
     cy = 0;
@@ -213,6 +250,7 @@ void CropHandler::newImage(std::shared_ptr<StagedImageProcessor> ipc_,
 
     crop = ipc->createCrop(editDataProvider, isDetailWindow);
     ipc->setSizeListener(this);
+    publishViewport();
     crop->setListener(enabled ? this : nullptr);
     initial = true;
 }
@@ -221,7 +259,16 @@ void CropHandler::sizeChanged(
     int x, int y, int ow,
     int oh) // the ipc notifies it to keep track size changes like rotation
 {
-    compDim();
+    idle_register.add([this]() -> bool {
+        if (ipc) {
+            const auto previous = viewport_.generation;
+            compDim();
+            if (previous != viewport_.generation) {
+                update();
+            }
+        }
+        return false;
+    });
 }
 
 bool CropHandler::isFullDisplay()
@@ -284,7 +331,7 @@ void CropHandler::setZoom(int z, int centerx, int centery)
     }
 
     // maybe demosaic etc. if we cross the border to >100%
-    bool needsFullRefresh = (z >= 1000 && zoom < 1000);
+    bool needsFullRefresh = (z >= 1000 && (zoom < 1000 || pendingHighQuality_));
 
     zoom = z;
 
@@ -312,6 +359,16 @@ void CropHandler::setZoom(int z, int centerx, int centery)
                     oldCropW != cropW || oldCropH != cropH);
 
     if (needed) {
+        // Reserve before the timer starts: an earlier frame must not satisfy
+        // readiness while a HIGHQUAL Navigator pass is still deferred.
+        cancelZoomUpdate();
+        if (needsFullRefresh) {
+            pendingHighQuality_ = true;
+            if (editorPanel_) {
+                art::liveparam::LiveParamController::getInstance()
+                    .onNavigatorDelay(editorPanel_, true);
+            }
+        }
         const auto doit = [this, needsFullRefresh]() -> bool {
             if (ipc) {
                 if (needsFullRefresh && !ipc->getHighQualComputed()) {
@@ -319,6 +376,13 @@ void CropHandler::setZoom(int z, int centerx, int centery)
                     ipc->setHighQualComputed();
                 } else {
                     update();
+                }
+            }
+            if (pendingHighQuality_) {
+                pendingHighQuality_ = false;
+                if (editorPanel_) {
+                    art::liveparam::LiveParamController::getInstance()
+                        .onNavigatorDelay(editorPanel_, false);
                 }
             }
             return false;
@@ -443,147 +507,163 @@ void CropHandler::getPosition(int &x, int &y)
 
 void CropHandler::setDetailedCrop(
     IImage8 *im, IImage8 *imtrue,
-    const rtengine::procparams::ColorManagementParams &cmp,
-    const rtengine::procparams::CropParams &cp, int ax, int ay, int aw, int ah,
-    int askip)
+    const procparams::ColorManagementParams &cmp,
+    const procparams::CropParams &cp, int x, int y, int w, int h, int skip)
 {
-    if (!enabled) {
-        return;
-    }
-
-    cimg.lock();
-
-    cropParams = cp;
-    colorParams = cmp;
-
-    if (!cropimg.empty()) {
-        cropimg.clear();
-    }
-
-    if (!cropimgtrue.empty()) {
-        cropimgtrue.clear();
-    }
-
-    if (ax == cropX && ay == cropY && aw == cropW && ah == cropH &&
-        askip == (zoom >= 1000 ? 1 : zoom / 10)) {
-        cropimg_width = im->getWidth();
-        cropimg_height = im->getHeight();
-        const std::size_t cropimg_size = 3 * cropimg_width * cropimg_height;
-        cropimg.assign(im->getData(), im->getData() + cropimg_size);
-        cropimgtrue.assign(imtrue->getData(), imtrue->getData() + cropimg_size);
-        cix = ax;
-        ciy = ay;
-        ciw = aw;
-        cih = ah;
-        cis = askip;
-
-        bool expected = false;
-
-        if (redraw_needed.compare_exchange_strong(expected, true)) {
-            idle_register.add([this]() -> bool {
-                cimg.lock();
-
-                if (redraw_needed.exchange(false)) {
-                    cropPixbuf.clear();
-                    cropPixbuftrue.clear();
-
-                    if (!enabled) {
-                        cropimg.clear();
-                        cropimgtrue.clear();
-                        cimg.unlock();
-                        return false;
-                    }
-
-                    if (!cropimg.empty()) {
-                        if (cix == cropX && ciy == cropY && ciw == cropW &&
-                            cih == cropH &&
-                            cis == (zoom >= 1000 ? 1 : zoom / 10)) {
-                            // calculate final image size
-                            float czoom =
-                                zoom >= 1000
-                                    ? zoom / 1000.f
-                                    : float((zoom / 10) * 10) / float(zoom);
-                            int imw = cropimg_width * czoom;
-                            int imh = cropimg_height * czoom;
-                            int dw = ww * getDisplayScale();
-                            int dh = wh * getDisplayScale();
-
-                            if (imw > dw) {
-                                imw = dw;
-                            }
-
-                            if (imh > dh) {
-                                imh = dh;
-                            }
-
-                            cropPixbuf = Gdk::Pixbuf::create_from_data(
-                                cropimg.data(), Gdk::COLORSPACE_RGB, false, 8,
-                                cropimg_width, cropimg_height,
-                                3 * cropimg_width);
-                            cropPixbuf = resample_preview(cropPixbuf, imw, imh,
-                                                          czoom, cis);
-                            // if (czoom < 1.f) {
-                            //     cropPixbuf = resize_lanczos(cropPixbuf, imw,
-                            //     imh, czoom);
-                            // } else if (czoom > 1.f) {
-                            //     cropPixbuf = resize_fast(cropPixbuf, imw,
-                            //     imh, czoom);
-                            // }
-
-                            // sharpen_for_display(cropPixbuf, cis);
-
-                            cropPixbuftrue = Gdk::Pixbuf::create_from_data(
-                                cropimgtrue.data(), Gdk::COLORSPACE_RGB, false,
-                                8, cropimg_width, cropimg_height,
-                                3 * cropimg_width);
-                            if (czoom != 1.f) {
-                                cropPixbuftrue = resize_fast(cropPixbuftrue,
-                                                             imw, imh, czoom);
-                            }
-                        }
-
-                        cropimg.clear();
-                        cropimgtrue.clear();
-                    }
-
-                    cimg.unlock();
-
-                    if (displayHandler) {
-                        displayHandler->cropImageUpdated();
-
-                        if (initial.exchange(false)) {
-                            displayHandler->initialImageArrived();
-                        }
-                    }
-                } else {
-                    cimg.unlock();
-                }
-
-                return false;
-            });
-        }
-    }
-
-    cimg.unlock();
+    setDetailedCrop(im, imtrue, cmp, cp, x, y, w, h, skip, ProcessingContext());
 }
 
-void CropHandler::getWindow(int &cwx, int &cwy, int &cww, int &cwh, int &cskip)
+void CropHandler::setDetailedCrop(
+    IImage8 *im, IImage8 *imtrue,
+    const procparams::ColorManagementParams &cmp,
+    const procparams::CropParams &cp, int x, int y, int w, int h, int skip,
+    int64_t, int64_t)
 {
-    cwx = cropX;
-    cwy = cropY;
-    cww = cropW;
-    cwh = cropH;
+    setDetailedCrop(im, imtrue, cmp, cp, x, y, w, h, skip, ProcessingContext());
+}
 
-    // hack: if called before first size allocation the size will be 0
-    if (cww == 0) {
-        cww = 10;
+void CropHandler::setDetailedCrop(
+    IImage8 *im, IImage8 *imtrue,
+    const procparams::ColorManagementParams &cmp,
+    const procparams::CropParams &cp, int x, int y, int w, int h, int skip,
+    const ProcessingContext &ctx)
+{
+    MyMutex::MyLock lock(cimg);
+    if (!enabled || ctx.viewportGeneration != viewport_.generation ||
+        x != viewport_.x || y != viewport_.y || w != viewport_.w ||
+        h != viewport_.h || skip != viewport_.skip) {
+        return;
     }
-
-    if (cwh == 0) {
-        cwh = 32;
+    cropimg_width = im->getWidth();
+    cropimg_height = im->getHeight();
+    const size_t count = size_t(3) * cropimg_width * cropimg_height;
+    cropimg.assign(im->getData(), im->getData() + count);
+    cropimgtrue.assign(imtrue->getData(), imtrue->getData() + count);
+    // The coalesced slot owns both pixels and their provenance.
+    bufferedContext_ = ctx;
+    bufferedCrop_ = cp;
+    bufferedColor_ = cmp;
+    if (redraw_needed.exchange(true)) {
+        return;
     }
+    idle_register.add([this]() -> bool {
+        ProcessingContext context;
+        bool displayed = false;
+        {
+            MyMutex::MyLock lock(cimg);
+            redraw_needed = false;
+            context = bufferedContext_;
+            auto &controller = art::liveparam::LiveParamController::getInstance();
+            if (enabled && !cropimg.empty() &&
+                context.viewportGeneration == viewport_.generation &&
+                (!editorPanel_ || controller.acceptsFrame(editorPanel_, context))) {
+                const float factor = zoom >= 1000 ? zoom / 1000.f :
+                    float((zoom / 10) * 10) / float(zoom);
+                const int width = std::min(int(cropimg_width * factor),
+                                           ww * getDisplayScale());
+                const int height = std::min(int(cropimg_height * factor),
+                                            wh * getDisplayScale());
+                if (width > 0 && height > 0) {
+                    auto pixels = Gdk::Pixbuf::create_from_data(cropimg.data(),
+                        Gdk::COLORSPACE_RGB, false, 8, cropimg_width,
+                        cropimg_height, 3 * cropimg_width)->copy();
+                    cropPixbuf = resample_preview(pixels, width, height,
+                                                   factor, viewport_.skip);
+                    cropPixbuftrue = Gdk::Pixbuf::create_from_data(
+                        cropimgtrue.data(), Gdk::COLORSPACE_RGB, false, 8,
+                        cropimg_width, cropimg_height, 3 * cropimg_width)->copy();
+                    if (factor != 1.f) {
+                        cropPixbuftrue = resize_fast(cropPixbuftrue, width,
+                                                      height, factor);
+                    }
+                    cropParams = bufferedCrop_;
+                    colorParams = bufferedColor_;
+                    displayedContext_ = context;
+                    displayed = true;
+                }
+            }
+            cropimg.clear();
+            cropimgtrue.clear();
+        }
+        if (displayed) {
+            if (displayHandler) {
+                displayHandler->cropImageUpdated();
+                if (initial.exchange(false)) {
+                    displayHandler->initialImageArrived();
+                }
+            }
+            if (editorPanel_ && mainCrop_) {
+                art::liveparam::LiveParamController::getInstance()
+                    .onCropReady(editorPanel_, context);
+            }
+        }
+        return false;
+    });
+}
 
-    cskip = zoom >= 1000 ? 1 : zoom / 10;
+void CropHandler::getWindow(int &x, int &y, int &w, int &h, int &skip)
+{
+    int64_t revision;
+    uint64_t generation;
+    getWindow(x, y, w, h, skip, revision, generation);
+}
+
+void CropHandler::getWindow(int &x, int &y, int &w, int &h, int &skip,
+                             int64_t &revision, uint64_t &generation)
+{
+    MyMutex::MyLock lock(cimg);
+    x = viewport_.x;
+    y = viewport_.y;
+    w = viewport_.w ? viewport_.w : 10;
+    h = viewport_.h ? viewport_.h : 32;
+    skip = viewport_.skip;
+    revision = viewport_.revision;
+    generation = viewport_.generation;
+}
+
+void CropHandler::publishViewport()
+{
+    if (!ipc) {
+        return;
+    }
+    const int skip = zoom >= 1000 ? 1 : zoom / 10;
+    bool changed;
+    {
+        MyMutex::MyLock lock(cimg);
+        changed = viewport_.x != cropX || viewport_.y != cropY ||
+            viewport_.w != cropW || viewport_.h != cropH ||
+            viewport_.skip != skip || viewport_.zoom != zoom ||
+            viewport_.width != ww || viewport_.height != wh ||
+            viewport_.scale != display_scale_ ||
+            (viewport_.revision < 0 && editorPanel_ && mainCrop_ &&
+             art::liveparam::LiveParamController::getInstance().isEnabled());
+    }
+    if (!changed) {
+        return;
+    }
+    int64_t revision = -1;
+    if (editorPanel_ && mainCrop_) {
+        revision = art::liveparam::LiveParamController::getInstance()
+            .onEditorViewChanged(editorPanel_);
+        if (revision >= 0) {
+            ipc->setNextViewRevision(revision);
+        }
+    }
+    MyMutex::MyLock lock(cimg);
+    viewport_.x = cropX;
+    viewport_.y = cropY;
+    viewport_.w = cropW;
+    viewport_.h = cropH;
+    viewport_.skip = skip;
+    viewport_.zoom = zoom;
+    viewport_.width = ww;
+    viewport_.height = wh;
+    viewport_.scale = display_scale_;
+    viewport_.revision = revision;
+    ++viewport_.generation;
+    if (crop) {
+        crop->setViewportGeneration(viewport_.generation);
+    }
 }
 
 void CropHandler::update()
@@ -614,6 +694,9 @@ void CropHandler::update()
 void CropHandler::setEnabled(bool e, bool do_update)
 {
 
+    if (!e) {
+        cancelZoomUpdate();
+    }
     enabled = e;
 
     if (!enabled) {
@@ -836,6 +919,7 @@ void CropHandler::compDim()
         scaledCAY = int(float(cay) / (float(zoom)/10.f));
     }
 
+    publishViewport();
     displayHandler->setDisplayPosition(imgX, imgY);
 }
 

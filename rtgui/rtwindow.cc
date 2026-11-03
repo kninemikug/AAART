@@ -25,6 +25,7 @@
 #include "editwindow.h"
 #include "gdkcolormgmt.h"
 #include "options.h"
+#include "liveparamserver.h"
 #include "preferences.h"
 #include "rtimage.h"
 #include "threadutils.h"
@@ -601,6 +602,7 @@ bool RTWindow::on_draw(const ::Cairo::RefPtr<::Cairo::Context> &cr)
 
 RTWindow::~RTWindow()
 {
+    art::liveparam::LiveParamServer::getInstance().stop();
     if (chatpanel_) {
         chatpanel_->stop();
     }
@@ -1069,6 +1071,8 @@ bool RTWindow::on_delete_event(GdkEventAny *event)
     if (isProcessing) {
         return true;
     }
+
+    art::liveparam::LiveParamServer::getInstance().stop();
 
     if (chatpanel_) {
         chatpanel_->stop();

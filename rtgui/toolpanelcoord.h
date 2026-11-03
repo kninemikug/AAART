@@ -212,6 +212,8 @@ protected:
                           int level = 1);
 
 private:
+    class DerivedBridge;
+    std::unique_ptr<DerivedBridge> derivedBridge_;
     EditDataProvider *editDataProvider;
 
 public:
@@ -269,6 +271,10 @@ public:
     // init the toolpanelcoordinator with an image & close it
     void initImage(rtengine::StagedImageProcessor *ipc_, bool israw);
     void closeImage();
+
+    bool isExposureEnabled() const;
+    double getExposureCompensation() const;
+    bool applyExternalExposure(double expcomp);
 
     // update the "expanded" state of the Tools
     void updateToolState();

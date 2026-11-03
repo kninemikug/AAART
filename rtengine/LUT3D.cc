@@ -203,8 +203,6 @@ inline void LUT3D::apply_tetra(float &r, float &g, float &b)
     float out[4] ALIGNED16;
     STVFU(out[0], outv);
 #else
-    float out[3];
-
     if (fx > fy) {
         if (fy > fz) {
             out[0] = (1 - fx) * m_optLut[n000] + (fx - fy) * m_optLut[n100] +

@@ -19,6 +19,7 @@
 #ifndef _PREVIEWHANDLER_
 #define _PREVIEWHANDLER_
 
+#include <atomic>
 #include <list>
 
 #include <gtkmm.h>
@@ -35,26 +36,19 @@ public:
 };
 
 class PreviewHandler;
-
-struct PreviewHandlerIdleHelper {
-    PreviewHandler *phandler;
-    bool destroyed;
-    int pending;
-};
+class EditorPanel;
 
 class PreviewHandler: public rtengine::PreviewImageListener {
 private:
-    friend int setImageUI(void *data);
-    friend int delImageUI(void *data);
-    friend int imageReadyUI(void *data);
-
     IdleRegister idle_register;
+    MyMutex sourceMutex_;
+    rtengine::IImage8 *sourceImage_ = nullptr;
+    double sourceScale_ = 1.;
+    rtengine::ProcessingContext displayedContext_;
 
 protected:
-    rtengine::IImage8 *image;
     rtengine::procparams::CropParams cropParams;
     double previewScale;
-    PreviewHandlerIdleHelper *pih;
     std::list<PreviewListener *> listeners;
     MyMutex previewImgMutex;
     Glib::RefPtr<Gdk::Pixbuf> previewImg;
@@ -70,6 +64,22 @@ public:
                   const rtengine::procparams::CropParams &cp) override;
     void delImage(rtengine::IImage8 *img) override;
     void imageReady(const rtengine::procparams::CropParams &cp) override;
+    void imageReady(const rtengine::procparams::CropParams &cp,
+                    int64_t editRev, int64_t viewRev) override;
+
+    void imageReady(const rtengine::procparams::CropParams &cp,
+                    const rtengine::ProcessingContext &ctx) override;
+    void imageFailed(const rtengine::ProcessingContext &ctx) override;
+    rtengine::ProcessingContext getDisplayedContext() const
+    {
+        return displayedContext_;
+    }
+    Glib::RefPtr<Gdk::Pixbuf> getDisplayedImage() const { return previewImg; }
+    void setEditorPanel(EditorPanel *ep) { editorPanel_ = ep; }
+
+private:
+    EditorPanel *editorPanel_ = nullptr;
+public:
 
     // this function is called when a new preview image arrives from rtengine
     void previewImageChanged();

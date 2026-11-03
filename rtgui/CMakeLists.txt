@@ -14,6 +14,8 @@ set(CLISOURCEFILES
     )
 
 set(NONCLISOURCEFILES
+    liveparamcontroller.cc
+    liveparamserver.cc
     chatconnection.cc
     chatinput.cc
     chatpanel.cc
@@ -85,7 +87,6 @@ set(NONCLISOURCEFILES
     lockablecolorpicker.cc
     lwbutton.cc
     lwbuttonset.cc
-    main.cc
     multilangmgr.cc
     mycurve.cc
     mydiagonalcurve.cc
@@ -306,8 +307,14 @@ if(SIMDE_INCLUDE_DIRS)
     include_directories("${SIMDE_INCLUDE_DIRS}")
 endif()
 
+# Shared GUI core library (excludes main.cc so art and macOS test_liveparam_gui share one build)
+add_library(rtgui_core STATIC ${NONCLISOURCEFILES})
+add_dependencies(rtgui_core UpdateInfo)
+target_compile_definitions(rtgui_core PUBLIC GUIVERSION)
+set_target_properties(rtgui_core PROPERTIES COMPILE_FLAGS "${CMAKE_CXX_FLAGS}")
+
 # Create new executables targets
-add_executable(art ${EXTRA_SRC_NONCLI} ${NONCLISOURCEFILES})
+add_executable(art ${EXTRA_SRC_NONCLI} main.cc)
 add_executable(art-cli ${EXTRA_SRC_CLI} ${CLISOURCEFILES})
 
 # Add dependencies to executables targets
@@ -326,8 +333,8 @@ endif()
 set_target_properties(art PROPERTIES COMPILE_FLAGS "${CMAKE_CXX_FLAGS}" OUTPUT_NAME ART)
 set_target_properties(art-cli PROPERTIES COMPILE_FLAGS "${CMAKE_CXX_FLAGS}" OUTPUT_NAME ART-cli)
 
-# Add linked libraries dependencies to executables targets
-target_link_libraries(art PUBLIC
+set(RTGUI_LINK_LIBRARIES
+    rtgui_core
     rtengine
     ${CANBERRA-GTK_LIBRARIES}
     ${EXPAT_LIBRARIES}
@@ -350,6 +357,9 @@ target_link_libraries(art PUBLIC
     ${RSVG_LIBRARIES}
     ${EXIV2_LIBRARIES}
     )
+
+# Add linked libraries dependencies to executables targets
+target_link_libraries(art PUBLIC ${RTGUI_LINK_LIBRARIES})
 
 target_link_libraries(art-cli PUBLIC
     rtengine
@@ -381,6 +391,54 @@ endif()
 if(APPLE)
     target_link_libraries(art PRIVATE "-framework ApplicationServices -framework Foundation")
     target_link_libraries(art-cli PRIVATE "-framework Foundation")
+endif()
+
+if(APPLE)
+    add_executable(test_liveparam test_liveparam.cc liveparamcontroller.cc liveparamserver.cc)
+    target_compile_definitions(test_liveparam PUBLIC GUIVERSION)
+    target_link_libraries(test_liveparam PUBLIC
+        rtengine
+        ${CAIROMM_LIBRARIES}
+        ${EXPAT_LIBRARIES}
+        ${EXTRA_LIB_RTGUI}
+        ${FFTW3F_LIBRARIES}
+        ${GIOMM_LIBRARIES}
+        ${GIO_LIBRARIES}
+        ${GLIB2_LIBRARIES}
+        ${GLIBMM_LIBRARIES}
+        ${GOBJECT_LIBRARIES}
+        ${GTHREAD_LIBRARIES}
+        ${GTKMM_LIBRARIES}
+        ${GTK_LIBRARIES}
+        ${JPEG_LIBRARIES}
+        ${LCMS_LIBRARIES}
+        ${PNG_LIBRARIES}
+        ${TIFF_LIBRARIES}
+        ${ZLIB_LIBRARIES}
+        ${LENSFUN_LIBRARIES}
+        ${RSVG_LIBRARIES}
+        ${EXIV2_LIBRARIES}
+        )
+    target_link_libraries(test_liveparam PRIVATE "-framework ApplicationServices -framework Foundation")
+
+    add_executable(test_liveparam_gui test_liveparam_gui.cc test_liveparam_socket.cc)
+    add_dependencies(test_liveparam_gui UpdateInfo)
+    target_compile_definitions(test_liveparam_gui PUBLIC GUIVERSION ART_TEST_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+    set_target_properties(test_liveparam_gui PROPERTIES COMPILE_FLAGS "${CMAKE_CXX_FLAGS}")
+    target_link_libraries(test_liveparam_gui PUBLIC ${RTGUI_LINK_LIBRARIES})
+    if(HAS_MIMALLOC)
+        target_link_libraries(test_liveparam_gui PUBLIC mimalloc)
+    endif()
+    target_link_libraries(test_liveparam_gui PRIVATE "-framework ApplicationServices -framework Foundation")
+
+    # Exercise the real main.cc startup paths without forwarding files to an
+    # unrelated, already running ART instance on the development desktop.
+    add_executable(test_liveparam_app EXCLUDE_FROM_ALL main.cc)
+    add_dependencies(test_liveparam_app UpdateInfo)
+    target_compile_definitions(test_liveparam_app PRIVATE GUIVERSION
+        ART_APPLICATION_ID="us.pixls.art.ART.liveparamtest")
+    target_link_libraries(test_liveparam_app PRIVATE ${RTGUI_LINK_LIBRARIES}
+        "-framework ApplicationServices -framework Foundation")
 endif()
 
 # Install executables

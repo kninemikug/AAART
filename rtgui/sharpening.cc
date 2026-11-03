@@ -498,7 +498,7 @@ void Sharpening::trimValues(rtengine::procparams::ProcParams *pp)
 
 void Sharpening::autoDeconvRadiusChanged(float radius)
 {
-    idle_register.add([this, radius]() -> bool {
+    idle_register.addOrRun([this, radius]() -> bool {
         disableListener();
         if (radius < 0) {
             dradius->delAutoButton();

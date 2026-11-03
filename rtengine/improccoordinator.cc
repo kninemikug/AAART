@@ -79,11 +79,12 @@ ImProcCoordinator::ImProcCoordinator()
       frameCountListener(nullptr), imageTypeListener(nullptr),
       filmNegListener(nullptr), adnListener(nullptr), hListener(nullptr),
       autoLogListener(nullptr), autoRadiusListener(nullptr), resultValid(false),
-      tweakOperator(nullptr), lastOutputProfile("BADFOOD"),
+      tweakOperator(nullptr), hasTweakOp_(false), lastOutputProfile("BADFOOD"),
       lastOutputIntent(RI__COUNT), lastOutputBPC(false),
       // thread(nullptr),
-      changeSinceLast(0), updaterRunning(false), destroying(false),
-      highQualityComputed(false)
+      changeSinceLast(0), updaterRunning(false),
+      nextEditRev(0), nextViewRev(0), currentEditRev(0), currentViewRev(0),
+      destroying(false), highQualityComputed(false)
 {
     for (int i = 0; i < 3; ++i) {
         bufs_[i] = nullptr;
@@ -101,7 +102,7 @@ void ImProcCoordinator::assign(ImageSource *imgsrc)
 
 ImProcCoordinator::~ImProcCoordinator()
 {
-    destroying = true;
+    destroying.store(true, std::memory_order_release);
     // updaterThreadStart.lock();
 
     wait_not_running();
@@ -116,7 +117,11 @@ ImProcCoordinator::~ImProcCoordinator()
         }
     }
 
-    std::vector<Crop *> toDel = crops;
+    std::vector<Crop *> toDel;
+    {
+        std::lock_guard<std::mutex> lk(cropsMutex_);
+        toDel = crops;
+    }
 
     for (size_t i = 0; i < toDel.size(); i++) {
         delete toDel[i];
@@ -149,6 +154,18 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
 {
     ART_PIPELINE_TIME_REPORT("preview");
 
+    const auto context = getProcessingContext();
+    ProcessingResultListener *listeners[] = {
+        aeListener, awbListener, flatFieldAutoClipListener,
+        bayerAutoContrastListener, xtransAutoContrastListener,
+        frameCountListener, imageTypeListener, filmNegListener,
+        adnListener, autoLogListener, autoRadiusListener};
+    for (auto listener : listeners) {
+        if (listener) {
+            listener->setProcessingContext(context);
+        }
+    }
+
     // mProcessing is locked by process(), our only caller, for the whole call
     // (see there) -- it used to be locked here instead, but that put it inside
     // mTweak's scope there, which could deadlock against Crop::fullUpdate()'s
@@ -171,8 +188,13 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
     // Check if any detail crops need high detail. If not, take a fast path
     // short cut
     if (!highDetailNeeded) {
-        for (size_t i = 0; i < crops.size(); i++)
-            if (crops[i]->get_skip() == 1) { // skip=1 -> full resolution
+        std::vector<Crop *> cropsSnapshot;
+        {
+            std::lock_guard<std::mutex> lk(cropsMutex_);
+            cropsSnapshot = crops;
+        }
+        for (size_t i = 0; i < cropsSnapshot.size(); i++)
+            if (cropsSnapshot[i]->get_skip() == 1) { // skip=1 -> full resolution
                 highDetailNeeded = true;
                 break;
             }
@@ -555,20 +577,37 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
             lastOutputProfile = params.icm.outputProfile;
             lastOutputIntent = params.icm.outputIntent;
             lastOutputBPC = params.icm.outputBPC;
-            ipf.updateColorProfiles(monitorProfile, monitorIntent, softProof,
-                                    gamutCheck);
+            Glib::ustring monProf;
+            RenderingIntent monIntent;
+            bool sp = false;
+            GamutCheck gc = GAMUT_CHECK_OFF;
+            {
+                std::lock_guard<std::mutex> lk(displayConfigMutex_);
+                monProf = monitorProfile;
+                monIntent = monitorIntent;
+                sp = softProof;
+                gc = gamutCheck;
+            }
+            ipf.updateColorProfiles(monProf, monIntent, sp, gc);
         }
     }
 
     // process crop, if needed
-    for (size_t i = 0; i < crops.size(); i++)
-        if (crops[i]->hasListener() &&
-            (panningRelatedChange ||
-             (highDetailNeeded && options.prevdemo != PD_Sidecar) ||
-             (todo & (M_MONITOR | M_RGBCURVE | M_LUMACURVE)) ||
-             crops[i]->get_skip() == 1)) {
-            crops[i]->update(todo); // may call ourselves
+    {
+        std::vector<Crop *> cropsSnapshot;
+        {
+            std::lock_guard<std::mutex> lk(cropsMutex_);
+            cropsSnapshot = crops;
         }
+        for (size_t i = 0; i < cropsSnapshot.size(); i++)
+            if (cropsSnapshot[i]->hasListener() &&
+                (panningRelatedChange ||
+                 (highDetailNeeded && options.prevdemo != PD_Sidecar) ||
+                 (todo & (M_MONITOR | M_RGBCURVE | M_LUMACURVE)) ||
+                 cropsSnapshot[i]->get_skip() == 1)) {
+                cropsSnapshot[i]->update(todo); // may call ourselves
+            }
+    }
 
     if (panningRelatedChange || (todo & M_MONITOR)) {
         progress("Conversion to RGB...", 100 * readyphase / numofphases);
@@ -601,6 +640,9 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
                 bufs_[2]->syncCpu();
             } catch (char *str) {
                 progress("Error converting file...", 0);
+                if (imageListener) {
+                    imageListener->imageFailed(getProcessingContext());
+                }
                 return;
             }
         }
@@ -617,7 +659,7 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
         // TODO: The WB tool should be advertised too in order to get the
         // AutoWB's temp and green values
         {
-            imageListener->imageReady(params.crop);
+            imageListener->imageReady(params.crop, getProcessingContext());
         }
 
         readyphase++;
@@ -684,15 +726,19 @@ void ImProcCoordinator::updateWB()
 
 void ImProcCoordinator::setTweakOperator(TweakOperator *tOperator)
 {
+    MyMutex::MyLock lock(mProcessing);
     if (tOperator) {
         tweakOperator = tOperator;
+        hasTweakOp_.store(true, std::memory_order_release);
     }
 }
 
 void ImProcCoordinator::unsetTweakOperator(TweakOperator *tOperator)
 {
+    MyMutex::MyLock lock(mProcessing);
     if (tOperator && tOperator == tweakOperator) {
         tweakOperator = nullptr;
+        hasTweakOp_.store(false, std::memory_order_release);
     }
 }
 
@@ -795,10 +841,16 @@ void ImProcCoordinator::setScale(int prevscale)
         bufs_[i]->assignColorSpace(params.icm.workingProfile);
     }
 
-    if (!sizeListeners.empty())
-        for (size_t i = 0; i < sizeListeners.size(); i++) {
-            sizeListeners[i]->sizeChanged(fullw, fullh, fw, fh);
-        }
+    std::vector<SizeListener *> listenersSnapshot;
+    {
+        std::lock_guard<std::mutex> lk(sizeListenersMutex_);
+        listenersSnapshot = sizeListeners;
+    }
+    const int curFullW = fullw.load(std::memory_order_relaxed);
+    const int curFullH = fullh.load(std::memory_order_relaxed);
+    for (size_t i = 0; i < listenersSnapshot.size(); i++) {
+        listenersSnapshot[i]->sizeChanged(curFullW, curFullH, fw, fh);
+    }
 }
 
 void ImProcCoordinator::notifyHistogramChanged()
@@ -1312,6 +1364,7 @@ void ImProcCoordinator::getAutoCrop(double ratio, int &x, int &y, int &w,
 void ImProcCoordinator::setMonitorProfile(const Glib::ustring &profile,
                                           RenderingIntent intent)
 {
+    std::lock_guard<std::mutex> lk(displayConfigMutex_);
     monitorProfile = profile;
     monitorIntent = intent;
 }
@@ -1319,19 +1372,21 @@ void ImProcCoordinator::setMonitorProfile(const Glib::ustring &profile,
 void ImProcCoordinator::getMonitorProfile(Glib::ustring &profile,
                                           RenderingIntent &intent) const
 {
+    std::lock_guard<std::mutex> lk(displayConfigMutex_);
     profile = monitorProfile;
     intent = monitorIntent;
 }
 
 void ImProcCoordinator::setSoftProofing(bool softProof, GamutCheck gamutCheck)
 {
+    std::lock_guard<std::mutex> lk(displayConfigMutex_);
     this->softProof = softProof;
     this->gamutCheck = gamutCheck;
 }
 
 void ImProcCoordinator::setSharpMask(bool sharpMask)
 {
-    this->sharpMask = sharpMask;
+    this->sharpMask.store(sharpMask, std::memory_order_release);
 }
 
 void ImProcCoordinator::saveInputICCReference(const Glib::ustring &fname,
@@ -1469,10 +1524,11 @@ void ImProcCoordinator::stopProcessing()
 
     // updaterThreadStart.lock();
 
-    if (updaterRunning) {
+    {
+        MyMutex::MyLock lock(paramsUpdateMutex);
         changeSinceLast = 0;
-        wait_not_running();
     }
+    wait_not_running();
     // if (updaterRunning && thread) {
     //     changeSinceLast = 0;
     //     thread->join();
@@ -1483,12 +1539,10 @@ void ImProcCoordinator::stopProcessing()
 
 void ImProcCoordinator::startProcessing()
 {
-    if (!destroying) {
-        if (!updaterRunning) {
-            // updaterThreadStart.lock();
-            set_updater_running(true);
-            // updaterThreadStart.unlock();
-
+    if (!destroying.load(std::memory_order_acquire)) {
+        std::unique_lock<std::mutex> lck(updater_mutex_);
+        if (!updaterRunning && !destroying.load(std::memory_order_acquire)) {
+            updaterRunning = true;
             rtengine::ThreadPool::add_task(
                 rtengine::ThreadPool::Priority::HIGHEST,
                 sigc::mem_fun(*this, &ImProcCoordinator::process));
@@ -1499,7 +1553,15 @@ void ImProcCoordinator::startProcessing()
 void ImProcCoordinator::startProcessing(int changeCode)
 {
     paramsUpdateMutex.lock();
+    if (destroying.load(std::memory_order_acquire)) {
+        paramsUpdateMutex.unlock();
+        return;
+    }
     changeSinceLast |= update_change_flags(nextParams, changeCode);
+    ++nextGeneration_;
+    if (parameterUpdateListener_ && (changeSinceLast & (M_VOID - 1))) {
+        parameterUpdateListener_->previewScheduled(nextGeneration_);
+    }
     paramsUpdateMutex.unlock();
 
     startProcessing();
@@ -1507,47 +1569,72 @@ void ImProcCoordinator::startProcessing(int changeCode)
 
 void ImProcCoordinator::process()
 {
-    if (plistener) {
-        plistener->setProgressState(true);
-        ipf.setProgressListener(plistener, crops.size() + 1);
+    ProgressListener *const pl = plistener;
+    if (pl) {
+        size_t numCrops = 0;
+        {
+            std::lock_guard<std::mutex> lk(cropsMutex_);
+            numCrops = crops.size();
+        }
+        pl->setProgressState(true);
+        ipf.setProgressListener(pl, numCrops + 1);
     }
 
-    paramsUpdateMutex.lock();
-
     bool changed = false;
-    while (changeSinceLast) {
-        const bool panningRelatedChange = true;
-        params = nextParams;
-        int change = changeSinceLast;
-        changeSinceLast = 0;
-        // Cache the pointer once: setTweakOperator()/unsetTweakOperator() mutate
-        // tweakOperator from the GUI thread with no locking at all, so it could
-        // otherwise flip between the two checks below (across the
-        // updatePreviewImage() call, which can take a while) and leave mTweak
-        // locked forever.
-        TweakOperator *const tweakOp = tweakOperator;
-        // mProcessing is held for the whole span below (previously it was only
-        // locked inside updatePreviewImage() itself, now hoisted out here) so it
-        // can be acquired in the same order -- mProcessing then mTweak -- as
-        // Crop::fullUpdate(), which locks mProcessing for its own whole call and
-        // mTweak around its own backup/tweak/restore sequence. Locking them in a
-        // consistent order across both call sites avoids an ABBA deadlock.
+    for (;;) {
         mProcessing.lock();
+
+        int change = 0;
+        TweakOperator *tweakOp = nullptr;
+        bool shouldExit = false;
+        {
+            MyMutex::MyLock puLock(paramsUpdateMutex);
+            if (!changeSinceLast ||
+                destroying.load(std::memory_order_acquire)) {
+                shouldExit = true;
+            } else {
+                params = nextParams;
+                currentEditRev.store(nextEditRev, std::memory_order_release);
+                currentViewRev.store(nextViewRev, std::memory_order_release);
+                currentGeneration_ = nextGeneration_;
+                change = changeSinceLast;
+                changeSinceLast = 0;
+                tweakOp = tweakOperator;
+            }
+        }
+
+        if (shouldExit) {
+            mProcessing.unlock();
+
+            if (pl && !destroying.load(std::memory_order_acquire)) {
+                if (!changed) {
+                    pl->setProgressStr("PROGRESSBAR_READY");
+                }
+                pl->setProgressState(false);
+            }
+
+            {
+                MyMutex::MyLock puLock(paramsUpdateMutex);
+                if (changeSinceLast &&
+                    !destroying.load(std::memory_order_acquire)) {
+                    if (pl) {
+                        pl->setProgressState(true);
+                    }
+                    continue;
+                }
+                std::lock_guard<std::mutex> ulk(updater_mutex_);
+                updaterRunning = false;
+                updater_cond_.notify_all();
+            }
+            return;
+        }
+
+        const bool panningRelatedChange = true;
         if (tweakOp) {
-            // TWEAKING THE PROCPARAMS FOR THE SPOT ADJUSTMENT MODE
-            // mTweak stays locked until restoreParams() below: Crop::fullUpdate()
-            // takes the same lock around its own backup/tweak/restore sequence,
-            // so the two can't race on the shared params/paramsBackup.
             mTweak.lock();
             backupParams();
             tweakOp->tweakParams(params);
         }
-        /* TODODANCAT see if this is needed here anymore
-        else if (paramsBackup) {
-            paramsBackup.release();
-        }
-        */
-        paramsUpdateMutex.unlock();
 
         // M_VOID means no update, and is a bit higher that the rest
         if (change & (M_VOID - 1)) {
@@ -1555,24 +1642,11 @@ void ImProcCoordinator::process()
             changed = true;
         }
 
-        paramsUpdateMutex.lock();
-
         if (tweakOp) {
             restoreParams();
             mTweak.unlock();
         }
         mProcessing.unlock();
-    }
-
-    paramsUpdateMutex.unlock();
-
-    set_updater_running(false);
-
-    if (plistener) {
-        if (!changed) {
-            plistener->setProgressStr("PROGRESSBAR_READY");
-        }
-        plistener->setProgressState(false);
     }
 }
 
@@ -1608,7 +1682,18 @@ out:
 
 void ImProcCoordinator::endUpdateParams(int changeFlags)
 {
+    if (destroying.load(std::memory_order_acquire)) {
+        paramsUpdateMutex.unlock();
+        return;
+    }
+    if (parameterUpdateListener_) {
+        parameterUpdateListener_->parametersCommitted(nextEditRev, nextViewRev);
+    }
     changeSinceLast |= update_change_flags(nextParams, changeFlags);
+    ++nextGeneration_;
+    if (parameterUpdateListener_ && (changeSinceLast & (M_VOID - 1))) {
+        parameterUpdateListener_->previewScheduled(nextGeneration_);
+    }
 
     paramsUpdateMutex.unlock();
     startProcessing();
@@ -1617,29 +1702,39 @@ void ImProcCoordinator::endUpdateParams(int changeFlags)
 bool ImProcCoordinator::getHighQualComputed()
 {
     // this function may only be called from detail windows
-    if (!highQualityComputed) {
+    if (!highQualityComputed.load(std::memory_order_acquire)) {
         if (options.prevdemo == PD_Sidecar &&
             options.wb_preview_mode != Options::WB_BEFORE_HIGH_DETAIL) {
             // we already have high quality preview
             setHighQualComputed();
         } else {
-            for (size_t i = 0; i < crops.size() - 1;
-                 ++i) { // -1, because last entry is the freshly created detail
-                        // window
-                if (crops[i]->get_skip() ==
-                    1) { // there is at least one crop with skip == 1 => we
-                         // already have high quality preview
-                    setHighQualComputed();
-                    break;
+            std::vector<Crop *> cropsSnapshot;
+            {
+                std::lock_guard<std::mutex> lk(cropsMutex_);
+                cropsSnapshot = crops;
+            }
+            if (cropsSnapshot.size() > 1) {
+                for (size_t i = 0; i < cropsSnapshot.size() - 1;
+                     ++i) { // -1, because last entry is the freshly created
+                            // detail window
+                    if (cropsSnapshot[i]->get_skip() ==
+                        1) { // there is at least one crop with skip == 1 => we
+                             // already have high quality preview
+                        setHighQualComputed();
+                        break;
+                    }
                 }
             }
         }
     }
 
-    return highQualityComputed;
+    return highQualityComputed.load(std::memory_order_acquire);
 }
 
-void ImProcCoordinator::setHighQualComputed() { highQualityComputed = true; }
+void ImProcCoordinator::setHighQualComputed()
+{
+    highQualityComputed.store(true, std::memory_order_release);
+}
 
 bool ImProcCoordinator::getDeltaELCH(EditUniqueID id, int x, int y, float &L,
                                      float &C, float &H)
@@ -1652,17 +1747,17 @@ bool ImProcCoordinator::getDeltaELCH(EditUniqueID id, int x, int y, float &L,
 
     bool ret = false;
     // updaterThreadStart.lock();
-    if (updaterRunning) { // && thread) {
-        wait_not_running();
-        // thread->join();
+    wait_not_running();
+    {
+        MyMutex::MyLock lock(mProcessing);
         if (ipf.deltaE.ok) {
             ret = true;
             L = ipf.deltaE.L;
             C = ipf.deltaE.C;
             H = ipf.deltaE.H;
         }
+        ipf.setDeltaEData(EUID_None, -1, -1);
     }
-    ipf.setDeltaEData(EUID_None, -1, -1);
     // updaterThreadStart.unlock();
 
     return ret;
@@ -1749,11 +1844,20 @@ void ImProcCoordinator::set_updater_running(bool val)
 
 bool ImProcCoordinator::is_running() const
 {
-    if (updaterRunning) {
-        return true;
+    {
+        std::unique_lock<std::mutex> lck(
+            const_cast<std::mutex &>(updater_mutex_));
+        if (updaterRunning) {
+            return true;
+        }
     }
-    for (auto c : crops) {
-        if (c->updating) {
+    std::vector<Crop *> cropsSnapshot;
+    {
+        std::lock_guard<std::mutex> lk(cropsMutex_);
+        cropsSnapshot = crops;
+    }
+    for (auto c : cropsSnapshot) {
+        if (c->isUpdating()) {
             return true;
         }
     }
@@ -1782,3 +1886,29 @@ bool ImProcCoordinator::is_mask_image() const
 }
 
 } // namespace rtengine
+
+bool rtengine::ImProcCoordinator::mergeDerivedParams(
+    const ProcessingContext &ctx,
+    const std::function<void(ProcParams *)> &merge)
+{
+    MyMutex::MyLock lock(paramsUpdateMutex);
+    if (destroying.load() || ctx.editRevision != nextEditRev ||
+        ctx.generation != nextGeneration_) {
+        return false;
+    }
+    if (ctx.cropId) {
+        std::lock_guard<std::mutex> cropsLock(cropsMutex_);
+        bool current = false;
+        for (auto *crop : crops) {
+            if (crop->matchesViewport(ctx)) {
+                current = true;
+                break;
+            }
+        }
+        if (!current) {
+            return false;
+        }
+    }
+    merge(&nextParams);
+    return true;
+}

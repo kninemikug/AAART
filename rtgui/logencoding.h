@@ -20,6 +20,7 @@
 #pragma once
 
 #include "adjuster.h"
+#include "guiutils.h"
 #include "toolpanel.h"
 #include <gtkmm.h>
 
@@ -29,6 +30,7 @@ class LogEncoding: public ToolParamBlock,
                    public FoldableToolPanel {
 public:
     LogEncoding();
+    ~LogEncoding() override;
 
     void read(const rtengine::procparams::ProcParams *pp) override;
     void write(rtengine::procparams::ProcParams *pp) override;
@@ -47,6 +49,7 @@ public:
     void registerShortcuts(ToolShortcutManager *mgr) override;
 
 private:
+    IdleRegister idle_register;
     void satcontrolChanged();
 
     Gtk::ToggleButton *autocompute;

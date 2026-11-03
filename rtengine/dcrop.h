@@ -29,6 +29,9 @@
 #include "procevents.h"
 #include "rtengine.h"
 
+#include <condition_variable>
+#include <mutex>
+
 namespace rtengine {
 
 using namespace procparams;
@@ -57,6 +60,9 @@ protected:
     bool updating; /// Flag telling if an updater thread is currently processing
     bool newUpdatePending; /// Flag telling the updater thread that a new update
                            /// is pending
+    bool destroying_;
+    mutable std::mutex stateMutex_;
+    std::condition_variable stateCond_;
     int skip;
     int cropx, cropy, cropw, croph; /// size of the detail crop image ('skip'
                                     /// taken into account), with border
@@ -73,6 +79,9 @@ protected:
 
     bool cropAllocated;
     DetailedCropListener *cropImageListener;
+    ProcessingContext processingContext_;
+    const uint64_t cropId_;
+    std::atomic<uint64_t> viewportGeneration_{0};
 
     MyMutex cropMutex;
     ImProcCoordinator *const parent;
@@ -92,17 +101,28 @@ public:
 
     void setEditSubscriber(EditSubscriber *newSubscriber);
     bool hasListener();
-    void setWindow(int cropX, int cropY, int cropW, int cropH,
-                   int skip) override
+    bool isUpdating() const
     {
-        setCropSizes(cropX, cropY, cropW, cropH, skip, false);
+        std::lock_guard<std::mutex> lk(stateMutex_);
+        return updating;
     }
+    void setWindow(int cropX, int cropY, int cropW, int cropH,
+                   int skip) override;
 
     /** @brief Synchronously look out if a full update is necessary
      * First try, only make fullUpdate if this returns false
      */
     bool tryUpdate() override;
     /** @brief Asynchronously reprocess the detailed crop */
+    void setViewportGeneration(uint64_t generation) override
+    {
+        viewportGeneration_.store(generation, std::memory_order_release);
+    }
+    bool matchesViewport(const ProcessingContext &ctx) const
+    {
+        return ctx.cropId == cropId_ && ctx.viewportGeneration ==
+            viewportGeneration_.load(std::memory_order_acquire);
+    }
     void fullUpdate() override; // called via thread
 
     void setListener(DetailedCropListener *il) override;

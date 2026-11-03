@@ -691,3 +691,26 @@ void History::activatePrevSnapshot()
         selection->select(iter);
     }
 }
+
+size_t History::getHistorySize() const
+{
+    return historyModel ? historyModel->children().size() : 0;
+}
+
+bool History::getHistoryRow(size_t index, Glib::ustring &text,
+                            Glib::ustring &value, rtengine::ProcEvent &ev,
+                            rtengine::procparams::ProcParams &params) const
+{
+    if (!historyModel || index >= historyModel->children().size()) {
+        return false;
+    }
+    Gtk::TreeModel::Row row = historyModel->children()[index];
+    if (!row) {
+        return false;
+    }
+    text = row[historyColumns.text];
+    value = row[historyColumns.value];
+    ev = row[historyColumns.chev];
+    params = row[historyColumns.params];
+    return true;
+}

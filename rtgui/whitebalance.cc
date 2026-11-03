@@ -594,7 +594,7 @@ void WhiteBalance::trimValues(rtengine::procparams::ProcParams *pp)
 
 void WhiteBalance::WBChanged(rtengine::ColorTemp ctemp)
 {
-    idle_register.add([this, ctemp]() -> bool {
+    idle_register.addOrRun([this, ctemp]() -> bool {
         disableListener();
         setEnabled(true);
         temp->setDefault(ctemp.getTemp());

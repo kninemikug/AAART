@@ -190,18 +190,8 @@ Denoise::~Denoise() { idle_register.destroy(); }
 
 void Denoise::chromaChanged(double autchroma, double autred, double autblue)
 {
-    struct Data {
-        Denoise *dn;
-        double chroma;
-        double red;
-        double blue;
-    };
-    Data *d = new Data{this, autchroma, autred, autblue};
-
-    idle_register.add([d]() -> bool {
-        d->dn->chromaComputed(d->chroma, d->red, d->blue);
-        delete d;
-        return false;
+    idle_register.addOrRun([this, autchroma, autred, autblue]() -> bool {
+        return chromaComputed(autchroma, autred, autblue);
     });
 }
 

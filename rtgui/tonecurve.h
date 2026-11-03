@@ -73,8 +73,6 @@ protected:
     rtengine::ProcEvent EvBaseCurve;
 
     // used temporarily in eventing
-    std::vector<double> nextToneCurve;
-    std::vector<double> nextToneCurve2;
 
     void setHistmatching(bool enabled);
     void showPerceptualStrength();

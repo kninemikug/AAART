@@ -36,6 +36,7 @@
 #include "rtimage.h"
 #include "rtwindow.h"
 #include "soundman.h"
+#include "liveparamcontroller.h"
 
 using namespace rtengine::procparams;
 using ScopeType = Options::ScopeType;
@@ -351,10 +352,6 @@ private:
             return;
         }
 
-        if (!noEvent) {
-            processor->beginUpdateParams();
-        }
-
         if (rtengine::Settings::color_mgmt_mode ==
             rtengine::Settings::ColorManagementMode::APPLICATION) {
             processor->setMonitorProfile(profile, intent);
@@ -371,7 +368,9 @@ private:
             softProof.get_sensitive() && softProof.get_active(), gc);
 
         if (!noEvent) {
-            processor->endUpdateParams(rtengine::EvMonitorTransform);
+            processor->startProcessing(
+                rtengine::RefreshMapper::getInstance()->getAction(
+                    rtengine::EvMonitorTransform));
         }
     }
 
@@ -386,10 +385,6 @@ private:
 
         if (check_is_active) {
             if (processor) {
-                if (!noEvent) {
-                    processor->beginUpdateParams();
-                }
-
                 rtengine::GamutCheck gc = rtengine::GAMUT_CHECK_OFF;
                 if (spGamutCheck.get_sensitive() && spGamutCheck.get_active()) {
                     gc = rtengine::GAMUT_CHECK_OUTPUT;
@@ -401,7 +396,9 @@ private:
                     softProof.get_sensitive() && softProof.get_active(), gc);
 
                 if (!noEvent) {
-                    processor->endUpdateParams(rtengine::EvMonitorTransform);
+                    processor->startProcessing(
+                        rtengine::RefreshMapper::getInstance()->getAction(
+                            rtengine::EvMonitorTransform));
                 }
             }
         }
@@ -1148,6 +1145,7 @@ void EditorPanel::open(Thumbnail *tmb, rtengine::InitialImage *isrc)
     lastSaveAsFileName = Glib::path_get_basename(fname);
 
     previewHandler = new PreviewHandler();
+    previewHandler->setEditorPanel(this);
 
     this->isrc = isrc;
     ipc.reset(rtengine::StagedImageProcessor::create(isrc));
@@ -1166,6 +1164,26 @@ void EditorPanel::open(Thumbnail *tmb, rtengine::InitialImage *isrc)
     iareapanel->imageArea->setImProcCoordinator(ipc);
     navigator->previewWindow->setPreviewHandler(previewHandler);
     navigator->previewWindow->setImageArea(iareapanel->imageArea);
+
+    iareapanel->imageArea->setEditorPanel(this);
+    {
+        auto &ctrl = art::liveparam::LiveParamController::getInstance();
+        std::string regId;
+        std::string sessId;
+        if (ctrl.isEnabled()) {
+            regId = ctrl.registerEditor(this, Glib::path_get_basename(fname));
+            sessId = ctrl.getSessionId();
+        } else {
+            editorId_.clear();
+        }
+        std::lock_guard<std::mutex> lk(liveParamOpenMutex_);
+        ++liveParamOpenGen_;
+        liveParamSessionId_ = sessId;
+        liveParamEditorId_ = regId;
+    }
+    if (art::liveparam::LiveParamController::getInstance().isEnabled()) {
+        ipc->setParameterUpdateListener(this);
+    }
 
     rtengine::ImageSource *is = isrc->getImageSource();
     is->setProgressListener(this);
@@ -1220,6 +1238,16 @@ void EditorPanel::open(Thumbnail *tmb, rtengine::InitialImage *isrc)
 
 void EditorPanel::close()
 {
+    if (ipc) {
+        ipc->setParameterUpdateListener(nullptr);
+    }
+    {
+        std::lock_guard<std::mutex> lk(liveParamOpenMutex_);
+        ++liveParamOpenGen_;
+        liveParamSessionId_.clear();
+        liveParamEditorId_.clear();
+    }
+    art::liveparam::LiveParamController::getInstance().unregisterEditor(this);
     if (ipc) {
         saveProfile();
         // close image processor and the current thumbnail
@@ -1280,7 +1308,7 @@ void EditorPanel::saveProfile()
     // If the file was deleted, do not generate ghost entries
     if (Glib::file_test(fname, Glib::FILE_TEST_EXISTS)) {
         ProcParams params;
-        ipc->getParams(&params);
+        ipc->getCommittedParams(&params);
 
         // Will call updateCache, which will update both the cached and sidecar
         // files if necessary
@@ -1318,7 +1346,6 @@ void EditorPanel::procParamsChanged(
     const rtengine::ProcEvent &ev, const Glib::ustring &descr,
     const ParamsEdited *paramsEdited)
 {
-
     //    if (ev!=EvPhotoLoaded)
     //        saveLabel->set_markup (Glib::ustring("<span foreground=\"#AA0000\"
     //        weight=\"bold\">") + M("MAIN_BUTTON_SAVE") + "</span>");
@@ -1339,6 +1366,18 @@ void EditorPanel::procParamsChanged(
 }
 
 void EditorPanel::clearParamChanges() {}
+
+void EditorPanel::parametersCommitted(int64_t &editRev, int64_t &viewRev)
+{
+    art::liveparam::LiveParamController::getInstance()
+        .onEditorParamChanged(this, editRev, viewRev);
+}
+
+void EditorPanel::previewScheduled(uint64_t generation)
+{
+    art::liveparam::LiveParamController::getInstance()
+        .onPreviewScheduled(this, generation);
+}
 
 void EditorPanel::setProgress(double p)
 {
@@ -1384,7 +1423,12 @@ void EditorPanel::setProgressState(bool inProcessing)
     });
 }
 
-void EditorPanel::error(const Glib::ustring &descr) { parent->error(descr); }
+void EditorPanel::error(const Glib::ustring &descr)
+{
+    if (parent) {
+        parent->error(descr);
+    }
+}
 
 void EditorPanel::error(const Glib::ustring &title, const Glib::ustring &descr)
 {
@@ -1443,7 +1487,7 @@ void EditorPanel::refreshProcessingState(bool inProcessingP)
         // the file browser.
         if (ipc && openThm && tpc->getChangedState()) {
             rtengine::procparams::ProcParams pparams;
-            ipc->getParams(&pparams);
+            ipc->getCommittedParams(&pparams);
             openThm->setProcParams(pparams, EDITOR, false);
         }
 
@@ -2122,7 +2166,7 @@ BatchQueueEntry *EditorPanel::createBatchQueueEntry(
     const rtengine::procparams::PartialProfile *export_profile)
 {
     rtengine::procparams::ProcParams pparams;
-    ipc->getParams(&pparams);
+    ipc->getCommittedParams(&pparams);
     if (export_profile) {
         export_profile->applyTo(pparams);
     }
@@ -2232,7 +2276,7 @@ void EditorPanel::do_save_image(bool fast_export)
                 isProcessing = true;
                 // save image
                 rtengine::procparams::ProcParams pparams;
-                ipc->getParams(&pparams);
+                ipc->getCommittedParams(&pparams);
                 auto ep = saveAsDialog->getExportProfile();
                 if (ep) {
                     ep->applyTo(pparams);
@@ -2306,7 +2350,7 @@ void EditorPanel::do_send_to_gimp(bool fast_export)
 
     // develop image
     rtengine::procparams::ProcParams pparams;
-    ipc->getParams(&pparams);
+    ipc->getCommittedParams(&pparams);
     if (options.editor_bypass_output_profile) {
         pparams.icm.outputProfile =
             rtengine::procparams::ColorManagementParams::NoProfileString;
@@ -2330,7 +2374,7 @@ bool EditorPanel::saveImmediately(const Glib::ustring &filename,
                                   const SaveFormat &sf)
 {
     rtengine::procparams::ProcParams pparams;
-    ipc->getParams(&pparams);
+    ipc->getCommittedParams(&pparams);
 
     rtengine::ProcessingJob *job =
         rtengine::ProcessingJob::create(ipc->getInitialImage(), pparams);
@@ -2901,8 +2945,33 @@ bool EditorPanel::autosave()
 
 void EditorPanel::sizeChanged(int w, int h, int ow, int oh)
 {
-    if (ipc) {
-        idle_register.add([this]() -> bool {
+    std::string sessId;
+    std::string edId;
+    uint64_t openGen = 0;
+    const bool notifyLiveParam =
+        art::liveparam::LiveParamController::getInstance().isEnabled();
+    if (notifyLiveParam) {
+        std::lock_guard<std::mutex> lk(liveParamOpenMutex_);
+        sessId = liveParamSessionId_;
+        edId = liveParamEditorId_;
+        openGen = liveParamOpenGen_;
+    }
+
+    if (ipc || (notifyLiveParam && !sessId.empty() && !edId.empty())) {
+        idle_register.add([this, notifyLiveParam, sessId, edId, openGen]() -> bool {
+            if (notifyLiveParam && !sessId.empty() && !edId.empty()) {
+                bool stillSameOpen = false;
+                {
+                    std::lock_guard<std::mutex> lk(liveParamOpenMutex_);
+                    stillSameOpen = (liveParamOpenGen_ == openGen &&
+                                     liveParamSessionId_ == sessId &&
+                                     liveParamEditorId_ == edId);
+                }
+                if (stillSameOpen) {
+                    art::liveparam::LiveParamController::getInstance()
+                        .onEditorSizeChanged(sessId, edId, this);
+                }
+            }
             if (ipc) {
                 info_toggled();
                 navigator->setInvalid(ipc->getFullWidth(),

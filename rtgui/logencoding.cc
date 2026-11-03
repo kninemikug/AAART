@@ -109,6 +109,8 @@ LogEncoding::LogEncoding()
     pack_start(*autocompute);
 }
 
+LogEncoding::~LogEncoding() { idle_register.destroy(); }
+
 void LogEncoding::read(const ProcParams *pp)
 {
     disableListener();
@@ -223,23 +225,26 @@ void LogEncoding::autocomputeToggled()
 
 void LogEncoding::logEncodingChanged(const LogEncodingParams &params)
 {
-    GThreadLock lock;
+    idle_register.addOrRun([this, params]() -> bool {
+        GThreadLock lock;
 
-    disableListener();
-    ConnectionBlocker cbl(autoconn);
+        disableListener();
+        ConnectionBlocker cbl(autoconn);
 
-    // blackEv->setEnabled(!params.autocompute);
-    // whiteEv->setEnabled(!params.autocompute);
-    blackEv->setEnabled(true);
-    whiteEv->setEnabled(true);
-    //    targetGray->setEnabled(true);
+        // blackEv->setEnabled(!params.autocompute);
+        // whiteEv->setEnabled(!params.autocompute);
+        blackEv->setEnabled(true);
+        whiteEv->setEnabled(true);
+        //    targetGray->setEnabled(true);
 
-    gain->setValue(params.gain);
-    blackEv->setValue(params.blackEv);
-    whiteEv->setValue(params.whiteEv);
-    //    targetGray->setValue(params.targetGray);
+        gain->setValue(params.gain);
+        blackEv->setValue(params.blackEv);
+        whiteEv->setValue(params.whiteEv);
+        //    targetGray->setValue(params.targetGray);
 
-    enableListener();
+        enableListener();
+        return false;
+    });
 }
 
 void LogEncoding::satcontrolChanged()
