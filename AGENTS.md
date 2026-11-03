@@ -66,7 +66,7 @@ AAART/
 - **Options (defaults):** `OPTION_OMP`=ON, `ENABLE_MIMALLOC`=ON (required on Linux unless `WITH_SAN`), `ENABLE_LIBRAW`=ON, `ENABLE_OCIO`=ON, `ENABLE_CTL`=OFF, `ENABLE_SIMDE`=OFF, `ENABLE_LCMS_FAST_FLOAT`=ON, `WITH_LTO`/`WITH_SAN`/`WITH_PROF`/`BUILD_SHARED`=OFF.
 - **Pipeline Python:** use the root Python 3.14 `venv/`; do not add `requirements.txt`. Scripts use argparse, docstrings, and a `main()` guard; Bash scripts use `set -e`.
 - **Pipeline dependencies:** install only when a consuming task needs them and record the installation then. Do not predeclare a package list, model, configuration loader, or file layout.
-- **Version coupling:** bump `PPVERSION` in `rtgui/ppversion.h` whenever the `.arp` format or tool behavior changes.
+- **Version coupling:** bump `PPVERSION` in `rtgui/ppversion.h` whenever the `.arp` format or tool behavior changes. PPVERSION의 도구 동작은 저장된 프로필의 해석·기본값·영상 처리 의미를 말한다. 이를 보존하는 IPC 전송·수명·동기화 변경은 회귀 검증 근거를 남겨 증가를 생략할 수 있다.
 
 ## ANTI-PATTERNS
 
@@ -76,7 +76,11 @@ AAART/
 - **No `floor()` in `LUT.h` hot paths** (negative-index truncation correctness); no `std::list` in `lcp.h`; do not call the functions marked “do not use in a loop” in `color.h` from loops.
 - **Do not use CameraCalibration matrices for DNGs** (`dcraw.cc`, #4129); do not reuse a `ProcessingJob` after destroy or while processing; `RefreshMapEvent` must not combine with other events.
 - **No in-source builds** — stale generated files cause CMake errors.
-- **Do not modify `rtengine/` or `rtgui/` for pipeline features.** The agentic layer wraps ART; the only allowed core change is the existing `main-cli.cc` handling of explicitly provided files.
+- **파이프라인 기능을 위한 `rtengine/`·`rtgui/` 수정은 원칙적으로 금지한다. 다만 실행 중 GUI의 로컬 IPC 파라미터 조정에 한해, 승인된 설계와 검증 계획에 따라 조건부로 허용한다.**
+  - **허용 조건:** 대상 기능, 허용 파라미터, 지원 OS·편집 모드, 변경 예정 지점, PPVERSION 판정, GUI/CLI 회귀 항목을 착수 전에 기록한다. 외부 입력 검증, GUI 메인루프 전달, 편집 대상과 revision 검사, 종료 시 수명 관리를 갖춘다. 초기 상태는 기능 비활성화로 한다.
+  - **허용 범위:** `rtgui/`의 로컬 수신, GUI 명령 처리, 패널·히스토리·저장 상태 동기화, 편집기 열기·닫기 관리와 필요한 GUI 빌드 등록. `rtengine/`은 기존 단계의 안전한 파라미터 전달, 확인된 공유 상태의 동기화, 세대 번호를 포함한 프레임 통지에 필요한 최소 변경으로 한정한다. 기존 명시 파일에 대한 `main-cli.cc` 처리 예외는 유지한다.
+  - **유지하는 금지 사항:** 실행 중 `ProcessingJob` 수정·재사용·destroy, 무보호 파라미터/이미지 버퍼 교환, `MINUPDATE`와 다른 이벤트 결합, 미검증 무효화 범위 축소, 헤드리스 상주화, 미인증 외부 네트워크 공개, vendored 코드 정리를 이 예외에 포함하지 않는다. 처리식·처리 순서·프로필 형식을 바꾸려면 이 예외를 확대 해석하지 않고 별도 설계와 PPVERSION 판정을 수행한다.
+  - **검증 절차:** GUI·CLI 아웃오브소스 빌드, 기존 프로필 로드/저장/렌더 회귀, 수동 GUI 조작과 일치, 연속 요청·GUI 충돌·팬/줌·닫기/종료를 포함한 스레드/메모리 검사, 세대·오류 계약, 대상 OS의 화면 반영을 확인하고 결과를 기록한다. 하나라도 미검증이면 지원 범위를 한정하고 통과를 추측하여 보고하지 않는다. 공통 엔진 변경은 GUI와 CLI 양쪽의 회귀 결과를 필요로 한다.
 - **Do not download the full FiveK dataset.** ART-cli confirmation uses 1–2 samples; the later recommendation subset and split follow WBS B-01/B-02.
 - **Do not present Lightroom↔ART `.arp` mapping as exact.** Record mapping limits.
 
