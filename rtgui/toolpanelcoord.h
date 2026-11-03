@@ -270,6 +270,10 @@ public:
     void initImage(rtengine::StagedImageProcessor *ipc_, bool israw);
     void closeImage();
 
+    bool isExposureEnabled() const;
+    double getExposureCompensation() const;
+    bool applyExternalExposure(double expcomp);
+
     // update the "expanded" state of the Tools
     void updateToolState();
     void openAllTools();

@@ -45,7 +45,8 @@ Crop::Crop(ImProcCoordinator *parent, EditDataProvider *editDataProvider,
       cropw(-1), croph(-1), trafx(0), trafy(0), trafw(-1), trafh(-1),
       rqcropx(0), rqcropy(0), rqcropw(-1), rqcroph(-1), borderRequested(32),
       upperBorder(0), leftBorder(0), cropAllocated(false),
-      cropImageListener(nullptr), parent(parent), isDetailWindow(isDetailWindow)
+      cropImageListener(nullptr), currentEditRev(0), currentViewRev(0),
+      parent(parent), isDetailWindow(isDetailWindow)
 {
     for (int i = 0; i < 3; ++i) {
         bufs_[i] = nullptr;
@@ -495,9 +496,9 @@ void Crop::update(int todo)
                    3 * finalW);
         }
 
-        cropImageListener->setDetailedCrop(final, finaltrue, params.icm,
-                                           params.crop, rqcropx, rqcropy,
-                                           rqcropw, rqcroph, skip);
+        cropImageListener->setDetailedCrop(
+            final, finaltrue, params.icm, params.crop, rqcropx, rqcropy,
+            rqcropw, rqcroph, skip, currentEditRev, currentViewRev);
         delete final;
         delete finaltrue;
         delete cropImgtrue;
@@ -784,6 +785,8 @@ bool Crop::tryUpdate()
 void Crop::fullUpdate()
 {
     MyMutex::MyLock processingLock(parent->mProcessing);
+    currentEditRev = parent->getCurrentEditRevision();
+    currentViewRev = parent->getCurrentViewRevision();
     // parent->updaterThreadStart.lock();
 
     // parent->wait_not_running();

@@ -727,6 +727,29 @@ void ToolPanelCoordinator::closeImage()
     }
 }
 
+bool ToolPanelCoordinator::isExposureEnabled() const
+{
+    return exposure && exposure->getEnabled();
+}
+
+double ToolPanelCoordinator::getExposureCompensation() const
+{
+    if (exposure) {
+        return exposure->getExpComp();
+    }
+    return 0.0;
+}
+
+bool ToolPanelCoordinator::applyExternalExposure(double expcomp)
+{
+    if (!ipc || !exposure || !exposure->getEnabled()) {
+        return false;
+    }
+    exposure->setExpComp(expcomp);
+    panelChanged(rtengine::EvExpComp, M("TP_EXPOSURE_EXPCOMP"));
+    return true;
+}
+
 void ToolPanelCoordinator::closeAllTools()
 {
 

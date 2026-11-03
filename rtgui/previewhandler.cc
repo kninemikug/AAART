@@ -17,6 +17,7 @@
  *  along with RawTherapee.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "previewhandler.h"
+#include "liveparamcontroller.h"
 #include "../rtengine/rtengine.h"
 #include <gtkmm.h>
 
@@ -114,9 +115,15 @@ void PreviewHandler::delImage(IImage8 *i)
 
 void PreviewHandler::imageReady(const rtengine::procparams::CropParams &cp)
 {
+    imageReady(cp, 0, 0);
+}
+
+void PreviewHandler::imageReady(const rtengine::procparams::CropParams &cp,
+                                int64_t editRev, int64_t viewRev)
+{
     pih->pending++;
 
-    idle_register.add([this, cp]() -> bool {
+    idle_register.add([this, cp, editRev, viewRev]() -> bool {
         if (pih->destroyed) {
             if (pih->pending == 1) {
                 delete pih;
@@ -137,6 +144,11 @@ void PreviewHandler::imageReady(const rtengine::procparams::CropParams &cp)
         pih->phandler->cropParams = cp;
         pih->phandler->previewImageChanged();
         --pih->pending;
+
+        if (editorPanel_) {
+            art::liveparam::LiveParamController::getInstance().onPreviewReady(
+                editorPanel_, editRev, viewRev);
+        }
 
         return false;
     });

@@ -73,6 +73,8 @@ protected:
 
     bool cropAllocated;
     DetailedCropListener *cropImageListener;
+    int64_t currentEditRev;
+    int64_t currentViewRev;
 
     MyMutex cropMutex;
     ImProcCoordinator *const parent;

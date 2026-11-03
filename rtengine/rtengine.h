@@ -256,6 +256,11 @@ public:
      * that the preview image has been updated.
      * @param cp holds the coordinates of the current crop rectangle */
     virtual void imageReady(const procparams::CropParams &cp) = 0;
+    virtual void imageReady(const procparams::CropParams &cp,
+                            int64_t editRev, int64_t viewRev)
+    {
+        imageReady(cp);
+    }
 };
 
 /** When the detailed crop image is ready for display during staged processing
@@ -273,6 +278,14 @@ public:
                                  const procparams::ColorManagementParams &cmp,
                                  const procparams::CropParams &cp, int cx,
                                  int cy, int cw, int ch, int skip) = 0;
+    virtual void setDetailedCrop(IImage8 *img, IImage8 *imgtrue,
+                                 const procparams::ColorManagementParams &cmp,
+                                 const procparams::CropParams &cp, int cx,
+                                 int cy, int cw, int ch, int skip,
+                                 int64_t editRev, int64_t viewRev)
+    {
+        setDetailedCrop(img, imgtrue, cmp, cp, cx, cy, cw, ch, skip);
+    }
     virtual void getWindow(int &cx, int &cy, int &cw, int &ch, int &skip) = 0;
 };
 
@@ -474,6 +487,10 @@ public:
      * tOperator is the same than the currently set operator. If it doesn't
      * match, the currently set TweakOperator will remain set. */
     virtual void unsetTweakOperator(TweakOperator *tOperator) = 0;
+    virtual bool hasTweakOperator() const { return false; }
+    virtual void setNextRevisions(int64_t editRev, int64_t viewRev) {}
+    virtual int64_t getCurrentEditRevision() const { return 0; }
+    virtual int64_t getCurrentViewRevision() const { return 0; }
     /** Returns the current processing parameters.
      * @param dst is the location where the image processing parameters are
      * copied (it is assumed that the memory is allocated by the caller) */

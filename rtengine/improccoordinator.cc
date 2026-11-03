@@ -82,8 +82,9 @@ ImProcCoordinator::ImProcCoordinator()
       tweakOperator(nullptr), lastOutputProfile("BADFOOD"),
       lastOutputIntent(RI__COUNT), lastOutputBPC(false),
       // thread(nullptr),
-      changeSinceLast(0), updaterRunning(false), destroying(false),
-      highQualityComputed(false)
+      changeSinceLast(0), updaterRunning(false),
+      nextEditRev(0), nextViewRev(0), currentEditRev(0), currentViewRev(0),
+      destroying(false), highQualityComputed(false)
 {
     for (int i = 0; i < 3; ++i) {
         bufs_[i] = nullptr;
@@ -617,7 +618,8 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
         // TODO: The WB tool should be advertised too in order to get the
         // AutoWB's temp and green values
         {
-            imageListener->imageReady(params.crop);
+            imageListener->imageReady(params.crop, currentEditRev,
+                                      currentViewRev);
         }
 
         readyphase++;
@@ -684,6 +686,7 @@ void ImProcCoordinator::updateWB()
 
 void ImProcCoordinator::setTweakOperator(TweakOperator *tOperator)
 {
+    MyMutex::MyLock lock(mProcessing);
     if (tOperator) {
         tweakOperator = tOperator;
     }
@@ -691,6 +694,7 @@ void ImProcCoordinator::setTweakOperator(TweakOperator *tOperator)
 
 void ImProcCoordinator::unsetTweakOperator(TweakOperator *tOperator)
 {
+    MyMutex::MyLock lock(mProcessing);
     if (tOperator && tOperator == tweakOperator) {
         tweakOperator = nullptr;
     }
@@ -1484,11 +1488,9 @@ void ImProcCoordinator::stopProcessing()
 void ImProcCoordinator::startProcessing()
 {
     if (!destroying) {
+        std::unique_lock<std::mutex> lck(updater_mutex_);
         if (!updaterRunning) {
-            // updaterThreadStart.lock();
-            set_updater_running(true);
-            // updaterThreadStart.unlock();
-
+            updaterRunning = true;
             rtengine::ThreadPool::add_task(
                 rtengine::ThreadPool::Priority::HIGHEST,
                 sigc::mem_fun(*this, &ImProcCoordinator::process));
@@ -1516,37 +1518,19 @@ void ImProcCoordinator::process()
 
     bool changed = false;
     while (changeSinceLast) {
+        mProcessing.lock();
         const bool panningRelatedChange = true;
         params = nextParams;
+        currentEditRev = nextEditRev;
+        currentViewRev = nextViewRev;
         int change = changeSinceLast;
         changeSinceLast = 0;
-        // Cache the pointer once: setTweakOperator()/unsetTweakOperator() mutate
-        // tweakOperator from the GUI thread with no locking at all, so it could
-        // otherwise flip between the two checks below (across the
-        // updatePreviewImage() call, which can take a while) and leave mTweak
-        // locked forever.
         TweakOperator *const tweakOp = tweakOperator;
-        // mProcessing is held for the whole span below (previously it was only
-        // locked inside updatePreviewImage() itself, now hoisted out here) so it
-        // can be acquired in the same order -- mProcessing then mTweak -- as
-        // Crop::fullUpdate(), which locks mProcessing for its own whole call and
-        // mTweak around its own backup/tweak/restore sequence. Locking them in a
-        // consistent order across both call sites avoids an ABBA deadlock.
-        mProcessing.lock();
         if (tweakOp) {
-            // TWEAKING THE PROCPARAMS FOR THE SPOT ADJUSTMENT MODE
-            // mTweak stays locked until restoreParams() below: Crop::fullUpdate()
-            // takes the same lock around its own backup/tweak/restore sequence,
-            // so the two can't race on the shared params/paramsBackup.
             mTweak.lock();
             backupParams();
             tweakOp->tweakParams(params);
         }
-        /* TODODANCAT see if this is needed here anymore
-        else if (paramsBackup) {
-            paramsBackup.release();
-        }
-        */
         paramsUpdateMutex.unlock();
 
         // M_VOID means no update, and is a bit higher that the rest
@@ -1608,6 +1592,10 @@ out:
 
 void ImProcCoordinator::endUpdateParams(int changeFlags)
 {
+    if (destroying) {
+        paramsUpdateMutex.unlock();
+        return;
+    }
     changeSinceLast |= update_change_flags(nextParams, changeFlags);
 
     paramsUpdateMutex.unlock();
@@ -1749,8 +1737,12 @@ void ImProcCoordinator::set_updater_running(bool val)
 
 bool ImProcCoordinator::is_running() const
 {
-    if (updaterRunning) {
-        return true;
+    {
+        std::unique_lock<std::mutex> lck(
+            const_cast<std::mutex &>(updater_mutex_));
+        if (updaterRunning) {
+            return true;
+        }
     }
     for (auto c : crops) {
         if (c->updating) {

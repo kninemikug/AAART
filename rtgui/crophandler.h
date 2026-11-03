@@ -30,6 +30,8 @@
 #include "lockablecolorpicker.h"
 #include "threadutils.h"
 
+class EditorPanel;
+
 class CropDisplayHandler {
 
 public:
@@ -89,7 +91,18 @@ public:
                          const rtengine::procparams::ColorManagementParams &cmp,
                          const rtengine::procparams::CropParams &cp, int cx,
                          int cy, int cw, int ch, int skip) override;
+    void setDetailedCrop(rtengine::IImage8 *im, rtengine::IImage8 *imworking,
+                         const rtengine::procparams::ColorManagementParams &cmp,
+                         const rtengine::procparams::CropParams &cp, int cx,
+                         int cy, int cw, int ch, int skip,
+                         int64_t editRev, int64_t viewRev) override;
     void getWindow(int &cwx, int &cwy, int &cww, int &cwh, int &cskip) override;
+
+    void setEditorPanel(EditorPanel *ep) { editorPanel_ = ep; }
+
+private:
+    EditorPanel *editorPanel_ = nullptr;
+public:
 
     // SizeListener interface
     void sizeChanged(int w, int h, int ow, int oh) override;

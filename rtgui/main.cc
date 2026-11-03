@@ -35,6 +35,7 @@
 #include "soundman.h"
 #include "version.h"
 #include "wbprovider.h"
+#include "liveparamserver.h"
 #include <cstdlib>
 #include <cstring>
 #include <giomm.h>
@@ -242,10 +243,15 @@ bool init_rt()
 
 #endif
 
+    art::liveparam::LiveParamServer::getInstance().start();
     return true;
 }
 
-void cleanup_rt() { rtengine::cleanup(); }
+void cleanup_rt()
+{
+    art::liveparam::LiveParamServer::getInstance().stop();
+    rtengine::cleanup();
+}
 
 RTWindow *create_rt_window()
 {

@@ -177,7 +177,13 @@ public:
 
     void refreshImageAreas();
 
+    ToolPanelCoordinator *getToolPanelCoordinator() const { return tpc; }
+    rtengine::StagedImageProcessor *getImageProcessor() const { return ipc.get(); }
+    const Glib::ustring &getEditorId() const { return editorId_; }
+    void setEditorId(const Glib::ustring &id) { editorId_ = id; }
+
 private:
+    Glib::ustring editorId_;
     BatchQueueEntry *createBatchQueueEntry(
         bool fast_export, bool use_batch_queue_profile,
         const rtengine::procparams::PartialProfile *export_profile);

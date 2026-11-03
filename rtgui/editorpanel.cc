@@ -36,6 +36,7 @@
 #include "rtimage.h"
 #include "rtwindow.h"
 #include "soundman.h"
+#include "liveparamcontroller.h"
 
 using namespace rtengine::procparams;
 using ScopeType = Options::ScopeType;
@@ -1148,6 +1149,7 @@ void EditorPanel::open(Thumbnail *tmb, rtengine::InitialImage *isrc)
     lastSaveAsFileName = Glib::path_get_basename(fname);
 
     previewHandler = new PreviewHandler();
+    previewHandler->setEditorPanel(this);
 
     this->isrc = isrc;
     ipc.reset(rtengine::StagedImageProcessor::create(isrc));
@@ -1166,6 +1168,13 @@ void EditorPanel::open(Thumbnail *tmb, rtengine::InitialImage *isrc)
     iareapanel->imageArea->setImProcCoordinator(ipc);
     navigator->previewWindow->setPreviewHandler(previewHandler);
     navigator->previewWindow->setImageArea(iareapanel->imageArea);
+
+    if (iareapanel && iareapanel->imageArea &&
+        iareapanel->imageArea->mainCropWindow) {
+        iareapanel->imageArea->mainCropWindow->cropHandler.setEditorPanel(this);
+    }
+    art::liveparam::LiveParamController::getInstance().registerEditor(
+        this, Glib::path_get_basename(fname));
 
     rtengine::ImageSource *is = isrc->getImageSource();
     is->setProgressListener(this);
@@ -1220,6 +1229,7 @@ void EditorPanel::open(Thumbnail *tmb, rtengine::InitialImage *isrc)
 
 void EditorPanel::close()
 {
+    art::liveparam::LiveParamController::getInstance().unregisterEditor(this);
     if (ipc) {
         saveProfile();
         // close image processor and the current thumbnail
@@ -1318,6 +1328,8 @@ void EditorPanel::procParamsChanged(
     const rtengine::ProcEvent &ev, const Glib::ustring &descr,
     const ParamsEdited *paramsEdited)
 {
+    art::liveparam::LiveParamController::getInstance().onEditorParamChanged(
+        this);
 
     //    if (ev!=EvPhotoLoaded)
     //        saveLabel->set_markup (Glib::ustring("<span foreground=\"#AA0000\"
@@ -1384,7 +1396,12 @@ void EditorPanel::setProgressState(bool inProcessing)
     });
 }
 
-void EditorPanel::error(const Glib::ustring &descr) { parent->error(descr); }
+void EditorPanel::error(const Glib::ustring &descr)
+{
+    art::liveparam::LiveParamController::getInstance().onRenderFailed(
+        this, descr.c_str());
+    parent->error(descr);
+}
 
 void EditorPanel::error(const Glib::ustring &title, const Glib::ustring &descr)
 {
@@ -2901,6 +2918,8 @@ bool EditorPanel::autosave()
 
 void EditorPanel::sizeChanged(int w, int h, int ow, int oh)
 {
+    art::liveparam::LiveParamController::getInstance().onEditorViewChanged(
+        this);
     if (ipc) {
         idle_register.add([this]() -> bool {
             if (ipc) {

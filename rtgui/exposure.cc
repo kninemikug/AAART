@@ -88,6 +88,18 @@ void Exposure::read(const ProcParams *pp)
     enableListener();
 }
 
+void Exposure::setExpComp(double val)
+{
+    disableListener();
+    expcomp->setValue(val);
+    enableListener();
+}
+
+double Exposure::getExpComp() const
+{
+    return expcomp->getValue();
+}
+
 void Exposure::write(ProcParams *pp)
 {
     pp->exposure.enabled = getEnabled();

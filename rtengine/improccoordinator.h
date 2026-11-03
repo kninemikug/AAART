@@ -191,6 +191,10 @@ protected:
     int changeSinceLast;
     bool updaterRunning;
     ProcParams nextParams;
+    int64_t nextEditRev;
+    int64_t nextViewRev;
+    int64_t currentEditRev;
+    int64_t currentViewRev;
     bool destroying;
     void startProcessing();
     void process();
@@ -205,7 +209,23 @@ public:
     ~ImProcCoordinator() override;
     void assign(ImageSource *imgsrc);
 
-    void getParams(procparams::ProcParams *dst) override { *dst = params; }
+    void getParams(procparams::ProcParams *dst) override
+    {
+        MyMutex::MyLock lock(mProcessing);
+        *dst = params;
+    }
+
+    bool hasTweakOperator() const override { return tweakOperator != nullptr; }
+
+    void setNextRevisions(int64_t editRev, int64_t viewRev) override
+    {
+        paramsUpdateMutex.lock();
+        nextEditRev = editRev;
+        nextViewRev = viewRev;
+        paramsUpdateMutex.unlock();
+    }
+    int64_t getCurrentEditRevision() const override { return currentEditRev; }
+    int64_t getCurrentViewRevision() const override { return currentViewRev; }
 
     void startProcessing(int changeCode) override;
     ProcParams *beginUpdateParams() override;

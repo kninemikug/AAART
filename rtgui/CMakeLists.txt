@@ -14,6 +14,8 @@ set(CLISOURCEFILES
     )
 
 set(NONCLISOURCEFILES
+    liveparamcontroller.cc
+    liveparamserver.cc
     chatconnection.cc
     chatinput.cc
     chatpanel.cc
@@ -381,6 +383,35 @@ endif()
 if(APPLE)
     target_link_libraries(art PRIVATE "-framework ApplicationServices -framework Foundation")
     target_link_libraries(art-cli PRIVATE "-framework Foundation")
+endif()
+
+add_executable(test_liveparam test_liveparam.cc liveparamcontroller.cc liveparamserver.cc)
+target_compile_definitions(test_liveparam PUBLIC GUIVERSION)
+target_link_libraries(test_liveparam PUBLIC
+    rtengine
+    ${CAIROMM_LIBRARIES}
+    ${EXPAT_LIBRARIES}
+    ${EXTRA_LIB_RTGUI}
+    ${FFTW3F_LIBRARIES}
+    ${GIOMM_LIBRARIES}
+    ${GIO_LIBRARIES}
+    ${GLIB2_LIBRARIES}
+    ${GLIBMM_LIBRARIES}
+    ${GOBJECT_LIBRARIES}
+    ${GTHREAD_LIBRARIES}
+    ${GTKMM_LIBRARIES}
+    ${GTK_LIBRARIES}
+    ${JPEG_LIBRARIES}
+    ${LCMS_LIBRARIES}
+    ${PNG_LIBRARIES}
+    ${TIFF_LIBRARIES}
+    ${ZLIB_LIBRARIES}
+    ${LENSFUN_LIBRARIES}
+    ${RSVG_LIBRARIES}
+    ${EXIV2_LIBRARIES}
+    )
+if(APPLE)
+    target_link_libraries(test_liveparam PRIVATE "-framework ApplicationServices -framework Foundation")
 endif()
 
 # Install executables

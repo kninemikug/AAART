@@ -35,6 +35,7 @@ public:
 };
 
 class PreviewHandler;
+class EditorPanel;
 
 struct PreviewHandlerIdleHelper {
     PreviewHandler *phandler;
@@ -70,6 +71,14 @@ public:
                   const rtengine::procparams::CropParams &cp) override;
     void delImage(rtengine::IImage8 *img) override;
     void imageReady(const rtengine::procparams::CropParams &cp) override;
+    void imageReady(const rtengine::procparams::CropParams &cp,
+                    int64_t editRev, int64_t viewRev) override;
+
+    void setEditorPanel(EditorPanel *ep) { editorPanel_ = ep; }
+
+private:
+    EditorPanel *editorPanel_ = nullptr;
+public:
 
     // this function is called when a new preview image arrives from rtengine
     void previewImageChanged();

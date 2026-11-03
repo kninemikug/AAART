@@ -58,6 +58,9 @@ public:
 
     void setRaw(bool raw);
 
+    void setExpComp(double val);
+    double getExpComp() const;
+
     void hrmodeChanged();
 
     void toolReset(bool to_initial) override;

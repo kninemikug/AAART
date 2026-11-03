@@ -27,6 +27,7 @@
 #include "cropwindow.h"
 #include "guiutils.h"
 #include "imagearea.h"
+#include "liveparamcontroller.h"
 #include <cstring>
 
 #include "../rtengine/threadpool.h"
@@ -447,6 +448,15 @@ void CropHandler::setDetailedCrop(
     const rtengine::procparams::CropParams &cp, int ax, int ay, int aw, int ah,
     int askip)
 {
+    setDetailedCrop(im, imtrue, cmp, cp, ax, ay, aw, ah, askip, 0, 0);
+}
+
+void CropHandler::setDetailedCrop(
+    IImage8 *im, IImage8 *imtrue,
+    const rtengine::procparams::ColorManagementParams &cmp,
+    const rtengine::procparams::CropParams &cp, int ax, int ay, int aw, int ah,
+    int askip, int64_t editRev, int64_t viewRev)
+{
     if (!enabled) {
         return;
     }
@@ -480,7 +490,7 @@ void CropHandler::setDetailedCrop(
         bool expected = false;
 
         if (redraw_needed.compare_exchange_strong(expected, true)) {
-            idle_register.add([this]() -> bool {
+            idle_register.add([this, editRev, viewRev]() -> bool {
                 cimg.lock();
 
                 if (redraw_needed.exchange(false)) {
@@ -554,6 +564,11 @@ void CropHandler::setDetailedCrop(
                         if (initial.exchange(false)) {
                             displayHandler->initialImageArrived();
                         }
+                    }
+
+                    if (editorPanel_) {
+                        art::liveparam::LiveParamController::getInstance()
+                            .onCropReady(editorPanel_, editRev, viewRev);
                     }
                 } else {
                     cimg.unlock();
