@@ -435,7 +435,7 @@ void FlatField::setShortcutPath(const Glib::ustring &path)
 
 void FlatField::flatFieldAutoClipValueChanged(int n)
 {
-    idle_register.add([this, n]() -> bool {
+    idle_register.addOrRun([this, n]() -> bool {
         disableListener();
         flatFieldClipControl->setValue(n);
         enableListener();

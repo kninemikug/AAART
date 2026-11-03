@@ -688,7 +688,7 @@ void BayerProcess::pixelShiftMotionMethodChanged()
 
 void BayerProcess::FrameCountChanged(int n, int frameNum)
 {
-    idle_register.add([this, n, frameNum]() -> bool {
+    idle_register.addOrRun([this, n, frameNum]() -> bool {
         imageNumber->block(true);
 
         imageNumber->remove_all();
@@ -714,7 +714,7 @@ void BayerProcess::FrameCountChanged(int n, int frameNum)
 
 void BayerProcess::autoContrastChanged(double autoContrast)
 {
-    idle_register.add([this, autoContrast]() -> bool {
+    idle_register.addOrRun([this, autoContrast]() -> bool {
         disableListener();
         dualDemosaicContrast->setValue(autoContrast);
         enableListener();

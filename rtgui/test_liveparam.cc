@@ -20,6 +20,7 @@ using namespace art::liveparam;
 
 bool ToolPanelCoordinator::applyExternalExposure(double) { return true; }
 bool ToolPanelCoordinator::isExposureEnabled() const { return true; }
+double ToolPanelCoordinator::getExposureCompensation() const { return 0.0; }
 bool EditorPanel::can_open_now() const { return true; }
 
 #define TEST_ASSERT(cond, msg) \

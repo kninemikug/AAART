@@ -88,11 +88,14 @@ void Exposure::read(const ProcParams *pp)
     enableListener();
 }
 
-void Exposure::setExpComp(double val)
+void Exposure::setExpComp(double val, bool notify)
 {
     disableListener();
     expcomp->setValue(val);
     enableListener();
+    if (notify) {
+        adjusterChanged(expcomp, expcomp->getValue());
+    }
 }
 
 double Exposure::getExpComp() const

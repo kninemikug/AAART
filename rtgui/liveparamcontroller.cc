@@ -186,7 +186,9 @@ void LiveParamController::unregisterEditor(EditorPanel *panel)
     }
 }
 
-void LiveParamController::onEditorParamChanged(EditorPanel *panel)
+void LiveParamController::onEditorParamChanged(EditorPanel *panel,
+                                               int64_t &editRev,
+                                               int64_t &viewRev)
 {
     if (!isEnabled() || !panel) {
         return;
@@ -197,14 +199,20 @@ void LiveParamController::onEditorParamChanged(EditorPanel *panel)
         return;
     }
     EditorState &st = editors_[it->second];
-    st.currentRevision++;
+    if (st.hasCommittedParams) {
+        ++st.currentRevision;
+    } else {
+        st.hasCommittedParams = true;
+    }
+    editRev = st.currentRevision;
+    viewRev = st.currentViewRevision;
 
     if (st.hasInFlightMutation) {
         st.lastMutation.previewStatus = "SUPERSEDED";
         auto cit = st.mutationCache.find(st.inFlightRequestId);
         if (cit != st.mutationCache.end()) {
             cit->second.previewStatus = "SUPERSEDED";
-            cit->second.completedTime = std::chrono::steady_clock::now();
+            cit->second.completedTime = clock_();
             cit->second.isCompleted = true;
         }
         st.hasInFlightMutation = false;
@@ -257,6 +265,7 @@ void LiveParamController::onPreviewReady(EditorPanel *panel, int64_t editRev,
     EditorState &st = editors_[it->second];
     st.lastPreviewReadyEditRev = editRev;
     st.lastPreviewReadyViewRev = viewRev;
+    st.initialized = true;
 
     if (st.lastCropReadyEditRev == editRev &&
         st.lastCropReadyViewRev == viewRev) {
@@ -269,7 +278,7 @@ void LiveParamController::onPreviewReady(EditorPanel *panel, int64_t editRev,
             auto cit = st.mutationCache.find(st.inFlightRequestId);
             if (cit != st.mutationCache.end()) {
                 cit->second.previewStatus = "READY";
-                cit->second.completedTime = std::chrono::steady_clock::now();
+                cit->second.completedTime = clock_();
                 cit->second.isCompleted = true;
             }
             st.hasInFlightMutation = false;
@@ -303,7 +312,7 @@ void LiveParamController::onCropReady(EditorPanel *panel, int64_t editRev,
             auto cit = st.mutationCache.find(st.inFlightRequestId);
             if (cit != st.mutationCache.end()) {
                 cit->second.previewStatus = "READY";
-                cit->second.completedTime = std::chrono::steady_clock::now();
+                cit->second.completedTime = clock_();
                 cit->second.isCompleted = true;
             }
             st.hasInFlightMutation = false;
@@ -348,7 +357,7 @@ void LiveParamController::onRenderFailed(const std::string &sessionId,
         auto cit = st.mutationCache.find(st.inFlightRequestId);
         if (cit != st.mutationCache.end()) {
             cit->second.previewStatus = "FAILED";
-            cit->second.completedTime = std::chrono::steady_clock::now();
+            cit->second.completedTime = clock_();
             cit->second.isCompleted = true;
         }
         st.hasInFlightMutation = false;
@@ -357,13 +366,16 @@ void LiveParamController::onRenderFailed(const std::string &sessionId,
 
 void LiveParamController::pruneExpiredCache(EditorState &st)
 {
-    auto now = std::chrono::steady_clock::now();
+    auto now = clock_();
     for (auto it = st.mutationCache.begin(); it != st.mutationCache.end();) {
         if (it->second.isCompleted) {
             auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
                                now - it->second.completedTime)
                                .count();
             if (elapsed >= 300) { // 5 minutes
+                if (st.hasLastMutation && st.lastMutation.requestId == it->first) {
+                    st.hasLastMutation = false;
+                }
                 it = st.mutationCache.erase(it);
                 continue;
             }
@@ -375,6 +387,11 @@ void LiveParamController::pruneExpiredCache(EditorState &st)
 std::string LiveParamController::handleCommand(const std::string &jsonRequest)
 {
     recordGuiAccess();
+    size_t cacheSize = 0;
+    for (auto &entry : editors_) {
+        pruneExpiredCache(entry.second);
+        cacheSize += entry.second.mutationCache.size();
+    }
     if (jsonRequest.size() > 65536) {
         return makeErrorResponse(1, "", sessionId_, "", "INVALID_REQUEST",
                                  "Frame exceeds 64 KiB", "{}", false);
@@ -630,7 +647,7 @@ std::string LiveParamController::handleCommand(const std::string &jsonRequest)
         auto cit = st.mutationCache.find(requestId);
         if (cit != st.mutationCache.end()) {
             if (cit->second.baseRevision == baseRevision &&
-                std::fabs(cit->second.effectiveExpComp - expComp) < 1e-6) {
+                cit->second.requestedExpComp == expComp) {
                 std::ostringstream oss;
                 oss << "{\"protocolVersion\":1,\"requestId\":\"" << requestId
                     << "\",\"sessionId\":\"" << sessionId_
@@ -640,7 +657,7 @@ std::string LiveParamController::handleCommand(const std::string &jsonRequest)
                     << ",";
                 oss << "\"viewRevision\":" << cit->second.viewRevision << ",";
                 oss << "\"effectiveParams\":{\"Exposure.Compensation\":"
-                    << expComp << "},";
+                    << cit->second.effectiveExpComp << "},";
                 oss << "\"previewStatus\":\"" << cit->second.previewStatus
                     << "\",";
                 oss << "\"renderedRevision\":";
@@ -666,14 +683,13 @@ std::string LiveParamController::handleCommand(const std::string &jsonRequest)
             }
         }
 
-        pruneExpiredCache(st);
-        if (st.mutationCache.size() >= 1024) {
+        if (cacheSize >= 1024) {
             return makeErrorResponse(
                 protocolVersion, requestId, sessionId_, reqEditorId, "BUSY",
                 "Mutation cache full", "{}", true);
         }
 
-        if (st.panel->getIsProcessing()) {
+        if (!st.initialized) {
             return makeErrorResponse(
                 protocolVersion, requestId, sessionId_, reqEditorId, "BUSY",
                 "Editor is currently initializing or closing", "{}", true);
@@ -708,27 +724,28 @@ std::string LiveParamController::handleCommand(const std::string &jsonRequest)
                                      detailsOss.str(), false);
         }
 
-        st.currentRevision++;
-        int64_t appliedRev = st.currentRevision;
-        int64_t viewRev = st.currentViewRevision;
-
-        ipc->setNextRevisions(appliedRev, viewRev);
-
+        // Reserve the cache entry before publishing a parameter change.
+        auto reserved = st.mutationCache.emplace(requestId, MutationRecord{});
         if (!tpc->applyExternalExposure(expComp)) {
+            st.mutationCache.erase(reserved.first);
             return makeErrorResponse(
                 protocolVersion, requestId, sessionId_, reqEditorId,
                 "INTERNAL_ERROR", "Failed to apply exposure parameter", "{}",
                 false);
         }
+        const int64_t appliedRev = st.currentRevision;
+        const int64_t viewRev = st.currentViewRevision;
+        const double effectiveExpComp = tpc->getExposureCompensation();
 
         MutationRecord rec;
         rec.requestId = requestId;
         rec.appliedRevision = appliedRev;
         rec.viewRevision = viewRev;
         rec.previewStatus = "PENDING";
-        rec.effectiveExpComp = expComp;
+        rec.effectiveExpComp = effectiveExpComp;
+        rec.requestedExpComp = expComp;
         rec.baseRevision = baseRevision;
-        rec.completedTime = std::chrono::steady_clock::now();
+        rec.completedTime = clock_();
         rec.isCompleted = false;
 
         st.hasLastMutation = true;
@@ -737,7 +754,7 @@ std::string LiveParamController::handleCommand(const std::string &jsonRequest)
         st.inFlightRequestId = requestId;
         st.inFlightAppliedRev = appliedRev;
         st.inFlightAppliedViewRev = viewRev;
-        st.mutationCache[requestId] = rec;
+        reserved.first->second = rec;
 
         std::ostringstream oss;
         oss << "{\"protocolVersion\":1,\"requestId\":\"" << requestId
@@ -745,7 +762,7 @@ std::string LiveParamController::handleCommand(const std::string &jsonRequest)
             << reqEditorId << "\",\"status\":\"APPLIED\",\"result\":{";
         oss << "\"appliedRevision\":" << appliedRev << ",";
         oss << "\"viewRevision\":" << viewRev << ",";
-        oss << "\"effectiveParams\":{\"Exposure.Compensation\":" << expComp
+        oss << "\"effectiveParams\":{\"Exposure.Compensation\":" << effectiveExpComp
             << "},";
         oss << "\"previewStatus\":\"PENDING\",";
         oss << "\"renderedRevision\":";

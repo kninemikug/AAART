@@ -556,17 +556,13 @@ void ToneCurve::histmatchingToggled()
 void ToneCurve::autoMatchedToneCurveChanged(const std::vector<double> &curve,
                                             const std::vector<double> &curve2)
 {
-    nextToneCurve = curve;
-    nextToneCurve2 = curve2;
-
-    idle_register.add([this]() -> bool {
+    idle_register.addOrRun([this, curve, curve2]() -> bool {
         GThreadLock lock;
         disableListener();
         enableAll();
 
-        // toneCurveMode->set_active(rtengine::toUnderlying(nextToneCurveMode));
-        shape->setCurve(nextToneCurve);
-        shape2->setCurve(nextToneCurve2);
+        shape->setCurve(curve);
+        shape2->setCurve(curve2);
         shape->openIfNonlinear();
         shape2->openIfNonlinear();
 

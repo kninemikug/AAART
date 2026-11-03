@@ -212,6 +212,8 @@ protected:
                           int level = 1);
 
 private:
+    class DerivedBridge;
+    std::unique_ptr<DerivedBridge> derivedBridge_;
     EditDataProvider *editDataProvider;
 
 public:

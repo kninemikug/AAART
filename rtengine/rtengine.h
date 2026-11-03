@@ -35,6 +35,7 @@
 #include "tweakoperator.h"
 #include "utils.h"
 #include <ctime>
+#include <functional>
 #include <glibmm.h>
 #include <lcms2.h>
 #include <string>
@@ -359,9 +360,28 @@ public:
     virtual void requestUpdateWaveform() = 0;
 };
 
-/** This listener is used when the auto exposure has been recomputed (e.g. when
- * the clipping ratio changed). */
-class AutoExpListener {
+// Runtime provenance; never serialized in a processing profile.
+struct ProcessingContext {
+    int64_t editRevision = -1;
+    int64_t viewRevision = -1;
+    uint64_t generation = 0;
+};
+
+class ProcessingResultListener {
+public:
+    virtual ~ProcessingResultListener() = default;
+    virtual void setProcessingContext(const ProcessingContext &) {}
+};
+
+class ParameterUpdateListener {
+public:
+    virtual ~ParameterUpdateListener() = default;
+    // Called by the GUI writer while the pending parameter snapshot is locked.
+    virtual void parametersCommitted(int64_t &editRev, int64_t &viewRev) = 0;
+};
+
+/** This listener is used when the auto exposure has been recomputed. */
+class AutoExpListener: public ProcessingResultListener {
 public:
     virtual ~AutoExpListener() = default;
     /** This member function is called when the auto exposure has been
@@ -384,20 +404,20 @@ public:
                                 const std::vector<double> &curve2) = 0;
 };
 
-class AutoLogListener {
+class AutoLogListener: public ProcessingResultListener {
 public:
     virtual ~AutoLogListener() = default;
     virtual void
     logEncodingChanged(const procparams::LogEncodingParams &params) = 0;
 };
 
-class AutoDeconvRadiusListener {
+class AutoDeconvRadiusListener: public ProcessingResultListener {
 public:
     virtual ~AutoDeconvRadiusListener() = default;
     virtual void autoDeconvRadiusChanged(float radius) = 0;
 };
 
-class AutoChromaListener {
+class AutoChromaListener: public ProcessingResultListener {
 public:
     virtual ~AutoChromaListener() = default;
     virtual void chromaChanged(double autchroma, double autred,
@@ -407,38 +427,38 @@ public:
                                int sizeT, int sizeP) = 0;
 };
 
-class AutoWBListener {
+class AutoWBListener: public ProcessingResultListener {
 public:
     virtual ~AutoWBListener() = default;
     virtual void WBChanged(ColorTemp ctemp) = 0;
 };
 
-class FrameCountListener {
+class FrameCountListener: public ProcessingResultListener {
 public:
     virtual ~FrameCountListener() = default;
     virtual void FrameCountChanged(int n, int frameNum) = 0;
 };
 
-class FlatFieldAutoClipListener {
+class FlatFieldAutoClipListener: public ProcessingResultListener {
 public:
     virtual ~FlatFieldAutoClipListener() = default;
     virtual void flatFieldAutoClipValueChanged(int n) = 0;
 };
 
-class ImageTypeListener {
+class ImageTypeListener: public ProcessingResultListener {
 public:
     virtual ~ImageTypeListener() = default;
     virtual void imageTypeChanged(bool isRaw, bool isBayer, bool isXtrans,
                                   bool is_Mono = false) = 0;
 };
 
-class AutoContrastListener {
+class AutoContrastListener: public ProcessingResultListener {
 public:
     virtual ~AutoContrastListener() = default;
     virtual void autoContrastChanged(double autoContrast) = 0;
 };
 
-class FilmNegListener {
+class FilmNegListener: public ProcessingResultListener {
 public:
     virtual ~FilmNegListener() = default;
     virtual void filmRefValuesChanged(
@@ -489,6 +509,19 @@ public:
     virtual void unsetTweakOperator(TweakOperator *tOperator) = 0;
     virtual bool hasTweakOperator() const { return false; }
     virtual void setNextRevisions(int64_t editRev, int64_t viewRev) {}
+    virtual void setParameterUpdateListener(ParameterUpdateListener *listener) {}
+    virtual ProcessingContext getProcessingContext() { return {}; }
+    virtual void clearProcessingResultListeners() {}
+    virtual bool mergeDerivedParams(
+        const ProcessingContext &context,
+        const std::function<void(procparams::ProcParams *)> &merge)
+    {
+        return false;
+    }
+    virtual void getCommittedParams(procparams::ProcParams *dst)
+    {
+        getParams(dst);
+    }
     virtual int64_t getCurrentEditRevision() const { return 0; }
     virtual int64_t getCurrentViewRevision() const { return 0; }
     /** Returns the current processing parameters.

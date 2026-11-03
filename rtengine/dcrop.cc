@@ -267,6 +267,8 @@ void Crop::update(int todo)
                                              params.denoise);
 
             if ((!isDetailWindow) && parent->adnListener) {
+                parent->adnListener->setProcessingContext(
+                    parent->getProcessingContext());
                 parent->adnListener->chromaChanged(
                     params.denoise.chrominance,
                     params.denoise.chrominanceRedGreen,
@@ -279,6 +281,8 @@ void Crop::update(int todo)
             if (parent->adnListener &&
                 params.denoise.chrominanceMethod ==
                     DenoiseParams::ChrominanceMethod::AUTOMATIC) {
+                parent->adnListener->setProcessingContext(
+                    parent->getProcessingContext());
                 parent->adnListener->chromaChanged(
                     params.denoise.chrominance,
                     params.denoise.chrominanceRedGreen,

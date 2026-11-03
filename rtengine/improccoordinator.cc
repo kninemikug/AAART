@@ -154,6 +154,18 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
 {
     ART_PIPELINE_TIME_REPORT("preview");
 
+    const auto context = getProcessingContext();
+    ProcessingResultListener *listeners[] = {
+        aeListener, awbListener, flatFieldAutoClipListener,
+        bayerAutoContrastListener, xtransAutoContrastListener,
+        frameCountListener, imageTypeListener, filmNegListener,
+        adnListener, autoLogListener, autoRadiusListener};
+    for (auto listener : listeners) {
+        if (listener) {
+            listener->setProcessingContext(context);
+        }
+    }
+
     // mProcessing is locked by process(), our only caller, for the whole call
     // (see there) -- it used to be locked here instead, but that put it inside
     // mTweak's scope there, which could deadlock against Crop::fullUpdate()'s
@@ -1544,6 +1556,7 @@ void ImProcCoordinator::startProcessing(int changeCode)
         return;
     }
     changeSinceLast |= update_change_flags(nextParams, changeCode);
+    ++nextGeneration_;
     paramsUpdateMutex.unlock();
 
     startProcessing();
@@ -1578,6 +1591,7 @@ void ImProcCoordinator::process()
                 params = nextParams;
                 currentEditRev.store(nextEditRev, std::memory_order_release);
                 currentViewRev.store(nextViewRev, std::memory_order_release);
+                currentGeneration_ = nextGeneration_;
                 change = changeSinceLast;
                 changeSinceLast = 0;
                 tweakOp = tweakOperator;
@@ -1667,7 +1681,11 @@ void ImProcCoordinator::endUpdateParams(int changeFlags)
         paramsUpdateMutex.unlock();
         return;
     }
+    if (parameterUpdateListener_) {
+        parameterUpdateListener_->parametersCommitted(nextEditRev, nextViewRev);
+    }
     changeSinceLast |= update_change_flags(nextParams, changeFlags);
+    ++nextGeneration_;
 
     paramsUpdateMutex.unlock();
     startProcessing();

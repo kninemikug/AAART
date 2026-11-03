@@ -352,10 +352,6 @@ private:
             return;
         }
 
-        if (!noEvent) {
-            processor->beginUpdateParams();
-        }
-
         if (rtengine::Settings::color_mgmt_mode ==
             rtengine::Settings::ColorManagementMode::APPLICATION) {
             processor->setMonitorProfile(profile, intent);
@@ -372,7 +368,9 @@ private:
             softProof.get_sensitive() && softProof.get_active(), gc);
 
         if (!noEvent) {
-            processor->endUpdateParams(rtengine::EvMonitorTransform);
+            processor->startProcessing(
+                rtengine::RefreshMapper::getInstance()->getAction(
+                    rtengine::EvMonitorTransform));
         }
     }
 
@@ -387,10 +385,6 @@ private:
 
         if (check_is_active) {
             if (processor) {
-                if (!noEvent) {
-                    processor->beginUpdateParams();
-                }
-
                 rtengine::GamutCheck gc = rtengine::GAMUT_CHECK_OFF;
                 if (spGamutCheck.get_sensitive() && spGamutCheck.get_active()) {
                     gc = rtengine::GAMUT_CHECK_OUTPUT;
@@ -402,7 +396,9 @@ private:
                     softProof.get_sensitive() && softProof.get_active(), gc);
 
                 if (!noEvent) {
-                    processor->endUpdateParams(rtengine::EvMonitorTransform);
+                    processor->startProcessing(
+                        rtengine::RefreshMapper::getInstance()->getAction(
+                            rtengine::EvMonitorTransform));
                 }
             }
         }
@@ -1188,6 +1184,9 @@ void EditorPanel::open(Thumbnail *tmb, rtengine::InitialImage *isrc)
         liveParamSessionId_ = sessId;
         liveParamEditorId_ = regId;
     }
+    if (art::liveparam::LiveParamController::getInstance().isEnabled()) {
+        ipc->setParameterUpdateListener(this);
+    }
 
     rtengine::ImageSource *is = isrc->getImageSource();
     is->setProgressListener(this);
@@ -1242,6 +1241,9 @@ void EditorPanel::open(Thumbnail *tmb, rtengine::InitialImage *isrc)
 
 void EditorPanel::close()
 {
+    if (ipc) {
+        ipc->setParameterUpdateListener(nullptr);
+    }
     {
         std::lock_guard<std::mutex> lk(liveParamOpenMutex_);
         ++liveParamOpenGen_;
@@ -1309,7 +1311,7 @@ void EditorPanel::saveProfile()
     // If the file was deleted, do not generate ghost entries
     if (Glib::file_test(fname, Glib::FILE_TEST_EXISTS)) {
         ProcParams params;
-        ipc->getParams(&params);
+        ipc->getCommittedParams(&params);
 
         // Will call updateCache, which will update both the cached and sidecar
         // files if necessary
@@ -1347,11 +1349,6 @@ void EditorPanel::procParamsChanged(
     const rtengine::ProcEvent &ev, const Glib::ustring &descr,
     const ParamsEdited *paramsEdited)
 {
-    auto &ctrl = art::liveparam::LiveParamController::getInstance();
-    if (ctrl.isEnabled()) {
-        ctrl.onEditorParamChanged(this);
-    }
-
     //    if (ev!=EvPhotoLoaded)
     //        saveLabel->set_markup (Glib::ustring("<span foreground=\"#AA0000\"
     //        weight=\"bold\">") + M("MAIN_BUTTON_SAVE") + "</span>");
@@ -1372,6 +1369,12 @@ void EditorPanel::procParamsChanged(
 }
 
 void EditorPanel::clearParamChanges() {}
+
+void EditorPanel::parametersCommitted(int64_t &editRev, int64_t &viewRev)
+{
+    art::liveparam::LiveParamController::getInstance()
+        .onEditorParamChanged(this, editRev, viewRev);
+}
 
 void EditorPanel::setProgress(double p)
 {
@@ -1509,7 +1512,7 @@ void EditorPanel::refreshProcessingState(bool inProcessingP)
         // the file browser.
         if (ipc && openThm && tpc->getChangedState()) {
             rtengine::procparams::ProcParams pparams;
-            ipc->getParams(&pparams);
+            ipc->getCommittedParams(&pparams);
             openThm->setProcParams(pparams, EDITOR, false);
         }
 
@@ -2188,7 +2191,7 @@ BatchQueueEntry *EditorPanel::createBatchQueueEntry(
     const rtengine::procparams::PartialProfile *export_profile)
 {
     rtengine::procparams::ProcParams pparams;
-    ipc->getParams(&pparams);
+    ipc->getCommittedParams(&pparams);
     if (export_profile) {
         export_profile->applyTo(pparams);
     }
@@ -2298,7 +2301,7 @@ void EditorPanel::do_save_image(bool fast_export)
                 isProcessing = true;
                 // save image
                 rtengine::procparams::ProcParams pparams;
-                ipc->getParams(&pparams);
+                ipc->getCommittedParams(&pparams);
                 auto ep = saveAsDialog->getExportProfile();
                 if (ep) {
                     ep->applyTo(pparams);
@@ -2372,7 +2375,7 @@ void EditorPanel::do_send_to_gimp(bool fast_export)
 
     // develop image
     rtengine::procparams::ProcParams pparams;
-    ipc->getParams(&pparams);
+    ipc->getCommittedParams(&pparams);
     if (options.editor_bypass_output_profile) {
         pparams.icm.outputProfile =
             rtengine::procparams::ColorManagementParams::NoProfileString;
@@ -2396,7 +2399,7 @@ bool EditorPanel::saveImmediately(const Glib::ustring &filename,
                                   const SaveFormat &sf)
 {
     rtengine::procparams::ProcParams pparams;
-    ipc->getParams(&pparams);
+    ipc->getCommittedParams(&pparams);
 
     rtengine::ProcessingJob *job =
         rtengine::ProcessingJob::create(ipc->getInitialImage(), pparams);

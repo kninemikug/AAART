@@ -3,6 +3,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <memory>
 #include <string>
@@ -21,6 +22,7 @@ struct MutationRecord {
     int64_t viewRevision = 0;
     std::string previewStatus; // PENDING, READY, SUPERSEDED, FAILED
     double effectiveExpComp = 0.0;
+    double requestedExpComp = 0.0;
     int64_t baseRevision = 0;
     std::chrono::steady_clock::time_point completedTime;
     bool isCompleted = false;
@@ -32,6 +34,8 @@ struct EditorState {
     std::string filename;
     int64_t currentRevision = 0;
     int64_t currentViewRevision = 0;
+    bool hasCommittedParams = false;
+    bool initialized = false;
     int64_t renderedRevision = -1;
     int64_t renderedViewRevision = -1;
 
@@ -69,7 +73,8 @@ public:
     std::string registerEditor(EditorPanel *panel, const std::string &filename);
     void unregisterEditor(EditorPanel *panel);
 
-    void onEditorParamChanged(EditorPanel *panel);
+    void onEditorParamChanged(EditorPanel *panel, int64_t &editRev,
+                              int64_t &viewRev);
     void onEditorViewChanged(EditorPanel *panel);
     void onEditorSizeChanged(const std::string &sessionId,
                              const std::string &editorId, EditorPanel *panel);
@@ -83,6 +88,10 @@ public:
     std::string handleCommand(const std::string &jsonRequest);
 
 private:
+    friend struct LiveParamControllerTestAccess;
+    std::function<std::chrono::steady_clock::time_point()> clock_ = [] {
+        return std::chrono::steady_clock::now();
+    };
     LiveParamController();
     ~LiveParamController();
 

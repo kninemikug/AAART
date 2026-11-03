@@ -59,7 +59,8 @@ class EditorPanel final: public Gtk::VBox,
                          public HistoryBeforeAfterListener,
                          public rtengine::HistogramListener,
                          public HistogramPanelListener,
-                         public rtengine::SizeListener {
+                         public rtengine::SizeListener,
+                         public rtengine::ParameterUpdateListener {
 public:
     explicit EditorPanel(FilePanel *filePanel = nullptr);
     ~EditorPanel() override;
@@ -99,6 +100,7 @@ public:
                            const Glib::ustring &descr,
                            const ParamsEdited *paramsEdited = nullptr) override;
     void clearParamChanges() override;
+    void parametersCommitted(int64_t &editRev, int64_t &viewRev) override;
 
     // thumbnaillistener interface
     void procParamsChanged(Thumbnail *thm, int whoChangedIt) override;
@@ -183,6 +185,7 @@ public:
 
     ToolPanelCoordinator *getToolPanelCoordinator() const { return tpc; }
     ImageAreaPanel *getImageAreaPanel() const { return iareapanel; }
+    History *getHistory() const { return history; }
     rtengine::StagedImageProcessor *getImageProcessor() const { return ipc.get(); }
     const Glib::ustring &getEditorId() const { return editorId_; }
     void setEditorId(const Glib::ustring &id) { editorId_ = id; }

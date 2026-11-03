@@ -58,7 +58,7 @@ public:
 
     void setRaw(bool raw);
 
-    void setExpComp(double val);
+    void setExpComp(double val, bool notify = false);
     double getExpComp() const;
 
     void hrmodeChanged();

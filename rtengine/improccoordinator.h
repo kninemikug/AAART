@@ -214,10 +214,14 @@ protected:
     int changeSinceLast;
     bool updaterRunning;
     ProcParams nextParams;
+    ParameterUpdateListener *parameterUpdateListener_ = nullptr;
+    bool committedSnapshots_ = false;
     int64_t nextEditRev;
     int64_t nextViewRev;
     std::atomic<int64_t> currentEditRev;
     std::atomic<int64_t> currentViewRev;
+    uint64_t nextGeneration_ = 0;
+    uint64_t currentGeneration_ = 0;
     std::atomic<bool> destroying;
     void startProcessing();
     void process();
@@ -236,6 +240,67 @@ public:
     {
         MyMutex::MyLock lock(mProcessing);
         *dst = params;
+    }
+
+    void getCommittedParams(procparams::ProcParams *dst) override
+    {
+        {
+            MyMutex::MyLock lock(paramsUpdateMutex);
+            if (committedSnapshots_) {
+                *dst = nextParams;
+                return;
+            }
+        }
+        // Preserve the existing GUI/CLI snapshot policy when IPC is OFF.
+        getParams(dst);
+    }
+
+    void setParameterUpdateListener(ParameterUpdateListener *listener) override
+    {
+        MyMutex::MyLock lock(paramsUpdateMutex);
+        parameterUpdateListener_ = listener;
+        committedSnapshots_ = committedSnapshots_ || listener != nullptr;
+    }
+
+    ProcessingContext getProcessingContext() override
+    {
+        MyMutex::MyLock lock(paramsUpdateMutex);
+        ProcessingContext ctx;
+        ctx.editRevision = currentEditRev.load();
+        ctx.viewRevision = currentViewRev.load();
+        ctx.generation = currentGeneration_;
+        return ctx;
+    }
+
+    bool mergeDerivedParams(
+        const ProcessingContext &ctx,
+        const std::function<void(ProcParams *)> &merge) override
+    {
+        MyMutex::MyLock lock(paramsUpdateMutex);
+        if (destroying.load() || ctx.editRevision != nextEditRev ||
+            ctx.generation != nextGeneration_) {
+            return false;
+        }
+        merge(&nextParams);
+        return true;
+    }
+
+    void clearProcessingResultListeners() override
+    {
+        // Crop workers share this lock with the Navigator processor. A GUI
+        // stop of the Navigator alone does not drain Crop notifications.
+        MyMutex::MyLock lock(mProcessing);
+        aeListener = nullptr;
+        awbListener = nullptr;
+        flatFieldAutoClipListener = nullptr;
+        bayerAutoContrastListener = nullptr;
+        xtransAutoContrastListener = nullptr;
+        frameCountListener = nullptr;
+        imageTypeListener = nullptr;
+        filmNegListener = nullptr;
+        adnListener = nullptr;
+        autoLogListener = nullptr;
+        autoRadiusListener = nullptr;
     }
 
     bool hasTweakOperator() const override
