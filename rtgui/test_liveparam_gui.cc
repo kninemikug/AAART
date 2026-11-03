@@ -1,7 +1,12 @@
 #include "cachemanager.h"
+#include "chatpanel.h"
+#include "config.h"
+#include "multilangmgr.h"
 #include "cropwindow.h"
 #include "editorpanel.h"
 #include "extprog.h"
+#include "filecatalog.h"
+#include "filepanel.h"
 #include "guiutils.h"
 #include "history.h"
 #include "imagearea.h"
@@ -1969,6 +1974,234 @@ bool test_t10_actual_frames(RTWindow *win, const std::string &workDir)
     return true;
 }
 
+template<class Widget>
+Widget *findWidget(Gtk::Widget *root)
+{
+    if (auto *match = dynamic_cast<Widget *>(root)) {
+        return match;
+    }
+    auto *container = dynamic_cast<Gtk::Container *>(root);
+    if (container) {
+        for (auto *child : container->get_children()) {
+            if (auto *match = findWidget<Widget>(child)) {
+                return match;
+            }
+        }
+    }
+    return nullptr;
+}
+
+Gtk::Entry *chatInput(Gtk::Widget *root)
+{
+    if (auto *entry = dynamic_cast<Gtk::Entry *>(root)) {
+        if (entry->get_max_length() == 8192) {
+            return entry;
+        }
+    }
+    if (auto *container = dynamic_cast<Gtk::Container *>(root)) {
+        for (auto *child : container->get_children()) {
+            if (auto *entry = chatInput(child)) {
+                return entry;
+            }
+        }
+    }
+    return nullptr;
+}
+
+void configureChatSettings(Gtk::Grid *settings, const std::string &directory)
+{
+    for (auto *child : settings->get_children()) {
+        if (auto *entry = dynamic_cast<Gtk::Entry *>(child)) {
+            int row = -1;
+            gtk_container_child_get(GTK_CONTAINER(settings->gobj()), child->gobj(),
+                                    "top-attach", &row, nullptr);
+            if (row == 1) { entry->set_text(ART_AGENT_PYTHON); }
+            if (row == 3) { entry->set_text(ART_TEST_SOURCE_DIR); }
+            if (row == 5) { entry->set_text(directory + "/absent-search-store"); }
+        }
+    }
+}
+
+bool test_t16_python_chat(RTWindow *win, const std::string &directory)
+{
+    std::cout << "[T16] Native chat -> real Python client -> GUI exposure" << std::endl;
+    FrameFixture fixture{nullptr, art::liveparam::LiveParamController::getInstance()};
+    GUI_ASSERT(fixture.open(win, directory, "t16"), "real editor fixture opened");
+    auto *panel = findWidget<ChatPanel>(win);
+    auto *input = panel ? chatInput(panel) : nullptr;
+    auto *settings = panel ? findWidget<Gtk::Grid>(panel) : nullptr;
+    GUI_ASSERT(input && settings, "native chat controls located");
+    configureChatSettings(settings, directory);
+    auto begin = [&](const Glib::ustring &text) {
+        input->set_text(text);
+        g_signal_emit_by_name(input->gobj(), "activate");
+        return !input->get_sensitive();
+    };
+    auto finish = [&]() {
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+        while (!input->get_sensitive() && std::chrono::steady_clock::now() < deadline) {
+            pumpGuiEvents(10);
+        }
+        return input->get_sensitive();
+    };
+    const auto originalRevision = fixture.field("revision");
+    const auto historySize = fixture.panel->getHistory()->getHistorySize();
+    GUI_ASSERT(begin("노출을 0.125 EV로 설정해줘") && finish(),
+               "native chat starts and completes the real Python request");
+    std::cout << "  chat state: " << fixture.query() << std::endl;
+    GUI_ASSERT(fixture.field("revision") == originalRevision + 1 &&
+               std::fabs(fixture.panel->getToolPanelCoordinator()->getExposureCompensation() - 0.13) < 1e-9,
+               "actual chat command changes exposure once to effective 0.13");
+    GUI_ASSERT(fixture.panel->getHistory()->getHistorySize() == historySize + 1 &&
+               fixture.query().find("READY") != std::string::npos,
+               "native history and both preview buffers are ready");
+
+    GUI_ASSERT(begin("/exposure 0.75"), "stale-revision request started");
+    GUI_ASSERT(fixture.panel->getToolPanelCoordinator()->applyExternalExposure(1.0),
+               "manual change commits before the GUI handles the socket request");
+    const auto manualRevision = fixture.field("revision");
+    GUI_ASSERT(finish() && waitUntilIdle(fixture.panel), "stale response delivered");
+    GUI_ASSERT(fixture.field("revision") == manualRevision &&
+               fixture.panel->getToolPanelCoordinator()->getExposureCompensation() == 1.0,
+               "captured revision cannot silently follow later manual edits");
+
+    const auto oldId = fixture.panel->getEditorId();
+    GUI_ASSERT(begin("/exposure -0.25"), "old-target request started");
+    fixture.panel->close();
+    GUI_ASSERT(fixture.open(win, directory, "t16-reopened") && finish(),
+               "different image reopened while the original request was in flight");
+    GUI_ASSERT(fixture.panel->getEditorId() != oldId && fixture.field("revision") == 0 &&
+               fixture.panel->getToolPanelCoordinator()->getExposureCompensation() == 0.0,
+               "old target never applies to the reopened image");
+
+    auto &crop = fixture.area()->mainCropWindow->cropHandler;
+    crop.setZoom(1000); // Hold readiness through the native deferred quality refresh.
+    const auto beforeCancel = fixture.field("revision");
+    GUI_ASSERT(begin("/exposure 0.75"), "cancel scenario started");
+    const auto cancelDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    while (fixture.field("revision") == beforeCancel &&
+           std::chrono::steady_clock::now() < cancelDeadline) {
+        pumpGuiEvents(2);
+    }
+    GUI_ASSERT(fixture.field("revision") == beforeCancel + 1 && !input->get_sensitive(),
+               "mutation is accepted while the Python client still waits for readiness");
+    Gtk::Button *cancelButton = nullptr;
+    for (auto *child : panel->get_children()) {
+        if (auto *box = dynamic_cast<Gtk::Box *>(child)) {
+            for (auto *buttonChild : box->get_children()) {
+                auto *button = dynamic_cast<Gtk::Button *>(buttonChild);
+                if (button && button->get_label() == M("GENERAL_CANCEL")) {
+                    cancelButton = button;
+                }
+            }
+        }
+    }
+    GUI_ASSERT(cancelButton && cancelButton->get_sensitive(), "native cancel control enabled");
+    cancelButton->clicked();
+    pumpGuiEvents(options.adjusterMaxDelay + 100);
+    GUI_ASSERT(input->get_sensitive() && waitUntilIdle(fixture.panel), "cancel returns control to the GUI");
+    GUI_ASSERT(fixture.field("revision") == beforeCancel + 1 &&
+               fixture.panel->getToolPanelCoordinator()->getExposureCompensation() == 0.75,
+               "cancellation does not roll back or resend an already applied edit");
+
+    fixture.panel->close();
+    GUI_ASSERT(begin("/exposure 0.5") && finish(), "empty editor receives an explicit refusal");
+    GUI_ASSERT(fixture.panel->getEditorId().empty() &&
+               art::liveparam::LiveParamServer::getInstance().isRunning(),
+               "an enabled receiver does not create a target for an empty editor");
+    art::liveparam::LiveParamServer::getInstance().stop();
+    unsetenv("ART_LIVE_PARAM");
+    const auto rawOff = directory + "/t16-off.nef";
+    GUI_ASSERT(copyFile(ART_TEST_SOURCE_DIR "/data/fivek_sample/sample1.nef", rawOff), "OFF RAW copied");
+    auto *thumbnail = CacheManager::getInstance()->getEntry(rawOff);
+    int loadError = 0;
+    auto *image = rtengine::InitialImage::load(rawOff, true, &loadError, nullptr);
+    GUI_ASSERT(thumbnail && image && !loadError, "OFF RAW loaded");
+    fixture.panel->open(thumbnail, image);
+    GUI_ASSERT(waitUntilIdle(fixture.panel), "OFF editor ready");
+    const auto offValue = fixture.panel->getToolPanelCoordinator()->getExposureCompensation();
+    GUI_ASSERT(begin("/exposure 0.5") && finish(), "OFF command receives an explicit refusal");
+    GUI_ASSERT(!art::liveparam::LiveParamServer::getInstance().isRunning() &&
+               fixture.panel->getEditorId().empty() &&
+               fixture.panel->getToolPanelCoordinator()->getExposureCompensation() == offValue,
+               "chat does not enable the receiver or change exposure while OFF");
+    std::cout << "  -> [T16] PASSED!" << std::endl;
+    return true;
+}
+
+bool test_t17_selected_tab(RTWindow *win, const std::string &directory)
+{
+    std::cout << "[T17] Normal GUI: selected tab and captured target" << std::endl;
+    setenv("ART_LIVE_PARAM", "1", 1);
+    auto &server = art::liveparam::LiveParamServer::getInstance();
+    GUI_ASSERT(server.start() && win->fpanel, "normal GUI receiver started");
+    auto *notebook = findWidget<Gtk::Notebook>(win);
+    GUI_ASSERT(notebook && notebook->get_name() == "MainNotebook", "main notebook found");
+    const auto firstPath = directory + "/t17-first.nef";
+    const auto secondPath = directory + "/t17-second.nef";
+    GUI_ASSERT(copyFile(ART_TEST_SOURCE_DIR "/data/fivek_sample/sample1.nef", firstPath) &&
+               copyFile(ART_TEST_SOURCE_DIR "/data/fivek_sample/sample1.nef", secondPath),
+               "two real RAW files copied");
+    win->fpanel->fileCatalog->dirSelected(directory, firstPath);
+    auto openEditor = [&](const std::string &name) -> EditorPanel * {
+        const auto path = directory + "/" + name + ".nef";
+        if (path != firstPath) {
+            win->fpanel->fileCatalog->openFile(path);
+        }
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(120);
+        while (std::chrono::steady_clock::now() < deadline) {
+            pumpGuiEvents(10);
+            if (win->selectEditorPanel(path)) {
+                auto *editor = dynamic_cast<EditorPanel *>(
+                    notebook->get_nth_page(notebook->get_current_page()));
+                if (editor && waitUntilIdle(editor)) {
+                    return editor;
+                }
+                return nullptr;
+            }
+        }
+        return nullptr;
+    };
+    auto *first = openEditor("t17-first");
+    auto *second = openEditor("t17-second");
+    auto *panel = findWidget<ChatPanel>(win);
+    auto *input = panel ? chatInput(panel) : nullptr;
+    auto *settings = panel ? findWidget<Gtk::Grid>(panel) : nullptr;
+    GUI_ASSERT(first && second && input && settings && notebook, "two real editor tabs opened");
+    configureChatSettings(settings, directory);
+    auto finish = [&]() {
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+        while (!input->get_sensitive() && std::chrono::steady_clock::now() < deadline) {
+            pumpGuiEvents(10);
+        }
+        return input->get_sensitive();
+    };
+    GUI_ASSERT(win->selectEditorPanel(first->getFileName()), "first editor selected");
+    pumpGuiEvents(options.adjusterMaxDelay + 100);
+    GUI_ASSERT(waitUntilIdle(first), "selected editor initial layout settled");
+    input->set_text("/exposure 0.5");
+    g_signal_emit_by_name(input->gobj(), "activate");
+    GUI_ASSERT(!input->get_sensitive(), "selected-tab request started");
+    GUI_ASSERT(win->selectEditorPanel(second->getFileName()), "second tab selected before request dispatch");
+    GUI_ASSERT(finish() && waitUntilIdle(first), "original target request finished");
+    GUI_ASSERT(first->getToolPanelCoordinator()->getExposureCompensation() == 0.5 &&
+               second->getToolPanelCoordinator()->getExposureCompensation() == 0.0,
+               "captured target stays on first photo after tab switch");
+
+    notebook->set_current_page(0); // Browser; there is no implicit editor fallback.
+    pumpGuiEvents(30);
+    input->set_text("/exposure 0.75");
+    g_signal_emit_by_name(input->gobj(), "activate");
+    GUI_ASSERT(finish(), "browser request receives a refusal");
+    GUI_ASSERT(first->getToolPanelCoordinator()->getExposureCompensation() == 0.5 &&
+               second->getToolPanelCoordinator()->getExposureCompensation() == 0.0,
+               "browser request cannot choose an arbitrary open photo");
+    first->close();
+    second->close();
+    std::cout << "  -> [T17] PASSED!" << std::endl;
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -1992,6 +2225,8 @@ int main(int argc, char **argv)
         {"T12", test_t12_views_and_lifetime},
         {"T13", test_t13_resubmit_and_conflict},
         {"T14", test_t14_saved_output},
+        {"T16", test_t16_python_chat},
+        {"T17", test_t17_selected_tab},
     };
     std::set<std::string> selected;
     for (int i = 1; i < argc; ++i) {
@@ -2010,6 +2245,10 @@ int main(int argc, char **argv)
             return 2;
         }
         selected.insert(id);
+    }
+    if (selected.count("T17") && selected.size() != 1) {
+        std::cerr << "T17 runs separately in the normal tabbed GUI" << std::endl;
+        return 2;
     }
     argc = 1;
     argv[1] = nullptr;
@@ -2047,7 +2286,7 @@ int main(int argc, char **argv)
     options.ART_base_dir = rtDataDir;
     creditsPath = ART_TEST_SOURCE_DIR;
     licensePath = ART_TEST_SOURCE_DIR;
-    simpleEditor = true;
+    simpleEditor = selected.count("T17") == 0;
     gimpPlugin = false;
     remote = false;
     argv1 = "";
@@ -2060,6 +2299,10 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    if (selected.count("T17")) {
+        options.tabbedUI = true;
+        options.multiDisplayMode = 0;
+    }
     TIFFSetWarningHandler(nullptr);
     gdk_threads_set_lock_functions(G_CALLBACK(testGdkLockEnter),
                                    G_CALLBACK(testGdkLockLeave));
@@ -2085,7 +2328,8 @@ int main(int argc, char **argv)
 
         allOk = true;
         for (const auto &test : cases) {
-            if (selected.empty() || selected.count(test.id)) {
+            const bool normalCase = std::strcmp(test.id, "T17") == 0;
+            if (normalCase == !simpleEditor && (selected.empty() || selected.count(test.id))) {
                 std::cout << "Running " << test.id << std::endl;
                 if (!test.run(rtWin.get(), workDir)) {
                     allOk = false;
@@ -2103,7 +2347,9 @@ int main(int argc, char **argv)
                 std::cerr << "FAILED: GUI quit stayed deferred after test cleanup"
                           << std::endl;
                 allOk = false;
-                rtWin->epanel->cleanup();
+                if (rtWin->epanel) {
+                    rtWin->epanel->cleanup();
+                }
                 break;
             }
             pumpGuiEvents(20);
@@ -2116,6 +2362,24 @@ int main(int argc, char **argv)
     art::liveparam::LiveParamServer::getInstance().stop();
     rtengine::cleanup();
 
+    // The normal tabbed fixture runs in a fresh process so changing the
+    // process-wide GUI mode cannot affect an existing standalone window.
+    if (allOk && selected.empty()) {
+        gchar *arguments[] = {argv[0], const_cast<gchar *>("--case"),
+                              const_cast<gchar *>("T17"), nullptr};
+        gchar *output = nullptr;
+        gchar *errors = nullptr;
+        gint status = 0;
+        GError *error = nullptr;
+        const bool started = g_spawn_sync(nullptr, arguments, nullptr,
+            G_SPAWN_SEARCH_PATH, nullptr, nullptr, &output, &errors, &status, &error);
+        if (output) { std::cout << output; }
+        if (errors) { std::cerr << errors; }
+        allOk = started && g_spawn_check_wait_status(status, nullptr);
+        g_free(output);
+        g_free(errors);
+        g_clear_error(&error);
+    }
     std::cout << "========================================" << std::endl;
     if (allOk) {
         std::cout << "GUI VERIFICATION SUITE PASSED!" << std::endl;

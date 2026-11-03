@@ -1,3 +1,6 @@
+CHAT_LIVE_UNKNOWN;응답을 확인하지 못했습니다. 사진 변경을 요청했다면 현재 값을 확인한 뒤 새로 요청해주세요.
+CHAT_LIVE_TIMEOUT;응답 시간이 초과되었습니다. 사진 변경을 요청했다면 현재 값을 확인한 뒤 새로 요청해주세요.
+CHAT_LIVE_CANCELLED;응답 대기를 중지했습니다. 사진 변경을 요청했다면 현재 값을 확인해주세요. 이미 반영된 편집은 유지됩니다.
 #00 Korea - Korean
 CHAT_ANSWER;답변
 CHAT_CANCELLED;요청을 취소했습니다.
@@ -18,7 +21,7 @@ CHAT_STORE;검색 저장소 폴더
 CHAT_TIMEOUT;응답 시간이 초과되었습니다. 다시 시도해주세요.
 CHAT_TITLE;채팅
 CHAT_TOGGLE;채팅 패널 열기·접기
-CHAT_WELCOME;ART 사용법과 보정 방법을 질문해보세요. 답변에 출처를 함께 표시합니다. 프로필 적용·재조정은 아직 지원하지 않습니다.
+CHAT_WELCOME;ART 사용법과 보정 방법을 질문해보세요. 답변에 출처를 함께 표시합니다. 실시간 노출 조정이 켜진 사진에서는 “노출을 0.75 EV로 설정해줘”를 사용할 수 있습니다. 일반 프로필 적용은 아직 지원하지 않습니다.
 CHAT_WORKING;답변을 준비하고 있습니다…
 CHAT_YOU;나
 #01 2021-10-22 Ohnishi, Yasuo, initial translation for 1.10.1

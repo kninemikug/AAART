@@ -9,6 +9,10 @@ public:
     bool containsFocus();
     bool handleKeyPress(GdkEventKey *event);
     void stop();
+    void setLiveTargetProvider(std::function<ChatLiveTarget()> provider)
+    {
+        connection_.setLiveTargetProvider(std::move(provider));
+    }
 
 private:
     ChatConnection connection_;

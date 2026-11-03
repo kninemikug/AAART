@@ -74,8 +74,9 @@ ChatPanel::ChatPanel()
     send_.signal_clicked().connect(sigc::mem_fun(*this, &ChatPanel::send));
     input_.signal_activate().connect(sigc::mem_fun(*this, &ChatPanel::send));
     cancel_.signal_clicked().connect([this]() {
+        const bool possibleEdit = connection_.mayHaveAppliedEdit();
         stop();
-        append(M("CHAT_TITLE"), M("CHAT_CANCELLED"));
+        append(M("CHAT_TITLE"), M(possibleEdit ? "CHAT_LIVE_CANCELLED" : "CHAT_CANCELLED"));
     });
     clear_.signal_clicked().connect([this]() {
         for (auto child : messages_.get_children()) {

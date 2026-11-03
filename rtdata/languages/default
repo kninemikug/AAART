@@ -1,3 +1,6 @@
+CHAT_LIVE_UNKNOWN;Unable to confirm the response. If you requested a photo change, check its current value before sending another request.
+CHAT_LIVE_TIMEOUT;The response timed out. If you requested a photo change, check its current value before sending another request.
+CHAT_LIVE_CANCELLED;Stopped waiting for the response. If you requested a photo change, check its current value; an applied edit is retained.
 #00 default translation file
 #01 Developers should add translations to this file and then run the 'generateTranslationDiffs' Bash script to update other locales.
 #02 Translators please append a comment here with the current date and your name(s) as used in the RawTherapee/ART forum or Bitbucket page, e.g.:
@@ -26,7 +29,7 @@ CHAT_STORE;Search database folder
 CHAT_TIMEOUT;The request timed out. Please try again.
 CHAT_TITLE;Chat
 CHAT_TOGGLE;Show or hide the chat panel
-CHAT_WELCOME;Ask about ART's features and editing techniques. Answers include sources. Profile application and adjustments are not supported yet.
+CHAT_WELCOME;Ask about ART's features and editing techniques. Answers include sources. With live exposure enabled, use “set exposure to 0.75 EV”. General profile application is not supported yet.
 CHAT_WORKING;Preparing your answer…
 CHAT_YOU;You
 ADJUSTER_RESET_TO_DEFAULT;<b>Click</b> - reset to default value.\n<b>Ctrl</b>+<b>click</b> - reset to last saved value.
