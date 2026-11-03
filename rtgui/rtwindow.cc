@@ -539,6 +539,26 @@ RTWindow::RTWindow()
     auto split = Gtk::manage(new Gtk::Paned(Gtk::ORIENTATION_HORIZONTAL));
     auto reveal = Gtk::manage(new Gtk::Revealer());
     chatpanel_ = Gtk::manage(new ChatPanel());
+    chatpanel_->setLiveExposureControl([this](bool enabled) {
+        auto &server = art::liveparam::LiveParamServer::getInstance();
+        if (enabled && !server.start(true)) {
+            return false;
+        }
+        std::set<EditorPanel *> editors;
+        if (epanel) {
+            editors.insert(epanel);
+        }
+        for (const auto &entry : epanels) {
+            editors.insert(entry.second);
+        }
+        for (auto *editor : editors) {
+            editor->setLiveParamEnabled(enabled);
+        }
+        if (!enabled) {
+            server.stop();
+        }
+        return true;
+    }, art::liveparam::LiveParamServer::getInstance().isRunning());
     chatpanel_->setLiveTargetProvider([this]() {
         ChatLiveTarget target;
         auto &server = art::liveparam::LiveParamServer::getInstance();

@@ -7,9 +7,9 @@
 
 ## 1. 완료할 사용자 동작
 
-macOS에서 `ART_LIVE_PARAM=1`로 실행한 ART의 현재 편집 사진에, 외부 Python 프로그램 또는 채팅에서 명시한 노출 절대값을 적용하고 실제 화면 자료 준비 결과를 확인한다. 예시는 `/exposure 0.75`와 `노출을 0.75 EV로 설정해줘`다. 결과에는 실제 반영값을 표시한다.
+macOS에서 GUI 허용 설정을 켠 ART의 현재 편집 사진에, 외부 Python 프로그램 또는 채팅에서 명시한 노출 절대값을 적용하고 실제 화면 자료 준비 결과를 확인한다. 예시는 `/exposure 0.75`와 `노출을 0.75 EV로 설정해줘`다. 결과에는 실제 반영값을 표시한다. 기존 환경변수의 호환 규칙은 §7에 기록한다.
 
-범위는 `Exposure.Compensation` 한 키와 기존 Unix socket v1 계약으로 한정한다. 전송·환경변수·서버 연산·프로필 버전은 바꾸지 않는다. 기존 수신부·엔진 처리식은 수정하지 않고 `rtgui/` 변경도 채팅 요청의 명시적 대상 복사·표시·검사 연결에 한정한다.
+범위는 `Exposure.Compensation` 한 키와 기존 Unix socket v1 계약으로 한정한다. C1~C4는 기존 환경변수로 활성화하는 연결을 완성했다. 이후 요청한 GUI 허용 설정은 §7에 따라 추가한다. 전송·서버 연산·프로필 버전·엔진 처리식은 유지한다.
 
 저장소의 현재 채팅은 문서 Q&A를 제공하고 일반 EXECUTE를 차단한다. 추천 프로필 생성기는 아직 연결돼 있지 않다. 이번에는 숫자가 명시된 단일 노출 명령을 별도 처리하고, 추천 결과를 만드는 기능과 자유 서술에서 값을 추측하는 동작은 포함하지 않는다. 후속 추천기는 같은 Python 단일 키 API를 호출할 수 있다. `.arp` 생성·일괄 적용·렌더링·세션 기억·상대값 증감은 별도 범위다.
 
@@ -95,6 +95,9 @@ build/asan/rtgui/test_liveparam_gui --case T17
 cmake --build build/tsan --parallel 4 --target art art-cli test_liveparam_gui
 build/tsan/rtgui/test_liveparam_gui --case T16
 build/tsan/rtgui/test_liveparam_gui --case T17
+build/rtgui/test_liveparam_gui --case T18
+build/asan/rtgui/test_liveparam_gui --case T18
+build/tsan/rtgui/test_liveparam_gui --case T18
 ```
 
 `T16`은 실제 채팅의 적용·충돌·재열기·취소·대상 없음·OFF를 검사하고, `T17`은 별도 프로세스의 일반 GUI에서 탭 전환과 파일 브라우저의 대상 부재를 검사한다. 인자 없는 전체 GUI 검사도 `T17`을 별도 프로세스로 실행하고 그 실패를 전체 결과에 반영한다.
@@ -110,8 +113,8 @@ build/tsan/rtgui/test_liveparam_gui --case T17
 
 ## 6. 사용 절차
 
-1. 런타임 자료를 포함한 GUI 번들의 실행 파일을 `ART_LIVE_PARAM=1 <번들>/Contents/MacOS/ART -N`으로 실행하고 사진을 연다. `-N`은 기존 인스턴스로의 전달을 막는다. 환경변수를 생략하면 수신부는 꺼진 상태다. 현재 macOS 빌드의 `DATA_SEARCH_PATH`는 `../../Contents/Resources`이므로 `build/rtgui/ART`만 단독 실행하지 않는다. 로컬 사용용 번들은 `build/liveparam-client-checks/ARTLiveParamClient.app`에 실행 파일과 `rtdata/` 자료를 배치한다.
-2. 채팅 설정에서 Python 실행 파일과 현재 저장소 경로를 지정한다. 검색 저장소 경로는 절대 경로로 입력한다. 명시적 노출 명령은 해당 저장소를 읽지 않는다. 주 창에서 대상 사진의 편집 탭을 선택하고 `/exposure 0.75` 또는 `노출을 0.75 EV로 설정해줘`를 보낸다.
+1. `build/liveparam-client-checks/ARTLiveParamClient.app`을 일반 앱처럼 연다. 로컬 번들은 실행 파일과 런타임 자료를 포함하고 다른 ART 인스턴스와 별도 사용자 설정으로 실행한다. 터미널 환경변수를 입력할 필요가 없다. 현재 macOS 빌드의 `DATA_SEARCH_PATH`는 `../../Contents/Resources`이므로 `build/rtgui/ART`만 단독 실행하지 않는다.
+2. 채팅의 **연결 설정**에서 **채팅으로 노출 조정 허용**을 켠다. 영문 표시는 **Connection settings → Allow exposure adjustment from chat**이다. 처음에는 꺼져 있으며 변경은 즉시 적용되고 다음 실행에도 유지된다. Python 실행 파일·현재 저장소·검색 저장소의 기본 경로는 필요한 경우 같은 설정에서 변경한다. 명시적 노출 명령은 검색 저장소를 읽지 않는다. 사진을 열고 주 창에서 대상 편집 탭을 선택한 뒤 `/exposure 0.75` 또는 `노출을 0.75 EV로 설정해줘`를 보낸다.
 3. 표시된 값과 화면 준비 안내를 확인한다. 취소·부분 완료·결과 불명에서는 현재 노출을 확인하고 판단한다. 같은 명령을 자동으로 다시 보내지 않는다.
 
 외부 CLI는 대상 GUI 프로세스의 `/tmp/art-liveparam-<uid>/art-<pid>-<sessionId>.sock` 경로를 명시한다. `state`로 세션과 편집기 목록을 얻고, 명시적 편집기의 `state`로 현재 revision을 확인한 뒤 `set`에 전달한다. 아래 변수에는 확인한 경로·식별자·revision을 넣는다. 다른 실행의 소켓을 임의로 선택하지 않는다.
@@ -123,3 +126,13 @@ PYTHONPATH=src /Users/user/Workspace/Programming/Projects/AAART/venv/bin/python3
 ```
 
 이전 변경은 `status --session "$ART_SESSION" --editor "$ART_EDITOR" --mutation "$ART_MUTATION"`으로 조회한다. CLI 종료 코드는 성공 `0`, 적용 전 확정 오류 `1`, 잘못된 인자 `2`, 반영 후 미리보기 문제 또는 반영 여부 불명 `3`이다. `set`의 `APPLIED`는 저장 완료를 뜻하지 않으며 기존 GUI 저장 정책을 따른다.
+
+## 7. GUI 허용 설정 후속 변경
+
+앱을 평소처럼 실행한 뒤 채팅 연결 설정의 **채팅으로 노출 조정 허용**을 켜고 끈다. 처음에는 꺼져 있으며 명시적으로 저장한 선택을 다음 실행에도 유지한다. 저장 위치는 기존 사용자 설정 `artagent.ini`의 `[Chat] live_exposure`다. 저장한 선택이 있으면 환경변수보다 우선한다. 선택을 아직 저장하지 않았을 때만 기존 `ART_LIVE_PARAM=1` 호환 경로를 사용한다. 잘못된 설정은 비활성화로 처리한다. 체크 변경은 요청 전송 없이 즉시 저장하며, 기존 Python·자료·검색 저장소 설정과 서로 덮어쓰지 않는다.
+
+지원은 macOS의 주 창 편집 탭·단독 GUI, `Exposure.Compensation` 한 키다. 허용을 켜면 기존 Unix socket 서버를 시작하고 GUI 메인루프에서 열린 편집기에 새 식별자를 등록한다. 기존 파라미터 값·히스토리는 보존하고 기존 조정기의 전체 갱신 이벤트로 현재 자료의 세대를 다시 추적한다. Crop의 뷰 식별자도 새 세션에 다시 발급하며 기존 줌의 지연 갱신 상태를 이어받는다. 끄면 수신부·대기 요청을 정지하고 편집기 리스너·등록을 해제한다. 이미 반영된 값은 유지한다. 다시 켜면 새로운 세션을 사용하여 이전 대상·요청이 뒤따라 적용되지 않게 한다. 실행 중 `ProcessingJob` 수정·재사용은 하지 않는다. 켜기 선택을 저장하지 못하면 수신부를 켜지 않는다. 끄기 선택의 저장 실패는 현재 실행의 비활성화를 막지 않으며 다음 실행의 설정 확인을 안내한다.
+
+- [x] G1 — 기본 OFF·설정 저장·기존 설정 보존·저장 실패·설정 우선순위를 실제 설정 파일로 검증했다. 변경: `chatpanel.h/.cc`, `main.cc`, 안내 언어 파일. `T18` 및 실제 GUI 시작 검사에서 저장한 ON의 환경변수 없는 시작, 저장한 OFF의 환경변수 ON보다 높은 우선순위를 확인했다(`startup-final.log`, 종료 코드 `0`).
+- [x] G2 — 실제 체크박스로 열린 사진의 허용/해제·다시 허용과 실제 채팅 적용을 검증했다. 변경: `liveparamserver.h/.cc`의 명시적 허용 진입, `editorpanel.h/.cc`의 등록·리스너 수명, `crophandler.h/.cc`의 새 세션 뷰 재등록, `rtwindow.cc`의 GUI 연결, `test_liveparam_gui.cc`의 `T17/T18`. 다중 탭의 이전 뷰 번호가 남아 `BUSY`가 지속된 재현을 뷰 재등록으로 수정했다. 열린 탭 전체 등록, 기존 값·히스토리 보존, 오래된 세션 거부와 줌 지연 중의 허용 변경을 확인했다.
+- [x] G3 — GUI/CLI 아웃오브소스 빌드, 기존 기본 OFF·채팅·저장/출력 회귀와 새 경로의 ASan·TSan 검사를 통과하고 번들을 갱신했다. 엔진·직렬화·PPVERSION은 변경하지 않았다. `release-final-all.log`의 전체 GUI 17개 사례, `protocol.log`, Python 연결 회귀 85건(`python-regression.log`, 경고 1건), `asan-final-t17.log`·`asan-final-t18.log`·`tsan-final-t17.log`·`tsan-final-t18.log` 모두 종료 코드 `0`. 메모리·스레드 검출 보고는 없으며 기존 GTK 입력 모듈 경고는 남아 있다. 결과는 `build/liveparam-gui-settings-checks/`에 기록했다.

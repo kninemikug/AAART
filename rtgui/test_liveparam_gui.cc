@@ -2196,9 +2196,167 @@ bool test_t17_selected_tab(RTWindow *win, const std::string &directory)
     GUI_ASSERT(first->getToolPanelCoordinator()->getExposureCompensation() == 0.5 &&
                second->getToolPanelCoordinator()->getExposureCompensation() == 0.0,
                "browser request cannot choose an arbitrary open photo");
+    auto *permission = findWidget<Gtk::CheckButton>(panel);
+    GUI_ASSERT(permission, "normal GUI permission control found");
+    // The fixture started the receiver after constructing the window; first
+    // synchronize the widget, then exercise a real OFF -> ON transition.
+    permission->set_active(true);
+    GUI_ASSERT(waitUntilIdle(first) && waitUntilIdle(second), "both tabs tracked after enabling");
+    permission->set_active(false);
+    GUI_ASSERT(!server.isRunning() && first->getEditorId().empty() && second->getEditorId().empty(),
+               "permission removal unregisters every open tab");
+    permission->set_active(true);
+    GUI_ASSERT(server.isRunning() && waitUntilIdle(first) && waitUntilIdle(second) &&
+               !first->getEditorId().empty() && !second->getEditorId().empty(),
+               "reenabling registers both existing editor tabs");
+    GUI_ASSERT(win->selectEditorPanel(second->getFileName()), "second tracked tab selected");
+    FrameFixture secondState{second, art::liveparam::LiveParamController::getInstance()};
+    std::cout << "  T17 state before chat: " << secondState.query() << std::endl;
+    input->set_text("/exposure 0.75");
+    g_signal_emit_by_name(input->gobj(), "activate");
+    const bool completed = finish() && waitUntilIdle(second);
+    std::cout << "  T17 state after chat: " << secondState.query() << std::endl;
+    std::function<void(Gtk::Widget *)> printLabels = [&](Gtk::Widget *widget) {
+        if (auto *label = dynamic_cast<Gtk::Label *>(widget)) {
+            std::cout << "  T17 label: " << label->get_text() << std::endl;
+        }
+        if (auto *container = dynamic_cast<Gtk::Container *>(widget)) {
+            for (auto *child : container->get_children()) { printLabels(child); }
+        }
+    };
+    if (second->getToolPanelCoordinator()->getExposureCompensation() != 0.75) {
+        printLabels(panel);
+    }
+    GUI_ASSERT(completed &&
+               first->getToolPanelCoordinator()->getExposureCompensation() == 0.5 &&
+               second->getToolPanelCoordinator()->getExposureCompensation() == 0.75,
+               "chat after permission cycling still edits only the selected photo");
+    permission->set_active(false);
     first->close();
     second->close();
     std::cout << "  -> [T17] PASSED!" << std::endl;
+    return true;
+}
+
+bool test_t18_live_exposure_setting(RTWindow *win, const std::string &directory)
+{
+    std::cout << "[T18] GUI live exposure permission without environment variables" << std::endl;
+    auto *panel = findWidget<ChatPanel>(win);
+    auto *permission = panel ? findWidget<Gtk::CheckButton>(panel) : nullptr;
+    GUI_ASSERT(permission, "chat settings provide a live exposure permission checkbox");
+    auto &server = art::liveparam::LiveParamServer::getInstance();
+    auto &controller = art::liveparam::LiveParamController::getInstance();
+    server.stop();
+    unsetenv("ART_LIVE_PARAM");
+    win->epanel->close();
+    const auto settingsFile = Glib::build_filename(Options::user_config_dir, "artagent.ini");
+    g_unlink(settingsFile.c_str());
+    GUI_ASSERT(!ChatPanel::liveExposureEnabledAtStartup() && !permission->get_active(),
+               "fresh settings and absent environment default to OFF");
+    setenv("ART_LIVE_PARAM", "1", 1);
+    GUI_ASSERT(ChatPanel::liveExposureEnabledAtStartup(), "legacy opt-in is retained before a GUI choice");
+    Glib::KeyFile settings;
+    settings.set_string("Chat", "python", ART_AGENT_PYTHON);
+    settings.set_string("Chat", "source", ART_TEST_SOURCE_DIR);
+    settings.set_string("Chat", "store", directory + "/absent-search-store");
+    settings.set_string("Other", "preserved", "unchanged");
+    settings.set_boolean("Chat", "live_exposure", false);
+    settings.save_to_file(settingsFile);
+    GUI_ASSERT(!ChatPanel::liveExposureEnabledAtStartup(), "saved OFF wins over legacy environment ON");
+    settings.set_string("Chat", "live_exposure", "invalid");
+    settings.save_to_file(settingsFile);
+    GUI_ASSERT(!ChatPanel::liveExposureEnabledAtStartup(), "malformed permission fails closed");
+    settings.remove_key("Chat", "live_exposure");
+    settings.save_to_file(settingsFile);
+    unsetenv("ART_LIVE_PARAM");
+
+    const auto raw = directory + "/t18.nef";
+    GUI_ASSERT(copyFile(ART_TEST_SOURCE_DIR "/data/fivek_sample/sample1.nef", raw), "OFF RAW copied");
+    auto *thumbnail = CacheManager::getInstance()->getEntry(raw);
+    int error = 0;
+    auto *image = rtengine::InitialImage::load(raw, true, &error, nullptr);
+    GUI_ASSERT(thumbnail && image && !error, "OFF image loaded");
+    win->epanel->open(thumbnail, image);
+    GUI_ASSERT(waitUntilIdle(win->epanel) && win->epanel->getEditorId().empty(), "photo starts without external registration");
+    FrameFixture fixture{win->epanel, controller};
+    const auto historySize = fixture.panel->getHistory()->getHistorySize();
+    rtengine::procparams::ProcParams before;
+    fixture.panel->getImageProcessor()->getCommittedParams(&before);
+    auto *input = chatInput(panel);
+    auto *grid = findWidget<Gtk::Grid>(panel);
+    GUI_ASSERT(input && grid, "native chat controls located");
+    configureChatSettings(grid, directory);
+    permission->set_active(true);
+    GUI_ASSERT(server.isRunning() && !fixture.panel->getEditorId().empty() &&
+               waitUntilIdle(fixture.panel), "checkbox enables the existing photo without an environment variable");
+    rtengine::procparams::ProcParams enabled;
+    fixture.panel->getImageProcessor()->getCommittedParams(&enabled);
+    GUI_ASSERT(before == enabled && fixture.panel->getHistory()->getHistorySize() == historySize,
+               "enabling preserves all parameters and history");
+    GUI_ASSERT(ChatPanel::liveExposureEnabledAtStartup(), "enabled choice survives a fresh settings read");
+    const auto firstSession = controller.getSessionId();
+    const auto firstEditor = fixture.panel->getEditorId();
+    const auto socketPath = server.getSocketPath();
+    input->set_text("노출을 0.5 EV로 설정해줘");
+    g_signal_emit_by_name(input->gobj(), "activate");
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+    while (!input->get_sensitive() && std::chrono::steady_clock::now() < deadline) {
+        pumpGuiEvents(10);
+    }
+    GUI_ASSERT(input->get_sensitive() && waitUntilIdle(fixture.panel) &&
+               fixture.panel->getToolPanelCoordinator()->getExposureCompensation() == 0.5 &&
+               fixture.query().find("READY") != std::string::npos,
+               "checkbox-enabled chat reaches the real Python client and current-view readiness");
+    settings.load_from_file(settingsFile);
+    GUI_ASSERT(settings.get_boolean("Chat", "live_exposure") &&
+               settings.get_string("Other", "preserved") == "unchanged" &&
+               settings.get_string("Chat", "python") == ART_AGENT_PYTHON,
+               "sending a chat preserves permission and unrelated settings");
+    permission->set_active(false);
+    GUI_ASSERT(!server.isRunning() && fixture.panel->getEditorId().empty() &&
+               !Glib::file_test(socketPath, Glib::FILE_TEST_EXISTS) &&
+               fixture.panel->getToolPanelCoordinator()->getExposureCompensation() == 0.5 &&
+               !ChatPanel::liveExposureEnabledAtStartup(),
+               "disabling removes the socket and target, keeps accepted edits and saves OFF");
+    GUI_ASSERT(fixture.panel->getToolPanelCoordinator()->applyExternalExposure(0.75) &&
+               waitUntilIdle(fixture.panel), "normal GUI editing works after permission removal");
+    GUI_ASSERT(fixture.panel->getToolPanelCoordinator()->applyExternalExposure(0.5) &&
+               waitUntilIdle(fixture.panel), "normal GUI editing keeps preview processing available");
+    permission->set_active(true);
+    GUI_ASSERT(server.isRunning() && waitUntilIdle(fixture.panel) &&
+               controller.getSessionId() != firstSession && fixture.panel->getEditorId() != firstEditor,
+               "reenabling creates a fresh session and editor identity");
+    const auto stale = controller.handleCommand(
+        "{\"protocolVersion\":1,\"requestId\":\"t18-old\",\"op\":\"set_param\",\"sessionId\":\"" +
+        firstSession + "\",\"editorId\":\"" + firstEditor +
+        "\",\"baseRevision\":0,\"params\":{\"Exposure.Compensation\":1}}");
+    GUI_ASSERT(stale.find("SESSION_MISMATCH") != std::string::npos &&
+               fixture.panel->getToolPanelCoordinator()->getExposureCompensation() == 0.5,
+               "requests from the previous permission session cannot apply");
+
+    auto &crop = fixture.area()->mainCropWindow->cropHandler;
+    crop.setZoom(1000);
+    permission->set_active(false);
+    permission->set_active(true);
+    GUI_ASSERT(waitUntilIdle(fixture.panel), "permission cycle during a deferred zoom refresh settles");
+    GUI_ASSERT(fixture.set("t18-after-zoom", 0.75).find("APPLIED") != std::string::npos &&
+               fixture.waitReady(), "new session waits for the current high-quality view");
+
+    const auto backup = settingsFile + ".backup";
+    GUI_ASSERT(g_rename(settingsFile.c_str(), backup.c_str()) == 0 &&
+               g_mkdir(settingsFile.c_str(), 0700) == 0, "save failure fixture created");
+    permission->set_active(false);
+    GUI_ASSERT(!permission->get_active() && !server.isRunning(), "save failure does not prevent disabling this run");
+    permission->set_active(true);
+    GUI_ASSERT(!permission->get_active() && !server.isRunning(), "save failure cannot enable the receiver");
+    GUI_ASSERT(g_rmdir(settingsFile.c_str()) == 0 &&
+               g_rename(backup.c_str(), settingsFile.c_str()) == 0, "settings file restored");
+    // Save the final OFF choice through the actual widget, then close normally.
+    permission->set_active(true);
+    GUI_ASSERT(waitUntilIdle(fixture.panel), "final permission cycle settles");
+    permission->set_active(false);
+    fixture.panel->close();
+    std::cout << "  -> [T18] PASSED!" << std::endl;
     return true;
 }
 
@@ -2227,6 +2385,7 @@ int main(int argc, char **argv)
         {"T14", test_t14_saved_output},
         {"T16", test_t16_python_chat},
         {"T17", test_t17_selected_tab},
+        {"T18", test_t18_live_exposure_setting},
     };
     std::set<std::string> selected;
     for (int i = 1; i < argc; ++i) {
