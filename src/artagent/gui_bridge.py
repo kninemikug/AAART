@@ -12,9 +12,9 @@ from typing import Any, Callable
 
 
 UNSUPPORTED_MESSAGE = (
-    "실행 요청은 아직 미지원입니다. 프로필 생성·렌더링 루프와 "
-    "세션 저장·증분 수정이 완료되면 제공됩니다. "
-    "현재는 질문·답변만 이용할 수 있습니다."
+    "일반 프로필 적용·자동 보정은 아직 미지원입니다. "
+    "실시간 노출 조정이 켜진 사진에서는 노출 절대값을 지정할 수 있습니다. "
+    "예: 노출을 0.75 EV로 설정해줘"
 )
 MAX_REQUEST_BYTES = 65536
 
@@ -145,6 +145,12 @@ def process_request(payload: Any, graph_factory: Callable[[], Any]) -> dict:
         return error_response(
             request_id, "INVALID_INPUT", "질문을 1~8192자 이내로 입력해주세요.",
         )
+
+    from .live_param_chat import try_apply
+
+    live_response = try_apply(text, payload.get("live_param"), request_id)
+    if live_response is not None:
+        return live_response
 
     from artagent.graph import RequestInput, RuntimeCapabilities
 

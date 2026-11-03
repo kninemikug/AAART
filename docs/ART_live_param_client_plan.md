@@ -62,9 +62,9 @@ macOS에서 `ART_LIVE_PARAM=1`로 실행한 ART의 현재 편집 사진에, 외�
 
 의존: C1. 예상 파일: `src/artagent/live_param_chat.py`, `src/artagent/gui_bridge.py`, `tests/test_live_param_chat.py`, `tests/test_gui_bridge.py`.
 
-- [ ] 명시적 단일 절대값 명령만 실행하고 원래 대상 복사본을 사용한다.
-- [ ] 반영·화면 준비·부분 완료·결과 불명을 구분하며 Q&A와 일반 EXECUTE 차단 회귀가 없다.
-- [ ] 노출 경로는 검색·답변 기능을 초기화하지 않는다.
+- [x] 명시적 단일 절대값 명령만 실행하고 원래 대상 복사본을 사용한다.
+- [x] 반영·화면 준비·부분 완료·결과 불명을 구분하며 Q&A와 일반 EXECUTE 차단 회귀가 없다.
+- [x] 노출 경로는 검색·답변 기능을 초기화하지 않는다.
 
 검증: parser와 실제 Unix socket을 거치는 채팅 연결 pytest. C3 통과 후 두 번째 구현 커밋.
 
@@ -94,5 +94,5 @@ build/rtgui/test_liveparam_gui --case T01 --case T10 --case T16
 
 ## 5. 상태와 발견한 제약
 
-- C1~C2 구현 완료: 실제 Unix socket과 CLI 하위 프로세스 검사 45건 통과(`c1-c2-green.log`, 종료 코드 `0`). 전송 후 연결 종료·잘못된 응답·내부 오류는 결과 불명으로 구분하고 자동 재전송하지 않는다. C3~C4는 진행 중이다.
+- C1~C2 구현 완료: 실제 Unix socket과 CLI 하위 프로세스 검사 45건 통과(`c1-c2-green.log`, 종료 코드 `0`). 전송 후 연결 종료·잘못된 응답·내부 오류는 결과 불명으로 구분하고 자동 재전송하지 않는다. C3도 명시적 노출·질문/부정/복합 요청 구분과 기존 GUI 연결의 40건 검사(경고 1건)를 통과했다(`c3-green.log`). C4는 진행 중이다.
 - 추천 생성·`.arp` 실행·다른 키는 기존 미완료 Phase A와 분리한다. 이번 결과를 추천 전체 기능의 완료로 표시하지 않는다.
