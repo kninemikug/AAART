@@ -37,6 +37,8 @@ namespace rtengine {
 
 extern const Settings *settings;
 
+namespace { std::atomic<uint64_t> nextCropId{0}; }
+
 Crop::Crop(ImProcCoordinator *parent, EditDataProvider *editDataProvider,
            bool isDetailWindow)
     : PipetteBuffer(editDataProvider), origCrop(nullptr), spotCrop(nullptr),
@@ -46,7 +48,7 @@ Crop::Crop(ImProcCoordinator *parent, EditDataProvider *editDataProvider,
       cropw(-1), croph(-1), trafx(0), trafy(0), trafw(-1), trafh(-1),
       rqcropx(0), rqcropy(0), rqcropw(-1), rqcroph(-1), borderRequested(32),
       upperBorder(0), leftBorder(0), cropAllocated(false),
-      cropImageListener(nullptr), currentEditRev(0), currentViewRev(0),
+      cropImageListener(nullptr), cropId_(++nextCropId),
       parent(parent), isDetailWindow(isDetailWindow)
 {
     for (int i = 0; i < 3; ++i) {
@@ -100,12 +102,8 @@ void Crop::setWindow(int cropX, int cropY, int cropW, int cropH, int skip)
 
 void Crop::setListener(DetailedCropListener *il)
 {
-    // We can make reads in the IF, because the mProcessing lock is only needed
-    // for change
-    if (cropImageListener != il) {
-        MyMutex::MyLock lock(cropMutex);
-        cropImageListener = il;
-    }
+    MyMutex::MyLock lock(cropMutex);
+    cropImageListener = il;
 }
 
 EditUniqueID Crop::getCurrEditID()
@@ -166,6 +164,8 @@ void Crop::update(int todo)
 {
     MyMutex::MyLock cropLock(cropMutex);
 
+    processingContext_ = parent->getProcessingContext();
+    processingContext_.cropId = cropId_;
     ProcParams &params = parent->params;
     //       CropGUIListener* cropgl;
 
@@ -180,7 +180,9 @@ void Crop::update(int todo)
     bool spotsDone = false;
 
     if (overrideWindow) {
-        cropImageListener->getWindow(wx, wy, ww, wh, ws);
+        cropImageListener->getWindow(wx, wy, ww, wh, ws,
+            processingContext_.viewRevision,
+            processingContext_.viewportGeneration);
     }
 
     // re-allocate sub-images and arrays if their dimensions changed
@@ -268,7 +270,7 @@ void Crop::update(int todo)
 
             if ((!isDetailWindow) && parent->adnListener) {
                 parent->adnListener->setProcessingContext(
-                    parent->getProcessingContext());
+                    processingContext_);
                 parent->adnListener->chromaChanged(
                     params.denoise.chrominance,
                     params.denoise.chrominanceRedGreen,
@@ -282,7 +284,7 @@ void Crop::update(int todo)
                 params.denoise.chrominanceMethod ==
                     DenoiseParams::ChrominanceMethod::AUTOMATIC) {
                 parent->adnListener->setProcessingContext(
-                    parent->getProcessingContext());
+                    processingContext_);
                 parent->adnListener->chromaChanged(
                     params.denoise.chrominance,
                     params.denoise.chrominanceRedGreen,
@@ -520,7 +522,7 @@ void Crop::update(int todo)
 
         cropImageListener->setDetailedCrop(
             final, finaltrue, params.icm, params.crop, rqcropx, rqcropy,
-            rqcropw, rqcroph, skip, currentEditRev, currentViewRev);
+            rqcropw, rqcroph, skip, processingContext_);
         delete final;
         delete finaltrue;
         delete cropImgtrue;
@@ -823,8 +825,6 @@ void Crop::fullUpdate()
             // If there are more update request, the following WHILE will collect it
             newUpdatePending = true;
         }
-        currentEditRev = parent->getCurrentEditRevision();
-        currentViewRev = parent->getCurrentViewRevision();
         // parent->updaterThreadStart.lock();
 
         // parent->wait_not_running();
@@ -862,6 +862,11 @@ void Crop::fullUpdate()
             {
                 std::lock_guard<std::mutex> lk(stateMutex_);
                 if (!newUpdatePending || destroying_) {
+                    // Publish idle under the same lock used by tryUpdate().
+                    // Later requests must start a worker instead of setting a
+                    // pending bit after this loop has already ended.
+                    updating = false;
+                    stateCond_.notify_all();
                     break;
                 }
                 newUpdatePending = false;
@@ -877,12 +882,6 @@ void Crop::fullUpdate()
             !parent->destroying.load(std::memory_order_acquire)) {
             parent->plistener->setProgressState(false);
         }
-    }
-
-    {
-        std::lock_guard<std::mutex> lk(stateMutex_);
-        updating = false; // end of crop update
-        stateCond_.notify_all();
     }
 
     // parent->set_updater_running(false);

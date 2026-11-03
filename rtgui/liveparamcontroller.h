@@ -11,6 +11,8 @@
 #include <vector>
 #include <glibmm.h>
 
+#include "../rtengine/rtengine.h"
+
 class EditorPanel;
 
 namespace art {
@@ -44,10 +46,10 @@ struct EditorState {
     int64_t renderedRevision = -1;
     int64_t renderedViewRevision = -1;
 
-    int64_t lastPreviewReadyEditRev = -1;
-    int64_t lastPreviewReadyViewRev = -1;
-    int64_t lastCropReadyEditRev = -1;
-    int64_t lastCropReadyViewRev = -1;
+    uint64_t requiredGeneration = 0;
+    unsigned pendingNavigatorUpdates = 0;
+    rtengine::ProcessingContext previewContext;
+    rtengine::ProcessingContext cropContext;
 
     bool hasInFlightMutation = false;
     std::string inFlightRequestId;
@@ -80,7 +82,13 @@ public:
 
     void onEditorParamChanged(EditorPanel *panel, int64_t &editRev,
                               int64_t &viewRev);
-    void onEditorViewChanged(EditorPanel *panel);
+    int64_t onEditorViewChanged(EditorPanel *panel);
+    void onPreviewScheduled(EditorPanel *panel, uint64_t generation);
+    void onNavigatorDelay(EditorPanel *panel, bool pending);
+    bool acceptsFrame(EditorPanel *panel, const rtengine::ProcessingContext &ctx) const;
+    void onPreviewReady(EditorPanel *panel, const rtengine::ProcessingContext &ctx);
+    void onCropReady(EditorPanel *panel, const rtengine::ProcessingContext &ctx);
+    void onRenderFailed(EditorPanel *panel, const rtengine::ProcessingContext &ctx);
     void onEditorSizeChanged(const std::string &sessionId,
                              const std::string &editorId, EditorPanel *panel);
     void onPreviewReady(EditorPanel *panel, int64_t editRev, int64_t viewRev);
@@ -101,6 +109,7 @@ private:
     ~LiveParamController();
 
     void recordGuiAccess();
+    void updateReady(EditorState &state);
     void pruneExpiredCache(EditorState &st);
 
     std::atomic<bool> enabled_{false};

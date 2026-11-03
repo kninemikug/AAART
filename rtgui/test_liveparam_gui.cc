@@ -19,7 +19,9 @@
 #include "../rtengine/cJSON.h"
 #include "../rtengine/improccoordinator.h"
 #include "../rtengine/procparams.h"
+#include "../rtengine/processingjob.h"
 #include "../rtengine/refreshmap.h"
+#include "../rtengine/threadpool.h"
 
 #include <atomic>
 #include <chrono>
@@ -53,9 +55,33 @@ bool gimpPlugin = false;
 bool remote = false;
 bool is_session = false;
 
+struct EditorPanelTestAccess {
+    static void setBeforeAfter(EditorPanel *panel, bool enabled)
+    {
+        panel->beforeAfter->set_active(enabled);
+    }
+    static BatchQueueEntry *createQueuedExport(EditorPanel *panel)
+    {
+        return panel->createBatchQueueEntry(false, false, nullptr);
+    }
+};
+
 namespace art {
 namespace liveparam {
 struct LiveParamControllerTestAccess {
+    static void dump(LiveParamController &controller, EditorPanel *panel)
+    {
+        const auto found = controller.panelToId_.find(panel);
+        if (found == controller.panelToId_.end()) { return; }
+        const auto &state = controller.editors_.at(found->second);
+        std::cerr << "Frame diagnostics: current=" << state.currentRevision
+            << "/" << state.currentViewRevision << " required=" << state.requiredGeneration
+            << " delayed=" << state.pendingNavigatorUpdates
+            << " nav=" << state.previewContext.editRevision << "/"
+            << state.previewContext.viewRevision << "/" << state.previewContext.generation
+            << " crop=" << state.cropContext.editRevision << "/"
+            << state.cropContext.viewRevision << "/" << state.cropContext.generation << std::endl;
+    }
     static void setClock(LiveParamController &controller,
                         std::function<std::chrono::steady_clock::time_point()> clock)
     {
@@ -1403,6 +1429,546 @@ bool test_t13_resubmit_and_conflict(RTWindow *rtWin,
     return true;
 }
 
+struct FrameFixture {
+    EditorPanel *panel;
+    art::liveparam::LiveParamController &controller;
+    bool open(RTWindow *win, const std::string &dir, const std::string &name)
+    {
+        panel = win->epanel;
+        setenv("ART_LIVE_PARAM", "1", 1);
+        if (!art::liveparam::LiveParamServer::getInstance().start()) {
+            return false;
+        }
+        const auto raw = dir + "/" + name + ".nef";
+        if (!copyFile(ART_TEST_SOURCE_DIR "/data/fivek_sample/sample1.nef", raw)) {
+            return false;
+        }
+        auto *thumbnail = CacheManager::getInstance()->getEntry(raw);
+        int error = 0;
+        auto *image = rtengine::InitialImage::load(raw, true, &error, nullptr);
+        if (!thumbnail || !image || error) {
+            return false;
+        }
+        panel->open(thumbnail, image);
+        return waitUntilIdle(panel);
+    }
+    std::string query() const
+    {
+        return controller.handleCommand("{\"protocolVersion\":1,\"requestId\":\"frames-query\","
+            "\"op\":\"get_state\",\"editorId\":\"" + panel->getEditorId() + "\"}");
+    }
+    int64_t field(const std::string &key) const
+    {
+        const auto state = query();
+        std::unique_ptr<cJSON, decltype(&cJSON_Delete)> json(cJSON_Parse(state.c_str()), cJSON_Delete);
+        auto *value = cJSON_GetObjectItemCaseSensitive(
+            cJSON_GetObjectItemCaseSensitive(json.get(), "result"), key.c_str());
+        return cJSON_IsNumber(value) ? int64_t(value->valuedouble) : -1;
+    }
+    std::string set(const std::string &id, double value) const
+    {
+        return controller.handleCommand("{\"protocolVersion\":1,\"requestId\":\"" + id +
+            "\",\"op\":\"set_param\",\"sessionId\":\"" + controller.getSessionId() +
+            "\",\"editorId\":\"" + panel->getEditorId() + "\",\"baseRevision\":" +
+            std::to_string(field("revision")) +
+            ",\"params\":{\"Exposure.Compensation\":" + std::to_string(value) + "}}");
+    }
+    bool waitReady(int timeoutMs = 120000) const
+    {
+        art::liveparam::LiveParamControllerTestAccess::dump(controller, panel);
+        const auto deadline = std::chrono::steady_clock::now() +
+            std::chrono::milliseconds(timeoutMs);
+        while (std::chrono::steady_clock::now() < deadline) {
+            pumpGuiEvents(10);
+            if (query().find("\"previewStatus\":\"READY\"") != std::string::npos) {
+                return true;
+            }
+        }
+        art::liveparam::LiveParamControllerTestAccess::dump(controller, panel);
+        const auto nav = area()->getPreviewHandler()->getDisplayedContext();
+        const auto crop = area()->mainCropWindow->cropHandler.getDisplayedContext();
+        const auto engine = panel->getImageProcessor()->getProcessingContext();
+        std::cerr << "Displayed nav/crop generation: " << nav.generation << "/" << crop.generation
+            << " engine=" << engine.generation << std::endl;
+        std::cerr << "Readiness timeout: " << query() << std::endl;
+        return false;
+    }
+    ImageArea *area() const { return panel->getImageAreaPanel()->imageArea; }
+    ~FrameFixture()
+    {
+        if (panel) {
+            panel->close();
+        }
+        art::liveparam::LiveParamServer::getInstance().stop();
+    }
+};
+
+uint64_t frameHash(const Glib::RefPtr<Gdk::Pixbuf> &image)
+{
+    if (!image) {
+        return 0;
+    }
+    uint64_t hash = 1469598103934665603ULL;
+    for (int y = 0; y < image->get_height(); ++y) {
+        const auto *row = image->get_pixels() + y * image->get_rowstride();
+        for (int x = 0; x < image->get_width() * 3; ++x) {
+            hash = (hash ^ row[x]) * 1099511628211ULL;
+        }
+    }
+    return hash;
+}
+
+bool test_t11_delayed_frames(RTWindow *win, const std::string &dir)
+{
+    std::cout << "[T11] Delayed actual frames and calculation generations" << std::endl;
+    FrameFixture f{nullptr, art::liveparam::LiveParamController::getInstance()};
+    GUI_ASSERT(f.open(win, dir, "t11"), "fixture opened");
+    auto *preview = f.area()->getPreviewHandler();
+    auto &crop = f.area()->mainCropWindow->cropHandler;
+    const auto oldPixels = preview->getDisplayedImage();
+    const auto oldHash = frameHash(oldPixels);
+    GUI_ASSERT(f.set("delayed-old", 1.25).find("APPLIED") != std::string::npos,
+               "external change accepted");
+    GUI_ASSERT(waitWorkerFinishedWithoutMainLoop(f.panel), "first producer drained without GUI");
+    GUI_ASSERT(frameHash(oldPixels) == oldHash, "displayed Navigator owns immutable bytes");
+    GUI_ASSERT(f.panel->getToolPanelCoordinator()->applyExternalExposure(-0.5),
+               "manual GUI change supersedes queued result");
+    GUI_ASSERT(waitWorkerFinishedWithoutMainLoop(f.panel), "second producer drained without GUI");
+    const auto newest = f.panel->getImageProcessor()->getProcessingContext();
+    pumpGuiEvents(150);
+    GUI_ASSERT(waitUntilIdle(f.panel), "delayed queues drained");
+    GUI_ASSERT(preview->getDisplayedContext().generation == newest.generation &&
+               crop.getDisplayedContext().generation == newest.generation &&
+               crop.getDisplayedContext().editRevision == f.field("revision"),
+               "Navigator and coalesced Crop retain newest pixels with matching provenance");
+    GUI_ASSERT(f.query().find("SUPERSEDED") != std::string::npos,
+               "superseded request never becomes READY");
+
+    // Withhold the main Crop, then calculate a second Navigator generation at
+    // the same edit/view revisions. Actual Crop delivery precedes Navigator.
+    crop.getCrop()->setListener(nullptr);
+    GUI_ASSERT(f.set("same-edit", 0.75).find("APPLIED") != std::string::npos,
+               "second external request accepted");
+    GUI_ASSERT(waitWorkerFinishedWithoutMainLoop(f.panel), "Navigator-only pass finished");
+    pumpGuiEvents(120);
+    GUI_ASSERT(f.query().find("PENDING") != std::string::npos,
+               "Navigator alone cannot complete request");
+    crop.getCrop()->setListener(&crop);
+    struct Observer : PreviewListener {
+        std::function<void()> callback;
+        void previewImageChanged() override { callback(); }
+    } observer;
+    bool observed = false, pendingBeforeNavigator = false;
+    observer.callback = [&] {
+        observed = true;
+        pendingBeforeNavigator = f.query().find("PENDING") != std::string::npos;
+    };
+    preview->addPreviewImageListener(&observer);
+    f.panel->getImageProcessor()->startProcessing(rtengine::M_MONITOR);
+    GUI_ASSERT(waitWorkerFinishedWithoutMainLoop(f.panel), "same-edit second calculation finished");
+    pumpGuiEvents(150);
+    GUI_ASSERT(observed && pendingBeforeNavigator,
+               "new Crop cannot combine with old Navigator from the same edit/view");
+    GUI_ASSERT(f.query().find("READY") != std::string::npos,
+               "both second-generation actual buffers complete request");
+    // A refresh accepted while the previous Crop is publishing its final
+    // progress notification must either be consumed or start a new worker.
+    struct FinalProgressRefresh : rtengine::ProgressListener {
+        EditorPanel *panel = nullptr;
+        std::shared_ptr<rtengine::StagedImageProcessor> processor;
+        rtengine::DetailedCrop *crop = nullptr;
+        std::atomic<int> finishes{0};
+        std::atomic<bool> newWorker{false};
+        void setProgress(double value) override { panel->setProgress(value); }
+        void setProgressStr(const Glib::ustring &text) override { panel->setProgressStr(text); }
+        void error(const Glib::ustring &text) override { panel->error(text); }
+        void setProgressState(bool running) override
+        {
+            if (!running && finishes.fetch_add(1) == 0) {
+                newWorker = crop->tryUpdate();
+                if (newWorker) {
+                    const auto keepAlive = processor;
+                    auto *next = crop;
+                    rtengine::ThreadPool::add_task(rtengine::ThreadPool::Priority::HIGH,
+                        [keepAlive, next] { next->fullUpdate(); });
+                }
+            }
+            panel->setProgressState(running);
+        }
+    } refresh;
+    refresh.panel = f.panel;
+    refresh.processor = f.area()->getImProcCoordinator();
+    refresh.crop = crop.getCrop();
+    refresh.processor->setProgressListener(&refresh);
+    crop.update();
+    const bool drained = waitUntilIdle(f.panel);
+    refresh.processor->setProgressListener(f.panel);
+    GUI_ASSERT(drained && refresh.newWorker && refresh.finishes == 2,
+               "refresh at the end of a Crop pass starts a second worker without losing work");
+    // The listener belongs to this open; close before its stack storage expires.
+    f.panel->close();
+    std::cout << "  -> [T11] PASSED!" << std::endl;
+    return true;
+}
+
+bool test_t12_views_and_lifetime(RTWindow *win, const std::string &dir)
+{
+    std::cout << "[T12] Real viewport, delayed HIGHQUAL, detail and reopen" << std::endl;
+    FrameFixture f{nullptr, art::liveparam::LiveParamController::getInstance()};
+    const auto oldMode = options.prevdemo;
+    options.prevdemo = PD_Fast;
+    GUI_ASSERT(f.open(win, dir, "t12"), "fixture opened");
+    auto &crop = f.area()->mainCropWindow->cropHandler;
+    auto *ipc = f.panel->getImageProcessor();
+    crop.setZoom(20);
+    pumpGuiEvents(options.adjusterMaxDelay + 100);
+    GUI_ASSERT(waitUntilIdle(f.panel), "50 percent view delivered");
+    const auto revision = f.field("revision");
+    auto view = f.field("viewRevision");
+    crop.moveAnchor(120, 80, true);
+    GUI_ASSERT(f.field("viewRevision") > view && f.field("revision") == revision,
+               "pan advances actual view only");
+    GUI_ASSERT(f.field("renderedRevision") == -1,
+               "old viewport does not satisfy current readiness");
+    GUI_ASSERT(waitUntilIdle(f.panel), "pan Crop delivered");
+    GUI_ASSERT(f.field("renderedViewRevision") == f.field("viewRevision"),
+               "pan revalidates unchanged Navigator with current main Crop");
+    GUI_ASSERT(f.set("zoom-pending", 0.5).find("APPLIED") != std::string::npos,
+               "request accepted before zoom");
+    crop.setZoom(1000);
+    crop.setZoom(2000);
+    GUI_ASSERT(crop.hasPendingNavigatorUpdate() && f.field("renderedRevision") == -1,
+               "timer replacement retains pending HIGHQUAL reservation");
+    pumpGuiEvents(options.adjusterMaxDelay + 100);
+    GUI_ASSERT(waitUntilIdle(f.panel), "100 percent quality transition delivered");
+    GUI_ASSERT(!crop.hasPendingNavigatorUpdate() && f.query().find("READY") != std::string::npos,
+               "pending request completes for current view after HIGHQUAL");
+    crop.setZoom(20);
+    pumpGuiEvents(options.adjusterMaxDelay + 80);
+    GUI_ASSERT(waitUntilIdle(f.panel), "reduced view delivered");
+    crop.setZoom(1000);
+    GUI_ASSERT(crop.hasPendingNavigatorUpdate(), "new quality timer reserved");
+    crop.setZoom(20);
+    GUI_ASSERT(!crop.hasPendingNavigatorUpdate(), "zoom-back cancels reservation");
+    pumpGuiEvents(options.adjusterMaxDelay + 80);
+    GUI_ASSERT(waitUntilIdle(f.panel), "cancelled quality transition settled");
+
+    // This is the native 100% detail-window path. It may schedule a new
+    // Navigator pass but must never substitute for the main Crop.
+    crop.getCrop()->setListener(nullptr);
+    GUI_ASSERT(f.set("detail-only", 0.6).find("APPLIED") != std::string::npos,
+               "request accepted before detail window");
+    GUI_ASSERT(waitWorkerFinishedWithoutMainLoop(f.panel), "Navigator-only finished");
+    pumpGuiEvents(80);
+    f.area()->addCropWindow();
+    pumpGuiEvents(options.adjusterMaxDelay + 100);
+    GUI_ASSERT(waitUntilIdle(f.panel), "100 percent detail window finished");
+    std::cout << "  detail-only state: " << f.query() << " main generation=" << crop.getDisplayedContext().generation << " current=" << ipc->getProcessingContext().generation << std::endl;
+    GUI_ASSERT(f.query().find("PENDING") != std::string::npos,
+               "detail buffer never substitutes for main Crop readiness");
+    crop.update();
+    GUI_ASSERT(waitUntilIdle(f.panel), "main Crop updated");
+    GUI_ASSERT(f.query().find("READY") != std::string::npos, "main Crop releases request");
+
+    const auto unchangedRevision = f.field("revision");
+    auto generation = ipc->getProcessingContext().generation;
+    f.panel->getToolPanelCoordinator()->refreshPreview(rtengine::EvMonitorTransform);
+    GUI_ASSERT(f.field("renderedRevision") == -1 && waitUntilIdle(f.panel),
+               "monitor-transform pass invalidates readiness until delivered");
+    GUI_ASSERT(ipc->getProcessingContext().generation > generation &&
+               f.field("revision") == unchangedRevision,
+               "monitor transform schedules Navigator without editing parameters");
+    generation = ipc->getProcessingContext().generation;
+    f.panel->getToolPanelCoordinator()->sharpMaskSelected(true);
+    GUI_ASSERT(f.field("renderedRevision") == -1 && waitUntilIdle(f.panel),
+               "sharp-mask pass waits for actual Navigator");
+    GUI_ASSERT(ipc->getProcessingContext().generation > generation &&
+               f.field("revision") == unchangedRevision,
+               "sharp mask schedules a distinct calculation at the same edit revision");
+    f.panel->getToolPanelCoordinator()->sharpMaskSelected(false);
+    GUI_ASSERT(waitUntilIdle(f.panel), "sharp mask restored");
+
+    crop.setEnabled(false, false);
+    GUI_ASSERT(f.set("before-only", 0.65).find("APPLIED") != std::string::npos,
+               "request accepted with main Crop withheld");
+    EditorPanelTestAccess::setBeforeAfter(f.panel, true);
+    pumpGuiEvents(200);
+    GUI_ASSERT(waitUntilIdle(f.panel), "native Before/After view opened");
+    GUI_ASSERT(f.query().find("PENDING") != std::string::npos,
+               "Before view cannot replace main Crop delivery");
+    EditorPanelTestAccess::setBeforeAfter(f.panel, false);
+    crop.setEnabled(true, true);
+    GUI_ASSERT(f.waitReady() && waitUntilIdle(f.panel),
+               "main Crop releases request after Before/After closes");
+
+    // Warnings have no render-failure meaning. Only a generation-stamped
+    // fatal notification may fail the accepted mutation.
+    crop.getCrop()->setListener(nullptr);
+    GUI_ASSERT(f.set("fatal-notification", 0.7).find("APPLIED") != std::string::npos,
+               "failure-notification fixture accepted");
+    GUI_ASSERT(waitWorkerFinishedWithoutMainLoop(f.panel), "actual generation captured");
+    pumpGuiEvents(80);
+    f.panel->error("nonfatal preview warning");
+    pumpGuiEvents(40);
+    GUI_ASSERT(f.query().find("PENDING") != std::string::npos,
+               "generic warning does not mark render failed");
+    const auto failedContext = ipc->getProcessingContext();
+    f.area()->getPreviewHandler()->imageFailed(failedContext);
+    pumpGuiEvents(40);
+    GUI_ASSERT(f.query().find("FAILED") != std::string::npos,
+               "matching fatal callback marks accepted value FAILED");
+    GUI_ASSERT(std::fabs(f.panel->getToolPanelCoordinator()->getExposureCompensation() - 0.7) < 1e-9,
+               "render failure does not revert accepted parameter");
+    crop.getCrop()->setListener(&crop);
+    GUI_ASSERT(f.set("after-failure", 0.8).find("APPLIED") != std::string::npos,
+               "next request accepted after failed preview");
+    f.area()->getPreviewHandler()->imageFailed(failedContext);
+    GUI_ASSERT(waitUntilIdle(f.panel), "new request finished");
+    GUI_ASSERT(f.query().find("READY") != std::string::npos,
+               "stale fatal callback cannot fail new calculation");
+
+    const auto previousId = f.panel->getEditorId();
+    GUI_ASSERT(f.set("closing-pending", 0.9).find("APPLIED") != std::string::npos,
+               "request accepted before immediate close");
+    crop.setZoom(1000);
+    f.panel->close();
+    GUI_ASSERT(f.open(win, dir, "t12-reopened"), "reopened with queued old callbacks cancelled");
+    GUI_ASSERT(f.panel->getEditorId() != previousId, "reopen has a new identity");
+    GUI_ASSERT(f.field("renderedRevision") == f.field("revision"),
+               "new open displays only its own actual buffers");
+    options.prevdemo = oldMode;
+    std::cout << "  -> [T12] PASSED!" << std::endl;
+    return true;
+}
+
+bool equalTiffPixels(const std::string &left, const std::string &right)
+{
+    std::unique_ptr<TIFF, decltype(&TIFFClose)> a(TIFFOpen(left.c_str(), "r"), TIFFClose);
+    std::unique_ptr<TIFF, decltype(&TIFFClose)> b(TIFFOpen(right.c_str(), "r"), TIFFClose);
+    if (!a || !b) {
+        return false;
+    }
+    uint32_t aw, ah, bw, bh;
+    TIFFGetField(a.get(), TIFFTAG_IMAGEWIDTH, &aw);
+    TIFFGetField(a.get(), TIFFTAG_IMAGELENGTH, &ah);
+    TIFFGetField(b.get(), TIFFTAG_IMAGEWIDTH, &bw);
+    TIFFGetField(b.get(), TIFFTAG_IMAGELENGTH, &bh);
+    const auto bytes = TIFFScanlineSize(a.get());
+    if (aw != bw || ah != bh || bytes != TIFFScanlineSize(b.get())) {
+        return false;
+    }
+    std::vector<unsigned char> av(bytes), bv(bytes);
+    for (uint32_t y = 0; y < ah; ++y) {
+        if (TIFFReadScanline(a.get(), av.data(), y) < 0 ||
+            TIFFReadScanline(b.get(), bv.data(), y) < 0 || av != bv) {
+            return false;
+        }
+    }
+    return true;
+}
+
+class RunningExport : public rtengine::ProgressListener {
+    std::mutex mutex_;
+    std::condition_variable condition_;
+    bool released_ = false;
+    bool entered_ = false;
+    std::thread worker_;
+public:
+    std::atomic<int> result{-1};
+    RunningExport(rtengine::ProcessingJob *job, const std::string &filename)
+    {
+        worker_ = std::thread([this, job, filename] {
+            int error = 0;
+            auto *image = rtengine::processImage(job, error, this, false);
+            if (image) {
+                error = image->saveAsTIFF(filename, 16, false, true);
+                image->free();
+            } else if (!error) {
+                error = 1;
+            }
+            result = error;
+        });
+    }
+    void setProgress(double) override { blockOnce(); }
+    void setProgressStr(const Glib::ustring &) override { blockOnce(); }
+    void setProgressState(bool) override { blockOnce(); }
+    void error(const Glib::ustring &) override { result = 1; }
+    void blockOnce()
+    {
+        std::unique_lock<std::mutex> lock(mutex_);
+        entered_ = true;
+        condition_.notify_all();
+        condition_.wait(lock, [this] { return released_; });
+    }
+    bool awaitStarted()
+    {
+        ScopedGdkUnlock unlock;
+        std::unique_lock<std::mutex> lock(mutex_);
+        return condition_.wait_for(lock, std::chrono::seconds(10),
+                                    [this] { return entered_; });
+    }
+    void finish()
+    {
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            released_ = true;
+            condition_.notify_all();
+        }
+        if (worker_.joinable()) {
+            ScopedGdkUnlock unlock;
+            worker_.join();
+        }
+    }
+    ~RunningExport() override { finish(); }
+};
+
+bool test_t14_saved_output(RTWindow *win, const std::string &dir)
+{
+    std::cout << "[T14] GUI profiles, actual exports and fixed ProcessingJob" << std::endl;
+    FrameFixture f{nullptr, art::liveparam::LiveParamController::getInstance()};
+    GUI_ASSERT(f.open(win, dir, "t14"), "fixture opened");
+    rtengine::procparams::ProcParams initial;
+    GUI_ASSERT(initial.load(nullptr, ART_TEST_SOURCE_DIR "/data/test_profile.arp") == 0,
+               "existing version-343 profile loaded");
+    FullPartialProfile profile(initial);
+    f.panel->getToolPanelCoordinator()->profileChange(&profile, rtengine::EvProfileChanged, "T14 fixture");
+    GUI_ASSERT(waitUntilIdle(f.panel), "existing profile processed");
+    initial.save(nullptr, dir + "/t14-initial.arp");
+    f.panel->saveProfile();
+    SaveFormat format("tif", 16, 16, false);
+    const auto before = dir + "/t14-before.tif";
+    GUI_ASSERT(f.panel->saveImmediately(before, format), "initial GUI export rendered");
+    // Compare the exact pre-IPC GUI export path (getParams + shared initial
+    // image) with the new committed-snapshot path. A fresh CLI decode is a
+    // separate reference path and is checked independently below/in CLI runs.
+    rtengine::procparams::ProcParams processed;
+    auto *processor = f.panel->getImageProcessor();
+    processor->getParams(&processed);
+    auto *oldPath = rtengine::ProcessingJob::create(processor->getInitialImage(), processed);
+    int oldError = 0;
+    auto *oldImage = rtengine::processImage(oldPath, oldError, nullptr, false);
+    GUI_ASSERT(oldImage && !oldError, "pre-IPC GUI snapshot export rendered");
+    const auto previousPath = dir + "/t14-previous-gui-path.tif";
+    const int saveError = oldImage->saveAsTIFF(previousPath, 16, false, true);
+    oldImage->free();
+    GUI_ASSERT(!saveError && equalTiffPixels(before, previousPath),
+               "old and new GUI snapshot export paths match exactly (max_abs_diff=0)");
+    std::unique_ptr<BatchQueueEntry> queue(EditorPanelTestAccess::createQueuedExport(f.panel));
+    GUI_ASSERT(queue && queue->job, "actual BatchQueue entry created");
+    GUI_ASSERT(queue->params.exposure.expcomp == 1.5 &&
+               static_cast<rtengine::ProcessingJobImpl *>(queue->job)->pparams.exposure.expcomp == 1.5,
+               "queued job owns initial parameter snapshot");
+    auto *job = queue->job;
+    queue->job = nullptr;
+    const auto oldOutput = dir + "/t14-existing-job.tif";
+    RunningExport running(job, oldOutput);
+    GUI_ASSERT(running.awaitStarted(), "old job is executing before GUI mutation");
+    GUI_ASSERT(f.set("output-075", 0.75).find("APPLIED") != std::string::npos,
+               "external change accepted while old job executes");
+    f.panel->saveProfile();
+    rtengine::procparams::ProcParams saved;
+    const auto sidecar = dir + "/t14.nef.arp";
+    GUI_ASSERT(saved.load(nullptr, sidecar) == 0 && saved.exposure.expcomp == 0.75,
+               "immediate profile save reads accepted pending parameters");
+    std::unique_ptr<BatchQueueEntry> nextQueue(EditorPanelTestAccess::createQueuedExport(f.panel));
+    GUI_ASSERT(nextQueue && nextQueue->job && nextQueue->params.exposure.expcomp == 0.75,
+               "new BatchQueue entry captures accepted value");
+    rtengine::ProcessingJob::destroy(nextQueue->job);
+    nextQueue->job = nullptr;
+    const auto external = dir + "/t14-external.tif";
+    GUI_ASSERT(f.panel->saveImmediately(external, format), "new export uses accepted pending value");
+    running.finish();
+    GUI_ASSERT(running.result == 0 && equalTiffPixels(before, oldOutput),
+               "already executing job preserves original pixels exactly");
+    GUI_ASSERT(waitUntilIdle(f.panel), "external actual frames delivered");
+    const auto externalNav = frameHash(f.area()->getPreviewHandler()->getDisplayedImage());
+    const auto externalCrop = frameHash(f.area()->mainCropWindow->cropHandler.cropPixbuf);
+    auto *tools = f.panel->getToolPanelCoordinator();
+    GUI_ASSERT(tools->applyExternalExposure(1.5) && waitUntilIdle(f.panel), "manual control reset");
+    const auto historyBefore = f.panel->getHistory()->getHistorySize();
+    const auto manualRevision = f.field("revision");
+    GUI_ASSERT(tools->applyExternalExposure(0.75) && waitUntilIdle(f.panel), "same native GUI edit applied");
+    Glib::ustring historyText, historyValue;
+    rtengine::ProcEvent historyEvent;
+    rtengine::procparams::ProcParams historyParams;
+    GUI_ASSERT(f.panel->getHistory()->getHistorySize() == historyBefore &&
+               f.panel->getHistory()->getHistoryRow(historyBefore - 1,
+                   historyText, historyValue, historyEvent, historyParams) &&
+               historyEvent == rtengine::EvExpComp && historyValue == "0.75" &&
+               historyParams.exposure.expcomp == 0.75 &&
+               f.field("revision") == manualRevision + 1,
+               "consecutive native exposure edits coalesce once and advance revision once");
+    rtengine::procparams::ProcParams manual;
+    f.panel->getImageProcessor()->getCommittedParams(&manual);
+    GUI_ASSERT(manual == saved, "manual and external saved processing parameters match");
+    GUI_ASSERT(frameHash(f.area()->getPreviewHandler()->getDisplayedImage()) == externalNav &&
+               frameHash(f.area()->mainCropWindow->cropHandler.cropPixbuf) == externalCrop,
+               "manual and external Navigator/main Crop bytes match");
+    const auto manualOutput = dir + "/t14-manual.tif";
+    GUI_ASSERT(f.panel->saveImmediately(manualOutput, format) && equalTiffPixels(external, manualOutput),
+               "manual and external final output pixels match exactly");
+    const auto oldId = f.panel->getEditorId();
+    f.panel->close();
+    auto *thumbnail = CacheManager::getInstance()->getEntry(dir + "/t14.nef");
+    int error = 0;
+    auto *image = rtengine::InitialImage::load(dir + "/t14.nef", true, &error, nullptr);
+    GUI_ASSERT(thumbnail && image && !error, "saved GUI image reloaded");
+    f.panel->open(thumbnail, image);
+    GUI_ASSERT(waitUntilIdle(f.panel) && f.panel->getEditorId() != oldId,
+               "saved profile reopens under new identity");
+    GUI_ASSERT(f.panel->getToolPanelCoordinator()->getExposureCompensation() == 0.75,
+               "GUI reread preserves accepted exposure");
+    std::cout << "  T14 artifacts: " << dir << std::endl;
+    std::cout << "  -> [T14] PASSED!" << std::endl;
+    return true;
+}
+
+bool test_t10_actual_frames(RTWindow *win, const std::string &workDir)
+{
+    std::cout << "[T10] Actual Navigator and main Crop completion" << std::endl;
+    auto &srv = art::liveparam::LiveParamServer::getInstance();
+    auto &ctrl = art::liveparam::LiveParamController::getInstance();
+    setenv("ART_LIVE_PARAM", "1", 1);
+    GUI_ASSERT(srv.start(), "receiver started");
+    const std::string raw = workDir + "/t10.nef";
+    GUI_ASSERT(copyFile(ART_TEST_SOURCE_DIR "/data/fivek_sample/sample1.nef", raw),
+               "RAW copied");
+    auto *ep = win->epanel;
+    auto *thumb = CacheManager::getInstance()->getEntry(raw);
+    int err = 0;
+    auto *image = rtengine::InitialImage::load(raw, true, &err, nullptr);
+    GUI_ASSERT(thumb && image && !err, "RAW loaded");
+    ep->open(thumb, image);
+    GUI_ASSERT(waitUntilIdle(ep), "initial actual frames delivered");
+    auto query = [&] {
+        return ctrl.handleCommand("{\"protocolVersion\":1,\"requestId\":\"frame-query\","
+            "\"op\":\"get_state\",\"editorId\":\"" + ep->getEditorId() + "\"}");
+    };
+    for (int step = 0; step < 2; ++step) {
+        auto state = query();
+        std::unique_ptr<cJSON, decltype(&cJSON_Delete)> json(cJSON_Parse(state.c_str()), cJSON_Delete);
+        auto *result = cJSON_GetObjectItemCaseSensitive(json.get(), "result");
+        const int rev = cJSON_GetObjectItemCaseSensitive(result, "revision")->valueint;
+        const auto reply = ctrl.handleCommand("{\"protocolVersion\":1,\"requestId\":\"frame-set-" +
+            std::to_string(step) + "\",\"op\":\"set_param\",\"sessionId\":\"" +
+            ctrl.getSessionId() + "\",\"editorId\":\"" + ep->getEditorId() +
+            "\",\"baseRevision\":" + std::to_string(rev) +
+            ",\"params\":{\"Exposure.Compensation\":" + std::to_string(0.25 + step) + "}}");
+        GUI_ASSERT(reply.find("\"status\":\"APPLIED\"") != std::string::npos, reply);
+        GUI_ASSERT(reply.find("\"previewStatus\":\"PENDING\"") != std::string::npos,
+                   "acceptance precedes delivery");
+        GUI_ASSERT(waitUntilIdle(ep), "actual processing drained");
+        state = query();
+        std::cout << state << std::endl;
+        GUI_ASSERT(state.find("\"previewStatus\":\"READY\"") != std::string::npos,
+                   "actual Navigator and main Crop release pending request");
+    }
+    ep->close();
+    srv.stop();
+    std::cout << "  -> [T10] PASSED!" << std::endl;
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -1421,7 +1987,11 @@ int main(int argc, char **argv)
         {"T07", testLiveParamQueue},
         {"T08", testLiveParamShutdown},
         {"T09", testLiveParamStartup},
+        {"T10", test_t10_actual_frames},
+        {"T11", test_t11_delayed_frames},
+        {"T12", test_t12_views_and_lifetime},
         {"T13", test_t13_resubmit_and_conflict},
+        {"T14", test_t14_saved_output},
     };
     std::set<std::string> selected;
     for (int i = 1; i < argc; ++i) {

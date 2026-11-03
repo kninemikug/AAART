@@ -225,6 +225,15 @@ public:
                               int *errorCode, ProgressListener *pl = nullptr);
 };
 
+// Runtime provenance; never serialized in a processing profile.
+struct ProcessingContext {
+    int64_t editRevision = -1;
+    int64_t viewRevision = -1;
+    uint64_t generation = 0;
+    uint64_t cropId = 0;
+    uint64_t viewportGeneration = 0;
+};
+
 /** When the preview image is ready for display during staged processing (thus
  * the changes have been updated), the staged processor notifies the listener
  * class implementing a PreviewImageListener. It is important to note that the
@@ -237,6 +246,12 @@ public:
  * display on the monitor (monitor profile has been already applied). */
 class PreviewImageListener {
 public:
+    virtual void imageReady(const procparams::CropParams &cp,
+                            const ProcessingContext &ctx)
+    {
+        imageReady(cp, ctx.editRevision, ctx.viewRevision);
+    }
+    virtual void imageFailed(const ProcessingContext &) {}
     virtual ~PreviewImageListener() = default;
     /** With this member function the staged processor notifies the listener
      * that it allocated a new image to store the end result of the processing.
@@ -271,6 +286,21 @@ public:
  * manner, the class implementing this interface has to store a copy of it. */
 class DetailedCropListener {
 public:
+    virtual void setDetailedCrop(IImage8 *img, IImage8 *imgtrue,
+        const procparams::ColorManagementParams &cmp,
+        const procparams::CropParams &cp, int cx, int cy, int cw, int ch,
+        int skip, const ProcessingContext &ctx)
+    {
+        setDetailedCrop(img, imgtrue, cmp, cp, cx, cy, cw, ch, skip,
+                        ctx.editRevision, ctx.viewRevision);
+    }
+    virtual void getWindow(int &cx, int &cy, int &cw, int &ch, int &skip,
+                           int64_t &viewRevision, uint64_t &generation)
+    {
+        getWindow(cx, cy, cw, ch, skip);
+        viewRevision = -1;
+        generation = 0;
+    }
     virtual ~DetailedCropListener() = default;
     /** With this member function the staged processor notifies the listener
      * that the detailed crop image has been updated.
@@ -360,13 +390,6 @@ public:
     virtual void requestUpdateWaveform() = 0;
 };
 
-// Runtime provenance; never serialized in a processing profile.
-struct ProcessingContext {
-    int64_t editRevision = -1;
-    int64_t viewRevision = -1;
-    uint64_t generation = 0;
-};
-
 class ProcessingResultListener {
 public:
     virtual ~ProcessingResultListener() = default;
@@ -378,6 +401,7 @@ public:
     virtual ~ParameterUpdateListener() = default;
     // Called by the GUI writer while the pending parameter snapshot is locked.
     virtual void parametersCommitted(int64_t &editRev, int64_t &viewRev) = 0;
+    virtual void previewScheduled(uint64_t generation) {}
 };
 
 /** This listener is used when the auto exposure has been recomputed. */
@@ -471,6 +495,7 @@ public:
  * StagedImageProcessor. Several crops can be assigned to the same image.   */
 class DetailedCrop {
 public:
+    virtual void setViewportGeneration(uint64_t generation) {}
     virtual ~DetailedCrop() {}
     /** Sets the window defining the crop. */
     virtual void setWindow(int cx, int cy, int cw, int ch, int skip) {}
@@ -511,6 +536,7 @@ public:
     virtual void setNextRevisions(int64_t editRev, int64_t viewRev) {}
     virtual void setParameterUpdateListener(ParameterUpdateListener *listener) {}
     virtual ProcessingContext getProcessingContext() { return {}; }
+    virtual void setNextViewRevision(int64_t revision) {}
     virtual void clearProcessingResultListeners() {}
     virtual bool mergeDerivedParams(
         const ProcessingContext &context,

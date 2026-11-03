@@ -98,10 +98,31 @@ public:
                          int64_t editRev, int64_t viewRev) override;
     void getWindow(int &cwx, int &cwy, int &cww, int &cwh, int &cskip) override;
 
-    void setEditorPanel(EditorPanel *ep) { editorPanel_ = ep; }
+    void setDetailedCrop(rtengine::IImage8 *im, rtengine::IImage8 *imworking,
+        const rtengine::procparams::ColorManagementParams &cmp,
+        const rtengine::procparams::CropParams &cp, int cx, int cy, int cw,
+        int ch, int skip, const rtengine::ProcessingContext &ctx) override;
+    void getWindow(int &x, int &y, int &w, int &h, int &skip,
+                   int64_t &viewRevision, uint64_t &generation) override;
+    void setEditorPanel(EditorPanel *ep, bool mainCrop = true);
+    rtengine::ProcessingContext getDisplayedContext() const { return displayedContext_; }
+    bool hasPendingNavigatorUpdate() const { return pendingHighQuality_; }
 
 private:
     EditorPanel *editorPanel_ = nullptr;
+    bool mainCrop_ = true;
+    bool pendingHighQuality_ = false;
+    void cancelZoomUpdate();
+    void publishViewport();
+    struct Viewport {
+        int x = 0, y = 0, w = 0, h = 0, skip = 1;
+        int zoom = 100, width = 0, height = 0, scale = 1;
+        int64_t revision = -1;
+        uint64_t generation = 0;
+    } viewport_;
+    rtengine::ProcessingContext bufferedContext_, displayedContext_;
+    rtengine::procparams::CropParams bufferedCrop_;
+    rtengine::procparams::ColorManagementParams bufferedColor_;
 public:
 
     // SizeListener interface
@@ -142,7 +163,7 @@ private:
         cropH; // cropPixbuf's displayed area (position and size), i.e.
                // coordinates in 1:1 scale, i.e. cx, cy, cw & ch trimmed to the
                // image's bounds
-    bool enabled;
+    std::atomic<bool> enabled;
     std::vector<unsigned char> cropimg;
     std::vector<unsigned char> cropimgtrue;
     int cropimg_width, cropimg_height, cix, ciy, ciw, cih, cis;

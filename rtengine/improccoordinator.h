@@ -274,15 +274,12 @@ public:
 
     bool mergeDerivedParams(
         const ProcessingContext &ctx,
-        const std::function<void(ProcParams *)> &merge) override
+        const std::function<void(ProcParams *)> &merge) override;
+
+    void setNextViewRevision(int64_t revision) override
     {
         MyMutex::MyLock lock(paramsUpdateMutex);
-        if (destroying.load() || ctx.editRevision != nextEditRev ||
-            ctx.generation != nextGeneration_) {
-            return false;
-        }
-        merge(&nextParams);
-        return true;
+        nextViewRev = revision;
     }
 
     void clearProcessingResultListeners() override

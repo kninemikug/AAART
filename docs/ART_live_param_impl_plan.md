@@ -386,7 +386,7 @@ GUI 콜백 안에서 입력·대상·revision 검증을 끝낸 다음 컨트롤�
 
 ### 검사 경계와 통과 조건
 
-`rtgui/test_liveparam.cc`는 JSON·입력·수신·캐시 경계의 재현 검사를 보강한다. 실제 GUI 적용·revision·히스토리·프레임을 검사할 때는 성공 반환 대체를 사용하지 않는다. `rtgui/test_liveparam_gui.cc`와 `test_liveparam_gui` 타깃은 보수 1에서 추가됐다. 실제 `EditorPanel`·`ToolPanelCoordinator`·처리기·리스너 경로를 사용하며, 현재 구현된 검사와 남은 검사는 §13에서 구분한다. `rtgui/CMakeLists.txt`에서는 `main.cc`를 분리한 GUI 공통 객체(또는 정적) 라이브러리를 `art`와 macOS 전용 `test_liveparam_gui`가 공유하게 하여 Release·ASan·TSan에서의 중복 컴파일과 전역 심볼 충돌을 피하고, 검사 지원을 위해 제품의 새 IPC 연산이나 시작 옵션을 추가하지 않는다.
+`rtgui/test_liveparam.cc`는 JSON·입력·수신·캐시 경계의 재현 검사를 보강한다. 실제 GUI 적용·revision·히스토리·프레임을 검사할 때는 성공 반환 대체를 사용하지 않는다. `rtgui/test_liveparam_gui.cc`와 `test_liveparam_gui` 타깃은 보수 1에서 추가됐다. 실제 `EditorPanel`·`ToolPanelCoordinator`·처리기·리스너 경로를 사용하며, 단계별 검사와 최종 결과는 §13~§15에서 구분한다. `rtgui/CMakeLists.txt`에서는 `main.cc`를 분리한 GUI 공통 객체(또는 정적) 라이브러리를 `art`와 macOS 전용 `test_liveparam_gui`가 공유하게 하여 Release·ASan·TSan에서의 중복 컴파일과 전역 심볼 충돌을 피하고, 검사 지원을 위해 제품의 새 IPC 연산이나 시작 옵션을 추가하지 않는다.
 
 각 검사는 예상값과 실제값, 명령·종료 코드·구성·결과 자료를 함께 남긴다. 모의 응답이나 최종 성공 문구만으로 아래 단언을 대신하지 않는다. 검사 준비 실패는 통과가 아니다.
 
@@ -443,14 +443,14 @@ ASan·TSan 구성은 §7의 `build/asan`, `build/tsan` 명령을 사용하되 �
 
 검사 소스·CMake 등록은 처음 소비하는 보수 커밋에 포함한다. 중간 커밋의 제한된 통과 결과를 전체 기능 완료로 표시하지 않고, 아직 보수하지 않은 F01~F06과 미실행 T01~T15를 명시한다.
 
-- [ ] F01~F06이 해당 재현 검사로 해소되고 T01~T15의 실제 결과가 기록됐다.
-- [ ] 기본 OFF와 두 macOS GUI 시작 방식에서 정상 편집·요청·닫기·종료가 확인됐다.
-- [ ] 외부 변경 한 번에 revision이 한 번 증가하고, 화면·히스토리·저장 의미가 수동 조작과 일치한다. 자동 계산 결과의 발생 세대를 검사하고 구세대 콜백은 상태 변경 전에 폐기한다.
-- [ ] `APPLIED`와 `READY`가 구분되며 프레임·뷰 세대가 일치하고, 다음 요청이 정상 진행된다. Navigator 재사용은 유효성 확인을 거치며 재계산이 필요하면 해당 새 결과의 GUI 전달까지 기다린다.
-- [ ] GUI·CLI·검사 타깃 빌드, ASan·TSan의 적용 가능한 전체 경로, 기존 프로필·렌더 회귀가 확인됐다. 미검증 항목이 있으면 전체 완료로 판정하지 않는다.
-- [ ] `ProcParams` 직렬화·처리 의미·기본값 보존 증거를 근거로 PPVERSION을 판정했다. 미증가를 예정만으로 확정하지 않는다. 의미 변경이 필요하면 §4에 따라 별도 설계로 돌린다.
+- [x] F01~F06이 해당 재현 검사로 해소되고 T01~T15의 실제 결과가 기록됐다.
+- [x] 기본 OFF와 두 macOS GUI 시작 방식에서 정상 편집·요청·닫기·종료가 확인됐다.
+- [x] 외부 변경 한 번에 revision이 한 번 증가하고, 화면·히스토리·저장 의미가 수동 조작과 일치한다. 자동 계산 결과의 발생 세대를 검사하고 구세대 콜백은 상태 변경 전에 폐기한다.
+- [x] `APPLIED`와 `READY`가 구분되며 프레임·뷰 세대가 일치하고, 다음 요청이 정상 진행된다. Navigator 재사용은 유효성 확인을 거치며 재계산이 필요하면 해당 새 결과의 GUI 전달까지 기다린다.
+- [x] GUI·CLI·검사 타깃 빌드, ASan·TSan의 적용 가능한 전체 경로, 기존 프로필·렌더 회귀가 확인됐다. 미검증 항목이 있으면 전체 완료로 판정하지 않는다.
+- [x] `ProcParams` 직렬화·처리 의미·기본값 보존 증거를 근거로 PPVERSION을 판정했다. 미증가를 예정만으로 확정하지 않는다. 의미 변경이 필요하면 §4에 따라 별도 설계로 돌린다.
 
-전체 완료 체크리스트는 아직 미완료다. 개별 단계의 실행 결과는 아래 기록과 구분하며, 남은 검사를 실행하지 않고 전체 통과로 표시하지 않는다.
+지원 범위의 완료 체크리스트는 §15의 최종 실행으로 충족했다. 단계별 과거 기록과 최종 결과를 구분하며, 별도로 수행하지 않은 접속·장애 시험과 지연 조합은 §15의 제한으로 유지한다.
 
 ## 13. 보수 재개와 실행 기록 — 2026-11-03
 
@@ -502,3 +502,73 @@ ASan·TSan 구성은 §7의 `build/asan`, `build/tsan` 명령을 사용하되 �
 - 실제 시작 분기는 `main.cc`를 공유하는 선택적 검사 타깃 `test_liveparam_app`으로 확인했다. 검사 전용 애플리케이션 ID를 사용해 실행 중인 다른 ART의 파일 전달과 구분하며 제품 시작 옵션·IPC 연산은 추가하지 않는다. `cmake --build build --parallel 4 --target art test_liveparam_app`으로 빌드하고 격리된 리소스·설정·RAW로 시작했다. OFF의 실제 창·사진 표시와 소켓 부재는 `startup/off-window.png`, 일반·단독 GUI 각각의 PID·세션·편집기·소켓 및 잘못된 대상 거부는 `startup/startup-state.json`에 기록했다.
 - macOS 파일 열기 이벤트가 기존 GUI에 전달된 뒤 PID·실행 세션·소켓이 유지되고 추가 프로세스가 없음을 확인했다(`startup/forward-state.json`). 이 환경에는 D-Bus 세션 버스가 없어 직접 재실행이 별도 GUI 주 프로세스가 됐다. 이 실행을 `GApplication` 원격 보조 프로세스 시험의 통과로 집계하지 않는다. 해당 실제 원격 보조 경로와 다른 사용자 계정의 접속은 최종 검증에서 별도 제한으로 유지한다.
 - F03의 프레임·뷰·Navigator 계산 세대, T10~T12·T14 및 해당 경로의 T15는 남아 있다. `PPVERSION` 미증가 최종 판정과 전체 기능 완료는 이 기록으로 대체하지 않는다.
+
+## 15. 보수 4와 최종 검증 기록 — 2026-11-04
+
+### 프레임·뷰·수명 변경
+
+- `ProcessingContext`에 계산 세대와 Crop 식별자·뷰포트 세대를 두고 `ProcParams`나 `.arp`에는 넣지 않는다. Navigator 예약은 `endUpdateParams()`·`startProcessing()`에서 GUI 소유 상태에 전달한다. Crop은 직접 `update()`와 `fullUpdate()`의 매 반복에서 실제 처리 스냅샷과 요청 뷰포트를 함께 채취한다. Crop의 파생값도 현재 뷰포트인지 확인한 뒤 병합한다.
+- Navigator는 처리 버퍼를 소유 복사한 뒤 GUI에 전달한다. Crop의 합쳐진 대기 슬롯에는 픽셀·처리 세대·색 관리·Crop 파라미터를 함께 보관하고, 표시용 `Gdk::Pixbuf`도 자체 픽셀을 소유한다. 다음 계산이나 벡터 해제가 표시 자료를 바꾸지 않는다.
+- `ImageArea::on_resized()`의 주 Crop 지연 생성에도 대상 연결을 적용한다. Before/After 보조 뷰와 상세 창은 주 Crop 완료로 집계하지 않는다. 상세 창의 100% 처리 예약은 필요한 Navigator 계산 세대에 반영한다.
+- 실제 팬·줌·캔버스·표시 배율 변화에서 GUI가 뷰 세대를 발급한다. 작업자는 잠금으로 보호한 뷰포트 복사본만 읽으며 크기 통지는 GUI로 전달한다. 같은 크기의 알림만으로 재계산을 추가하지 않는다.
+- `READY`는 현재 편집·뷰에 유효한 Navigator와 주 Crop 자료가 모두 GUI에 전달된 뒤 확정한다. 같은 편집·뷰의 재계산도 계산 세대로 구분한다. 팬은 필요한 재계산이나 지연된 품질 갱신이 없을 때 기존 Navigator 자료를 재확인한다. 줌 타이머 대기·교체·취소와 실제 `M_HIGHQUAL`·색 변환·샤프닝 마스크 예약을 구분하며 원래 `APPLIED`의 뷰 번호는 보존한다.
+- 비치명적 `EditorPanel::error()`를 렌더 실패로 간주하던 연결을 제거했다. 기존 Navigator 변환 중단 경로는 발생한 계산 세대를 전달하며 해당 요청만 `FAILED`로 바꾼다. 오류 상세는 기준 문서 §7.4의 객체 형식으로 `lastMutation.error`에 제공하고 내부 예외·경로는 노출하지 않는다. 반영한 값은 유지한다.
+- Before/After 추가 검사에서 마지막 Crop 진행 알림 중 접수된 갱신이 유실되는 경계를 재현했다. `fullUpdate()` 루프의 종료 확인과 `updating = false`를 `tryUpdate()`와 같은 상태 잠금 안에서 확정하도록 수정했다. 이후 요청은 새 작업을 예약하며 먼저 끝난 작업이 새 작업의 상태를 지우지 않는다. 처리식·처리 순서·무효화 범위는 변경하지 않았다.
+
+### 재현 검사와 비교 방법
+
+- 수정 전 T10은 실제 첫 노출 변경을 끝낸 뒤에도 `PENDING`에 남았다(`step4-t10-red.log`). T11은 마지막 Crop 진행 알림에서 다음 갱신을 요청하면 새 작업이 예약되지 않는 것을 재현했다(`step4-refresh-red.log`). 제품의 정지용 훅이나 성공 반환 대체를 추가하지 않는다.
+- T10은 두 화면 자료 준비와 후속 변경 수락을, T11은 GUI 전달 지연·최신 Crop 합치기·같은 편집의 새 계산·마지막 갱신 경계를 검사한다. T12는 실제 팬·줌·타이머 교체/취소·100% 상세 창·색 변환·샤프닝 마스크·Before/After·즉시 닫기/재열기를 검사한다. Before/After의 완료 대기는 처리기의 유휴 표시만 믿지 않고 `READY`를 조회한다.
+- T12의 실패 검사는 실제 계산에서 얻은 세대를 사용한 치명적 통지 수락·구세대 통지 폐기·비치명적 경고 구분을 확인한다. 파일 손상이나 메모리 고갈을 일으킨 전체 렌더러 장애 시험을 수행한 것으로 확대하지 않는다.
+- T14는 기존 `getParams()`와 공유 원본을 쓰는 GUI 내보내기 경로를 재현해 새 스냅샷 경로와 픽셀 차이 `0`을 확인한다. 외부/수동 변경의 파라미터·Navigator·주 Crop·최종 TIFF 일치, 저장·재읽기, 새 BatchQueue 스냅샷, 이미 실행 중인 실제 `ProcessingJob`의 원래 출력 보존을 확인한다. 연속 노출 조작의 기존 히스토리 행 병합과 revision 한 번 증가도 유지한다.
+- 변경 전 `cc9f8dbe3`의 CLI TIFF와 최종 CLI TIFF는 동일 RAW·프로필·Release 구성의 세 경우를 별도로 비교한다. 사전 상한은 `max_abs_diff = 0`이며 소프트웨어 버전·시각 메타데이터는 구분한다. 서로 다른 노출의 음성 대조군은 비교 실패를 확인한다. 별도 CLI 실행과 GUI 실행의 교차 비교에서 첫 비일치가 1 LSB였으므로 이를 같은 조건의 전후 회귀 근거로 사용하지 않는다. 기존/새 GUI 경로와 변경 전/후 CLI 경로를 각각 비교하며 허용 오차는 완화하지 않는다.
+
+최종 전체 실행의 종료 코드·구성·검증 제한과 PPVERSION 판정은 아래와 같다.
+
+
+### 최종 실행 구성
+
+실행 자료는 `build/liveparam-checks/resume/`에 모았다. macOS 26.5.2 arm64, AppleClang 21.0.0.21000099에서 동일 RAW와 기본 RAW·기존 테스트 프로필을 사용했다. 파일 해시와 실제 컴파일 플래그는 `step4-build-meta.json`에 기록했다. 모든 구성은 `build/` 아래 아웃오브소스이며 `-ffast-math`를 사용하지 않는다.
+
+Release·ASan·TSan에서 `art`·`art-cli`·`test_liveparam`·`test_liveparam_gui`를 빌드했다. T15는 별도 GUI 사례 번호가 아니라 ASan·TSan에서 전체 GUI 사례 T01~T14를 실행한 구성 검사다. TSan의 초기 `-O0` 실행과 마지막 Crop 수정 전 실행은 중단 기록으로 보존하고 통과로 집계하지 않는다. 최종 TSan은 디버그 단언과 검출 옵션을 유지한 `-O1`을 사용한다.
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel 4 --target art art-cli test_liveparam test_liveparam_gui
+build/rtgui/test_liveparam_gui
+
+cmake -S . -B build/asan -DCMAKE_BUILD_TYPE=Debug \
+  -DCMAKE_C_FLAGS="-fsanitize=address -fno-omit-frame-pointer" \
+  -DCMAKE_CXX_FLAGS="-fsanitize=address -fno-omit-frame-pointer"
+cmake --build build/asan --parallel 4 --target art art-cli test_liveparam test_liveparam_gui
+build/asan/rtgui/test_liveparam_gui
+
+cmake -S . -B build/tsan -DCMAKE_BUILD_TYPE=Debug \
+  -DCMAKE_C_FLAGS="-fsanitize=thread -fno-omit-frame-pointer" \
+  -DCMAKE_CXX_FLAGS="-fsanitize=thread -fno-omit-frame-pointer" \
+  -DCMAKE_C_FLAGS_DEBUG="-g -O1" -DCMAKE_CXX_FLAGS_DEBUG="-g -O1"
+cmake --build build/tsan --parallel 4 --target art art-cli test_liveparam test_liveparam_gui
+build/tsan/rtgui/test_liveparam_gui
+```
+
+
+### 최종 결과와 PPVERSION 판정
+
+| 검증 | 결과·자료 |
+|---|---|
+| Release 실제 GUI T01~T14 | 전체 통과, 종료 코드 `0`: `step4-release-final-all.log` |
+| ASan 실제 GUI T01~T14 | 전체 통과, 종료 코드 `0`, 메모리 오류 보고 없음: `step4-asan-final-all.log` |
+| TSan 실제 GUI T01~T14 | 전체 통과, 종료 코드 `0`, 데이터 경쟁 보고 없음: `step4-tsan-final-all.log` |
+| 계약 검사 | `test_liveparam` 통과, 종료 코드 `0`: `step4-contract.log` |
+| CLI 기준 회귀 | 세 경우의 렌더·픽셀 비교 모두 종료 코드 `0`, 픽셀 차이 `0`. 다른 노출의 음성 대조군은 종료 코드 `1`: `step4-cli-regression.json` |
+| 실제 GUI 소켓 연속 변경 | 30건 모두 `APPLIED/PENDING` 이후 `READY`, 다음 요청 수락과 반영·표시 세대 일치: `step4-native-final-probe.log`·`step4-native-latency.json` |
+| 실제 원격 인자 전달 | 보조 프로세스 종료 코드 `0`, 자체 소켓 관측 없음, 같은 주 GUI 세션에 다른 파일 전달: `step4-bus-final.log`·`startup/bus-state.json` |
+| 화면·구성 | 최종 노출 값 `0.50`과 사진 표시: `startup/final-window.png`. 소스·입력 해시와 빌드 플래그: `step4-build-meta.json`. 전체 판정 자료: `step4-final-results.json` |
+
+**이번 지원 범위에서는 PPVERSION `1045`를 유지한다.** 직렬화 구조·기본값·처리식·처리 순서를 바꾸지 않았고, 기준 CLI 출력과 기존/새 GUI 스냅샷 경로·수동/외부 처리·저장·재읽기·실행 중 출력 고정의 회귀 증거를 확보했다. `protocolVersion`은 계속 `1`이다. 기능은 기본 OFF이며 macOS에서 `ART_LIVE_PARAM=1`로 시작한 GUI의 `Exposure.Compensation` 한 키와 Unix socket만 지원한다.
+
+원격 보조 검사는 기존 설치된 D-Bus의 검사 전용 임시 세션에서 실제 `main.cc` 분기를 실행했다. 검사 종료 후 버스·주 GUI·보조 프로세스를 정리했으며 제품에 별도 프로세스 의존성을 추가하지 않는다. 일반 macOS 파일 열기 전달과 단독 GUI 시작의 자료는 §14의 기록과 함께 유지한다.
+
+다른 사용자 계정으로 실행한 실제 접속은 시험하지 않았다. 동일 사용자 커널 자격, 자격 조회 실패 거부, 디렉터리 `0700`·소켓 `0600` 확인과 이 제한을 구분한다. T12의 실패 통지 검증도 전체 렌더러 장애 시험으로 확대하지 않는다. 지원 환경·단일 키 밖의 동작이 확인됐다는 뜻이 아니다.
+
+축소 보기·이미 열린 RAW·기본 자동 곡선·HDR/노이즈 제거 OFF·두 sanitizer 검사 동시 실행 조건에서 실제 소켓 30건의 클라이언트 왕복 p50/p95는 반영 `21.1/21.2ms`, `READY` `165.2/258.4ms`였다. 이는 해당 실행의 관측 상한이며 단계별 엔진 시각이나 일반 응답 보장이 아니다. 최초 열기·100%·HDR/노이즈 제거 조합의 전체 지연 분포는 이번 완료 조건으로 추가하지 않았으며 측정한 것으로 표시하지 않는다.

@@ -101,6 +101,7 @@ public:
                            const ParamsEdited *paramsEdited = nullptr) override;
     void clearParamChanges() override;
     void parametersCommitted(int64_t &editRev, int64_t &viewRev) override;
+    void previewScheduled(uint64_t generation) override;
 
     // thumbnaillistener interface
     void procParamsChanged(Thumbnail *thm, int whoChangedIt) override;
@@ -191,6 +192,7 @@ public:
     void setEditorId(const Glib::ustring &id) { editorId_ = id; }
 
 private:
+    friend struct EditorPanelTestAccess;
     Glib::ustring editorId_;
     mutable std::mutex liveParamOpenMutex_;
     std::string liveParamSessionId_;

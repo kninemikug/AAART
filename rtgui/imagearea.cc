@@ -103,6 +103,7 @@ void ImageArea::on_resized(Gtk::Allocation &req)
                                   // state, causing wrong sizes
         if (!mainCropWindow) {
             mainCropWindow = new CropWindow(this, false, false);
+            mainCropWindow->cropHandler.setEditorPanel(editorPanel_);
             mainCropWindow->setDecorated(false);
             mainCropWindow->setFitZoomEnabled(true);
             mainCropWindow->addCropWindowListener(this);
@@ -495,6 +496,7 @@ void ImageArea::addCropWindow()
     }
 
     CropWindow *cw = new CropWindow(this, true, true);
+    cw->cropHandler.setEditorPanel(editorPanel_, false);
     cw->zoom11(false);
     cw->setCropGUIListener(cropgl);
     cw->setPointerMotionListener(pmlistener);
@@ -866,5 +868,16 @@ void ImageArea::setHiDPI(bool yes)
         if (w != mainCropWindow) {
             w->setHiDPI(yes);
         }
+    }
+}
+
+void ImageArea::setEditorPanel(EditorPanel *panel)
+{
+    editorPanel_ = panel;
+    if (mainCropWindow) {
+        mainCropWindow->cropHandler.setEditorPanel(panel);
+    }
+    for (auto *crop : cropWins) {
+        crop->cropHandler.setEditorPanel(panel, false);
     }
 }

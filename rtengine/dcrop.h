@@ -79,8 +79,9 @@ protected:
 
     bool cropAllocated;
     DetailedCropListener *cropImageListener;
-    int64_t currentEditRev;
-    int64_t currentViewRev;
+    ProcessingContext processingContext_;
+    const uint64_t cropId_;
+    std::atomic<uint64_t> viewportGeneration_{0};
 
     MyMutex cropMutex;
     ImProcCoordinator *const parent;
@@ -113,6 +114,15 @@ public:
      */
     bool tryUpdate() override;
     /** @brief Asynchronously reprocess the detailed crop */
+    void setViewportGeneration(uint64_t generation) override
+    {
+        viewportGeneration_.store(generation, std::memory_order_release);
+    }
+    bool matchesViewport(const ProcessingContext &ctx) const
+    {
+        return ctx.cropId == cropId_ && ctx.viewportGeneration ==
+            viewportGeneration_.load(std::memory_order_acquire);
+    }
     void fullUpdate() override; // called via thread
 
     void setListener(DetailedCropListener *il) override;

@@ -640,6 +640,9 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
                 bufs_[2]->syncCpu();
             } catch (char *str) {
                 progress("Error converting file...", 0);
+                if (imageListener) {
+                    imageListener->imageFailed(getProcessingContext());
+                }
                 return;
             }
         }
@@ -656,8 +659,7 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
         // TODO: The WB tool should be advertised too in order to get the
         // AutoWB's temp and green values
         {
-            imageListener->imageReady(params.crop, currentEditRev,
-                                      currentViewRev);
+            imageListener->imageReady(params.crop, getProcessingContext());
         }
 
         readyphase++;
@@ -1557,6 +1559,9 @@ void ImProcCoordinator::startProcessing(int changeCode)
     }
     changeSinceLast |= update_change_flags(nextParams, changeCode);
     ++nextGeneration_;
+    if (parameterUpdateListener_ && (changeSinceLast & (M_VOID - 1))) {
+        parameterUpdateListener_->previewScheduled(nextGeneration_);
+    }
     paramsUpdateMutex.unlock();
 
     startProcessing();
@@ -1686,6 +1691,9 @@ void ImProcCoordinator::endUpdateParams(int changeFlags)
     }
     changeSinceLast |= update_change_flags(nextParams, changeFlags);
     ++nextGeneration_;
+    if (parameterUpdateListener_ && (changeSinceLast & (M_VOID - 1))) {
+        parameterUpdateListener_->previewScheduled(nextGeneration_);
+    }
 
     paramsUpdateMutex.unlock();
     startProcessing();
@@ -1878,3 +1886,29 @@ bool ImProcCoordinator::is_mask_image() const
 }
 
 } // namespace rtengine
+
+bool rtengine::ImProcCoordinator::mergeDerivedParams(
+    const ProcessingContext &ctx,
+    const std::function<void(ProcParams *)> &merge)
+{
+    MyMutex::MyLock lock(paramsUpdateMutex);
+    if (destroying.load() || ctx.editRevision != nextEditRev ||
+        ctx.generation != nextGeneration_) {
+        return false;
+    }
+    if (ctx.cropId) {
+        std::lock_guard<std::mutex> cropsLock(cropsMutex_);
+        bool current = false;
+        for (auto *crop : crops) {
+            if (crop->matchesViewport(ctx)) {
+                current = true;
+                break;
+            }
+        }
+        if (!current) {
+            return false;
+        }
+    }
+    merge(&nextParams);
+    return true;
+}

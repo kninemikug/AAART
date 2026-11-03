@@ -289,6 +289,13 @@ void lastMutationField(cJSON *result, const MutationRecord *record)
     cJSON_AddStringToObject(mutation, "requestId", record->requestId.c_str());
     cJSON_AddNumberToObject(mutation, "appliedRevision", record->appliedRevision);
     cJSON_AddStringToObject(mutation, "previewStatus", record->previewStatus.c_str());
+    if (record->previewStatus == "FAILED") {
+        auto *error = cJSON_AddObjectToObject(mutation, "error");
+        cJSON_AddStringToObject(error, "code", "INTERNAL_ERROR");
+        cJSON_AddStringToObject(error, "message", "Preview processing failed");
+        cJSON_AddObjectToObject(error, "details");
+        cJSON_AddBoolToObject(error, "retryable", false);
+    }
 }
 
 std::string appliedResponse(const std::string &sessionId,
@@ -459,105 +466,149 @@ void LiveParamController::onEditorParamChanged(EditorPanel *panel,
     }
 }
 
-void LiveParamController::onEditorViewChanged(EditorPanel *panel)
+int64_t LiveParamController::onEditorViewChanged(EditorPanel *panel)
 {
     if (!isEnabled() || !panel) {
-        return;
+        return -1;
     }
     recordGuiAccess();
-    auto it = panelToId_.find(panel);
-    if (it == panelToId_.end()) {
-        return;
+    auto id = panelToId_.find(panel);
+    if (id == panelToId_.end()) {
+        return -1;
     }
-    EditorState &st = editors_[it->second];
-    st.currentViewRevision++;
+    auto &state = editors_[id->second];
+    ++state.currentViewRevision;
+    state.renderedRevision = state.renderedViewRevision = -1;
+    return state.currentViewRevision;
 }
 
-void LiveParamController::onEditorSizeChanged(const std::string &sessionId,
-                                              const std::string &editorId,
-                                              EditorPanel *panel)
+void LiveParamController::onEditorSizeChanged(const std::string &,
+                                              const std::string &,
+                                              EditorPanel *)
 {
-    if (!isEnabled() || !panel || sessionId.empty() || editorId.empty()) {
-        return;
-    }
-    recordGuiAccess();
-    if (sessionId != sessionId_) {
-        return;
-    }
-    auto it = editors_.find(editorId);
-    if (it == editors_.end() || it->second.panel != panel) {
-        return;
-    }
-    it->second.currentViewRevision++;
+    // A size notification is not a viewport change. The main Crop publishes
+    // its actual geometry on the GUI thread after layout has been updated.
 }
 
-void LiveParamController::onPreviewReady(EditorPanel *panel, int64_t editRev,
-                                         int64_t viewRev)
+void LiveParamController::onPreviewScheduled(EditorPanel *panel,
+                                             uint64_t generation)
 {
-    if (!isEnabled() || !panel) {
+    if (!isEnabled()) {
         return;
     }
     recordGuiAccess();
-    auto it = panelToId_.find(panel);
-    if (it == panelToId_.end()) {
-        return;
-    }
-    EditorState &st = editors_[it->second];
-    st.lastPreviewReadyEditRev = editRev;
-    st.lastPreviewReadyViewRev = viewRev;
-    st.initialized = true;
-
-    if (st.lastCropReadyEditRev == editRev &&
-        st.lastCropReadyViewRev == viewRev) {
-        st.renderedRevision = editRev;
-        st.renderedViewRevision = viewRev;
-
-        if (st.hasInFlightMutation && st.inFlightAppliedRev == editRev &&
-            st.inFlightAppliedViewRev == viewRev) {
-            st.lastMutation.previewStatus = "READY";
-            auto cit = st.mutationCache.find(st.inFlightRequestId);
-            if (cit != st.mutationCache.end()) {
-                cit->second.previewStatus = "READY";
-                cit->second.completedTime = clock_();
-                cit->second.isCompleted = true;
-            }
-            st.hasInFlightMutation = false;
-        }
+    auto id = panelToId_.find(panel);
+    if (id != panelToId_.end()) {
+        auto &state = editors_[id->second];
+        state.requiredGeneration = generation;
+        state.renderedRevision = state.renderedViewRevision = -1;
     }
 }
 
-void LiveParamController::onCropReady(EditorPanel *panel, int64_t editRev,
-                                      int64_t viewRev)
+void LiveParamController::onNavigatorDelay(EditorPanel *panel, bool pending)
 {
-    if (!isEnabled() || !panel) {
+    if (!isEnabled()) {
         return;
     }
     recordGuiAccess();
-    auto it = panelToId_.find(panel);
-    if (it == panelToId_.end()) {
+    auto id = panelToId_.find(panel);
+    if (id == panelToId_.end()) {
         return;
     }
-    EditorState &st = editors_[it->second];
-    st.lastCropReadyEditRev = editRev;
-    st.lastCropReadyViewRev = viewRev;
-
-    if (st.lastPreviewReadyEditRev == editRev &&
-        st.lastPreviewReadyViewRev == viewRev) {
-        st.renderedRevision = editRev;
-        st.renderedViewRevision = viewRev;
-
-        if (st.hasInFlightMutation && st.inFlightAppliedRev == editRev &&
-            st.inFlightAppliedViewRev == viewRev) {
-            st.lastMutation.previewStatus = "READY";
-            auto cit = st.mutationCache.find(st.inFlightRequestId);
-            if (cit != st.mutationCache.end()) {
-                cit->second.previewStatus = "READY";
-                cit->second.completedTime = clock_();
-                cit->second.isCompleted = true;
-            }
-            st.hasInFlightMutation = false;
-        }
+    auto &state = editors_[id->second];
+    if (pending) {
+        ++state.pendingNavigatorUpdates;
+        state.renderedRevision = state.renderedViewRevision = -1;
+    } else if (state.pendingNavigatorUpdates) {
+        --state.pendingNavigatorUpdates;
+        updateReady(state);
     }
+}
+
+bool LiveParamController::acceptsFrame(
+    EditorPanel *panel, const rtengine::ProcessingContext &ctx) const
+{
+    if (!isEnabled()) {
+        return true;
+    }
+    auto id = panelToId_.find(panel);
+    if (id == panelToId_.end()) {
+        return false;
+    }
+    const auto &state = editors_.at(id->second);
+    return ctx.generation && ctx.generation == state.requiredGeneration &&
+           ctx.editRevision == state.currentRevision;
+}
+
+void LiveParamController::updateReady(EditorState &state)
+{
+    const auto &nav = state.previewContext;
+    const auto &crop = state.cropContext;
+    // A pan can reuse a Navigator buffer from an earlier view, provided no
+    // Navigator calculation or delayed HIGHQUAL refresh is outstanding.
+    if (state.pendingNavigatorUpdates || !state.requiredGeneration ||
+        nav.generation != state.requiredGeneration ||
+        crop.generation != state.requiredGeneration ||
+        nav.editRevision != state.currentRevision ||
+        crop.editRevision != state.currentRevision ||
+        crop.viewRevision != state.currentViewRevision) {
+        return;
+    }
+    state.initialized = true;
+    state.renderedRevision = state.currentRevision;
+    state.renderedViewRevision = state.currentViewRevision;
+    if (state.hasInFlightMutation &&
+        state.inFlightAppliedRev == state.currentRevision) {
+        auto &record = state.mutationCache.at(state.inFlightRequestId);
+        record.previewStatus = "READY";
+        record.completedTime = clock_();
+        record.isCompleted = true;
+        state.lastMutation = record;
+        state.hasInFlightMutation = false;
+    }
+}
+
+void LiveParamController::onPreviewReady(
+    EditorPanel *panel, const rtengine::ProcessingContext &ctx)
+{
+    if (!isEnabled() || !acceptsFrame(panel, ctx)) {
+        return;
+    }
+    recordGuiAccess();
+    auto &state = editors_.at(panelToId_.at(panel));
+    state.previewContext = ctx;
+    updateReady(state);
+}
+
+void LiveParamController::onCropReady(
+    EditorPanel *panel, const rtengine::ProcessingContext &ctx)
+{
+    if (!isEnabled() || !acceptsFrame(panel, ctx)) {
+        return;
+    }
+    recordGuiAccess();
+    auto &state = editors_.at(panelToId_.at(panel));
+    if (ctx.viewRevision != state.currentViewRevision) {
+        return;
+    }
+    state.cropContext = ctx;
+    updateReady(state);
+}
+
+void LiveParamController::onPreviewReady(EditorPanel *, int64_t, int64_t)
+{
+    // Legacy producers do not identify their calculation generation.
+}
+
+void LiveParamController::onCropReady(EditorPanel *, int64_t, int64_t) {}
+
+void LiveParamController::onRenderFailed(
+    EditorPanel *panel, const rtengine::ProcessingContext &ctx)
+{
+    if (!isEnabled() || !acceptsFrame(panel, ctx)) {
+        return;
+    }
+    onRenderFailed(panel, "Preview processing failed");
 }
 
 void LiveParamController::onRenderFailed(EditorPanel *panel,

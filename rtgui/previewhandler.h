@@ -38,25 +38,17 @@ public:
 class PreviewHandler;
 class EditorPanel;
 
-struct PreviewHandlerIdleHelper {
-    PreviewHandler *phandler;
-    bool destroyed;
-    std::atomic<int> pending;
-};
-
 class PreviewHandler: public rtengine::PreviewImageListener {
 private:
-    friend int setImageUI(void *data);
-    friend int delImageUI(void *data);
-    friend int imageReadyUI(void *data);
-
     IdleRegister idle_register;
+    MyMutex sourceMutex_;
+    rtengine::IImage8 *sourceImage_ = nullptr;
+    double sourceScale_ = 1.;
+    rtengine::ProcessingContext displayedContext_;
 
 protected:
-    rtengine::IImage8 *image;
     rtengine::procparams::CropParams cropParams;
     double previewScale;
-    PreviewHandlerIdleHelper *pih;
     std::list<PreviewListener *> listeners;
     MyMutex previewImgMutex;
     Glib::RefPtr<Gdk::Pixbuf> previewImg;
@@ -75,6 +67,14 @@ public:
     void imageReady(const rtengine::procparams::CropParams &cp,
                     int64_t editRev, int64_t viewRev) override;
 
+    void imageReady(const rtengine::procparams::CropParams &cp,
+                    const rtengine::ProcessingContext &ctx) override;
+    void imageFailed(const rtengine::ProcessingContext &ctx) override;
+    rtengine::ProcessingContext getDisplayedContext() const
+    {
+        return displayedContext_;
+    }
+    Glib::RefPtr<Gdk::Pixbuf> getDisplayedImage() const { return previewImg; }
     void setEditorPanel(EditorPanel *ep) { editorPanel_ = ep; }
 
 private:

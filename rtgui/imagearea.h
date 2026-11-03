@@ -78,6 +78,7 @@ protected:
 
     int fullImageWidth, fullImageHeight;
     AreaDrawListenerProvider *alp_;
+    EditorPanel *editorPanel_ = nullptr;
 
 public:
     CropWindow *mainCropWindow;
@@ -131,6 +132,7 @@ public:
     void setPointerMotionHListener(PointerMotionListener *pml);
     void setImageAreaToolListener(ImageAreaToolListener *l) { listener = l; }
     void setPreviewHandler(PreviewHandler *ph);
+    void setEditorPanel(EditorPanel *panel);
     PreviewHandler *getPreviewHandler() { return previewHandler; }
 
     void grabFocus(CropWindow *cw);

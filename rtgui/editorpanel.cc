@@ -1165,10 +1165,7 @@ void EditorPanel::open(Thumbnail *tmb, rtengine::InitialImage *isrc)
     navigator->previewWindow->setPreviewHandler(previewHandler);
     navigator->previewWindow->setImageArea(iareapanel->imageArea);
 
-    if (iareapanel && iareapanel->imageArea &&
-        iareapanel->imageArea->mainCropWindow) {
-        iareapanel->imageArea->mainCropWindow->cropHandler.setEditorPanel(this);
-    }
+    iareapanel->imageArea->setEditorPanel(this);
     {
         auto &ctrl = art::liveparam::LiveParamController::getInstance();
         std::string regId;
@@ -1376,6 +1373,12 @@ void EditorPanel::parametersCommitted(int64_t &editRev, int64_t &viewRev)
         .onEditorParamChanged(this, editRev, viewRev);
 }
 
+void EditorPanel::previewScheduled(uint64_t generation)
+{
+    art::liveparam::LiveParamController::getInstance()
+        .onPreviewScheduled(this, generation);
+}
+
 void EditorPanel::setProgress(double p)
 {
     MyProgressBar *const pl = progressLabel;
@@ -1422,34 +1425,6 @@ void EditorPanel::setProgressState(bool inProcessing)
 
 void EditorPanel::error(const Glib::ustring &descr)
 {
-    if (art::liveparam::LiveParamController::getInstance().isEnabled()) {
-        std::string sessId;
-        std::string edId;
-        uint64_t openGen = 0;
-        {
-            std::lock_guard<std::mutex> lk(liveParamOpenMutex_);
-            sessId = liveParamSessionId_;
-            edId = liveParamEditorId_;
-            openGen = liveParamOpenGen_;
-        }
-        if (!sessId.empty() && !edId.empty()) {
-            const std::string errCopy = descr.raw();
-            idle_register.add([this, sessId, edId, openGen, errCopy]() -> bool {
-                bool stillSameOpen = false;
-                {
-                    std::lock_guard<std::mutex> lk(liveParamOpenMutex_);
-                    stillSameOpen = (liveParamOpenGen_ == openGen &&
-                                     liveParamSessionId_ == sessId &&
-                                     liveParamEditorId_ == edId);
-                }
-                if (stillSameOpen) {
-                    art::liveparam::LiveParamController::getInstance()
-                        .onRenderFailed(sessId, edId, this, errCopy);
-                }
-                return false;
-            });
-        }
-    }
     if (parent) {
         parent->error(descr);
     }
