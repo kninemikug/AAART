@@ -143,8 +143,10 @@ void ImageArea::setImProcCoordinator(
 
         cropWins.clear();
 
-        mainCropWindow->deleteColorPickers();
-        mainCropWindow->setObservedCropWin(nullptr);
+        if (mainCropWindow) {
+            mainCropWindow->deleteColorPickers();
+            mainCropWindow->setObservedCropWin(nullptr);
+        }
     }
 
     ipc = ipc_;
@@ -857,7 +859,9 @@ void ImageArea::setToolShortcutManager(ToolShortcutManager *mgr)
 
 void ImageArea::setHiDPI(bool yes)
 {
-    mainCropWindow->setHiDPI(yes);
+    if (mainCropWindow) {
+        mainCropWindow->setHiDPI(yes);
+    }
     for (auto w : cropWins) {
         if (w != mainCropWindow) {
             w->setHiDPI(yes);

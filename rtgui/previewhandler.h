@@ -19,6 +19,7 @@
 #ifndef _PREVIEWHANDLER_
 #define _PREVIEWHANDLER_
 
+#include <atomic>
 #include <list>
 
 #include <gtkmm.h>
@@ -40,7 +41,7 @@ class EditorPanel;
 struct PreviewHandlerIdleHelper {
     PreviewHandler *phandler;
     bool destroyed;
-    int pending;
+    std::atomic<int> pending;
 };
 
 class PreviewHandler: public rtengine::PreviewImageListener {

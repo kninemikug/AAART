@@ -33,8 +33,12 @@
 #include "thumbnail.h"
 #include "thumbnaillistener.h"
 #include "toolpanelcoord.h"
+#include <atomic>
+#include <cstdint>
 #include <gtkmm.h>
 #include <memory>
+#include <mutex>
+#include <string>
 
 class EditorPanel;
 class MyProgressBar;
@@ -42,7 +46,7 @@ class MyProgressBar;
 struct EditorPanelIdleHelper {
     EditorPanel *epanel;
     bool destroyed;
-    int pending;
+    std::atomic<int> pending;
 };
 
 class RTWindow;
@@ -178,12 +182,17 @@ public:
     void refreshImageAreas();
 
     ToolPanelCoordinator *getToolPanelCoordinator() const { return tpc; }
+    ImageAreaPanel *getImageAreaPanel() const { return iareapanel; }
     rtengine::StagedImageProcessor *getImageProcessor() const { return ipc.get(); }
     const Glib::ustring &getEditorId() const { return editorId_; }
     void setEditorId(const Glib::ustring &id) { editorId_ = id; }
 
 private:
     Glib::ustring editorId_;
+    mutable std::mutex liveParamOpenMutex_;
+    std::string liveParamSessionId_;
+    std::string liveParamEditorId_;
+    uint64_t liveParamOpenGen_ = 0;
     BatchQueueEntry *createBatchQueueEntry(
         bool fast_export, bool use_batch_queue_profile,
         const rtengine::procparams::PartialProfile *export_profile);

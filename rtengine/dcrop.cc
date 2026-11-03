@@ -41,7 +41,8 @@ Crop::Crop(ImProcCoordinator *parent, EditDataProvider *editDataProvider,
            bool isDetailWindow)
     : PipetteBuffer(editDataProvider), origCrop(nullptr), spotCrop(nullptr),
       denoiseCrop(nullptr), cropImg(nullptr), transCrop(nullptr),
-      updating(false), newUpdatePending(false), skip(10), cropx(0), cropy(0),
+      updating(false), newUpdatePending(false), destroying_(false), skip(10),
+      cropx(0), cropy(0),
       cropw(-1), croph(-1), trafx(0), trafy(0), trafw(-1), trafh(-1),
       rqcropx(0), rqcropy(0), rqcropw(-1), rqcroph(-1), borderRequested(32),
       upperBorder(0), leftBorder(0), cropAllocated(false),
@@ -54,23 +55,40 @@ Crop::Crop(ImProcCoordinator *parent, EditDataProvider *editDataProvider,
     for (auto &s : pipeline_stop_) {
         s = false;
     }
+    std::lock_guard<std::mutex> lk(parent->cropsMutex_);
     parent->crops.push_back(this);
 }
 
 Crop::~Crop()
 {
+    {
+        std::unique_lock<std::mutex> lk(stateMutex_);
+        destroying_ = true;
+        newUpdatePending = false;
+        while (updating) {
+            stateCond_.wait(lk);
+        }
+    }
 
-    MyMutex::MyLock cropLock(cropMutex);
+    {
+        std::lock_guard<std::mutex> lk(parent->cropsMutex_);
+        std::vector<Crop *>::iterator i =
+            std::find(parent->crops.begin(), parent->crops.end(), this);
 
-    std::vector<Crop *>::iterator i =
-        std::find(parent->crops.begin(), parent->crops.end(), this);
-
-    if (i != parent->crops.end()) {
-        parent->crops.erase(i);
+        if (i != parent->crops.end()) {
+            parent->crops.erase(i);
+        }
     }
 
     MyMutex::MyLock processingLock(parent->mProcessing);
+    MyMutex::MyLock cropLock(cropMutex);
     freeAll();
+}
+
+void Crop::setWindow(int cropX, int cropY, int cropW, int cropH, int skip)
+{
+    MyMutex::MyLock processingLock(parent->mProcessing);
+    setCropSizes(cropX, cropY, cropW, cropH, skip, false);
 }
 
 // void Crop::destroy()
@@ -758,6 +776,11 @@ bool Crop::setCropSizes(int rcx, int rcy, int rcw, int rch, int skip,
  */
 bool Crop::tryUpdate()
 {
+    std::lock_guard<std::mutex> lk(stateMutex_);
+    if (destroying_) {
+        return false;
+    }
+
     bool needsNewThread = true;
 
     if (updating) {
@@ -784,58 +807,78 @@ bool Crop::tryUpdate()
  */
 void Crop::fullUpdate()
 {
-    MyMutex::MyLock processingLock(parent->mProcessing);
-    currentEditRev = parent->getCurrentEditRevision();
-    currentViewRev = parent->getCurrentViewRevision();
-    // parent->updaterThreadStart.lock();
+    {
+        MyMutex::MyLock processingLock(parent->mProcessing);
+        {
+            std::lock_guard<std::mutex> lk(stateMutex_);
+            if (destroying_) {
+                updating = false;
+                stateCond_.notify_all();
+                return;
+            }
+            // If there are more update request, the following WHILE will collect it
+            newUpdatePending = true;
+        }
+        currentEditRev = parent->getCurrentEditRevision();
+        currentViewRev = parent->getCurrentViewRevision();
+        // parent->updaterThreadStart.lock();
 
-    // parent->wait_not_running();
-    // parent->set_updater_running(true);
-    // if (parent->updaterRunning && parent->thread) {
-    //     // Do NOT reset changes here, since in a long chain of events it will
-    //     lead to chroma_scale not being updated,
-    //     // causing Color::lab2rgb to return a black image on some opens
-    //     //parent->changeSinceLast = 0;
-    //     parent->thread->join();
-    // }
+        // parent->wait_not_running();
+        // parent->set_updater_running(true);
+        // if (parent->updaterRunning && parent->thread) {
+        //     // Do NOT reset changes here, since in a long chain of events it will
+        //     lead to chroma_scale not being updated,
+        //     // causing Color::lab2rgb to return a black image on some opens
+        //     //parent->changeSinceLast = 0;
+        //     parent->thread->join();
+        // }
 
-    if (parent->plistener) {
-        parent->plistener->setProgressState(true);
-        parent->ipf.setProgressListener(parent->plistener, 1);
+        if (parent->plistener) {
+            parent->plistener->setProgressState(true);
+            parent->ipf.setProgressListener(parent->plistener, 1);
+        }
+
+        // Cache the pointer once: setTweakOperator()/unsetTweakOperator() mutate
+        // parent->tweakOperator from the GUI thread with no locking at all, so it
+        // could otherwise flip between the two checks below (across the update(ALL)
+        // loop, which can take a while) and leave mTweak locked forever.
+        TweakOperator *const tweakOperator = parent->tweakOperator;
+
+        if (tweakOperator) {
+            // mTweak stays locked until restoreParams() below: ImProcCoordinator::process()
+            // takes the same lock around its own backup/tweak/restore sequence, so the
+            // two can't race on the shared params/paramsBackup (they used to, causing a
+            // heap-use-after-free when panning while the spot removal tool's edit mode
+            // was active).
+            parent->mTweak.lock();
+            parent->backupParams();
+            tweakOperator->tweakParams(parent->params);
+        }
+        for (;;) {
+            {
+                std::lock_guard<std::mutex> lk(stateMutex_);
+                if (!newUpdatePending || destroying_) {
+                    break;
+                }
+                newUpdatePending = false;
+            }
+            update(ALL);
+        }
+        if (tweakOperator) {
+            parent->restoreParams();
+            parent->mTweak.unlock();
+        }
+
+        if (parent->plistener &&
+            !parent->destroying.load(std::memory_order_acquire)) {
+            parent->plistener->setProgressState(false);
+        }
     }
 
-    // If there are more update request, the following WHILE will collect it
-    newUpdatePending = true;
-
-    // Cache the pointer once: setTweakOperator()/unsetTweakOperator() mutate
-    // parent->tweakOperator from the GUI thread with no locking at all, so it
-    // could otherwise flip between the two checks below (across the update(ALL)
-    // loop, which can take a while) and leave mTweak locked forever.
-    TweakOperator *const tweakOperator = parent->tweakOperator;
-
-    if (tweakOperator) {
-        // mTweak stays locked until restoreParams() below: ImProcCoordinator::process()
-        // takes the same lock around its own backup/tweak/restore sequence, so the
-        // two can't race on the shared params/paramsBackup (they used to, causing a
-        // heap-use-after-free when panning while the spot removal tool's edit mode
-        // was active).
-        parent->mTweak.lock();
-        parent->backupParams();
-        tweakOperator->tweakParams(parent->params);
-    }
-    while (newUpdatePending) {
-        newUpdatePending = false;
-        update(ALL);
-    }
-    if (tweakOperator) {
-        parent->restoreParams();
-        parent->mTweak.unlock();
-    }
-
-    updating = false; // end of crop update
-
-    if (parent->plistener) {
-        parent->plistener->setProgressState(false);
+    {
+        std::lock_guard<std::mutex> lk(stateMutex_);
+        updating = false; // end of crop update
+        stateCond_.notify_all();
     }
 
     // parent->set_updater_running(false);

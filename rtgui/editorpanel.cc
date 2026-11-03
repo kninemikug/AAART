@@ -1173,8 +1173,21 @@ void EditorPanel::open(Thumbnail *tmb, rtengine::InitialImage *isrc)
         iareapanel->imageArea->mainCropWindow) {
         iareapanel->imageArea->mainCropWindow->cropHandler.setEditorPanel(this);
     }
-    art::liveparam::LiveParamController::getInstance().registerEditor(
-        this, Glib::path_get_basename(fname));
+    {
+        auto &ctrl = art::liveparam::LiveParamController::getInstance();
+        std::string regId;
+        std::string sessId;
+        if (ctrl.isEnabled()) {
+            regId = ctrl.registerEditor(this, Glib::path_get_basename(fname));
+            sessId = ctrl.getSessionId();
+        } else {
+            editorId_.clear();
+        }
+        std::lock_guard<std::mutex> lk(liveParamOpenMutex_);
+        ++liveParamOpenGen_;
+        liveParamSessionId_ = sessId;
+        liveParamEditorId_ = regId;
+    }
 
     rtengine::ImageSource *is = isrc->getImageSource();
     is->setProgressListener(this);
@@ -1229,6 +1242,12 @@ void EditorPanel::open(Thumbnail *tmb, rtengine::InitialImage *isrc)
 
 void EditorPanel::close()
 {
+    {
+        std::lock_guard<std::mutex> lk(liveParamOpenMutex_);
+        ++liveParamOpenGen_;
+        liveParamSessionId_.clear();
+        liveParamEditorId_.clear();
+    }
     art::liveparam::LiveParamController::getInstance().unregisterEditor(this);
     if (ipc) {
         saveProfile();
@@ -1328,8 +1347,10 @@ void EditorPanel::procParamsChanged(
     const rtengine::ProcEvent &ev, const Glib::ustring &descr,
     const ParamsEdited *paramsEdited)
 {
-    art::liveparam::LiveParamController::getInstance().onEditorParamChanged(
-        this);
+    auto &ctrl = art::liveparam::LiveParamController::getInstance();
+    if (ctrl.isEnabled()) {
+        ctrl.onEditorParamChanged(this);
+    }
 
     //    if (ev!=EvPhotoLoaded)
     //        saveLabel->set_markup (Glib::ustring("<span foreground=\"#AA0000\"
@@ -1398,9 +1419,37 @@ void EditorPanel::setProgressState(bool inProcessing)
 
 void EditorPanel::error(const Glib::ustring &descr)
 {
-    art::liveparam::LiveParamController::getInstance().onRenderFailed(
-        this, descr.c_str());
-    parent->error(descr);
+    if (art::liveparam::LiveParamController::getInstance().isEnabled()) {
+        std::string sessId;
+        std::string edId;
+        uint64_t openGen = 0;
+        {
+            std::lock_guard<std::mutex> lk(liveParamOpenMutex_);
+            sessId = liveParamSessionId_;
+            edId = liveParamEditorId_;
+            openGen = liveParamOpenGen_;
+        }
+        if (!sessId.empty() && !edId.empty()) {
+            const std::string errCopy = descr.raw();
+            idle_register.add([this, sessId, edId, openGen, errCopy]() -> bool {
+                bool stillSameOpen = false;
+                {
+                    std::lock_guard<std::mutex> lk(liveParamOpenMutex_);
+                    stillSameOpen = (liveParamOpenGen_ == openGen &&
+                                     liveParamSessionId_ == sessId &&
+                                     liveParamEditorId_ == edId);
+                }
+                if (stillSameOpen) {
+                    art::liveparam::LiveParamController::getInstance()
+                        .onRenderFailed(sessId, edId, this, errCopy);
+                }
+                return false;
+            });
+        }
+    }
+    if (parent) {
+        parent->error(descr);
+    }
 }
 
 void EditorPanel::error(const Glib::ustring &title, const Glib::ustring &descr)
@@ -2918,10 +2967,33 @@ bool EditorPanel::autosave()
 
 void EditorPanel::sizeChanged(int w, int h, int ow, int oh)
 {
-    art::liveparam::LiveParamController::getInstance().onEditorViewChanged(
-        this);
-    if (ipc) {
-        idle_register.add([this]() -> bool {
+    std::string sessId;
+    std::string edId;
+    uint64_t openGen = 0;
+    const bool notifyLiveParam =
+        art::liveparam::LiveParamController::getInstance().isEnabled();
+    if (notifyLiveParam) {
+        std::lock_guard<std::mutex> lk(liveParamOpenMutex_);
+        sessId = liveParamSessionId_;
+        edId = liveParamEditorId_;
+        openGen = liveParamOpenGen_;
+    }
+
+    if (ipc || (notifyLiveParam && !sessId.empty() && !edId.empty())) {
+        idle_register.add([this, notifyLiveParam, sessId, edId, openGen]() -> bool {
+            if (notifyLiveParam && !sessId.empty() && !edId.empty()) {
+                bool stillSameOpen = false;
+                {
+                    std::lock_guard<std::mutex> lk(liveParamOpenMutex_);
+                    stillSameOpen = (liveParamOpenGen_ == openGen &&
+                                     liveParamSessionId_ == sessId &&
+                                     liveParamEditorId_ == edId);
+                }
+                if (stillSameOpen) {
+                    art::liveparam::LiveParamController::getInstance()
+                        .onEditorSizeChanged(sessId, edId, this);
+                }
+            }
             if (ipc) {
                 info_toggled();
                 navigator->setInvalid(ipc->getFullWidth(),

@@ -91,7 +91,8 @@ LiveParamController &LiveParamController::getInstance()
 
 LiveParamController::LiveParamController()
 {
-    init();
+    sessionId_ = generateHexId("run-", 8);
+    enabled_.store(false, std::memory_order_release);
 }
 
 LiveParamController::~LiveParamController()
@@ -99,16 +100,37 @@ LiveParamController::~LiveParamController()
     cleanup();
 }
 
+void LiveParamController::recordGuiAccess()
+{
+    const auto cur = std::this_thread::get_id();
+    if (!hasGuiThreadId_) {
+        guiThreadId_ = cur;
+        hasGuiThreadId_ = true;
+    } else if (cur != guiThreadId_) {
+        nonGuiAccessCount_.fetch_add(1, std::memory_order_relaxed);
+    }
+}
+
 void LiveParamController::init()
 {
+    guiThreadId_ = std::this_thread::get_id();
+    hasGuiThreadId_ = true;
+    nonGuiAccessCount_.store(0, std::memory_order_release);
     sessionId_ = generateHexId("run-", 8);
     editors_.clear();
     panelToId_.clear();
     nextEditorIndex_ = 1;
+    enabled_.store(true, std::memory_order_release);
 }
 
 void LiveParamController::cleanup()
 {
+    enabled_.store(false, std::memory_order_release);
+    for (auto &kv : panelToId_) {
+        if (kv.first) {
+            kv.first->setEditorId("");
+        }
+    }
     editors_.clear();
     panelToId_.clear();
 }
@@ -116,9 +138,13 @@ void LiveParamController::cleanup()
 std::string LiveParamController::registerEditor(EditorPanel *panel,
                                                 const std::string &filename)
 {
-    if (!panel) {
+    if (!isEnabled() || !panel) {
+        if (panel) {
+            panel->setEditorId("");
+        }
         return "";
     }
+    recordGuiAccess();
 
     auto it = panelToId_.find(panel);
     if (it != panelToId_.end()) {
@@ -147,6 +173,11 @@ void LiveParamController::unregisterEditor(EditorPanel *panel)
     if (!panel) {
         return;
     }
+    panel->setEditorId("");
+    if (editors_.empty() && panelToId_.empty()) {
+        return;
+    }
+    recordGuiAccess();
     auto it = panelToId_.find(panel);
     if (it != panelToId_.end()) {
         std::string id = it->second;
@@ -157,9 +188,10 @@ void LiveParamController::unregisterEditor(EditorPanel *panel)
 
 void LiveParamController::onEditorParamChanged(EditorPanel *panel)
 {
-    if (!panel) {
+    if (!isEnabled() || !panel) {
         return;
     }
+    recordGuiAccess();
     auto it = panelToId_.find(panel);
     if (it == panelToId_.end()) {
         return;
@@ -181,9 +213,10 @@ void LiveParamController::onEditorParamChanged(EditorPanel *panel)
 
 void LiveParamController::onEditorViewChanged(EditorPanel *panel)
 {
-    if (!panel) {
+    if (!isEnabled() || !panel) {
         return;
     }
+    recordGuiAccess();
     auto it = panelToId_.find(panel);
     if (it == panelToId_.end()) {
         return;
@@ -192,12 +225,31 @@ void LiveParamController::onEditorViewChanged(EditorPanel *panel)
     st.currentViewRevision++;
 }
 
-void LiveParamController::onPreviewReady(EditorPanel *panel, int64_t editRev,
-                                        int64_t viewRev)
+void LiveParamController::onEditorSizeChanged(const std::string &sessionId,
+                                              const std::string &editorId,
+                                              EditorPanel *panel)
 {
-    if (!panel) {
+    if (!isEnabled() || !panel || sessionId.empty() || editorId.empty()) {
         return;
     }
+    recordGuiAccess();
+    if (sessionId != sessionId_) {
+        return;
+    }
+    auto it = editors_.find(editorId);
+    if (it == editors_.end() || it->second.panel != panel) {
+        return;
+    }
+    it->second.currentViewRevision++;
+}
+
+void LiveParamController::onPreviewReady(EditorPanel *panel, int64_t editRev,
+                                         int64_t viewRev)
+{
+    if (!isEnabled() || !panel) {
+        return;
+    }
+    recordGuiAccess();
     auto it = panelToId_.find(panel);
     if (it == panelToId_.end()) {
         return;
@@ -226,11 +278,12 @@ void LiveParamController::onPreviewReady(EditorPanel *panel, int64_t editRev,
 }
 
 void LiveParamController::onCropReady(EditorPanel *panel, int64_t editRev,
-                                     int64_t viewRev)
+                                      int64_t viewRev)
 {
-    if (!panel) {
+    if (!isEnabled() || !panel) {
         return;
     }
+    recordGuiAccess();
     auto it = panelToId_.find(panel);
     if (it == panelToId_.end()) {
         return;
@@ -259,17 +312,37 @@ void LiveParamController::onCropReady(EditorPanel *panel, int64_t editRev,
 }
 
 void LiveParamController::onRenderFailed(EditorPanel *panel,
-                                        const std::string &err)
+                                         const std::string &err)
 {
-    (void)err;
-    if (!panel) {
+    if (!isEnabled() || !panel) {
         return;
     }
+    recordGuiAccess();
     auto it = panelToId_.find(panel);
     if (it == panelToId_.end()) {
         return;
     }
-    EditorState &st = editors_[it->second];
+    onRenderFailed(sessionId_, it->second, panel, err);
+}
+
+void LiveParamController::onRenderFailed(const std::string &sessionId,
+                                         const std::string &editorId,
+                                         EditorPanel *panel,
+                                         const std::string &err)
+{
+    (void)err;
+    if (!isEnabled() || !panel || sessionId.empty() || editorId.empty()) {
+        return;
+    }
+    recordGuiAccess();
+    if (sessionId != sessionId_) {
+        return;
+    }
+    auto it = editors_.find(editorId);
+    if (it == editors_.end() || it->second.panel != panel) {
+        return;
+    }
+    EditorState &st = it->second;
     if (st.hasInFlightMutation) {
         st.lastMutation.previewStatus = "FAILED";
         auto cit = st.mutationCache.find(st.inFlightRequestId);
@@ -301,6 +374,7 @@ void LiveParamController::pruneExpiredCache(EditorState &st)
 
 std::string LiveParamController::handleCommand(const std::string &jsonRequest)
 {
+    recordGuiAccess();
     if (jsonRequest.size() > 65536) {
         return makeErrorResponse(1, "", sessionId_, "", "INVALID_REQUEST",
                                  "Frame exceeds 64 KiB", "{}", false);

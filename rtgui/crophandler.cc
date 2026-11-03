@@ -190,12 +190,28 @@ CropHandler::~CropHandler()
 
 void CropHandler::setEditSubscriber(EditSubscriber *newSubscriber)
 {
-    (static_cast<rtengine::Crop *>(crop))->setEditSubscriber(newSubscriber);
+    if (crop) {
+        (static_cast<rtengine::Crop *>(crop))->setEditSubscriber(newSubscriber);
+    }
 }
 
 void CropHandler::newImage(std::shared_ptr<StagedImageProcessor> ipc_,
                            bool isDetailWindow)
 {
+    if (zoom_conn_.connected()) {
+        zoom_conn_.disconnect();
+    }
+    if (ipc) {
+        ipc->delSizeListener(this);
+    }
+    if (crop) {
+        crop->setListener(nullptr);
+        if (ipc_ && ipc) {
+            delete crop;
+        }
+        crop = nullptr;
+    }
+
     ipc = ipc_;
     cx = 0;
     cy = 0;

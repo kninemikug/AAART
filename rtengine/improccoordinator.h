@@ -29,6 +29,7 @@
 #include "procevents.h"
 #include "rtengine.h"
 
+#include <atomic>
 #include <condition_variable>
 #include <mutex>
 
@@ -85,9 +86,10 @@ protected:
     RenderingIntent monitorIntent;
     bool softProof;
     GamutCheck gamutCheck;
-    bool sharpMask;
+    std::atomic<bool> sharpMask;
+    mutable std::mutex displayConfigMutex_;
 
-    int scale;
+    std::atomic<int> scale;
     bool highDetailPreprocessComputed;
     bool highDetailRawComputed;
     bool allocated;
@@ -116,8 +118,9 @@ protected:
     array2D<int> waveformRed, waveformGreen, waveformBlue, waveformLuma;
     // ------------------------------------------------------------------------------------
 
-    int fw, fh, tr, fullw, fullh;
-    int pW, pH;
+    int fw, fh, tr;
+    std::atomic<int> fullw, fullh;
+    std::atomic<int> pW, pH;
 
     ProgressListener *plistener;
     PreviewImageListener *imageListener;
@@ -134,11 +137,13 @@ protected:
 
     HistogramListener *hListener;
     std::vector<SizeListener *> sizeListeners;
+    std::mutex sizeListenersMutex_;
 
     AutoLogListener *autoLogListener;
     AutoDeconvRadiusListener *autoRadiusListener;
 
     std::vector<Crop *> crops;
+    mutable std::mutex cropsMutex_;
 
     bool resultValid;
 
@@ -163,10 +168,28 @@ protected:
     /// Updates all waveforms. Returns true unless not updated.
     bool updateWaveforms();
 
+    /*
+     * Lock acquisition order & callback boundaries:
+     *   1. mProcessing (serializes preview/crop pipeline & params reads/writes)
+     *   2. mTweak | Crop::cropMutex | paramsUpdateMutex
+     *      - mTweak: only acquired under mProcessing (backup/tweak/restore)
+     *      - Crop::cropMutex: acquired under mProcessing or standalone; never
+     *        acquire mProcessing while holding cropMutex
+     *      - paramsUpdateMutex: acquired standalone by GUI beginUpdateParams()
+     *        or briefly under mProcessing in process(); never acquire
+     *        mProcessing while holding paramsUpdateMutex
+     *   3. Leaf mutexes (never acquire any other lock while held):
+     *      updater_mutex_, cropsMutex_, sizeListenersMutex_,
+     *      displayConfigMutex_, Crop::stateMutex_
+     *   Callbacks: ProgressListener::setProgressState(false) at worker exit is
+     *   invoked after releasing mProcessing and paramsUpdateMutex; SizeListener
+     *   notifications iterate a snapshot copy outside sizeListenersMutex_.
+     */
     MyMutex mProcessing;
     ProcParams params;
     ProcParams paramsBackup;
     TweakOperator *tweakOperator;
+    std::atomic<bool> hasTweakOp_;
     // Guards the span from backupParams()/tweakOperator->tweakParams() to
     // restoreParams(): Crop::fullUpdate() and process() each temporarily
     // overwrite the shared params/paramsBackup while a TweakOperator is
@@ -193,12 +216,12 @@ protected:
     ProcParams nextParams;
     int64_t nextEditRev;
     int64_t nextViewRev;
-    int64_t currentEditRev;
-    int64_t currentViewRev;
-    bool destroying;
+    std::atomic<int64_t> currentEditRev;
+    std::atomic<int64_t> currentViewRev;
+    std::atomic<bool> destroying;
     void startProcessing();
     void process();
-    bool highQualityComputed;
+    std::atomic<bool> highQualityComputed;
 
     void wait_not_running();
     void set_updater_running(bool val);
@@ -215,7 +238,10 @@ public:
         *dst = params;
     }
 
-    bool hasTweakOperator() const override { return tweakOperator != nullptr; }
+    bool hasTweakOperator() const override
+    {
+        return hasTweakOp_.load(std::memory_order_acquire);
+    }
 
     void setNextRevisions(int64_t editRev, int64_t viewRev) override
     {
@@ -224,8 +250,14 @@ public:
         nextViewRev = viewRev;
         paramsUpdateMutex.unlock();
     }
-    int64_t getCurrentEditRevision() const override { return currentEditRev; }
-    int64_t getCurrentViewRevision() const override { return currentViewRev; }
+    int64_t getCurrentEditRevision() const override
+    {
+        return currentEditRev.load(std::memory_order_acquire);
+    }
+    int64_t getCurrentViewRevision() const override
+    {
+        return currentViewRev.load(std::memory_order_acquire);
+    }
 
     void startProcessing(int changeCode) override;
     ProcParams *beginUpdateParams() override;
@@ -235,15 +267,15 @@ public:
     void stopProcessing() override;
 
     void setPreviewScale(int scale) override { setScale(scale); }
-    int getPreviewScale() override { return scale; }
+    int getPreviewScale() override { return scale.load(std::memory_order_acquire); }
 
     // void fullUpdatePreviewImage  ();
 
-    int getFullWidth() override { return fullw; }
-    int getFullHeight() override { return fullh; }
+    int getFullWidth() override { return fullw.load(std::memory_order_acquire); }
+    int getFullHeight() override { return fullh.load(std::memory_order_acquire); }
 
-    int getPreviewWidth() override { return pW; }
-    int getPreviewHeight() override { return pH; }
+    int getPreviewWidth() override { return pW.load(std::memory_order_acquire); }
+    int getPreviewHeight() override { return pH.load(std::memory_order_acquire); }
 
     DetailedCrop *createCrop(::EditDataProvider *editDataProvider,
                              bool isDetailWindow) override;
@@ -283,10 +315,12 @@ public:
     }
     void setSizeListener(SizeListener *il) override
     {
+        std::lock_guard<std::mutex> lk(sizeListenersMutex_);
         sizeListeners.push_back(il);
     }
     void delSizeListener(SizeListener *il) override
     {
+        std::lock_guard<std::mutex> lk(sizeListenersMutex_);
         std::vector<SizeListener *>::iterator it =
             std::find(sizeListeners.begin(), sizeListeners.end(), il);
 

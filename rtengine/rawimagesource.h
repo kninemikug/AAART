@@ -157,9 +157,14 @@ public:
                   const RAWParams &raw) override;
     eSensorType getSensorType() const override
     {
-        return ri != nullptr ? ri->getSensorType() : ST_NONE;
+        const RawImage *r = riFrames[0] ? riFrames[0] : ri;
+        return r != nullptr ? r->getSensorType() : ST_NONE;
     }
-    bool isMono() const override { return ri->get_colors() == 1; }
+    bool isMono() const override
+    {
+        const RawImage *r = riFrames[0] ? riFrames[0] : ri;
+        return r->get_colors() == 1;
+    }
     ColorTemp getWB() const override { return camera_wb; }
     void getAutoWBMultipliers(double &rm, double &gm, double &bm) override;
     ColorTemp getSpotWB(std::vector<Coord2D> &red, std::vector<Coord2D> &green,
@@ -171,7 +176,11 @@ public:
 
     void getFullSize(int &w, int &h, int tr = TR_NONE) override;
     void getSize(const PreviewProps &pp, int &w, int &h) override;
-    int getRotateDegree() const override { return ri->get_rotateDegree(); }
+    int getRotateDegree() const override
+    {
+        const RawImage *r = riFrames[0] ? riFrames[0] : ri;
+        return r->get_rotateDegree();
+    }
 
     ImageMatrices *getImageMatrices() override { return &imatrices; }
     bool isRAW() const override { return true; }
@@ -206,13 +215,19 @@ public:
     static void cleanup();
     void setCurrentFrame(unsigned int frameNum) override
     {
+        unsigned int nextFrame;
+        RawImage *nextRi;
         if (numFrames == 2 &&
             frameNum == 2) { // special case for averaging of two frames
-            currFrame = frameNum;
-            ri = riFrames[0];
+            nextFrame = frameNum;
+            nextRi = riFrames[0];
         } else {
-            currFrame = std::min(numFrames - 1, frameNum);
-            ri = riFrames[currFrame];
+            nextFrame = std::min(numFrames - 1, frameNum);
+            nextRi = riFrames[nextFrame];
+        }
+        if (currFrame != nextFrame || ri != nextRi) {
+            currFrame = nextFrame;
+            ri = nextRi;
         }
     }
     int getFrameCount() override { return numFrames; }
@@ -359,7 +374,11 @@ protected:
                         float scale_factor);
 
 public:
-    float get_pre_mul(int c) const { return ri ? ri->get_pre_mul(c) : 1.f; }
+    float get_pre_mul(int c) const
+    {
+        const RawImage *r = riFrames[0] ? riFrames[0] : ri;
+        return r ? r->get_pre_mul(c) : 1.f;
+    }
 
     void wbMul2Camera(double &rm, double &gm, double &bm) override;
     void wbCamera2Mul(double &rm, double &gm, double &bm) override;

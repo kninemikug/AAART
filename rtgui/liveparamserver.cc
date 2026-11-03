@@ -159,7 +159,7 @@ bool LiveParamServer::start()
 #ifndef __APPLE__
     return false;
 #else
-    if (running_) {
+    if (running_.load(std::memory_order_acquire)) {
         return true;
     }
 
@@ -168,7 +168,9 @@ bool LiveParamServer::start()
         return false;
     }
 
-    LiveParamController::getInstance().init();
+    auto &ctrl = LiveParamController::getInstance();
+    ctrl.init();
+    const std::string sessionIdSnapshot = ctrl.getSessionId();
 
     uid_t uid = getuid();
     pid_t pid = getpid();
@@ -184,6 +186,7 @@ bool LiveParamServer::start()
     serverFd_ = socket(AF_UNIX, SOCK_STREAM, 0);
     if (serverFd_ < 0) {
         umask(oldMask);
+        ctrl.cleanup();
         return false;
     }
 
@@ -198,6 +201,7 @@ bool LiveParamServer::start()
         close(serverFd_);
         serverFd_ = -1;
         umask(oldMask);
+        ctrl.cleanup();
         return false;
     }
 
@@ -208,34 +212,34 @@ bool LiveParamServer::start()
         close(serverFd_);
         serverFd_ = -1;
         unlink(socketPath_.c_str());
+        ctrl.cleanup();
         return false;
     }
 
-    running_ = true;
+    running_.store(true, std::memory_order_release);
+    const int listenFd = serverFd_;
 
-    auto *th = new std::thread([this]() {
+    auto *th = new std::thread([this, listenFd, sessionIdSnapshot]() {
         std::atomic<bool> isRunning{true};
         std::vector<std::thread> clientThreads;
 
-        while (running_) {
+        while (running_.load(std::memory_order_acquire)) {
             struct sockaddr_un clientAddr;
             socklen_t clientLen = sizeof(clientAddr);
             int clientFd =
-                accept(serverFd_,
+                accept(listenFd,
                        reinterpret_cast<struct sockaddr *>(&clientAddr),
                        &clientLen);
             if (clientFd < 0) {
-                if (!running_) {
+                if (!running_.load(std::memory_order_acquire)) {
                     break;
                 }
                 continue;
             }
 
-            std::string sessId =
-                LiveParamController::getInstance().getSessionId();
             clientThreads.emplace_back(
-                [clientFd, sessId, &isRunning]() {
-                    handleClient(clientFd, sessId, isRunning);
+                [clientFd, sessionIdSnapshot, &isRunning]() {
+                    handleClient(clientFd, sessionIdSnapshot, isRunning);
                 });
         }
 
@@ -255,11 +259,9 @@ bool LiveParamServer::start()
 void LiveParamServer::stop()
 {
 #ifdef __APPLE__
-    if (!running_) {
+    if (!running_.exchange(false, std::memory_order_acq_rel)) {
         return;
     }
-
-    running_ = false;
 
     if (serverFd_ >= 0) {
         shutdown(serverFd_, SHUT_RDWR);

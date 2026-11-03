@@ -1,10 +1,12 @@
 #pragma once
 
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <map>
 #include <memory>
 #include <string>
+#include <thread>
 #include <vector>
 #include <glibmm.h>
 
@@ -56,6 +58,12 @@ public:
     void init();
     void cleanup();
 
+    bool isEnabled() const { return enabled_.load(std::memory_order_acquire); }
+    uint64_t getNonGuiAccessCount() const
+    {
+        return nonGuiAccessCount_.load(std::memory_order_acquire);
+    }
+
     const std::string &getSessionId() const { return sessionId_; }
 
     std::string registerEditor(EditorPanel *panel, const std::string &filename);
@@ -63,9 +71,14 @@ public:
 
     void onEditorParamChanged(EditorPanel *panel);
     void onEditorViewChanged(EditorPanel *panel);
+    void onEditorSizeChanged(const std::string &sessionId,
+                             const std::string &editorId, EditorPanel *panel);
     void onPreviewReady(EditorPanel *panel, int64_t editRev, int64_t viewRev);
     void onCropReady(EditorPanel *panel, int64_t editRev, int64_t viewRev);
     void onRenderFailed(EditorPanel *panel, const std::string &err);
+    void onRenderFailed(const std::string &sessionId,
+                        const std::string &editorId, EditorPanel *panel,
+                        const std::string &err);
 
     std::string handleCommand(const std::string &jsonRequest);
 
@@ -73,8 +86,13 @@ private:
     LiveParamController();
     ~LiveParamController();
 
+    void recordGuiAccess();
     void pruneExpiredCache(EditorState &st);
 
+    std::atomic<bool> enabled_{false};
+    std::thread::id guiThreadId_;
+    bool hasGuiThreadId_ = false;
+    std::atomic<uint64_t> nonGuiAccessCount_{0};
     std::string sessionId_;
     std::map<std::string, EditorState> editors_;
     std::map<EditorPanel *, std::string> panelToId_;
