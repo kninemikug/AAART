@@ -393,35 +393,35 @@ if(APPLE)
     target_link_libraries(art-cli PRIVATE "-framework Foundation")
 endif()
 
-add_executable(test_liveparam test_liveparam.cc liveparamcontroller.cc liveparamserver.cc)
-target_compile_definitions(test_liveparam PUBLIC GUIVERSION)
-target_link_libraries(test_liveparam PUBLIC
-    rtengine
-    ${CAIROMM_LIBRARIES}
-    ${EXPAT_LIBRARIES}
-    ${EXTRA_LIB_RTGUI}
-    ${FFTW3F_LIBRARIES}
-    ${GIOMM_LIBRARIES}
-    ${GIO_LIBRARIES}
-    ${GLIB2_LIBRARIES}
-    ${GLIBMM_LIBRARIES}
-    ${GOBJECT_LIBRARIES}
-    ${GTHREAD_LIBRARIES}
-    ${GTKMM_LIBRARIES}
-    ${GTK_LIBRARIES}
-    ${JPEG_LIBRARIES}
-    ${LCMS_LIBRARIES}
-    ${PNG_LIBRARIES}
-    ${TIFF_LIBRARIES}
-    ${ZLIB_LIBRARIES}
-    ${LENSFUN_LIBRARIES}
-    ${RSVG_LIBRARIES}
-    ${EXIV2_LIBRARIES}
-    )
 if(APPLE)
+    add_executable(test_liveparam test_liveparam.cc liveparamcontroller.cc liveparamserver.cc)
+    target_compile_definitions(test_liveparam PUBLIC GUIVERSION)
+    target_link_libraries(test_liveparam PUBLIC
+        rtengine
+        ${CAIROMM_LIBRARIES}
+        ${EXPAT_LIBRARIES}
+        ${EXTRA_LIB_RTGUI}
+        ${FFTW3F_LIBRARIES}
+        ${GIOMM_LIBRARIES}
+        ${GIO_LIBRARIES}
+        ${GLIB2_LIBRARIES}
+        ${GLIBMM_LIBRARIES}
+        ${GOBJECT_LIBRARIES}
+        ${GTHREAD_LIBRARIES}
+        ${GTKMM_LIBRARIES}
+        ${GTK_LIBRARIES}
+        ${JPEG_LIBRARIES}
+        ${LCMS_LIBRARIES}
+        ${PNG_LIBRARIES}
+        ${TIFF_LIBRARIES}
+        ${ZLIB_LIBRARIES}
+        ${LENSFUN_LIBRARIES}
+        ${RSVG_LIBRARIES}
+        ${EXIV2_LIBRARIES}
+        )
     target_link_libraries(test_liveparam PRIVATE "-framework ApplicationServices -framework Foundation")
 
-    add_executable(test_liveparam_gui test_liveparam_gui.cc)
+    add_executable(test_liveparam_gui test_liveparam_gui.cc test_liveparam_socket.cc)
     add_dependencies(test_liveparam_gui UpdateInfo)
     target_compile_definitions(test_liveparam_gui PUBLIC GUIVERSION ART_TEST_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
     set_target_properties(test_liveparam_gui PROPERTIES COMPILE_FLAGS "${CMAKE_CXX_FLAGS}")
@@ -430,6 +430,15 @@ if(APPLE)
         target_link_libraries(test_liveparam_gui PUBLIC mimalloc)
     endif()
     target_link_libraries(test_liveparam_gui PRIVATE "-framework ApplicationServices -framework Foundation")
+
+    # Exercise the real main.cc startup paths without forwarding files to an
+    # unrelated, already running ART instance on the development desktop.
+    add_executable(test_liveparam_app EXCLUDE_FROM_ALL main.cc)
+    add_dependencies(test_liveparam_app UpdateInfo)
+    target_compile_definitions(test_liveparam_app PRIVATE GUIVERSION
+        ART_APPLICATION_ID="us.pixls.art.ART.liveparamtest")
+    target_link_libraries(test_liveparam_app PRIVATE ${RTGUI_LINK_LIBRARIES}
+        "-framework ApplicationServices -framework Foundation")
 endif()
 
 # Install executables

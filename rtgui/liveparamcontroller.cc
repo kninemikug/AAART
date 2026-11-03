@@ -5,7 +5,9 @@
 #include "../rtengine/cJSON.h"
 #include "../rtengine/rtengine.h"
 
+#include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <iomanip>
 #include <random>
 #include <set>
@@ -57,31 +59,269 @@ bool hasDuplicateKeys(const cJSON *node)
     return false;
 }
 
-std::string makeErrorResponse(int protocolVersion, const std::string &requestId,
+using Json = std::unique_ptr<cJSON, decltype(&cJSON_Delete)>;
+
+std::string serialize(cJSON *root)
+{
+    std::unique_ptr<char, decltype(&cJSON_free)> bytes(
+        cJSON_PrintUnformatted(root), cJSON_free);
+    if (!bytes) {
+        throw std::bad_alloc();
+    }
+    return bytes.get();
+}
+
+Json response(const std::string &requestId, const std::string &sessionId,
+              const std::string &editorId, const char *status)
+{
+    Json root(cJSON_CreateObject(), cJSON_Delete);
+    cJSON_AddNumberToObject(root.get(), "protocolVersion", 1);
+    if (requestId.empty()) {
+        cJSON_AddNullToObject(root.get(), "requestId");
+    } else {
+        cJSON_AddStringToObject(root.get(), "requestId", requestId.c_str());
+    }
+    cJSON_AddStringToObject(root.get(), "sessionId", sessionId.c_str());
+    if (editorId.empty()) {
+        cJSON_AddNullToObject(root.get(), "editorId");
+    } else {
+        cJSON_AddStringToObject(root.get(), "editorId", editorId.c_str());
+    }
+    cJSON_AddStringToObject(root.get(), "status", status);
+    return root;
+}
+
+std::string makeErrorResponse(int, const std::string &requestId,
                               const std::string &sessionId,
                               const std::string &editorId,
                               const std::string &code,
                               const std::string &message,
                               const std::string &detailsJson, bool retryable)
 {
-    std::ostringstream oss;
-    oss << "{\"protocolVersion\":" << protocolVersion << ",\"requestId\":";
-    if (requestId.empty()) {
-        oss << "null";
-    } else {
-        oss << "\"" << requestId << "\"";
+    auto root = response(requestId, sessionId, editorId, "ERROR");
+    auto *error = cJSON_AddObjectToObject(root.get(), "error");
+    cJSON_AddStringToObject(error, "code", code.c_str());
+    cJSON_AddStringToObject(error, "message", message.c_str());
+    auto *details = cJSON_ParseWithOpts(detailsJson.c_str(), nullptr, true);
+    cJSON_AddItemToObject(error, "details", details ? details : cJSON_CreateObject());
+    cJSON_AddBoolToObject(error, "retryable", retryable);
+    return serialize(root.get());
+}
+
+bool exactInteger(const cJSON *value, const std::string &token)
+{
+    if (!cJSON_IsNumber(value) || !std::isfinite(value->valuedouble) || token.empty()) {
+        return false;
     }
-    oss << ",\"sessionId\":\"" << sessionId << "\"";
-    oss << ",\"editorId\":\"" << editorId << "\"";
-    oss << ",\"status\":\"ERROR\",\"error\":{";
-    oss << "\"code\":\"" << code << "\",\"message\":\"" << message << "\",";
-    oss << "\"details\":" << (detailsJson.empty() ? "{}" : detailsJson) << ",";
-    oss << "\"retryable\":" << (retryable ? "true" : "false");
-    oss << "}}";
-    return oss.str();
+    const bool negative = token[0] == '-';
+    const size_t begin = negative ? 1 : 0;
+    const auto exponentAt = token.find_first_of("eE");
+    const auto decimalAt = token.find('.');
+    const size_t end = exponentAt == std::string::npos ? token.size() : exponentAt;
+    std::string digits;
+    for (size_t i = begin; i < end; ++i) {
+        if (token[i] != '.') {
+            digits += token[i];
+        }
+    }
+    if (digits.find_first_not_of('0') == std::string::npos) {
+        return value->valuedouble == 0;
+    }
+    if (negative) {
+        return false;
+    }
+    int exponent = 0;
+    if (exponentAt != std::string::npos) {
+        size_t i = exponentAt + 1;
+        const bool minus = token[i] == '-';
+        if (token[i] == '+' || token[i] == '-') {
+            ++i;
+        }
+        for (; i < token.size(); ++i) {
+            // Beyond this bound every nonzero value is either fractional or
+            // outside the exact integer range, regardless of its mantissa.
+            exponent = std::min(1000, exponent * 10 + token[i] - '0');
+        }
+        if (minus) {
+            exponent = -exponent;
+        }
+    }
+    int scale = exponent - (decimalAt == std::string::npos ? 0 : int(end - decimalAt - 1));
+    while (scale < 0 && !digits.empty() && digits.back() == '0') {
+        digits.pop_back();
+        ++scale;
+    }
+    if (scale < 0) {
+        return false;
+    }
+    digits.erase(0, digits.find_first_not_of('0'));
+    if (digits.size() + scale > 16) {
+        return false;
+    }
+    uint64_t integer = 0;
+    for (char digit : digits) {
+        integer = integer * 10 + digit - '0';
+    }
+    while (scale-- > 0) {
+        integer *= 10;
+    }
+    return integer <= 9007199254740991ULL && value->valuedouble == double(integer);
+}
+
+void numberNodes(const cJSON *node, std::vector<const cJSON *> &numbers)
+{
+    if (cJSON_IsNumber(node)) {
+        numbers.push_back(node);
+    }
+    for (const auto *child = node->child; child; child = child->next) {
+        numberNodes(child, numbers);
+    }
+}
+
+bool validJsonText(const std::string &text, std::vector<std::string> &numbers)
+{
+    if (text.find('\0') != std::string::npos ||
+        !g_utf8_validate(text.data(), text.size(), nullptr)) {
+        return false;
+    }
+    bool string = false;
+    auto digit = [](char c) { return c >= '0' && c <= '9'; };
+    for (size_t i = 0; i < text.size(); ++i) {
+        const unsigned char c = text[i];
+        if (string) {
+            if (c < 0x20) {
+                return false;
+            }
+            if (c == '"') {
+                string = false;
+            } else if (c == '\\') {
+                if (++i >= text.size()) {
+                    return false;
+                }
+                if (text[i] == 'u') {
+                    if (i + 4 >= text.size()) {
+                        return false;
+                    }
+                    unsigned code = 0;
+                    for (int n = 0; n < 4; ++n) {
+                        const int hex = g_ascii_xdigit_value(text[++i]);
+                        if (hex < 0) {
+                            return false;
+                        }
+                        code = code * 16 + hex;
+                    }
+                    // cJSON strings are NUL-terminated, so embedded NUL would
+                    // otherwise make identities and duplicate keys ambiguous.
+                    if (!code) {
+                        return false;
+                    }
+                } else if (!std::strchr("\"\\/bfnrt", text[i])) {
+                    return false;
+                }
+            }
+        } else if (c == '"') {
+            string = true;
+        } else if (c == '-' || digit(c)) {
+            size_t end = i;
+            if (text[end] == '-') {
+                ++end;
+            }
+            if (end == text.size() || !digit(text[end])) {
+                return false;
+            }
+            if (text[end] == '0') {
+                ++end;
+            } else {
+                while (end < text.size() && digit(text[end])) {
+                    ++end;
+                }
+            }
+            if (end < text.size() && text[end] == '.') {
+                const size_t begin = ++end;
+                while (end < text.size() && digit(text[end])) {
+                    ++end;
+                }
+                if (end == begin) {
+                    return false;
+                }
+            }
+            if (end < text.size() && (text[end] == 'e' || text[end] == 'E')) {
+                ++end;
+                if (end < text.size() && (text[end] == '+' || text[end] == '-')) {
+                    ++end;
+                }
+                const size_t begin = end;
+                while (end < text.size() && digit(text[end])) {
+                    ++end;
+                }
+                if (begin == end) {
+                    return false;
+                }
+            }
+            if (end < text.size() && !std::strchr(",}] \t\r\n", text[end])) {
+                return false;
+            }
+            numbers.push_back(text.substr(i, end - i));
+            i = end - 1;
+        } else if (c < 0x20 && c != '\t' && c != '\r' && c != '\n') {
+            return false;
+        }
+    }
+    return !string;
+}
+
+void revisionField(cJSON *result, const char *key, int64_t revision)
+{
+    if (revision < 0) {
+        cJSON_AddNullToObject(result, key);
+    } else {
+        cJSON_AddNumberToObject(result, key, revision);
+    }
+}
+
+void lastMutationField(cJSON *result, const MutationRecord *record)
+{
+    if (!record) {
+        cJSON_AddNullToObject(result, "lastMutation");
+        return;
+    }
+    auto *mutation = cJSON_AddObjectToObject(result, "lastMutation");
+    cJSON_AddStringToObject(mutation, "requestId", record->requestId.c_str());
+    cJSON_AddNumberToObject(mutation, "appliedRevision", record->appliedRevision);
+    cJSON_AddStringToObject(mutation, "previewStatus", record->previewStatus.c_str());
+}
+
+std::string appliedResponse(const std::string &sessionId,
+                            const EditorState &editor, const MutationRecord &record)
+{
+    auto root = response(record.requestId, sessionId, editor.editorId, "APPLIED");
+    auto *result = cJSON_AddObjectToObject(root.get(), "result");
+    cJSON_AddNumberToObject(result, "appliedRevision", record.appliedRevision);
+    cJSON_AddNumberToObject(result, "viewRevision", record.viewRevision);
+    auto *params = cJSON_AddObjectToObject(result, "effectiveParams");
+    cJSON_AddNumberToObject(params, "Exposure.Compensation", record.effectiveExpComp);
+    cJSON_AddStringToObject(result, "previewStatus", record.previewStatus.c_str());
+    revisionField(result, "renderedRevision", editor.renderedRevision);
+    revisionField(result, "renderedViewRevision", editor.renderedViewRevision);
+    cJSON_AddNumberToObject(result, "ppVersion", PPVERSION);
+    return serialize(root.get());
 }
 
 } // namespace
+
+std::string makeTransportError(const std::string &sessionId,
+                               const std::string &code,
+                               const std::string &message, bool retryable)
+{
+    // No parsing here: cJSON's parser has process-global error bookkeeping.
+    auto root = response("", sessionId, "", "ERROR");
+    auto *error = cJSON_AddObjectToObject(root.get(), "error");
+    cJSON_AddStringToObject(error, "code", code.c_str());
+    cJSON_AddStringToObject(error, "message", message.c_str());
+    cJSON_AddObjectToObject(error, "details");
+    cJSON_AddBoolToObject(error, "retryable", retryable);
+    return serialize(root.get());
+}
 
 LiveParamController &LiveParamController::getInstance()
 {
@@ -392,399 +632,216 @@ std::string LiveParamController::handleCommand(const std::string &jsonRequest)
         pruneExpiredCache(entry.second);
         cacheSize += entry.second.mutationCache.size();
     }
+    std::string requestId;
+    std::string editorId;
+    auto error = [&](const char *code, const char *message, bool retryable = false,
+                     const std::string &details = "{}") {
+        return makeErrorResponse(1, requestId, sessionId_, editorId,
+                                 code, message, details, retryable);
+    };
     if (jsonRequest.size() > 65536) {
-        return makeErrorResponse(1, "", sessionId_, "", "INVALID_REQUEST",
-                                 "Frame exceeds 64 KiB", "{}", false);
+        return error("INVALID_REQUEST", "Frame exceeds 64 KiB");
     }
-
-    std::unique_ptr<cJSON, decltype(&cJSON_Delete)> root(
-        cJSON_Parse(jsonRequest.c_str()), cJSON_Delete);
-
+    std::vector<std::string> numberTokens;
+    if (!validJsonText(jsonRequest, numberTokens)) {
+        return error("INVALID_REQUEST", "Invalid JSON encoding or token");
+    }
+    Json root(cJSON_ParseWithLengthOpts(jsonRequest.c_str(), jsonRequest.size() + 1,
+                                        nullptr, true), cJSON_Delete);
     if (!root || !cJSON_IsObject(root.get())) {
-        return makeErrorResponse(1, "", sessionId_, "", "INVALID_REQUEST",
-                                 "Malformed JSON object", "{}", false);
+        return error("INVALID_REQUEST", "Expected one complete JSON object");
     }
-
+    std::vector<const cJSON *> nodes;
+    numberNodes(root.get(), nodes);
+    if (nodes.size() != numberTokens.size()) {
+        return error("INVALID_REQUEST", "Invalid JSON number");
+    }
+    auto integer = [&](const cJSON *value) {
+        auto found = std::find(nodes.begin(), nodes.end(), value);
+        return found != nodes.end() && exactInteger(value, numberTokens[found - nodes.begin()]);
+    };
+    auto field = [&](const char *name) {
+        return cJSON_GetObjectItemCaseSensitive(root.get(), name);
+    };
+    size_t requestIds = 0;
+    for (const auto *item = root->child; item; item = item->next) {
+        if (item->string && std::strcmp(item->string, "requestId") == 0) {
+            ++requestIds;
+        }
+    }
+    if (requestIds != 1) {
+        return error("INVALID_REQUEST", "Expected one unambiguous requestId");
+    }
+    auto *id = field("requestId");
+    if (!cJSON_IsString(id) || !id->valuestring || !*id->valuestring ||
+        g_utf8_strlen(id->valuestring, -1) > 128) {
+        return error("INVALID_REQUEST", "requestId must be a 1..128 character string");
+    }
+    requestId = id->valuestring;
     if (hasDuplicateKeys(root.get())) {
-        return makeErrorResponse(1, "", sessionId_, "", "INVALID_REQUEST",
-                                 "Duplicate JSON keys rejected", "{}", false);
+        return error("INVALID_REQUEST", "Duplicate JSON keys rejected");
     }
-
-    cJSON *protoItem =
-        cJSON_GetObjectItemCaseSensitive(root.get(), "protocolVersion");
-    if (!protoItem || !cJSON_IsNumber(protoItem)) {
-        return makeErrorResponse(1, "", sessionId_, "", "INVALID_REQUEST",
-                                 "Missing or non-numeric protocolVersion", "{}",
-                                 false);
+    auto *editor = field("editorId");
+    if (editor && (!cJSON_IsString(editor) || !editor->valuestring || !*editor->valuestring)) {
+        return error("INVALID_REQUEST", "editorId must be a nonempty string");
     }
-    if (protoItem->valueint != 1) {
-        return makeErrorResponse(protoItem->valueint, "", sessionId_, "",
-                                 "UNSUPPORTED_VERSION",
-                                 "Protocol version must be 1", "{}", false);
+    if (editor) {
+        editorId = editor->valuestring;
     }
-    int protocolVersion = protoItem->valueint;
-
-    cJSON *reqIdItem = cJSON_GetObjectItemCaseSensitive(root.get(), "requestId");
-    if (!reqIdItem || !cJSON_IsString(reqIdItem) || !reqIdItem->valuestring) {
-        return makeErrorResponse(protocolVersion, "", sessionId_, "",
-                                 "INVALID_REQUEST",
-                                 "Missing or non-string requestId", "{}",
-                                 false);
+    auto *protocol = field("protocolVersion");
+    if (!integer(protocol)) {
+        return error("INVALID_REQUEST", "protocolVersion must be an integer");
     }
-    std::string requestId = reqIdItem->valuestring;
-    if (requestId.empty() || requestId.size() > 128) {
-        return makeErrorResponse(protocolVersion, "", sessionId_, "",
-                                 "INVALID_REQUEST",
-                                 "requestId must be 1..128 characters", "{}",
-                                 false);
+    if (protocol->valuedouble != 1) {
+        return error("UNSUPPORTED_VERSION", "Protocol version must be 1");
     }
-
-    cJSON *opItem = cJSON_GetObjectItemCaseSensitive(root.get(), "op");
-    if (!opItem || !cJSON_IsString(opItem) || !opItem->valuestring) {
-        return makeErrorResponse(protocolVersion, requestId, sessionId_, "",
-                                 "INVALID_REQUEST", "Missing or non-string op",
-                                 "{}", false);
+    auto *operation = field("op");
+    if (!cJSON_IsString(operation) || !operation->valuestring) {
+        return error("INVALID_REQUEST", "op must be a string");
     }
-    std::string op = opItem->valuestring;
-
-    cJSON *sessItem = cJSON_GetObjectItemCaseSensitive(root.get(), "sessionId");
-    std::string reqSessionId =
-        (sessItem && cJSON_IsString(sessItem) && sessItem->valuestring)
-            ? sessItem->valuestring
-            : "";
-
-    cJSON *edItem = cJSON_GetObjectItemCaseSensitive(root.get(), "editorId");
-    std::string reqEditorId =
-        (edItem && cJSON_IsString(edItem) && edItem->valuestring)
-            ? edItem->valuestring
-            : "";
-
+    const std::string op = operation->valuestring;
+    if (op != "get_state" && op != "set_param") {
+        return error("INVALID_REQUEST", "Unsupported operation");
+    }
+    const std::set<std::string> allowed = op == "get_state"
+        ? std::set<std::string>{"protocolVersion", "requestId", "op", "sessionId", "editorId", "mutationRequestId"}
+        : std::set<std::string>{"protocolVersion", "requestId", "op", "sessionId", "editorId", "baseRevision", "params"};
+    for (auto *item = root->child; item; item = item->next) {
+        if (!item->string || !allowed.count(item->string)) {
+            return error("INVALID_REQUEST", "Unknown request field");
+        }
+    }
+    auto *session = field("sessionId");
+    if (session && (!cJSON_IsString(session) || !session->valuestring || !*session->valuestring)) {
+        return error("INVALID_REQUEST", "sessionId must be a nonempty string");
+    }
+    if (session && session->valuestring != sessionId_) {
+        return error("SESSION_MISMATCH", "Session ID does not match running GUI");
+    }
     if (op == "get_state") {
-        for (const cJSON *child = root->child; child != nullptr;
-             child = child->next) {
-            std::string key = child->string ? child->string : "";
-            if (key != "protocolVersion" && key != "requestId" && key != "op" &&
-                key != "sessionId" && key != "editorId" &&
-                key != "mutationRequestId") {
-                return makeErrorResponse(
-                    protocolVersion, requestId, sessionId_, reqEditorId,
-                    "INVALID_REQUEST", "Unknown key in get_state: " + key, "{}",
-                    false);
+        auto *mutation = field("mutationRequestId");
+        if (mutation && (!cJSON_IsString(mutation) || !mutation->valuestring ||
+                         !*mutation->valuestring || g_utf8_strlen(mutation->valuestring, -1) > 128 ||
+                         editorId.empty())) {
+            return error("INVALID_REQUEST", "mutationRequestId requires a string ID and editorId");
+        }
+        auto reply = response(requestId, sessionId_, editorId, "OK");
+        auto *result = cJSON_AddObjectToObject(reply.get(), "result");
+        if (editorId.empty()) {
+            auto *list = cJSON_AddArrayToObject(result, "editors");
+            for (const auto &entry : editors_) {
+                auto *item = cJSON_CreateObject();
+                cJSON_AddStringToObject(item, "editorId", entry.first.c_str());
+                const auto name = Glib::path_get_basename(entry.second.filename);
+                cJSON_AddStringToObject(item, "name", name.c_str());
+                cJSON_AddItemToArray(list, item);
             }
+            return serialize(reply.get());
         }
-
-        if (!reqSessionId.empty() && reqSessionId != sessionId_) {
-            return makeErrorResponse(protocolVersion, requestId, sessionId_,
-                                     reqEditorId, "SESSION_MISMATCH",
-                                     "Session ID does not match running GUI",
-                                     "{}", false);
+        auto found = editors_.find(editorId);
+        if (found == editors_.end()) {
+            return error("EDITOR_NOT_FOUND", "Editor not found or closed");
         }
-
-        if (reqEditorId.empty()) {
-            std::ostringstream oss;
-            oss << "{\"protocolVersion\":1,\"requestId\":\"" << requestId
-                << "\",\"sessionId\":\"" << sessionId_
-                << "\",\"status\":\"OK\",\"result\":{\"sessionId\":\""
-                << sessionId_ << "\",\"editors\":[";
-            bool first = true;
-            for (const auto &pair : editors_) {
-                if (!first) {
-                    oss << ",";
-                }
-                first = false;
-                oss << "{\"editorId\":\"" << pair.first << "\",\"name\":\""
-                    << pair.second.filename << "\"}";
-            }
-            oss << "]}}";
-            return oss.str();
-        }
-
-        auto it = editors_.find(reqEditorId);
-        if (it == editors_.end()) {
-            return makeErrorResponse(protocolVersion, requestId, sessionId_,
-                                     reqEditorId, "EDITOR_NOT_FOUND",
-                                     "Editor not found or closed", "{}", false);
-        }
-        EditorState &st = it->second;
-
-        cJSON *mutReqItem =
-            cJSON_GetObjectItemCaseSensitive(root.get(), "mutationRequestId");
-        std::string mutationReqId =
-            (mutReqItem && cJSON_IsString(mutReqItem) &&
-             mutReqItem->valuestring)
-                ? mutReqItem->valuestring
-                : "";
-
-        std::ostringstream oss;
-        oss << "{\"protocolVersion\":1,\"requestId\":\"" << requestId
-            << "\",\"sessionId\":\"" << sessionId_ << "\",\"editorId\":\""
-            << reqEditorId << "\",\"status\":\"OK\",\"result\":{";
-        oss << "\"revision\":" << st.currentRevision << ",";
-        oss << "\"viewRevision\":" << st.currentViewRevision << ",";
-        oss << "\"renderedRevision\":";
-        if (st.renderedRevision >= 0) {
-            oss << st.renderedRevision;
+        auto &state = found->second;
+        cJSON_AddNumberToObject(result, "revision", state.currentRevision);
+        cJSON_AddNumberToObject(result, "viewRevision", state.currentViewRevision);
+        revisionField(result, "renderedRevision", state.renderedRevision);
+        revisionField(result, "renderedViewRevision", state.renderedViewRevision);
+        cJSON_AddNumberToObject(result, "ppVersion", PPVERSION);
+        auto *supported = cJSON_AddObjectToObject(result, "supportedParams");
+        auto *exposure = cJSON_AddObjectToObject(supported, "Exposure.Compensation");
+        auto *tools = state.panel->getToolPanelCoordinator();
+        cJSON_AddNumberToObject(exposure, "min", -12.0);
+        cJSON_AddNumberToObject(exposure, "max", 12.0);
+        cJSON_AddBoolToObject(exposure, "enabled", tools && tools->isExposureEnabled());
+        cJSON_AddNumberToObject(exposure, "value", tools ? tools->getExposureCompensation() : 0.0);
+        if (mutation) {
+            auto cached = state.mutationCache.find(mutation->valuestring);
+            const auto *record = cached == state.mutationCache.end() ? nullptr : &cached->second;
+            lastMutationField(result, record);
+            cJSON_AddStringToObject(result, "mutationStatus",
+                record ? record->previewStatus.c_str() : "UNKNOWN");
         } else {
-            oss << "null";
+            lastMutationField(result, state.hasLastMutation ? &state.lastMutation : nullptr);
         }
-        oss << ",\"renderedViewRevision\":";
-        if (st.renderedViewRevision >= 0) {
-            oss << st.renderedViewRevision;
-        } else {
-            oss << "null";
-        }
-        oss << ",";
-
-        if (!mutationReqId.empty()) {
-            auto cit = st.mutationCache.find(mutationReqId);
-            if (cit != st.mutationCache.end()) {
-                oss << "\"lastMutation\":{\"requestId\":\""
-                    << cit->second.requestId << "\",\"appliedRevision\":"
-                    << cit->second.appliedRevision
-                    << ",\"previewStatus\":\"" << cit->second.previewStatus
-                    << "\"},\"mutationStatus\":\"" << cit->second.previewStatus
-                    << "\"";
-            } else {
-                oss << "\"lastMutation\":null,\"mutationStatus\":\"UNKNOWN\"";
-            }
-        } else if (st.hasLastMutation) {
-            oss << "\"lastMutation\":{\"requestId\":\""
-                << st.lastMutation.requestId << "\",\"appliedRevision\":"
-                << st.lastMutation.appliedRevision
-                << ",\"previewStatus\":\"" << st.lastMutation.previewStatus
-                << "\"}";
-        } else {
-            oss << "\"lastMutation\":null";
-        }
-
-        oss << "}}";
-        return oss.str();
+        return serialize(reply.get());
     }
 
-    if (op == "set_param") {
-        for (const cJSON *child = root->child; child != nullptr;
-             child = child->next) {
-            std::string key = child->string ? child->string : "";
-            if (key != "protocolVersion" && key != "requestId" && key != "op" &&
-                key != "sessionId" && key != "editorId" &&
-                key != "baseRevision" && key != "params") {
-                return makeErrorResponse(
-                    protocolVersion, requestId, sessionId_, reqEditorId,
-                    "INVALID_REQUEST", "Unknown key in set_param: " + key, "{}",
-                    false);
-            }
-        }
-
-        if (reqSessionId.empty() || reqSessionId != sessionId_) {
-            return makeErrorResponse(protocolVersion, requestId, sessionId_,
-                                     reqEditorId, "SESSION_MISMATCH",
-                                     "Session ID does not match running GUI",
-                                     "{}", false);
-        }
-
-        cJSON *baseRevItem =
-            cJSON_GetObjectItemCaseSensitive(root.get(), "baseRevision");
-        if (!baseRevItem || !cJSON_IsNumber(baseRevItem) ||
-            baseRevItem->valueint < 0) {
-            return makeErrorResponse(
-                protocolVersion, requestId, sessionId_, reqEditorId,
-                "INVALID_REQUEST", "Missing or invalid baseRevision", "{}",
-                false);
-        }
-        int64_t baseRevision = baseRevItem->valueint;
-
-        cJSON *paramsItem =
-            cJSON_GetObjectItemCaseSensitive(root.get(), "params");
-        if (!paramsItem || !cJSON_IsObject(paramsItem)) {
-            return makeErrorResponse(protocolVersion, requestId, sessionId_,
-                                     reqEditorId, "INVALID_REQUEST",
-                                     "Missing or invalid params object", "{}",
-                                     false);
-        }
-
-        for (const cJSON *child = paramsItem->child; child != nullptr;
-             child = child->next) {
-            std::string key = child->string ? child->string : "";
-            if (key != "Exposure.Compensation") {
-                return makeErrorResponse(
-                    protocolVersion, requestId, sessionId_, reqEditorId,
-                    "UNSUPPORTED_PARAM", "Unsupported param: " + key, "{}",
-                    false);
-            }
-        }
-
-        cJSON *expCompItem = cJSON_GetObjectItemCaseSensitive(
-            paramsItem, "Exposure.Compensation");
-        if (!expCompItem || !cJSON_IsNumber(expCompItem)) {
-            return makeErrorResponse(protocolVersion, requestId, sessionId_,
-                                     reqEditorId, "INVALID_VALUE",
-                                     "Exposure.Compensation must be numeric",
-                                     "{}", false);
-        }
-        double expComp = expCompItem->valuedouble;
-        if (!std::isfinite(expComp) || expComp < -12.0 || expComp > 12.0) {
-            return makeErrorResponse(
-                protocolVersion, requestId, sessionId_, reqEditorId,
-                "INVALID_VALUE",
-                "Exposure.Compensation out of range [-12.0, 12.0]", "{}",
-                false);
-        }
-
-        if (reqEditorId.empty()) {
-            return makeErrorResponse(protocolVersion, requestId, sessionId_,
-                                     reqEditorId, "EDITOR_NOT_FOUND",
-                                     "editorId is required", "{}", false);
-        }
-
-        auto it = editors_.find(reqEditorId);
-        if (it == editors_.end()) {
-            return makeErrorResponse(protocolVersion, requestId, sessionId_,
-                                     reqEditorId, "EDITOR_NOT_FOUND",
-                                     "Editor not found or closed", "{}", false);
-        }
-        EditorState &st = it->second;
-
-        auto cit = st.mutationCache.find(requestId);
-        if (cit != st.mutationCache.end()) {
-            if (cit->second.baseRevision == baseRevision &&
-                cit->second.requestedExpComp == expComp) {
-                std::ostringstream oss;
-                oss << "{\"protocolVersion\":1,\"requestId\":\"" << requestId
-                    << "\",\"sessionId\":\"" << sessionId_
-                    << "\",\"editorId\":\"" << reqEditorId
-                    << "\",\"status\":\"APPLIED\",\"result\":{";
-                oss << "\"appliedRevision\":" << cit->second.appliedRevision
-                    << ",";
-                oss << "\"viewRevision\":" << cit->second.viewRevision << ",";
-                oss << "\"effectiveParams\":{\"Exposure.Compensation\":"
-                    << cit->second.effectiveExpComp << "},";
-                oss << "\"previewStatus\":\"" << cit->second.previewStatus
-                    << "\",";
-                oss << "\"renderedRevision\":";
-                if (st.renderedRevision >= 0) {
-                    oss << st.renderedRevision;
-                } else {
-                    oss << "null";
-                }
-                oss << ",\"renderedViewRevision\":";
-                if (st.renderedViewRevision >= 0) {
-                    oss << st.renderedViewRevision;
-                } else {
-                    oss << "null";
-                }
-                oss << ",\"ppVersion\":" << PPVERSION;
-                oss << "}}";
-                return oss.str();
-            } else {
-                return makeErrorResponse(
-                    protocolVersion, requestId, sessionId_, reqEditorId,
-                    "REQUEST_ID_CONFLICT",
-                    "requestId reused with different content", "{}", false);
-            }
-        }
-
-        if (cacheSize >= 1024) {
-            return makeErrorResponse(
-                protocolVersion, requestId, sessionId_, reqEditorId, "BUSY",
-                "Mutation cache full", "{}", true);
-        }
-
-        if (!st.initialized) {
-            return makeErrorResponse(
-                protocolVersion, requestId, sessionId_, reqEditorId, "BUSY",
-                "Editor is currently initializing or closing", "{}", true);
-        }
-
-        auto ipc = st.panel->getImageProcessor();
-        if (!ipc || ipc->hasTweakOperator()) {
-            return makeErrorResponse(
-                protocolVersion, requestId, sessionId_, reqEditorId, "BUSY",
-                "Editor has active TweakOperator or processor busy", "{}", true);
-        }
-
-        if (st.hasInFlightMutation) {
-            return makeErrorResponse(
-                protocolVersion, requestId, sessionId_, reqEditorId, "BUSY",
-                "Prior external mutation is pending preview", "{}", true);
-        }
-
-        auto tpc = st.panel->getToolPanelCoordinator();
-        if (!tpc || !tpc->isExposureEnabled()) {
-            return makeErrorResponse(
-                protocolVersion, requestId, sessionId_, reqEditorId,
-                "TOOL_DISABLED", "Exposure tool is disabled", "{}", false);
-        }
-
-        if (baseRevision != st.currentRevision) {
-            std::ostringstream detailsOss;
-            detailsOss << "{\"currentRevision\":" << st.currentRevision << "}";
-            return makeErrorResponse(protocolVersion, requestId, sessionId_,
-                                     reqEditorId, "REVISION_CONFLICT",
-                                     "baseRevision does not match currentRevision",
-                                     detailsOss.str(), false);
-        }
-
-        // Reserve the cache entry before publishing a parameter change.
-        auto reserved = st.mutationCache.emplace(requestId, MutationRecord{});
-        if (!tpc->applyExternalExposure(expComp)) {
-            st.mutationCache.erase(reserved.first);
-            return makeErrorResponse(
-                protocolVersion, requestId, sessionId_, reqEditorId,
-                "INTERNAL_ERROR", "Failed to apply exposure parameter", "{}",
-                false);
-        }
-        const int64_t appliedRev = st.currentRevision;
-        const int64_t viewRev = st.currentViewRevision;
-        const double effectiveExpComp = tpc->getExposureCompensation();
-
-        MutationRecord rec;
-        rec.requestId = requestId;
-        rec.appliedRevision = appliedRev;
-        rec.viewRevision = viewRev;
-        rec.previewStatus = "PENDING";
-        rec.effectiveExpComp = effectiveExpComp;
-        rec.requestedExpComp = expComp;
-        rec.baseRevision = baseRevision;
-        rec.completedTime = clock_();
-        rec.isCompleted = false;
-
-        st.hasLastMutation = true;
-        st.lastMutation = rec;
-        st.hasInFlightMutation = true;
-        st.inFlightRequestId = requestId;
-        st.inFlightAppliedRev = appliedRev;
-        st.inFlightAppliedViewRev = viewRev;
-        reserved.first->second = rec;
-
-        std::ostringstream oss;
-        oss << "{\"protocolVersion\":1,\"requestId\":\"" << requestId
-            << "\",\"sessionId\":\"" << sessionId_ << "\",\"editorId\":\""
-            << reqEditorId << "\",\"status\":\"APPLIED\",\"result\":{";
-        oss << "\"appliedRevision\":" << appliedRev << ",";
-        oss << "\"viewRevision\":" << viewRev << ",";
-        oss << "\"effectiveParams\":{\"Exposure.Compensation\":" << effectiveExpComp
-            << "},";
-        oss << "\"previewStatus\":\"PENDING\",";
-        oss << "\"renderedRevision\":";
-        if (st.renderedRevision >= 0) {
-            oss << st.renderedRevision;
-        } else {
-            oss << "null";
-        }
-        oss << ",\"renderedViewRevision\":";
-        if (st.renderedViewRevision >= 0) {
-            oss << st.renderedViewRevision;
-        } else {
-            oss << "null";
-        }
-        oss << ",\"ppVersion\":" << PPVERSION;
-        oss << "}}";
-        return oss.str();
+    if (!session || editorId.empty()) {
+        return error("INVALID_REQUEST", "set_param requires sessionId and editorId");
     }
-
-    return makeErrorResponse(protocolVersion, requestId, sessionId_,
-                             reqEditorId, "INVALID_REQUEST", "Unsupported op: " + op,
-                             "{}", false);
+    auto *base = field("baseRevision");
+    auto *params = field("params");
+    auto *value = cJSON_GetObjectItemCaseSensitive(params, "Exposure.Compensation");
+    auto target = editors_.find(editorId);
+    if (target != editors_.end()) {
+        auto cached = target->second.mutationCache.find(requestId);
+        if (cached != target->second.mutationCache.end()) {
+            const auto &record = cached->second;
+            if (!integer(base) || !cJSON_IsObject(params) ||
+                cJSON_GetArraySize(params) != 1 || !cJSON_IsNumber(value) ||
+                record.baseRevision != base->valuedouble ||
+                record.requestedExpComp != value->valuedouble) {
+                return error("REQUEST_ID_CONFLICT", "requestId reused with different content");
+            }
+            return appliedResponse(sessionId_, target->second, record);
+        }
+    }
+    if (!integer(base)) {
+        return error("INVALID_REQUEST", "baseRevision must be a nonnegative exact integer");
+    }
+    const int64_t baseRevision = base->valuedouble;
+    if (!cJSON_IsObject(params) || !params->child) {
+        return error("INVALID_REQUEST", "params must be a nonempty object");
+    }
+    for (auto *item = params->child; item; item = item->next) {
+        if (!item->string || std::strcmp(item->string, "Exposure.Compensation")) {
+            return error("UNSUPPORTED_PARAM", "Unsupported parameter");
+        }
+    }
+    if (!cJSON_IsNumber(value) || !std::isfinite(value->valuedouble) ||
+        value->valuedouble < -12.0 || value->valuedouble > 12.0) {
+        return error("INVALID_VALUE", "Exposure.Compensation must be a finite number in [-12,12]");
+    }
+    if (target == editors_.end()) {
+        return error("EDITOR_NOT_FOUND", "Editor not found or closed");
+    }
+    auto &state = target->second;
+    auto processor = state.panel->getImageProcessor();
+    if (cacheSize >= 1024 || !state.initialized || !processor ||
+        processor->hasTweakOperator() || state.hasInFlightMutation) {
+        return error("BUSY", "Editor or command capacity is currently unavailable", true);
+    }
+    auto *tools = state.panel->getToolPanelCoordinator();
+    if (!tools || !tools->isExposureEnabled()) {
+        return error("TOOL_DISABLED", "Exposure tool is disabled");
+    }
+    if (baseRevision != state.currentRevision) {
+        const std::string details = "{\"currentRevision\":" + std::to_string(state.currentRevision) + "}";
+        return error("REVISION_CONFLICT", "baseRevision does not match current revision", false, details);
+    }
+    MutationRecord record;
+    record.requestId = requestId;
+    record.previewStatus = "PENDING";
+    record.requestedExpComp = value->valuedouble;
+    record.baseRevision = baseRevision;
+    auto reserved = state.mutationCache.emplace(requestId, record);
+    if (!tools->applyExternalExposure(record.requestedExpComp)) {
+        state.mutationCache.erase(reserved.first);
+        return error("INTERNAL_ERROR", "Exposure parameter could not be applied");
+    }
+    record.appliedRevision = state.currentRevision;
+    record.viewRevision = state.currentViewRevision;
+    record.effectiveExpComp = tools->getExposureCompensation();
+    record.completedTime = clock_();
+    reserved.first->second = record;
+    state.lastMutation = record;
+    state.hasLastMutation = true;
+    state.hasInFlightMutation = true;
+    state.inFlightRequestId = requestId;
+    state.inFlightAppliedRev = record.appliedRevision;
+    state.inFlightAppliedViewRev = record.viewRevision;
+    return appliedResponse(sessionId_, state, record);
 }
 
 } // namespace liveparam

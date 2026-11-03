@@ -16,6 +16,11 @@ class EditorPanel;
 namespace art {
 namespace liveparam {
 
+// Transport failures use immutable session data and never access GUI state.
+std::string makeTransportError(const std::string &sessionId,
+                               const std::string &code,
+                               const std::string &message, bool retryable);
+
 struct MutationRecord {
     std::string requestId;
     int64_t appliedRevision = 0;

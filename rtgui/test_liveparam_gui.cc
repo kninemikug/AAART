@@ -14,6 +14,7 @@
 #include "rtwindow.h"
 #include "soundman.h"
 #include "toolpanelcoord.h"
+#include "test_liveparam_socket.h"
 #include "wbprovider.h"
 #include "../rtengine/cJSON.h"
 #include "../rtengine/improccoordinator.h"
@@ -1414,6 +1415,12 @@ int main(int argc, char **argv)
         {"T01", test_t01_gui_state_and_off},
         {"T02", test_t02_single_external_mutation},
         {"T03", test_t03_gui_conflict_and_derived_gates},
+        {"T04", testLiveParamJson},
+        {"T05", testLiveParamTypes},
+        {"T06", testLiveParamFrames},
+        {"T07", testLiveParamQueue},
+        {"T08", testLiveParamShutdown},
+        {"T09", testLiveParamStartup},
         {"T13", test_t13_resubmit_and_conflict},
     };
     std::set<std::string> selected;
@@ -1517,7 +1524,20 @@ int main(int argc, char **argv)
             }
         }
 
-        rtWin->on_delete_event(nullptr);
+        // Follow the real close protocol. A deferred quit must keep the window
+        // alive until queued progress callbacks have made it closable again.
+        const auto closeDeadline = std::chrono::steady_clock::now() +
+            std::chrono::seconds(5);
+        while (rtWin->on_delete_event(nullptr)) {
+            if (std::chrono::steady_clock::now() >= closeDeadline) {
+                std::cerr << "FAILED: GUI quit stayed deferred after test cleanup"
+                          << std::endl;
+                allOk = false;
+                rtWin->epanel->cleanup();
+                break;
+            }
+            pumpGuiEvents(20);
+        }
         pumpGuiEvents(30);
         rtWin.reset();
         gdk_threads_leave();
