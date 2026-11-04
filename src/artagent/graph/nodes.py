@@ -13,6 +13,7 @@ from pathlib import Path as FilePath
 from typing import Any
 
 from .router import analyze_signals, route_request
+from .research import validate_research_input
 from .state import (
     AgentState,
     Artifact,
@@ -45,6 +46,16 @@ def intake_node(state: AgentState) -> dict[str, Any]:
             recoverable=False,
         )
         return {"error": error, "trace": trace}
+
+    count = state.get("research_count", 0)
+    owner = state.get("research_request_id")
+    research_step = state.get("research_step_id")
+    if (type(count) is not int or count not in (0, 1)
+            or (owner is not None and (owner != request.request_id or count != 1))
+            or (research_step is not None and state.get("research_input") is None
+                and research_step not in state.get("step_results", {}))):
+        return {"error": ErrorInfo("CONTRACT_VIOLATION", "재검색 예산 또는 요청 ID 불일치", "INTAKE"),
+                "trace": trace}
 
     capabilities = state.get("capabilities") or RuntimeCapabilities()
     return {
@@ -106,7 +117,8 @@ def route_node(state: AgentState) -> dict[str, Any]:
     cursor = 0
     for step in decision.plan:
         result = completed_steps.get(step.step_id)
-        if result and result.path == step.path and result.status == "SUCCEEDED":
+        if (result and result.path == step.path
+                and result.status in ("SUCCEEDED", "UNSUPPORTED", "INSUFFICIENT_EVIDENCE", "FAILED", "BLOCKED")):
             cursor += 1
         else:
             break
@@ -249,6 +261,18 @@ def dispatch_node(state: AgentState) -> dict[str, Any]:
         return {"trace": trace}
 
     current_step = decision.plan[cursor]
+    if state.get("research_input") is not None:
+        try:
+            prepared = validate_research_input(state)
+        except (ValueError, TypeError, AttributeError) as exc:
+            return {"error": ErrorInfo("CONTRACT_VIOLATION", str(exc), "DISPATCH"),
+                    "trace": trace}
+        if (prepared.phase == "PREPARED"
+                and not state.get("capabilities", RuntimeCapabilities()).search_ready):
+            return {"error": ErrorInfo("CAPABILITY_UNAVAILABLE", "Search service is currently unavailable", "DISPATCH"),
+                    "trace": trace}
+        # 같은 추가 시도의 재개에서는 bundle·답변·오류를 지우지 않는다.
+        return {"trace": trace}
     step_results = state.get("step_results", {})
     capabilities = state.get("capabilities", RuntimeCapabilities())
 
@@ -295,6 +319,7 @@ def dispatch_node(state: AgentState) -> dict[str, Any]:
         "validation": None,
         "render": None,
         "error": None,
+        "search_settings": None,
         "trace": trace,
     }
     if current_step.path == Path.EXECUTE:
@@ -762,6 +787,7 @@ def advance_node(state: AgentState) -> dict[str, Any]:
     return {
         "step_results": results,
         "cursor": cursor + 1,
+        "research_input": None,
         "error": None,
         "trace": trace,
     }

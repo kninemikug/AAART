@@ -26,6 +26,7 @@ def create_gui_graph(
     *,
     search_nodes: dict | None = None,
     answer_node: Callable | None = None,
+    research_generate: Callable[[str], str] | None = None,
 ) -> Any:
     """Connect Q&A nodes; keep execution disabled and retrieval lazy."""
     from artagent.graph import (
@@ -33,6 +34,7 @@ def create_gui_graph(
         create_router_graph, create_search_nodes,
     )
     from artagent.graph.nodes import dispatch_node
+    from artagent.graph.research import create_research_node, generate_search_query
 
     services = search_nodes
 
@@ -85,19 +87,13 @@ def create_gui_graph(
             }
         return dispatch_node(state)
 
-    def stop_research(state):
-        return {
-            "error": ErrorInfo(
-                "INSUFFICIENT_EVIDENCE", "근거가 부족하여 답변할 수 없습니다.",
-                "RESEARCH",
-            ),
-            "trace": [*state.get("trace", []), "RESEARCH"],
-        }
-
     return create_router_graph(node_overrides={
         "SEARCH_RAWPEDIA": search, "SEARCH_GITHUB": search,
         "ANSWER": answer_node or create_answer_node(source_root=source_root),
-        "DISPATCH": dispatch, "RESEARCH": stop_research,
+        "DISPATCH": dispatch,
+        "RESEARCH": create_research_node(
+            generate=research_generate if research_generate is not None else generate_search_query,
+        ),
     })
 
 

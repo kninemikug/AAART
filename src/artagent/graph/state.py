@@ -201,6 +201,7 @@ class ResearchInput:
     step_id: str
     source_type: str
     signature: str
+    input_sha256: str
     search_input: SearchInput
     settings: dict[str, Any]
     phase: str = "PREPARED"  # "PREPARED" | "SEARCHED"
@@ -343,6 +344,7 @@ class AgentState(TypedDict, total=False):
     answer: Optional[AnswerResult]
     research_count: int
     research_request_id: Optional[str]
+    research_step_id: Optional[str]
     research_input: Optional[ResearchInput]
     search_settings: Optional[dict[str, Any]]
     clarification: Optional[Clarification]

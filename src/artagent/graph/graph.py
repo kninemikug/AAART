@@ -68,6 +68,13 @@ def route_after_dispatch(state: AgentState) -> str:
     if state.get("error"):
         return "FALLBACK"
 
+    prepared = state.get("research_input")
+    if prepared is not None:
+        if state.get("answer") is not None:
+            return route_after_answer(state)
+        if prepared.phase == "SEARCHED":
+            return "ANSWER"
+
     current_step = decision.plan[cursor]
     if current_step.path == Path.DOC_QA:
         return "SEARCH_RAWPEDIA"
@@ -261,6 +268,8 @@ def create_router_graph(
             "SEARCH_RAWPEDIA": "SEARCH_RAWPEDIA",
             "SEARCH_GITHUB": "SEARCH_GITHUB",
             "CHECK_EXEC": "CHECK_EXEC",
+            "ANSWER": "ANSWER",
+            "ADVANCE": "ADVANCE",
         },
     )
     graph.add_conditional_edges(

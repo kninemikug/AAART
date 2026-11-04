@@ -265,11 +265,19 @@ def _create_search_node(
                 prepared = validate_research_input(state)
                 if prepared.source_type != source_type or prepared.settings != settings:
                     raise ValueError("재검색의 출처·검색 설정이 최초 검색과 다릅니다.")
+                if prepared.phase == "SEARCHED":
+                    return {"retrieval": state["retrieval"], "error": None, "trace": trace}
                 search_input = prepared.search_input
             except (ValueError, TypeError, AttributeError) as exc:
                 return {"error": ErrorInfo("CONTRACT_VIOLATION", str(exc), node_name),
                         "trace": trace}
         else:
+            decision = state.get("decision")
+            cursor = state.get("cursor", 0)
+            if (decision and 0 <= cursor < len(decision.plan)
+                    and state.get("research_step_id") == decision.plan[cursor].step_id):
+                return {"error": ErrorInfo("CONTRACT_VIOLATION", "할당된 재검색의 준비 기록 누락", node_name),
+                        "trace": trace}
             search_input = prepare_search_input(
                 step_query, generate=generate, rewrite_enabled=rewrite_enabled,
                 hyde_enabled=hyde_enabled, constraints=constraints,
