@@ -142,7 +142,7 @@ def test_sealed_legacy_resumption_remains_independently_verifiable():
 def test_resumed_source_lineage_is_checked_before_reuse(monkeypatch, tmp_path):
     (tmp_path / "cases.json").write_text("[]")
     (tmp_path / "answer_records.jsonl").write_text("")
-    monkeypatch.setattr(resume, "verify_manifest", lambda path: ({}, {"phase": "t17", "resumption": {}}))
+    monkeypatch.setattr(resume, "verify_manifest", lambda path, **kwargs: ({}, {"phase": "t17", "resumption": {}}))
     def broken_lineage(*args, **kwargs):
         raise ValueError("원본 계보 변조")
     monkeypatch.setattr(resume, "check_origins", broken_lineage)

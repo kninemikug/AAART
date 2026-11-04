@@ -8,6 +8,8 @@ import gzip
 import hashlib
 import json
 import math
+import re
+import subprocess
 
 import numpy as np
 from artagent.retrieval.types import SearchHit
@@ -18,9 +20,10 @@ from artagent.graph.state import RetrievalBundle
 
 ROOT = Path(__file__).resolve().parents[1]
 MODEL_IDS = {"R1": "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1", "R2": "cross-encoder/ms-marco-MiniLM-L6-v2"}
-CODE_PATHS = ["scripts/eval_t15_rerank.py", "scripts/t15_evaluation.py", "scripts/t15_answer_validation.py", "scripts/t15_score_archive.py", "scripts/check_t14_graph_connection.py",
-              "scripts/run_t14_ab_eval.py", "tests/test_router.py"] + [str(p.relative_to(ROOT)) for folder in ("retrieval", "graph")
-              for p in sorted((ROOT / "src/artagent" / folder).glob("*.py"))] + ["src/artagent/answer.py", "src/artagent/answer_validation.py"]
+FIXED_CODE_PATHS = ["scripts/eval_t15_rerank.py", "scripts/t15_evaluation.py", "scripts/t15_answer_validation.py", "scripts/t15_score_archive.py", "scripts/check_t14_graph_connection.py",
+                    "scripts/run_t14_ab_eval.py", "tests/test_router.py", "src/artagent/answer.py", "src/artagent/answer_validation.py"]
+CODE_PATHS = FIXED_CODE_PATHS + [str(p.relative_to(ROOT)) for folder in ("retrieval", "graph")
+                               for p in sorted((ROOT / "src/artagent" / folder).glob("*.py"))]
 SLICE1_QIDS = ['Q001','Q004','Q014','Q021','Q033','Q044','Q054','Q063','Q072','Q080','Q084','Q086','Q092','Q093','Q096']
 FOCUS_12_QIDS = ['Q017','Q024','Q025','Q026','Q030','Q033','Q041','Q053','Q055','Q057','Q070','Q072']
 T17_CRITICAL_31_QIDS = sorted(set(SLICE1_QIDS + FOCUS_12_QIDS + ['Q010','Q077','Q097','Q098','Q099','Q100']))
@@ -248,11 +251,29 @@ class MissingEvidence(ValueError):
     """요구된 실측 증거가 없어 합격 여부를 확인할 수 없음."""
 
 
-def verify_protocol(path: Path) -> dict:
+def verify_protocol(path: Path, *, historical: bool = False) -> dict:
+    """실행은 현재 코드, 명시적인 과거 기록 감사는 당시 Git 원본과 대조한다."""
     protocol = json.loads(path.read_bytes())
     if protocol.get("schema_version") != 3:
         raise MissingEvidence("v3 프로토콜·원시 증거가 필요합니다. 과거 기록은 소급 보완하지 않습니다.")
-    if set(protocol["code_sha256"]) != set(CODE_PATHS):
+    expected_code_paths = set(CODE_PATHS)
+    commit = protocol.get("code_commit", "")
+    if historical:
+        if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}", commit):
+            raise ValueError("과거 코드 커밋은 전체 SHA-1이어야 합니다.")
+        folders = {"src/artagent/retrieval", "src/artagent/graph"}
+        try:
+            tree = subprocess.check_output(
+                ["git", "ls-tree", "-r", "--name-only", commit, "--", *sorted(folders)],
+                cwd=ROOT, stderr=subprocess.PIPE, text=True,
+            )
+        except subprocess.CalledProcessError as exc:
+            raise ValueError("과거 코드 커밋을 확인할 수 없습니다.") from exc
+        expected_code_paths = set(FIXED_CODE_PATHS) | {
+            name for name in tree.splitlines()
+            if name.endswith(".py") and str(Path(name).parent) in folders
+        }
+    if set(protocol["code_sha256"]) != expected_code_paths:
         raise ValueError("실행 코드 지문 목록 누락/추가")
     expected_grid = {"candidate_k": [20, 40], "top_k": [3, 5, 10, 20], "min_score": [None, 0., .2, .5, .7]}
     if "rerank_weight" in protocol["grid"]:
@@ -286,7 +307,17 @@ def verify_protocol(path: Path) -> dict:
         if sha256_file(ROOT / name) != expected:
             raise ValueError(f"고정 기준선 변경: {name}")
     for name, expected in protocol["code_sha256"].items():
-        if sha256_file(ROOT / name) != expected:
+        if historical:
+            try:
+                blob = subprocess.check_output(
+                    ["git", "show", f"{commit}:{name}"], cwd=ROOT, stderr=subprocess.PIPE,
+                )
+            except subprocess.CalledProcessError as exc:
+                raise ValueError(f"과거 코드 커밋의 파일 누락: {name}") from exc
+            actual = hashlib.sha256(blob).hexdigest()
+        else:
+            actual = sha256_file(ROOT / name)
+        if actual != expected:
             raise ValueError(f"실행 코드 불일치: {name}")
     for model in protocol["models"].values():
         if model.get("files"):
@@ -296,7 +327,7 @@ def verify_protocol(path: Path) -> dict:
     return protocol
 
 
-def verify_manifest(run_dir: Path, protocol_path: Optional[Path] = None) -> tuple[dict, dict]:
+def verify_manifest(run_dir: Path, protocol_path: Optional[Path] = None, *, historical: bool = False) -> tuple[dict, dict]:
     path = run_dir / "manifest.json"
     if not path.is_file():
         raise MissingEvidence("실행 manifest와 입력/코드·원문 연결 증거가 없습니다.")
@@ -306,7 +337,7 @@ def verify_manifest(run_dir: Path, protocol_path: Optional[Path] = None) -> tupl
     actual_protocol = protocol_path or ROOT / manifest["protocol_path"]
     if sha256_file(actual_protocol) != manifest["protocol_sha256"]:
         raise ValueError("프로토콜 해시 불일치")
-    protocol = verify_protocol(actual_protocol)
+    protocol = verify_protocol(actual_protocol, historical=historical)
     actual_files = {p.name for p in run_dir.iterdir() if p.is_file() and p.name != "manifest.json"}
     if set(manifest["artifacts"]) != actual_files:
         raise ValueError("manifest 증거 파일 목록 불일치")
