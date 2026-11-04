@@ -28,8 +28,12 @@ struct MutationRecord {
     int64_t appliedRevision = 0;
     int64_t viewRevision = 0;
     std::string previewStatus; // PENDING, READY, SUPERSEDED, FAILED
-    double effectiveExpComp = 0.0;
-    double requestedExpComp = 0.0;
+    std::string paramKey = "Exposure.Compensation";
+    std::string contextId;
+    bool enableTool = false;
+    std::vector<std::string> enabledTools;
+    double effectiveValue = 0.0;
+    double requestedValue = 0.0;
     int64_t baseRevision = 0;
     std::chrono::steady_clock::time_point completedTime;
     bool isCompleted = false;

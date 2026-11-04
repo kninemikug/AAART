@@ -279,14 +279,8 @@ public:
     bool applyExternalExposure(double expcomp);
     art::liveparam::NumericApplyResult applyExternalNumeric(
         const std::string &id, double value, bool enableTool);
-    std::vector<art::liveparam::NumericControl> numericControls() const
-    {
-        return art::liveparam::collectNumericControls(toolPanels);
-    }
-    std::string numericContext() const
-    {
-        return art::liveparam::numericContextId(toolPanels);
-    }
+    std::vector<art::liveparam::NumericControl> numericControls() const;
+    std::string numericContext() const;
 
     // update the "expanded" state of the Tools
     void updateToolState();

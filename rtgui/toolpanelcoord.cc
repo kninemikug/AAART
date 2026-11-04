@@ -953,6 +953,16 @@ private:
 };
 } // namespace
 
+std::vector<art::liveparam::NumericControl> ToolPanelCoordinator::numericControls() const
+{
+    return art::liveparam::collectNumericControls(toolPanels);
+}
+
+std::string ToolPanelCoordinator::numericContext() const
+{
+    return art::liveparam::numericContextId(toolPanels);
+}
+
 art::liveparam::NumericApplyResult ToolPanelCoordinator::applyExternalNumeric(
     const std::string &id, double value, bool enableTool)
 {

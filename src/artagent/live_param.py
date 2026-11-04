@@ -1,4 +1,4 @@
-"""Bounded client for ART's local, single-exposure protocol v1."""
+"""Bounded client for ART's local numeric-control protocol v1."""
 
 from dataclasses import dataclass
 import json
@@ -112,6 +112,33 @@ def _validate_reply(reply, request):
     expected = "APPLIED" if request["op"] == "set_param" else "OK"
     if status != expected or "error" in reply or not isinstance(result, dict):
         raise ValueError("Malformed success response")
+    if request["op"] == "list_params":
+        entries = result.get("items")
+        context = result.get("contextId")
+        total = result.get("total")
+        following = result.get("nextOffset")
+        offset = request.get("offset", 0)
+        if (not _identifier(context) or not _integer(result.get("revision"))
+                or result["revision"] != request["baseRevision"]
+                or (request.get("contextId") is not None and context != request["contextId"])
+                or not _integer(total) or not isinstance(entries, list)
+                or len(entries) > request.get("limit", 32) or offset + len(entries) > total
+                or (following is None and offset + len(entries) != total)
+                or (following is not None and (not _integer(following) or not entries
+                    or following != offset + len(entries) or following >= total))):
+            raise ValueError("Malformed numeric catalogue page")
+        keys = set()
+        for entry in entries:
+            if (not isinstance(entry, dict) or not _identifier(entry.get("key"))
+                    or entry["key"] in keys or not _identifier(entry.get("tool"))
+                    or not isinstance(entry.get("toolLabel"), str)
+                    or not isinstance(entry.get("label"), str) or not entry["label"]
+                    or not all(_number(entry.get(k)) for k in ("min", "max", "step", "value"))
+                    or entry["min"] > entry["max"] or entry["step"] <= 0
+                    or not all(type(entry.get(k)) is bool for k in ("enabled", "available", "pending"))):
+                raise ValueError("Malformed numeric catalogue item")
+            keys.add(entry["key"])
+        return
     if request.get("editorId") is None:
         editors = result.get("editors")
         if not isinstance(editors, list) or any(
@@ -125,15 +152,22 @@ def _validate_reply(reply, request):
         raise ValueError("Malformed revision fields")
     if status == "APPLIED":
         params = result.get("effectiveParams")
+        requested_key = next(iter(request["params"]))
         if (not _integer(result.get("appliedRevision"))
                 or result["appliedRevision"] != request["baseRevision"] + 1
                 or not isinstance(result.get("previewStatus"), str)
                 or result["previewStatus"] not in PREVIEW_STATUSES
                 or not isinstance(params, dict)
-                or set(params) != {"Exposure.Compensation"}
-                or not _number(params["Exposure.Compensation"])
-                or not -12 <= params["Exposure.Compensation"] <= 12):
+                or set(params) != {requested_key}
+                or not _number(params[requested_key])
+                or ("contextId" not in request and
+                    not -12 <= params[requested_key] <= 12)):
             raise ValueError("Malformed application acknowledgement")
+        if "contextId" in request:
+            enabled = result.get("enabledTools")
+            if (not isinstance(enabled, list) or not all(_identifier(v) for v in enabled)
+                    or len(set(enabled)) != len(enabled)):
+                raise ValueError("Malformed tool activation acknowledgement")
         return
     supported = result.get("supportedParams")
     exposure = supported.get("Exposure.Compensation") if isinstance(supported, dict) else None
@@ -243,6 +277,58 @@ class Client:
             "op": "set_param", "sessionId": target.session_id,
             "editorId": target.editor_id, "baseRevision": target.base_revision,
             "params": {"Exposure.Compensation": value}})
+
+    def list_params(self, target, *, context_id=None, offset=0, limit=32, _deadline=None):
+        if (not isinstance(target, Target) or not _integer(offset)
+                or type(limit) is not int or not 1 <= limit <= 32
+                or (context_id is not None and not _identifier(context_id))
+                or (offset > 0 and context_id is None)):
+            raise ValueError("An explicit target and valid catalogue page are required")
+        request = {"protocolVersion": 1, "requestId": uuid.uuid4().hex,
+            "op": "list_params", "sessionId": target.session_id,
+            "editorId": target.editor_id, "baseRevision": target.base_revision,
+            "offset": offset, "limit": limit}
+        if context_id is not None:
+            request["contextId"] = context_id
+        return self._exchange(request, deadline=_deadline)
+
+    def catalog(self, target, *, context_id=None, timeout=15.0):
+        deadline = time.monotonic() + _duration(timeout)
+        items, keys, offset, expected_total = [], set(), 0, None
+        byte_count = 0
+        while True:
+            reply = self.list_params(target, context_id=context_id, offset=offset,
+                                     _deadline=deadline)
+            result = reply["result"]
+            if expected_total is not None and result["total"] != expected_total:
+                raise LiveParamError("PROTOCOL_ERROR", "수치 목록 구성이 변경되었습니다.")
+            context_id, expected_total = result["contextId"], result["total"]
+            byte_count += len(json.dumps(reply, ensure_ascii=False).encode("utf-8"))
+            if byte_count > 4 * 1024 * 1024:
+                raise LiveParamError("PROTOCOL_ERROR", "수치 목록의 전체 크기 한도를 초과했습니다.")
+            for entry in result["items"]:
+                if entry["key"] in keys:
+                    raise LiveParamError("PROTOCOL_ERROR", "수치 목록에 중복된 항목이 있습니다.")
+                keys.add(entry["key"])
+                items.append(entry)
+            following = result["nextOffset"]
+            if following is None:
+                return {"contextId": context_id, "items": items}
+            offset = following
+
+    def set_numeric(self, target, key, value, *, context_id,
+                    enable_tool=False, request_id=None):
+        if (not isinstance(target, Target) or not _identifier(key)
+                or not _identifier(context_id) or not _number(value)
+                or type(enable_tool) is not bool):
+            raise ValueError("An explicit numeric control, context and finite value are required")
+        request_id = request_id if request_id is not None else uuid.uuid4().hex
+        if not _identifier(request_id):
+            raise ValueError("Request ID must be a 1..128 character string")
+        return self._exchange({"protocolVersion": 1, "requestId": request_id,
+            "op": "set_param", "sessionId": target.session_id,
+            "editorId": target.editor_id, "baseRevision": target.base_revision,
+            "params": {key: value}, "contextId": context_id, "enableTool": enable_tool})
 
     def wait_ready(self, target, applied, *, timeout=30.0, interval=0.05):
         deadline = time.monotonic() + _duration(timeout)

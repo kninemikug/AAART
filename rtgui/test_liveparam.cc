@@ -21,6 +21,15 @@ using namespace art::liveparam;
 bool ToolPanelCoordinator::applyExternalExposure(double) { return true; }
 bool ToolPanelCoordinator::isExposureEnabled() const { return true; }
 double ToolPanelCoordinator::getExposureCompensation() const { return 0.0; }
+std::vector<art::liveparam::NumericControl> ToolPanelCoordinator::numericControls() const { return {}; }
+std::string ToolPanelCoordinator::numericContext() const { return "protocol-fixture"; }
+art::liveparam::NumericApplyResult ToolPanelCoordinator::applyExternalNumeric(
+    const std::string &, double, bool)
+{
+    art::liveparam::NumericApplyResult result;
+    result.error = "UNSUPPORTED_PARAM";
+    return result;
+}
 bool EditorPanel::can_open_now() const { return true; }
 
 #define TEST_ASSERT(cond, msg) \

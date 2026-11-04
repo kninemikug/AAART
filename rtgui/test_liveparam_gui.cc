@@ -2476,6 +2476,81 @@ bool test_t20_numeric_apply(RTWindow *win, const std::string &directory)
     return true;
 }
 
+bool test_t21_numeric_protocol(RTWindow *win, const std::string &directory)
+{
+    std::cout << "[T21] Paged numeric contract, context and mutation replay" << std::endl;
+    FrameFixture fixture{nullptr, art::liveparam::LiveParamController::getInstance()};
+    GUI_ASSERT(fixture.open(win, directory, "t21"), "numeric protocol photo opened");
+    auto *tools = fixture.panel->getToolPanelCoordinator();
+    const auto context = tools->numericContext();
+    const auto revision = fixture.field("revision");
+    using Json = std::unique_ptr<cJSON, decltype(&cJSON_Delete)>;
+    const auto request = [&](const char *op, const char *id) {
+        Json json(cJSON_CreateObject(), cJSON_Delete);
+        cJSON_AddNumberToObject(json.get(), "protocolVersion", 1);
+        cJSON_AddStringToObject(json.get(), "requestId", id);
+        cJSON_AddStringToObject(json.get(), "op", op);
+        cJSON_AddStringToObject(json.get(), "sessionId", fixture.controller.getSessionId().c_str());
+        cJSON_AddStringToObject(json.get(), "editorId", fixture.panel->getEditorId().c_str());
+        cJSON_AddNumberToObject(json.get(), "baseRevision", revision);
+        cJSON_AddStringToObject(json.get(), "contextId", context.c_str());
+        return json;
+    };
+    const auto send = [&](const Json &json) {
+        std::unique_ptr<char, decltype(&cJSON_free)> bytes(cJSON_PrintUnformatted(json.get()), cJSON_free);
+        return fixture.controller.handleCommand(bytes.get());
+    };
+    std::string saturationKey;
+    size_t count = 0;
+    int offset = 0;
+    do {
+        auto query = request("list_params", "t21-list");
+        cJSON_AddNumberToObject(query.get(), "offset", offset);
+        const auto body = send(query);
+        Json reply(cJSON_Parse(body.c_str()), cJSON_Delete);
+        auto *result = cJSON_GetObjectItemCaseSensitive(reply.get(), "result");
+        auto *items = cJSON_GetObjectItemCaseSensitive(result, "items");
+        GUI_ASSERT(cJSON_IsArray(items) && cJSON_GetArraySize(items) > 0 &&
+                   cJSON_GetArraySize(items) <= 32 && body.size() < 65536,
+                   "catalogue is paged below the existing frame limit");
+        for (auto *item = items->child; item; item = item->next) {
+            auto *tool = cJSON_GetObjectItemCaseSensitive(item, "tool");
+            auto *label = cJSON_GetObjectItemCaseSensitive(item, "label");
+            if (cJSON_IsString(tool) && std::string(tool->valuestring) == "saturation" &&
+                cJSON_IsString(label) && label->valuestring == M("TP_SATURATION_SATURATION")) {
+                saturationKey = cJSON_GetObjectItemCaseSensitive(item, "key")->valuestring;
+            }
+        }
+        count += cJSON_GetArraySize(items);
+        auto *next = cJSON_GetObjectItemCaseSensitive(result, "nextOffset");
+        offset = cJSON_IsNumber(next) ? next->valueint : -1;
+    } while (offset >= 0);
+    GUI_ASSERT(count == tools->numericControls().size() && !saturationKey.empty(),
+               "all numeric controls are reachable through bounded pages");
+    auto mutation = request("set_param", "t21-once");
+    cJSON_AddBoolToObject(mutation.get(), "enableTool", true);
+    auto *params = cJSON_AddObjectToObject(mutation.get(), "params");
+    cJSON_AddNumberToObject(params, saturationKey.c_str(), 20);
+    const auto history = fixture.panel->getHistory()->getHistorySize();
+    GUI_ASSERT(send(mutation).find("APPLIED") != std::string::npos && fixture.waitReady(),
+               "numeric mutation reaches matching-generation readiness");
+    GUI_ASSERT(send(mutation).find("APPLIED") != std::string::npos &&
+               fixture.panel->getHistory()->getHistorySize() == history + 1 &&
+               fixture.field("revision") == revision + 1, "numeric replay never re-enables or reapplies the edit");
+    cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(params, saturationKey.c_str()), 21);
+    GUI_ASSERT(send(mutation).find("REQUEST_ID_CONFLICT") != std::string::npos,
+               "reused mutation IDs compare numeric values and payload");
+    auto stale = request("set_param", "t21-stale-context");
+    cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(stale.get(), "baseRevision"), fixture.field("revision"));
+    cJSON_AddBoolToObject(stale.get(), "enableTool", true);
+    cJSON_AddNumberToObject(cJSON_AddObjectToObject(stale.get(), "params"), saturationKey.c_str(), 21);
+    GUI_ASSERT(send(stale).find("REVISION_CONFLICT") != std::string::npos &&
+               fixture.field("revision") == revision + 1, "stale GUI context is rejected before mutation");
+    fixture.panel->close();
+    std::cout << "  -> [T21] PASSED!" << std::endl;
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -2504,6 +2579,7 @@ int main(int argc, char **argv)
         {"T18", test_t18_live_exposure_setting},
         {"T19", test_t19_numeric_catalog},
         {"T20", test_t20_numeric_apply},
+        {"T21", test_t21_numeric_protocol},
     };
     std::set<std::string> selected;
     for (int i = 1; i < argc; ++i) {
