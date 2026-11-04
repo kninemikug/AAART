@@ -17,6 +17,8 @@ UNSUPPORTED_MESSAGE = (
     "예: 채도를 20으로 설정해줘. 목록: 조정 가능한 항목 보여줘"
 )
 MAX_REQUEST_BYTES = 65536
+# 네이티브 패널의 300초 제한 전에 응답 직렬화·프로세스 정리를 마친다.
+GUI_GENERATION_BUDGET_SECONDS = 270
 
 
 def create_gui_graph(
@@ -149,11 +151,13 @@ def process_request(payload: Any, graph_factory: Callable[[], Any]) -> dict:
         return live_response
 
     from artagent.graph import RequestInput, RuntimeCapabilities
+    from artagent.answer import generation_time_budget
 
-    result = graph_factory().invoke({
-        "request": RequestInput(request_id=request_id, text=text.strip()),
-        "capabilities": RuntimeCapabilities(search_ready=True),
-    })
+    with generation_time_budget(GUI_GENERATION_BUDGET_SECONDS):
+        result = graph_factory().invoke({
+            "request": RequestInput(request_id=request_id, text=text.strip()),
+            "capabilities": RuntimeCapabilities(search_ready=True),
+        })
     response = result.get("response")
     if response is None:
         return error_response(
