@@ -75,7 +75,10 @@ def validate_research_input(state: AgentState) -> ResearchInput:
             or not search_input.rewrite_enabled or search_input.hyde_enabled
             or prepared.settings != state.get("search_settings")):
         raise ValueError("재검색 입력 또는 최초 검색 설정이 손상되었습니다.")
-    if prepared.phase == "SEARCHED":
+    if prepared.phase == "PREPARED":
+        if state.get("retrieval") is not None or state.get("answer") is not None:
+            raise ValueError("검색 전 준비 단계에 검색 결과 또는 답변이 남아 있습니다.")
+    else:
         bundle = state.get("retrieval")
         if (bundle is None or bundle.query != search_input.search_query
                 or bundle.source_filter != source_type.upper()

@@ -206,6 +206,51 @@ def test_stale_or_corrupt_preparation_is_rejected_without_external_calls(change)
     assert counts == {"search": 1, "answer": 1, "rewrite": 1}
 
 
+@pytest.mark.parametrize("change", ["searched_as_prepared", "prepared_with_answer"])
+def test_inconsistent_resume_phase_cannot_repeat_or_skip_retry(change):
+    nodes, counts, _, _ = services(["INSUFFICIENT_EVIDENCE", "SUPPORTED"])
+    phase = "SEARCHED" if change == "searched_as_prepared" else "PREPARED"
+    state = retry_snapshot(nodes, phase)
+    if change == "searched_as_prepared":
+        state["research_input"] = replace(state["research_input"], phase="PREPARED")
+    else:
+        state["answer"] = AnswerResult("SUPPORTED", "남아 있는 이전 답변")
+    before = dict(counts)
+    result = create_router_graph(nodes).invoke(state)
+    assert result["response"].status == "FAILED"
+    assert result["response"].error.code == "CONTRACT_VIOLATION"
+    assert dict(counts) == before
+
+
+def test_reranker_without_optional_model_id_keeps_search_and_retry_compatible():
+    from types import SimpleNamespace
+    from artagent.graph.nodes import intake_node, route_node, dispatch_node
+    from artagent.graph.research import create_research_node
+
+    class Reranker:
+        def score_hit(self, query, hit):
+            return 0.5, 0.5, 1
+
+    queries = []
+
+    def search(query, session, **filters):
+        queries.append(query)
+        return []
+
+    node = create_search_nodes(SimpleNamespace(search=search), None, reranker=Reranker())["SEARCH_RAWPEDIA"]
+    state = request()
+    for initial in (intake_node, route_node, dispatch_node, node):
+        state.update(initial(state))
+    state["answer"] = AnswerResult("INSUFFICIENT_EVIDENCE", "부족")
+    rewrite = create_research_node(generate=lambda prompt: "노출 보정 방법을 알려줘")
+    state.update(rewrite(state))
+    state.update(node(state))
+    assert state.get("error") is None
+    assert state["search_settings"]["reranker_id"] == "unknown"
+    assert len(queries) == 2
+    assert state["research_count"] == 1
+
+
 def test_missing_preparation_cannot_repeat_an_allocated_attempt():
     nodes, counts, _, _ = services(["INSUFFICIENT_EVIDENCE", "SUPPORTED"])
     state = retry_snapshot(nodes)

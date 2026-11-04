@@ -69,11 +69,10 @@ def route_after_dispatch(state: AgentState) -> str:
         return "FALLBACK"
 
     prepared = state.get("research_input")
-    if prepared is not None:
+    if prepared is not None and prepared.phase == "SEARCHED":
         if state.get("answer") is not None:
             return route_after_answer(state)
-        if prepared.phase == "SEARCHED":
-            return "ANSWER"
+        return "ANSWER"
 
     current_step = decision.plan[cursor]
     if current_step.path == Path.DOC_QA:

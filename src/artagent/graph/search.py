@@ -244,7 +244,7 @@ def _create_search_node(
     settings = {
         "snapshot_ref": snapshot_ref, "candidate_k": candidate_k, "top_k": top_k,
         "min_score": min_score, "rerank_weight": rerank_weight,
-        "reranker_id": str(reranker.model_id) if reranker is not None else None,
+        "reranker_id": str(getattr(reranker, "model_id", "unknown")) if reranker is not None else None,
     }
 
     def search(state: AgentState) -> dict[str, Any]:
