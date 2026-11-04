@@ -36,6 +36,7 @@
 #include "version.h"
 #include "wbprovider.h"
 #include "liveparamserver.h"
+#include "chatpanel.h"
 #include <cstdlib>
 #include <cstring>
 #include <giomm.h>
@@ -244,9 +245,8 @@ bool init_rt()
 #endif
 
 #ifdef __APPLE__
-    const char *liveParam = g_getenv("ART_LIVE_PARAM");
-    if (liveParam && std::strcmp(liveParam, "1") == 0) {
-        art::liveparam::LiveParamServer::getInstance().start();
+    if (ChatPanel::liveExposureEnabledAtStartup()) {
+        art::liveparam::LiveParamServer::getInstance().start(true);
     }
 #endif
     return true;

@@ -26,6 +26,8 @@
 #include "gdkcolormgmt.h"
 #include "options.h"
 #include "liveparamserver.h"
+#include "liveparamcontroller.h"
+#include "../rtengine/cJSON.h"
 #include "preferences.h"
 #include "rtimage.h"
 #include "threadutils.h"
@@ -537,6 +539,66 @@ RTWindow::RTWindow()
     auto split = Gtk::manage(new Gtk::Paned(Gtk::ORIENTATION_HORIZONTAL));
     auto reveal = Gtk::manage(new Gtk::Revealer());
     chatpanel_ = Gtk::manage(new ChatPanel());
+    chatpanel_->setLiveExposureControl([this](bool enabled) {
+        auto &server = art::liveparam::LiveParamServer::getInstance();
+        if (enabled && !server.start(true)) {
+            return false;
+        }
+        std::set<EditorPanel *> editors;
+        if (epanel) {
+            editors.insert(epanel);
+        }
+        for (const auto &entry : epanels) {
+            editors.insert(entry.second);
+        }
+        for (auto *editor : editors) {
+            editor->setLiveParamEnabled(enabled);
+        }
+        if (!enabled) {
+            server.stop();
+        }
+        return true;
+    }, art::liveparam::LiveParamServer::getInstance().isRunning());
+    chatpanel_->setLiveTargetProvider([this]() {
+        ChatLiveTarget target;
+        auto &server = art::liveparam::LiveParamServer::getInstance();
+        auto &controller = art::liveparam::LiveParamController::getInstance();
+        if (!server.isRunning() || !controller.isEnabled()) {
+            return target;
+        }
+        EditorPanel *editor = simpleEditor ? epanel : nullptr;
+        if (!simpleEditor && mainNB && mainNB->get_current_page() >= 0) {
+            editor = dynamic_cast<EditorPanel *>(
+                mainNB->get_nth_page(mainNB->get_current_page()));
+        }
+        if (!editor || editor->getEditorId().empty()) {
+            return target;
+        }
+        using Json = std::unique_ptr<cJSON, decltype(&cJSON_Delete)>;
+        Json query(cJSON_CreateObject(), cJSON_Delete);
+        cJSON_AddNumberToObject(query.get(), "protocolVersion", 1);
+        cJSON_AddStringToObject(query.get(), "requestId", "chat-target");
+        cJSON_AddStringToObject(query.get(), "op", "get_state");
+        cJSON_AddStringToObject(query.get(), "editorId", editor->getEditorId().c_str());
+        std::unique_ptr<char, decltype(&cJSON_free)> request(
+            cJSON_PrintUnformatted(query.get()), cJSON_free);
+        if (!request) {
+            return target;
+        }
+        const auto response = controller.handleCommand(request.get());
+        Json reply(cJSON_ParseWithOpts(response.c_str(), nullptr, true), cJSON_Delete);
+        const auto result = cJSON_GetObjectItemCaseSensitive(reply.get(), "result");
+        const auto revision = cJSON_GetObjectItemCaseSensitive(result, "revision");
+        if (!cJSON_IsNumber(revision) || revision->valuedouble < 0) {
+            return target;
+        }
+        target.socketPath = server.getSocketPath();
+        target.sessionId = controller.getSessionId();
+        target.editorId = editor->getEditorId();
+        target.revision = static_cast<int64_t>(revision->valuedouble);
+        target.numericContext = editor->getToolPanelCoordinator()->numericContext();
+        return target;
+    });
     reveal->add(*chatpanel_);
     reveal->set_transition_type(Gtk::REVEALER_TRANSITION_TYPE_SLIDE_LEFT);
     reveal->set_reveal_child(true);

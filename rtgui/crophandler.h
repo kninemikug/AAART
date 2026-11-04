@@ -107,6 +107,7 @@ public:
     void setEditorPanel(EditorPanel *ep, bool mainCrop = true);
     rtengine::ProcessingContext getDisplayedContext() const { return displayedContext_; }
     bool hasPendingNavigatorUpdate() const { return pendingHighQuality_; }
+    void resetLiveParamView();
 
 private:
     EditorPanel *editorPanel_ = nullptr;

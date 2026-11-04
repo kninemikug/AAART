@@ -77,6 +77,7 @@ struct ChatConnection::Job {
     GCancellable *cancellable = g_cancellable_new();
     std::string id;
     std::string input;
+    bool hasLiveTarget = false;
 
     ~Job()
     {
@@ -86,6 +87,11 @@ struct ChatConnection::Job {
 };
 
 ChatConnection::~ChatConnection() { cancel(); }
+
+bool ChatConnection::mayHaveAppliedEdit() const
+{
+    return job_ && job_->hasLiveTarget;
+}
 
 void ChatConnection::cancel()
 {
@@ -119,6 +125,23 @@ void ChatConnection::send(const ChatSettings &settings,
     cJSON_AddNumberToObject(request.get(), "version", 1);
     cJSON_AddStringToObject(request.get(), "request_id", job->id.c_str());
     cJSON_AddStringToObject(request.get(), "text", question.c_str());
+    if (liveTargetProvider_) {
+        // Called synchronously on the GUI thread. Only owned scalar values
+        // cross the process boundary; the target never follows a later tab.
+        const auto target = liveTargetProvider_();
+        if (!target.socketPath.empty() && !target.sessionId.empty() &&
+            !target.editorId.empty() && target.revision >= 0) {
+            auto context = cJSON_AddObjectToObject(request.get(), "live_param");
+            cJSON_AddStringToObject(context, "socket_path", target.socketPath.c_str());
+            cJSON_AddStringToObject(context, "session_id", target.sessionId.c_str());
+            cJSON_AddStringToObject(context, "editor_id", target.editorId.c_str());
+            cJSON_AddNumberToObject(context, "base_revision", target.revision);
+            if (!target.numericContext.empty()) {
+                cJSON_AddStringToObject(context, "numeric_context_id", target.numericContext.c_str());
+            }
+            job->hasLiveTarget = true;
+        }
+    }
     char *serialized = cJSON_PrintUnformatted(request.get());
     job->input = serialized;
     cJSON_free(serialized);
@@ -168,8 +191,10 @@ void ChatConnection::send(const ChatSettings &settings,
 
 bool ChatConnection::timedOut()
 {
+    const bool possibleEdit = mayHaveAppliedEdit();
     cancel();
-    completed.emit({"FAILED", M("CHAT_TIMEOUT"), {}});
+    completed.emit({possibleEdit ? "PARTIAL" : "FAILED",
+        M(possibleEdit ? "CHAT_LIVE_TIMEOUT" : "CHAT_TIMEOUT"), {}});
     return false;
 }
 
@@ -183,7 +208,8 @@ void ChatConnection::receive(GObject *source, GAsyncResult *result, void *data)
     GError *error = nullptr;
     const bool ok = g_subprocess_communicate_utf8_finish(
         G_SUBPROCESS(source), result, &out, &err, &error);
-    ChatReply reply{"FAILED", M("CHAT_CONNECTION_ERROR"), {}};
+    ChatReply reply{job->hasLiveTarget ? "PARTIAL" : "FAILED",
+        M(job->hasLiveTarget ? "CHAT_LIVE_UNKNOWN" : "CHAT_CONNECTION_ERROR"), {}};
     if (ok) {
         try {
             reply = parseReply(out, job->id);

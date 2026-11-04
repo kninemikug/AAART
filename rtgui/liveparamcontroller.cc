@@ -306,7 +306,13 @@ std::string appliedResponse(const std::string &sessionId,
     cJSON_AddNumberToObject(result, "appliedRevision", record.appliedRevision);
     cJSON_AddNumberToObject(result, "viewRevision", record.viewRevision);
     auto *params = cJSON_AddObjectToObject(result, "effectiveParams");
-    cJSON_AddNumberToObject(params, "Exposure.Compensation", record.effectiveExpComp);
+    cJSON_AddNumberToObject(params, record.paramKey.c_str(), record.effectiveValue);
+    if (!record.contextId.empty()) {
+        auto *enabled = cJSON_AddArrayToObject(result, "enabledTools");
+        for (const auto &tool : record.enabledTools) {
+            cJSON_AddItemToArray(enabled, cJSON_CreateString(tool.c_str()));
+        }
+    }
     cJSON_AddStringToObject(result, "previewStatus", record.previewStatus.c_str());
     revisionField(result, "renderedRevision", editor.renderedRevision);
     revisionField(result, "renderedViewRevision", editor.renderedViewRevision);
@@ -751,12 +757,14 @@ std::string LiveParamController::handleCommand(const std::string &jsonRequest)
         return error("INVALID_REQUEST", "op must be a string");
     }
     const std::string op = operation->valuestring;
-    if (op != "get_state" && op != "set_param") {
+    if (op != "get_state" && op != "set_param" && op != "list_params") {
         return error("INVALID_REQUEST", "Unsupported operation");
     }
     const std::set<std::string> allowed = op == "get_state"
         ? std::set<std::string>{"protocolVersion", "requestId", "op", "sessionId", "editorId", "mutationRequestId"}
-        : std::set<std::string>{"protocolVersion", "requestId", "op", "sessionId", "editorId", "baseRevision", "params"};
+        : op == "list_params"
+        ? std::set<std::string>{"protocolVersion", "requestId", "op", "sessionId", "editorId", "baseRevision", "contextId", "offset", "limit"}
+        : std::set<std::string>{"protocolVersion", "requestId", "op", "sessionId", "editorId", "baseRevision", "params", "contextId", "enableTool"};
     for (auto *item = root->child; item; item = item->next) {
         if (!item->string || !allowed.count(item->string)) {
             return error("INVALID_REQUEST", "Unknown request field");
@@ -768,6 +776,81 @@ std::string LiveParamController::handleCommand(const std::string &jsonRequest)
     }
     if (session && session->valuestring != sessionId_) {
         return error("SESSION_MISMATCH", "Session ID does not match running GUI");
+    }
+    auto *contextField = field("contextId");
+    if (contextField && (!cJSON_IsString(contextField) || !contextField->valuestring ||
+        !*contextField->valuestring || g_utf8_strlen(contextField->valuestring, -1) > 128)) {
+        return error("INVALID_REQUEST", "contextId must be a 1..128 character string");
+    }
+    const std::string contextId = contextField ? contextField->valuestring : "";
+    if (op == "list_params") {
+        auto *base = field("baseRevision");
+        auto *offsetField = field("offset");
+        auto *limitField = field("limit");
+        if (!session || editorId.empty() || !integer(base) ||
+            (offsetField && !integer(offsetField)) ||
+            (limitField && (!integer(limitField) || limitField->valuedouble < 1 ||
+                            limitField->valuedouble > 32))) {
+            return error("INVALID_REQUEST", "Invalid numeric catalogue target or page");
+        }
+        const double offsetNumber = offsetField ? offsetField->valuedouble : 0;
+        if (offsetNumber > 0 && contextId.empty()) {
+            return error("INVALID_REQUEST", "Continuation requires contextId");
+        }
+        auto found = editors_.find(editorId);
+        if (found == editors_.end()) {
+            return error("EDITOR_NOT_FOUND", "Editor not found or closed");
+        }
+        if (base->valuedouble != found->second.currentRevision) {
+            return error("REVISION_CONFLICT", "Numeric catalogue revision changed");
+        }
+        auto *tools = found->second.panel->getToolPanelCoordinator();
+        if (!tools) {
+            return error("BUSY", "Editor is not ready", true);
+        }
+        const auto currentContext = tools->numericContext();
+        if (!contextId.empty() && contextId != currentContext) {
+            return error("REVISION_CONFLICT", "Numeric editing context changed");
+        }
+        const auto controls = tools->numericControls();
+        if (offsetNumber > controls.size()) {
+            return error("INVALID_REQUEST", "Catalogue offset is out of range");
+        }
+        const size_t offset = offsetNumber;
+        const size_t limit = limitField ? limitField->valuedouble : 32;
+        const size_t end = std::min(controls.size(), offset + limit);
+        auto reply = response(requestId, sessionId_, editorId, "OK");
+        auto *result = cJSON_AddObjectToObject(reply.get(), "result");
+        cJSON_AddNumberToObject(result, "revision", found->second.currentRevision);
+        cJSON_AddStringToObject(result, "contextId", currentContext.c_str());
+        cJSON_AddNumberToObject(result, "total", controls.size());
+        if (end < controls.size()) {
+            cJSON_AddNumberToObject(result, "nextOffset", end);
+        } else {
+            cJSON_AddNullToObject(result, "nextOffset");
+        }
+        auto *items = cJSON_AddArrayToObject(result, "items");
+        const auto text = [](cJSON *item, const char *key, const std::string &value) {
+            const auto bounded = Glib::ustring(value).substr(0, 80);
+            cJSON_AddStringToObject(item, key, bounded.c_str());
+        };
+        for (size_t i = offset; i < end; ++i) {
+            const auto &control = controls[i];
+            auto *item = cJSON_CreateObject();
+            text(item, "key", control.id);
+            text(item, "tool", control.tool);
+            text(item, "toolLabel", control.toolLabel);
+            text(item, "label", control.label);
+            cJSON_AddNumberToObject(item, "min", control.minimum);
+            cJSON_AddNumberToObject(item, "max", control.maximum);
+            cJSON_AddNumberToObject(item, "step", control.step);
+            cJSON_AddNumberToObject(item, "value", control.value);
+            cJSON_AddBoolToObject(item, "enabled", control.enabled);
+            cJSON_AddBoolToObject(item, "available", control.available);
+            cJSON_AddBoolToObject(item, "pending", control.pending);
+            cJSON_AddItemToArray(items, item);
+        }
+        return serialize(reply.get());
     }
     if (op == "get_state") {
         auto *mutation = field("mutationRequestId");
@@ -823,7 +906,14 @@ std::string LiveParamController::handleCommand(const std::string &jsonRequest)
     }
     auto *base = field("baseRevision");
     auto *params = field("params");
-    auto *value = cJSON_GetObjectItemCaseSensitive(params, "Exposure.Compensation");
+    auto *value = cJSON_IsObject(params) ? params->child : nullptr;
+    const std::string paramKey = value && value->string ? value->string : "";
+    auto *enableField = field("enableTool");
+    if ((!contextId.empty() && !cJSON_IsBool(enableField)) ||
+        (contextId.empty() && enableField)) {
+        return error("INVALID_REQUEST", "Numeric requests require contextId and enableTool");
+    }
+    const bool enableTool = cJSON_IsTrue(enableField);
     auto target = editors_.find(editorId);
     if (target != editors_.end()) {
         auto cached = target->second.mutationCache.find(requestId);
@@ -832,7 +922,9 @@ std::string LiveParamController::handleCommand(const std::string &jsonRequest)
             if (!integer(base) || !cJSON_IsObject(params) ||
                 cJSON_GetArraySize(params) != 1 || !cJSON_IsNumber(value) ||
                 record.baseRevision != base->valuedouble ||
-                record.requestedExpComp != value->valuedouble) {
+                record.paramKey != paramKey ||
+                record.contextId != contextId || record.enableTool != enableTool ||
+                record.requestedValue != value->valuedouble) {
                 return error("REQUEST_ID_CONFLICT", "requestId reused with different content");
             }
             return appliedResponse(sessionId_, target->second, record);
@@ -845,14 +937,13 @@ std::string LiveParamController::handleCommand(const std::string &jsonRequest)
     if (!cJSON_IsObject(params) || !params->child) {
         return error("INVALID_REQUEST", "params must be a nonempty object");
     }
-    for (auto *item = params->child; item; item = item->next) {
-        if (!item->string || std::strcmp(item->string, "Exposure.Compensation")) {
-            return error("UNSUPPORTED_PARAM", "Unsupported parameter");
-        }
+    if (cJSON_GetArraySize(params) != 1 || paramKey.empty() ||
+        (contextId.empty() && paramKey != "Exposure.Compensation")) {
+        return error("UNSUPPORTED_PARAM", "Expected one supported parameter");
     }
     if (!cJSON_IsNumber(value) || !std::isfinite(value->valuedouble) ||
-        value->valuedouble < -12.0 || value->valuedouble > 12.0) {
-        return error("INVALID_VALUE", "Exposure.Compensation must be a finite number in [-12,12]");
+        (contextId.empty() && (value->valuedouble < -12.0 || value->valuedouble > 12.0))) {
+        return error("INVALID_VALUE", "Parameter must be a finite number in its GUI range");
     }
     if (target == editors_.end()) {
         return error("EDITOR_NOT_FOUND", "Editor not found or closed");
@@ -864,26 +955,42 @@ std::string LiveParamController::handleCommand(const std::string &jsonRequest)
         return error("BUSY", "Editor or command capacity is currently unavailable", true);
     }
     auto *tools = state.panel->getToolPanelCoordinator();
-    if (!tools || !tools->isExposureEnabled()) {
+    if (!tools || (contextId.empty() && !tools->isExposureEnabled())) {
         return error("TOOL_DISABLED", "Exposure tool is disabled");
     }
     if (baseRevision != state.currentRevision) {
         const std::string details = "{\"currentRevision\":" + std::to_string(state.currentRevision) + "}";
         return error("REVISION_CONFLICT", "baseRevision does not match current revision", false, details);
     }
+    if (!contextId.empty() && contextId != tools->numericContext()) {
+        return error("REVISION_CONFLICT", "Numeric editing context changed");
+    }
     MutationRecord record;
     record.requestId = requestId;
     record.previewStatus = "PENDING";
-    record.requestedExpComp = value->valuedouble;
+    record.paramKey = paramKey;
+    record.contextId = contextId;
+    record.enableTool = enableTool;
+    record.requestedValue = value->valuedouble;
     record.baseRevision = baseRevision;
     auto reserved = state.mutationCache.emplace(requestId, record);
-    if (!tools->applyExternalExposure(record.requestedExpComp)) {
-        state.mutationCache.erase(reserved.first);
-        return error("INTERNAL_ERROR", "Exposure parameter could not be applied");
+    if (!contextId.empty()) {
+        const auto applied = tools->applyExternalNumeric(paramKey, record.requestedValue, enableTool);
+        if (!applied.error.empty()) {
+            state.mutationCache.erase(reserved.first);
+            return error(applied.error.c_str(), "Numeric parameter could not be applied", applied.error == "BUSY");
+        }
+        record.effectiveValue = applied.value;
+        record.enabledTools = applied.enabledTools;
+    } else {
+        if (!tools->applyExternalExposure(record.requestedValue)) {
+            state.mutationCache.erase(reserved.first);
+            return error("INTERNAL_ERROR", "Exposure parameter could not be applied");
+        }
+        record.effectiveValue = tools->getExposureCompensation();
     }
     record.appliedRevision = state.currentRevision;
     record.viewRevision = state.currentViewRevision;
-    record.effectiveExpComp = tools->getExposureCompensation();
     record.completedTime = clock_();
     reserved.first->second = record;
     state.lastMutation = record;

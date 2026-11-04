@@ -164,6 +164,7 @@ public:
     bool scrollPressed(GdkEventScroll *event);
 
     bool getIsProcessing() const { return isProcessing || !can_open_now(); }
+    void setLiveParamEnabled(bool enabled);
     void setIsProcessing() { isProcessing = true; }
 
     void updateProfiles(const Glib::ustring &printerProfile,

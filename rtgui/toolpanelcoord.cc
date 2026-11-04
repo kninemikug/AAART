@@ -641,7 +641,8 @@ void ToolPanelCoordinator::panelChanged(const rtengine::ProcEvent &event,
         return;
     }
 
-    int changeFlags = rtengine::RefreshMapper::getInstance()->getAction(event);
+    int changeFlags = rtengine::RefreshMapper::getInstance()->getAction(
+        numericFullRefresh_ ? rtengine::EvProfileChanged : event);
 
     ProcParams *params = ipc->beginUpdateParams();
 
@@ -910,6 +911,140 @@ bool ToolPanelCoordinator::applyExternalExposure(double expcomp)
     }
     exposure->setExpComp(expcomp, true);
     return true;
+}
+
+namespace {
+class NumericEvents final: public ToolPanelListener {
+public:
+    rtengine::ProcEvent event = rtengine::EvProfileChanged;
+    Glib::ustring description;
+    bool unsupported = false;
+    void panelChanged(const rtengine::ProcEvent &value,
+                      const Glib::ustring &text) override
+    {
+        event = value;
+        description = text;
+    }
+    void refreshPreview(const rtengine::ProcEvent &value) override { event = value; }
+    void setTweakOperator(rtengine::TweakOperator *) override { unsupported = true; }
+    void unsetTweakOperator(rtengine::TweakOperator *) override { unsupported = true; }
+};
+
+class NumericListeners {
+public:
+    NumericListeners(const std::vector<ToolPanel *> &panels, ToolPanelListener *listener)
+    {
+        for (auto *panel : panels) {
+            original_.emplace_back(panel, panel->getListener());
+            panel->setListener(listener);
+        }
+    }
+    ~NumericListeners() { restore(); }
+    void restore()
+    {
+        for (const auto &entry : original_) {
+            entry.first->enableListener();
+            entry.first->setListener(entry.second);
+        }
+        original_.clear();
+    }
+private:
+    std::vector<std::pair<ToolPanel *, ToolPanelListener *>> original_;
+};
+} // namespace
+
+std::vector<art::liveparam::NumericControl> ToolPanelCoordinator::numericControls() const
+{
+    return art::liveparam::collectNumericControls(toolPanels);
+}
+
+std::string ToolPanelCoordinator::numericContext() const
+{
+    return art::liveparam::numericContextId(toolPanels);
+}
+
+art::liveparam::NumericApplyResult ToolPanelCoordinator::applyExternalNumeric(
+    const std::string &id, double value, bool enableTool)
+{
+    using namespace art::liveparam;
+    NumericApplyResult result;
+    const auto controls = numericControls();
+    const auto find = [&](const std::vector<NumericControl> &list) {
+        return std::find_if(list.begin(), list.end(),
+            [&](const NumericControl &item) { return item.id == id; });
+    };
+    auto found = find(controls);
+    if (found == controls.end()) {
+        result.error = "UNSUPPORTED_PARAM";
+        return result;
+    }
+    if (!std::isfinite(value) || value < found->minimum || value > found->maximum) {
+        result.error = "INVALID_VALUE";
+        return result;
+    }
+    if (!ipc || ipc->hasTweakOperator() || std::any_of(controls.begin(), controls.end(),
+            [](const NumericControl &item) { return item.pending; })) {
+        result.error = "BUSY";
+        return result;
+    }
+    if (!found->available || (!found->enabled && !enableTool)) {
+        result.error = "TOOL_DISABLED";
+        return result;
+    }
+    ProcParams before;
+    for (auto *panel : toolPanels) {
+        panel->write(&before);
+    }
+    NumericEvents events;
+    NumericListeners listeners(toolPanels, &events);
+    const auto rollback = [&](bool ownerOnly = false) {
+        for (auto *panel : toolPanels) {
+            if (!ownerOnly || panel == found->owner) {
+                panel->read(&before);
+            }
+        }
+        result.enabledTools.clear();
+    };
+    try {
+        if (auto *tool = dynamic_cast<FoldableToolPanel *>(found->owner)) {
+            if (tool->getUseEnabled() && !tool->getEnabled()) {
+                tool->setEnabled(true);
+                tool->enabledChanged();
+                result.enabledTools.push_back(tool->getToolName());
+            }
+        }
+        // Enabling a tool may rebuild its controls. Never use a stale pointer.
+        auto current = numericControls();
+        auto target = find(current);
+        if (target == current.end() || !target->available) {
+            rollback(true);
+            result.error = "TOOL_DISABLED";
+            return result;
+        }
+        writeNumericControl(*target, value);
+        current = numericControls();
+        target = find(current);
+        if (target == current.end() || events.unsupported) {
+            rollback();
+            return result;
+        }
+        result.value = target->value;
+    } catch (...) {
+        rollback();
+        throw;
+    }
+    listeners.restore();
+    numericFullRefresh_ = true;
+    try {
+        panelChanged(events.event, events.description.empty()
+            ? Glib::ustring::format(result.value) : events.description);
+    } catch (...) {
+        numericFullRefresh_ = false;
+        throw;
+    }
+    numericFullRefresh_ = false;
+    result.error.clear();
+    return result;
 }
 
 void ToolPanelCoordinator::closeAllTools()

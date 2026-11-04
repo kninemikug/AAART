@@ -83,6 +83,7 @@ public:
     void setDefaults(double spos, double cpos, double hpos);
     void setPositions(double spos, double cpos, double hpos);
     void getPositions(double &spos, double &cpos, double &hpos);
+    void applyNumericValue(unsigned component, double value);
     void styleChanged(const Glib::RefPtr<Gtk::Style> &style);
     bool reset();
     void refresh();

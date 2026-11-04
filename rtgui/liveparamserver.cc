@@ -372,7 +372,7 @@ LiveParamServer &LiveParamServer::getInstance()
 LiveParamServer::LiveParamServer() {}
 LiveParamServer::~LiveParamServer() { stop(); }
 
-bool LiveParamServer::start()
+bool LiveParamServer::start(bool explicitlyEnabled)
 {
 #ifndef __APPLE__
     return false;
@@ -381,7 +381,7 @@ bool LiveParamServer::start()
         return true;
     }
     const char *env = g_getenv("ART_LIVE_PARAM");
-    if (!env || std::strcmp(env, "1")) {
+    if (!explicitlyEnabled && (!env || std::strcmp(env, "1"))) {
         return false;
     }
     stop();

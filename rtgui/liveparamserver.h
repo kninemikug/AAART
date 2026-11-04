@@ -12,7 +12,7 @@ class LiveParamServer {
 public:
     static LiveParamServer &getInstance();
 
-    bool start();
+    bool start(bool explicitlyEnabled = false);
     void stop();
 
     bool isRunning() const { return running_.load(std::memory_order_acquire); }

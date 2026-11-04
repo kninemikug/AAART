@@ -51,6 +51,7 @@
 #include "toneequalizer.h"
 #include "toolbar.h"
 #include "toolpanel.h"
+#include "numericcontrols.h"
 #include "vignetting.h"
 #include "whitebalance.h"
 #include <gtkmm.h>
@@ -204,6 +205,7 @@ protected:
     std::vector<MyExpander *> expList;
 
     bool hasChanged;
+    bool numericFullRefresh_ = false;
 
     void addPanel(Gtk::Box *where, FoldableToolPanel *panel, int level = 1);
     void foldThemAll(GdkEventButton *event);
@@ -275,6 +277,10 @@ public:
     bool isExposureEnabled() const;
     double getExposureCompensation() const;
     bool applyExternalExposure(double expcomp);
+    art::liveparam::NumericApplyResult applyExternalNumeric(
+        const std::string &id, double value, bool enableTool);
+    std::vector<art::liveparam::NumericControl> numericControls() const;
+    std::string numericContext() const;
 
     // update the "expanded" state of the Tools
     void updateToolState();

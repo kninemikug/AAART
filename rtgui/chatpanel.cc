@@ -4,6 +4,7 @@
 #include "guiutils.h"
 #include "multilangmgr.h"
 #include "options.h"
+#include <cstring>
 #include <glib/gstdio.h>
 
 namespace {
@@ -12,6 +13,27 @@ Glib::ustring settingFile()
     return Glib::build_filename(Options::user_config_dir, "artagent.ini");
 }
 } // namespace
+
+bool ChatPanel::liveExposureEnabledAtStartup()
+{
+#ifdef __APPLE__
+    try {
+        Glib::KeyFile saved;
+        if (Glib::file_test(settingFile(), Glib::FILE_TEST_EXISTS)) {
+            saved.load_from_file(settingFile());
+            if (saved.has_group("Chat") && saved.has_key("Chat", "live_exposure")) {
+                return saved.get_boolean("Chat", "live_exposure");
+            }
+        }
+    } catch (const Glib::Error &) {
+        return false;
+    }
+    const char *enabled = g_getenv("ART_LIVE_PARAM");
+    return enabled && std::strcmp(enabled, "1") == 0;
+#else
+    return false;
+#endif
+}
 
 ChatPanel::ChatPanel()
     : Gtk::Box(Gtk::ORIENTATION_VERTICAL, 8),
@@ -51,6 +73,16 @@ ChatPanel::ChatPanel()
     settingRow(0, M("CHAT_PYTHON"), python_, true);
     settingRow(1, M("CHAT_SOURCE"), source_, false);
     settingRow(2, M("CHAT_STORE"), store_, false);
+    live_exposure_.set_label(M("CHAT_LIVE_ALLOW"));
+    live_exposure_.set_name("ChatLiveExposure");
+    live_exposure_.get_accessible()->set_name(M("CHAT_LIVE_ALLOW"));
+    live_exposure_.set_sensitive(false);
+    settings_grid_.attach(live_exposure_, 0, 6, 2, 1);
+    live_help_.set_text(M("CHAT_LIVE_HELP"));
+    live_help_.set_xalign(0);
+    live_help_.set_line_wrap(true);
+    live_help_.set_max_width_chars(40);
+    settings_grid_.attach(live_help_, 0, 7, 2, 1);
     settings_.add(settings_grid_);
     pack_start(settings_, Gtk::PACK_SHRINK);
 
@@ -74,8 +106,9 @@ ChatPanel::ChatPanel()
     send_.signal_clicked().connect(sigc::mem_fun(*this, &ChatPanel::send));
     input_.signal_activate().connect(sigc::mem_fun(*this, &ChatPanel::send));
     cancel_.signal_clicked().connect([this]() {
+        const bool possibleEdit = connection_.mayHaveAppliedEdit();
         stop();
-        append(M("CHAT_TITLE"), M("CHAT_CANCELLED"));
+        append(M("CHAT_TITLE"), M(possibleEdit ? "CHAT_LIVE_CANCELLED" : "CHAT_CANCELLED"));
     });
     clear_.signal_clicked().connect([this]() {
         for (auto child : messages_.get_children()) {
@@ -90,6 +123,63 @@ ChatPanel::ChatPanel()
     });
     welcome();
     busy(false);
+}
+
+void ChatPanel::setLiveExposureControl(std::function<bool(bool)> control,
+                                        bool active)
+{
+    liveExposureControl_ = std::move(control);
+    live_exposure_.set_active(active);
+#ifdef __APPLE__
+    live_exposure_.set_sensitive(true);
+    liveExposureChanged_ = live_exposure_.signal_toggled().connect(
+        sigc::mem_fun(*this, &ChatPanel::liveExposureToggled));
+    if (liveExposureEnabledAtStartup() && !active) {
+        append(M("CHAT_TITLE"), M("CHAT_LIVE_START_ERROR"));
+    }
+#else
+    live_help_.set_text(M("CHAT_LIVE_UNAVAILABLE"));
+#endif
+}
+
+bool ChatPanel::saveSettings(bool includePermission)
+{
+    try {
+        Glib::KeyFile saved;
+        if (Glib::file_test(settingFile(), Glib::FILE_TEST_EXISTS)) {
+            saved.load_from_file(settingFile());
+        }
+        saved.set_string("Chat", "python", python_.get_text());
+        saved.set_string("Chat", "source", source_.get_text());
+        saved.set_string("Chat", "store", store_.get_text());
+        if (includePermission) {
+            saved.set_boolean("Chat", "live_exposure", live_exposure_.get_active());
+        }
+        saved.save_to_file(settingFile());
+        return true;
+    } catch (const Glib::Error &) {
+        append(M("CHAT_TITLE"), M("CHAT_SETTINGS_ERROR"));
+        return false;
+    }
+}
+
+void ChatPanel::liveExposureToggled()
+{
+    const bool enabled = live_exposure_.get_active();
+    const bool saved = saveSettings(true);
+    if (!saved && enabled) {
+        ConnectionBlocker block(liveExposureChanged_);
+        live_exposure_.set_active(!enabled);
+        return;
+    }
+    if (!liveExposureControl_ || !liveExposureControl_(enabled)) {
+        ConnectionBlocker block(liveExposureChanged_);
+        live_exposure_.set_active(!enabled);
+        saveSettings(true);
+        append(M("CHAT_TITLE"), M("CHAT_LIVE_START_ERROR"));
+    } else if (!saved) {
+        append(M("CHAT_TITLE"), M("CHAT_LIVE_SAVE_WARNING"));
+    }
 }
 
 void ChatPanel::settingRow(int row, const Glib::ustring &text,
@@ -179,15 +269,7 @@ void ChatPanel::send()
         append(M("CHAT_TITLE"), M("CHAT_CONNECTION_ERROR"));
         return;
     }
-    try {
-        Glib::KeyFile saved;
-        saved.set_string("Chat", "python", settings.python);
-        saved.set_string("Chat", "source", settings.source);
-        saved.set_string("Chat", "store", settings.store);
-        saved.save_to_file(settingFile());
-    } catch (const Glib::Error &) {
-        append(M("CHAT_TITLE"), M("CHAT_SETTINGS_ERROR"));
-    }
+    saveSettings(false);
     append(M("CHAT_YOU"), question);
     input_.set_text("");
     busy(true);

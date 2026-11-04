@@ -1130,6 +1130,39 @@ bool EditorPanel::can_open_now() const
                 ->is_running();
 }
 
+void EditorPanel::setLiveParamEnabled(bool enabled)
+{
+    if (!ipc) {
+        return;
+    }
+    auto &controller = art::liveparam::LiveParamController::getInstance();
+    ipc->setParameterUpdateListener(nullptr);
+    controller.unregisterEditor(this);
+    std::string sessionId;
+    std::string editorId;
+    if (enabled && controller.isEnabled()) {
+        editorId = controller.registerEditor(this, Glib::path_get_basename(fname));
+        sessionId = controller.getSessionId();
+    }
+    {
+        std::lock_guard<std::mutex> lock(liveParamOpenMutex_);
+        ++liveParamOpenGen_;
+        liveParamSessionId_ = sessionId;
+        liveParamEditorId_ = editorId;
+    }
+    if (!editorId.empty()) {
+        auto &crop = iareapanel->imageArea->mainCropWindow->cropHandler;
+        crop.resetLiveParamView();
+        if (crop.hasPendingNavigatorUpdate()) {
+            controller.onNavigatorDelay(this, true);
+        }
+        ipc->setParameterUpdateListener(this);
+        // Keep values and history; refresh under a newly tracked generation.
+        ipc->beginUpdateParams();
+        ipc->endUpdateParams(rtengine::EvProfileChanged);
+    }
+}
+
 void EditorPanel::open(Thumbnail *tmb, rtengine::InitialImage *isrc)
 {
     close();

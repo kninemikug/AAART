@@ -3,6 +3,8 @@
 #include <glibmm.h>
 #include <gio/gio.h>
 #include <memory>
+#include <functional>
+#include <cstdint>
 #include <sigc++/sigc++.h>
 #include <string>
 #include <vector>
@@ -11,6 +13,14 @@ struct ChatSettings {
     Glib::ustring python;
     Glib::ustring source;
     Glib::ustring store;
+};
+
+struct ChatLiveTarget {
+    std::string socketPath;
+    std::string sessionId;
+    std::string editorId;
+    int64_t revision = -1;
+    std::string numericContext;
 };
 
 struct ChatCitation {
@@ -37,9 +47,15 @@ public:
     ~ChatConnection();
     void send(const ChatSettings &settings, const Glib::ustring &question);
     void cancel();
+    void setLiveTargetProvider(std::function<ChatLiveTarget()> provider)
+    {
+        liveTargetProvider_ = std::move(provider);
+    }
+    bool mayHaveAppliedEdit() const;
     sigc::signal<void, const ChatReply &> completed;
 
 private:
+    std::function<ChatLiveTarget()> liveTargetProvider_;
     struct Job;
     std::shared_ptr<Job> job_;
     sigc::connection timeout_;

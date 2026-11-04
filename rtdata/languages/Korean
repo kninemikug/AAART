@@ -1,3 +1,11 @@
+CHAT_LIVE_UNKNOWN;응답을 확인하지 못했습니다. 사진 변경을 요청했다면 현재 값을 확인한 뒤 새로 요청해주세요.
+CHAT_LIVE_ALLOW;채팅으로 사진 수치 조정 허용
+CHAT_LIVE_HELP;사진을 열고 “채도를 20으로 설정해줘” 또는 “조정 가능한 항목 보여줘”라고 입력하세요. 꺼진 도구는 값을 적용할 때 함께 켭니다. 선택은 다음 실행에도 유지됩니다.
+CHAT_LIVE_START_ERROR;사진 수치 조정을 켜지 못했습니다. 설정은 꺼진 상태입니다. 연결을 확인한 뒤 다시 시도해주세요.
+CHAT_LIVE_UNAVAILABLE;채팅 사진 수치 조정은 현재 macOS에서 사용할 수 있습니다.
+CHAT_LIVE_SAVE_WARNING;이번 실행에서는 사진 수치 조정을 껐지만 선택을 저장하지 못했습니다. 다음 실행 시 설정을 확인해주세요.
+CHAT_LIVE_TIMEOUT;응답 시간이 초과되었습니다. 사진 변경을 요청했다면 현재 값을 확인한 뒤 새로 요청해주세요.
+CHAT_LIVE_CANCELLED;응답 대기를 중지했습니다. 사진 변경을 요청했다면 현재 값을 확인해주세요. 이미 반영된 편집은 유지됩니다.
 #00 Korea - Korean
 CHAT_ANSWER;답변
 CHAT_CANCELLED;요청을 취소했습니다.
@@ -18,7 +26,7 @@ CHAT_STORE;검색 저장소 폴더
 CHAT_TIMEOUT;응답 시간이 초과되었습니다. 다시 시도해주세요.
 CHAT_TITLE;채팅
 CHAT_TOGGLE;채팅 패널 열기·접기
-CHAT_WELCOME;ART 사용법과 보정 방법을 질문해보세요. 답변에 출처를 함께 표시합니다. 프로필 적용·재조정은 아직 지원하지 않습니다.
+CHAT_WELCOME;ART 사용법과 보정 방법을 질문해보세요. 답변에 출처를 함께 표시합니다. 사진 수치 조정을 허용하면 “채도를 20으로 설정해줘”, “조정 가능한 항목 보여줘”를 사용할 수 있습니다. 꺼진 도구는 함께 켭니다. 일반 프로필 적용은 아직 지원하지 않습니다.
 CHAT_WORKING;답변을 준비하고 있습니다…
 CHAT_YOU;나
 #01 2021-10-22 Ohnishi, Yasuo, initial translation for 1.10.1

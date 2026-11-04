@@ -755,6 +755,19 @@ void ThresholdSelector::findLitCursor(int posX, int posY)
     }
 }
 
+void ThresholdSelector::numericRange(unsigned component, double &minimum,
+                                     double &maximum, double &step)
+{
+    const auto previous = movedCursor;
+    const auto secondary = secondaryMovedCursor;
+    movedCursor = static_cast<ThreshCursorId>(component);
+    secondaryMovedCursor = TS_UNDEFINED;
+    findBoundaries(minimum, maximum);
+    movedCursor = previous;
+    secondaryMovedCursor = secondary;
+    step = std::pow(10.0, -double(component % 2 ? precisionTop : precisionBottom));
+}
+
 void ThresholdSelector::findBoundaries(double &min, double &max)
 {
 

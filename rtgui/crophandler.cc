@@ -621,6 +621,17 @@ void CropHandler::getWindow(int &x, int &y, int &w, int &h, int &skip,
     generation = viewport_.generation;
 }
 
+void CropHandler::resetLiveParamView()
+{
+    // A new permission session must publish its own view identity even when
+    // the window geometry is unchanged from the previous session.
+    {
+        MyMutex::MyLock lock(cimg);
+        viewport_.revision = -1;
+    }
+    publishViewport();
+}
+
 void CropHandler::publishViewport()
 {
     if (!ipc) {

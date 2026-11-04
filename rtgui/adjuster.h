@@ -141,9 +141,14 @@ public:
     double getStepValue() const { return vStep; }
 
     void setLabel(Glib::ustring lbl) { label->set_label(lbl); }
-    Glib::ustring getLabel() const { return label->get_label(); }
+    Glib::ustring getLabel() const
+    {
+        return label ? label->get_label() : adjustmentName;
+    }
 
     void setValue(double a);
+    void applyNumericValue(double value);
+    bool hasPendingNumericChange() const { return eventPending; }
     void setLimits(double vmin, double vmax, double vstep, double vdefault);
     void setEnabled(bool enabled);
     void setDefault(double def, bool hard = false);
