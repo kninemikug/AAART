@@ -228,6 +228,10 @@ public:
     void setBgCurveProvider(ThresholdCurveProvider *provider);
     bool isStartAtOne() { return initalEq1; }
     bool isDouble() { return doubleThresh; }
+    bool numericComponentActive(unsigned component) const
+    {
+        return component % 2 ? active_top_ : active_bot_;
+    }
     void numericRange(unsigned component, double &minimum, double &maximum,
                       double &step);
     void styleChanged(const Glib::RefPtr<Gtk::Style> &style);

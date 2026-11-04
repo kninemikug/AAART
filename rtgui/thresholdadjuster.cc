@@ -246,6 +246,20 @@ void ThresholdAdjuster::setValue(double bottom, double top)
     afterReset = false;
 }
 
+void ThresholdAdjuster::applyNumericValue(unsigned component, double value)
+{
+    delayConnection.disconnect();
+    double positions[4];
+    tSelector.getPositions(positions[0], positions[1], positions[2], positions[3]);
+    positions[component] = value;
+    if (tSelector.isDouble()) {
+        setValue(positions[0], positions[1], positions[2], positions[3]);
+    } else {
+        setValue(positions[0], positions[1]);
+    }
+    sendToListener();
+}
+
 void ThresholdAdjuster::setValue(double bottomLeft, double topLeft,
                                  double bottomRight, double topRight)
 {

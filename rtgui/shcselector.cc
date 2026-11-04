@@ -115,6 +115,15 @@ void SHCSelector::getPositions(double &spos, double &cpos, double &hpos)
     hpos = positions[2];
 }
 
+void SHCSelector::applyNumericValue(unsigned component, double value)
+{
+    positions[component] = value;
+    queue_draw();
+    if (cl) {
+        cl->shcChanged();
+    }
+}
+
 void SHCSelector::on_realize()
 {
 

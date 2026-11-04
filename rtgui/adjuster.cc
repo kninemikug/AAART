@@ -565,6 +565,15 @@ void Adjuster::setAutoValue(bool a)
     }
 }
 
+void Adjuster::applyNumericValue(double value)
+{
+    delayConnection.disconnect();
+    eventPending = false;
+    setValue(value);
+    setAutoValue(false);
+    forceNotifyListener();
+}
+
 bool Adjuster::notifyListener()
 {
 

@@ -2405,6 +2405,77 @@ bool test_t19_numeric_catalog(RTWindow *win, const std::string &directory)
     return true;
 }
 
+bool test_t20_numeric_apply(RTWindow *win, const std::string &directory)
+{
+    std::cout << "[T20] Numeric GUI transaction, activation and linked values" << std::endl;
+    FrameFixture fixture{nullptr, art::liveparam::LiveParamController::getInstance()};
+    GUI_ASSERT(fixture.open(win, directory, "t20"), "numeric application photo opened");
+    auto *tools = fixture.panel->getToolPanelCoordinator();
+    const auto find = [&](const std::string &family, const std::string &label) {
+        for (const auto &control : tools->numericControls()) {
+            if (control.tool == family && control.label.find(label) != std::string::npos) {
+                return control;
+            }
+        }
+        return art::liveparam::NumericControl();
+    };
+    const auto saturation = find("saturation", M("TP_SATURATION_SATURATION"));
+    GUI_ASSERT(saturation.owner, "saturation binding exists");
+    auto *saturationTool = dynamic_cast<FoldableToolPanel *>(saturation.owner);
+    saturationTool->setEnabled(false);
+    saturationTool->enabledChanged();
+    GUI_ASSERT(waitUntilIdle(fixture.panel), "disabled tool fixture settled");
+    const auto history = fixture.panel->getHistory()->getHistorySize();
+    const auto revision = fixture.field("revision");
+    rtengine::procparams::ProcParams before;
+    fixture.panel->getImageProcessor()->getCommittedParams(&before);
+    GUI_ASSERT(tools->applyExternalNumeric(saturation.id, 101, true).error == "INVALID_VALUE" &&
+               !saturationTool->getEnabled(), "invalid value cannot enable a disabled tool");
+    GUI_ASSERT(tools->applyExternalNumeric(saturation.id, 20, false).error == "TOOL_DISABLED" &&
+               fixture.panel->getHistory()->getHistorySize() == history &&
+               fixture.field("revision") == revision, "activation needs explicit permission");
+    const auto applied = tools->applyExternalNumeric(saturation.id, 20, true);
+    GUI_ASSERT(applied.error.empty() && applied.value == 20 && applied.enabledTools.size() == 1 &&
+               waitUntilIdle(fixture.panel), "one request enables saturation and applies its value");
+    rtengine::procparams::ProcParams after;
+    fixture.panel->getImageProcessor()->getCommittedParams(&after);
+    auto expected = before;
+    expected.saturation.enabled = true;
+    expected.saturation.saturation = 20;
+    GUI_ASSERT(after == expected && fixture.panel->getHistory()->getHistorySize() == history + 1 &&
+               fixture.field("revision") == revision + 1,
+               "activation and value create exactly one history row and committed revision");
+    const auto temperature = find("whitebalance", M("TP_WBALANCE_TEMPERATURE"));
+    GUI_ASSERT(!temperature.id.empty() &&
+               tools->applyExternalNumeric(temperature.id, 6500, true).error.empty() &&
+               waitUntilIdle(fixture.panel), "white balance follows its native numeric callback");
+    fixture.panel->getImageProcessor()->getCommittedParams(&after);
+    GUI_ASSERT(after.wb.temperature == 6500 && after.wb.method == rtengine::procparams::WBParams::CUSTOM_TEMP,
+               "temperature update selects the native custom-temperature method");
+    const auto width = find("resize", M("TP_RESIZE_W"));
+    GUI_ASSERT(!width.id.empty() && tools->applyExternalNumeric(width.id, 1000, true).error.empty() &&
+               waitUntilIdle(fixture.panel), "standalone numeric spin follows native resize handling");
+    fixture.panel->getImageProcessor()->getCommittedParams(&after);
+    GUI_ASSERT(after.resize.enabled && after.resize.width == 1000, "resize state contains the requested width");
+    bool mandatoryToolChecked = false;
+    for (const auto &control : tools->numericControls()) {
+        auto *tool = dynamic_cast<FoldableToolPanel *>(control.owner);
+        if (tool && !tool->getUseEnabled() && control.available) {
+            const auto unchanged = tools->applyExternalNumeric(control.id, control.value, false);
+            GUI_ASSERT(unchanged.error.empty() && unchanged.enabledTools.empty() &&
+                       waitUntilIdle(fixture.panel), "always-active tools need no artificial activation");
+            mandatoryToolChecked = true;
+            break;
+        }
+    }
+    GUI_ASSERT(mandatoryToolChecked, "a tool without an enable checkbox is covered");
+    GUI_ASSERT(tools->applyExternalNumeric("missing-control", 1, true).error == "UNSUPPORTED_PARAM",
+               "unknown controls are never treated as arbitrary profile keys");
+    fixture.panel->close();
+    std::cout << "  -> [T20] PASSED!" << std::endl;
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -2432,6 +2503,7 @@ int main(int argc, char **argv)
         {"T17", test_t17_selected_tab},
         {"T18", test_t18_live_exposure_setting},
         {"T19", test_t19_numeric_catalog},
+        {"T20", test_t20_numeric_apply},
     };
     std::set<std::string> selected;
     for (int i = 1; i < argc; ++i) {

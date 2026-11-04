@@ -130,7 +130,7 @@ void collect(Gtk::Widget *widget, Gtk::Widget *root, ToolPanel *owner,
     control.tool = owner->getToolName();
     control.toolLabel = owner->getExpander()
         ? textOf(owner->getExpander()->getLabelWidget()) : control.tool;
-    control.enabled = !foldable || foldable->getEnabled();
+    control.enabled = !foldable || !foldable->getUseEnabled() || foldable->getEnabled();
     control.available = available(widget, control.enabled);
     control.widget = widget;
     control.owner = owner;
@@ -150,6 +150,7 @@ void collect(Gtk::Widget *widget, Gtk::Widget *root, ToolPanel *owner,
         control.maximum = spin->get_adjustment()->get_upper();
         control.step = adjuster->getStepValue();
         control.value = adjuster->getValue();
+        control.pending = adjuster->hasPendingNumericChange();
         control.label = adjuster->getLabel();
         if (control.label.empty()) {
             control.label = labelFor(widget);
@@ -165,6 +166,8 @@ void collect(Gtk::Widget *widget, Gtk::Widget *root, ToolPanel *owner,
         for (unsigned i = 0; i < (selector->isDouble() ? 4u : 2u); ++i) {
             auto component = control;
             component.kind = NumericControl::Kind::THRESHOLD;
+            component.pending = threshold->hasPendingNumericChange();
+            component.available = component.available && selector->numericComponentActive(i);
             component.component = i;
             component.id += "/" + std::to_string(i);
             const char *names[] = {"Bottom left", "Top left", "Bottom right", "Top right"};
@@ -207,6 +210,7 @@ void collect(Gtk::Widget *widget, Gtk::Widget *root, ToolPanel *owner,
         for (unsigned i = 0; i < (hs ? 2u : 3u); ++i) {
             auto component = control;
             component.kind = NumericControl::Kind::WHEEL;
+            component.pending = wheel->hasPendingNumericChange();
             component.component = i;
             component.id += "/" + std::to_string(i);
             component.label = i == 0 ? M("TP_COLORCORRECTION_H").raw()
@@ -309,6 +313,30 @@ std::string numericContextId(const std::vector<ToolPanel *> &panels)
     std::unique_ptr<gchar, decltype(&g_free)> digest(
         g_compute_checksum_for_string(G_CHECKSUM_SHA256, bytes.c_str(), bytes.size()), g_free);
     return digest.get();
+}
+
+void writeNumericControl(const NumericControl &control, double value)
+{
+    switch (control.kind) {
+    case NumericControl::Kind::ADJUSTER:
+        dynamic_cast<Adjuster *>(control.widget)->applyNumericValue(value);
+        break;
+    case NumericControl::Kind::SPIN:
+        dynamic_cast<Gtk::SpinButton *>(control.widget)->set_value(value);
+        break;
+    case NumericControl::Kind::RANGE:
+        dynamic_cast<Gtk::Range *>(control.widget)->set_value(value);
+        break;
+    case NumericControl::Kind::THRESHOLD:
+        dynamic_cast<ThresholdAdjuster *>(control.widget)->applyNumericValue(control.component, value);
+        break;
+    case NumericControl::Kind::SHC:
+        dynamic_cast<SHCSelector *>(control.widget)->applyNumericValue(control.component, value);
+        break;
+    case NumericControl::Kind::WHEEL:
+        dynamic_cast<ColorWheel *>(control.widget)->applyNumericValue(control.component, value);
+        break;
+    }
 }
 
 } // namespace liveparam

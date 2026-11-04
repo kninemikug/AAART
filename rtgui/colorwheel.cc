@@ -515,6 +515,36 @@ void ColorWheel::scaleChanged()
         options.adjusterMaxDelay);
 }
 
+void ColorWheel::applyNumericValue(unsigned component, double value)
+{
+    timerconn.disconnect();
+    if (auto *wheel = dynamic_cast<HueSatColorWheel *>(this)) {
+        double hue, saturation;
+        wheel->getParams(hue, saturation);
+        wheel->setParams(component == 0 ? value : hue,
+                         component == 1 ? value : saturation, true);
+        return;
+    }
+    double x, y, factor;
+    getParams(x, y, factor);
+    if (component == 2) {
+        ConnectionBlocker block(scaleconn);
+        if (scale) {
+            scale->set_value(value);
+        }
+        grid.setScale(value, true);
+        return;
+    }
+    double hue = std::atan2(y, x);
+    double saturation = std::hypot(x, y);
+    if (component == 0) {
+        hue = value * rtengine::RT_PI / 180;
+    } else {
+        saturation = value / 100;
+    }
+    setParams(saturation * std::cos(hue), saturation * std::sin(hue), factor, true);
+}
+
 void ColorWheel::getParams(double &x, double &y, double &s) const
 {
     grid.getParams(x, y);

@@ -147,6 +147,8 @@ public:
     }
 
     void setValue(double a);
+    void applyNumericValue(double value);
+    bool hasPendingNumericChange() const { return eventPending; }
     void setLimits(double vmin, double vmax, double vstep, double vdefault);
     void setEnabled(bool enabled);
     void setDefault(double def, bool hard = false);

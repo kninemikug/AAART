@@ -205,6 +205,7 @@ protected:
     std::vector<MyExpander *> expList;
 
     bool hasChanged;
+    bool numericFullRefresh_ = false;
 
     void addPanel(Gtk::Box *where, FoldableToolPanel *panel, int level = 1);
     void foldThemAll(GdkEventButton *event);
@@ -276,6 +277,8 @@ public:
     bool isExposureEnabled() const;
     double getExposureCompensation() const;
     bool applyExternalExposure(double expcomp);
+    art::liveparam::NumericApplyResult applyExternalNumeric(
+        const std::string &id, double value, bool enableTool);
     std::vector<art::liveparam::NumericControl> numericControls() const
     {
         return art::liveparam::collectNumericControls(toolPanels);

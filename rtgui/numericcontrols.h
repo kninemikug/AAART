@@ -29,9 +29,16 @@ struct NumericControl {
     unsigned component = 0;
 };
 
+struct NumericApplyResult {
+    std::string error = "INTERNAL_ERROR";
+    double value = 0;
+    std::vector<std::string> enabledTools;
+};
+
 std::vector<NumericControl> collectNumericControls(
     const std::vector<ToolPanel *> &panels);
 std::string numericContextId(const std::vector<ToolPanel *> &panels);
+void writeNumericControl(const NumericControl &control, double value);
 
 } // namespace liveparam
 } // namespace art

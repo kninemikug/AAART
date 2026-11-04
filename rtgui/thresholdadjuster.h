@@ -116,6 +116,8 @@ public:
 
     void setBgCurveProvider(ThresholdCurveProvider *provider);
     ThresholdSelector *getThresholdSelector() { return &tSelector; };
+    bool hasPendingNumericChange() const { return delayConnection.connected(); }
+    void applyNumericValue(unsigned component, double value);
     Glib::ustring getNumericLabel() const
     {
         return label ? label->get_text() : Glib::ustring();

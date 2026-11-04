@@ -60,6 +60,7 @@ public:
 
     void setScale(double s, bool notify);
     double getScale() const;
+    bool hasPendingNumericChange() const { return delayconn.connected(); }
 
     bool on_draw(const ::Cairo::RefPtr<Cairo::Context> &crf) override;
     void on_style_updated() override;
@@ -119,6 +120,11 @@ public:
     void setEdited(bool yes) { grid.setEdited(yes); }
     bool getEdited() const { return grid.getEdited(); }
     void reset(bool toInitial) { grid.reset(toInitial); }
+    bool hasPendingNumericChange() const
+    {
+        return timerconn.connected() || grid.hasPendingNumericChange();
+    }
+    void applyNumericValue(unsigned component, double value);
     sigc::signal<void> signal_changed() { return grid.signal_changed(); }
 
     CursorShape getCursor(int objectID) override;

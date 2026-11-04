@@ -87,6 +87,7 @@ public:
     virtual void setExpanded(bool expanded) {}
     virtual bool getExpanded() { return false; }
     virtual void setListener(ToolPanelListener *tpl) { listener = tpl; }
+    ToolPanelListener *getListener() const { return listener; }
     virtual void setEditProvider(EditDataProvider *provider) {}
     virtual void read(const rtengine::procparams::ProcParams *pp) {}
     virtual void write(rtengine::procparams::ProcParams *pp) {}
