@@ -9,6 +9,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional, TypedDict
 
+from .rewrite import SearchInput
+
 
 class Path(str, Enum):
     """Processing paths for the ART Master Agent."""
@@ -191,6 +193,19 @@ class RetrievalBundle:
     snapshot_ref: str = ""
 
 
+@dataclass(frozen=True)
+class ResearchInput:
+    """현재 항목의 추가 시도에서 한 번 준비한 검색 입력."""
+
+    request_id: str
+    step_id: str
+    source_type: str
+    signature: str
+    search_input: SearchInput
+    settings: dict[str, Any]
+    phase: str = "PREPARED"  # "PREPARED" | "SEARCHED"
+
+
 @dataclass
 class Citation:
     """Citation reference for grounded answers."""
@@ -327,6 +342,9 @@ class AgentState(TypedDict, total=False):
     retrieval: Optional[RetrievalBundle]
     answer: Optional[AnswerResult]
     research_count: int
+    research_request_id: Optional[str]
+    research_input: Optional[ResearchInput]
+    search_settings: Optional[dict[str, Any]]
     clarification: Optional[Clarification]
     clarification_count: int
     clarification_field: Optional[str]
