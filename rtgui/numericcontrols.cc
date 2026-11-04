@@ -3,6 +3,7 @@
 #include "colorwheel.h"
 #include "coordinateadjuster.h"
 #include "multilangmgr.h"
+#include "popuptogglebutton.h"
 #include "shcselector.h"
 #include "thresholdadjuster.h"
 #include "toolpanel.h"
@@ -89,6 +90,21 @@ std::string labelFor(Gtk::Widget *widget)
     return "";
 }
 
+std::string titleOf(Gtk::Widget *widget)
+{
+    const auto label = textOf(widget);
+    if (!label.empty()) {
+        return label;
+    }
+    if (auto *container = dynamic_cast<Gtk::Container *>(widget)) {
+        for (auto *child : container->get_children()) {
+            const auto title = titleOf(child);
+            if (!title.empty()) { return title; }
+        }
+    }
+    return "";
+}
+
 bool available(Gtk::Widget *widget, bool enabled)
 {
     for (auto *node = widget; node; node = node->get_parent()) {
@@ -129,12 +145,24 @@ void collect(Gtk::Widget *widget, Gtk::Widget *root, ToolPanel *owner,
     control.id = widgetId(widget);
     control.tool = owner->getToolName();
     control.toolLabel = owner->getExpander()
-        ? textOf(owner->getExpander()->getLabelWidget()) : control.tool;
+        ? titleOf(owner->getExpander()->getLabelWidget()) : control.tool;
+    if (control.toolLabel.empty()) {
+        control.toolLabel = control.tool;
+    }
     control.enabled = !foldable || !foldable->getUseEnabled() || foldable->getEnabled();
     control.available = available(widget, control.enabled);
     control.widget = widget;
     control.owner = owner;
     const auto append = [&](NumericControl value) {
+        // Frames distinguish repeated channel/curve labels without exposing IDs.
+        for (auto *node = widget->get_parent(); node && node != root; node = node->get_parent()) {
+            if (auto *frame = dynamic_cast<Gtk::Frame *>(node)) {
+                const auto label = frame->get_label().raw();
+                if (!label.empty() && label != value.label) {
+                    value.label = label + (value.label.empty() ? "" : " / " + value.label);
+                }
+            }
+        }
         if (value.label.empty()) {
             value.label = "Value " + std::to_string(controls.size() + 1);
         }
@@ -151,11 +179,14 @@ void collect(Gtk::Widget *widget, Gtk::Widget *root, ToolPanel *owner,
         control.step = adjuster->getStepValue();
         control.value = adjuster->getValue();
         control.pending = adjuster->hasPendingNumericChange();
-        control.label = adjuster->getLabel();
+        control.label = widget->get_accessible()->get_name();
+        if (control.label.empty()) {
+            control.label = adjuster->getLabel();
+        }
         if (control.label.empty()) {
             control.label = labelFor(widget);
         }
-        if (control.tool == "exposure" && control.label == M("TP_EXPOSURE_EXPCOMP")) {
+        if (control.tool == "exposure" && adjuster->getLabel() == M("TP_EXPOSURE_EXPCOMP")) {
             control.id = "Exposure.Compensation";
         }
         append(control);
@@ -259,6 +290,12 @@ void contextWidgets(Gtk::Widget *widget, std::set<Gtk::Widget *> &visited,
     if (auto *combo = dynamic_cast<Gtk::ComboBox *>(widget)) {
         data << widgetId(widget) << ':' << combo->get_active_row_number() << '\n';
     }
+    if (auto *toggle = dynamic_cast<Gtk::ToggleButton *>(widget)) {
+        data << widgetId(widget) << ':' << toggle->get_active() << '\n';
+    }
+    if (auto *popup = dynamic_cast<PopUpToggleButton *>(widget)) {
+        data << widgetId(widget) << ':' << popup->getSelected() << '\n';
+    }
     if (auto *tree = dynamic_cast<Gtk::TreeView *>(widget)) {
         data << widgetId(widget) << ':';
         for (const auto &path : tree->get_selection()->get_selected_rows()) {
@@ -321,14 +358,20 @@ void writeNumericControl(const NumericControl &control, double value)
     case NumericControl::Kind::ADJUSTER:
         dynamic_cast<Adjuster *>(control.widget)->applyNumericValue(value);
         break;
-    case NumericControl::Kind::SPIN:
-        dynamic_cast<Gtk::SpinButton *>(control.widget)->set_value(value);
+    case NumericControl::Kind::SPIN: {
+        auto *spin = dynamic_cast<Gtk::SpinButton *>(control.widget);
+        spin->set_value(value);
+        // Commit the displayed precision through GTK, as a typed edit does.
+        // Integer fields must not acknowledge a fractional value they discard.
+        spin->update();
         break;
+    }
     case NumericControl::Kind::RANGE:
         dynamic_cast<Gtk::Range *>(control.widget)->set_value(value);
         break;
     case NumericControl::Kind::THRESHOLD:
-        dynamic_cast<ThresholdAdjuster *>(control.widget)->applyNumericValue(control.component, value);
+        dynamic_cast<ThresholdAdjuster *>(control.widget)->applyNumericValue(control.component,
+            std::round(value / control.step) * control.step);
         break;
     case NumericControl::Kind::SHC:
         dynamic_cast<SHCSelector *>(control.widget)->applyNumericValue(control.component, value);

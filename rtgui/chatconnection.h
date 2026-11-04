@@ -20,6 +20,7 @@ struct ChatLiveTarget {
     std::string sessionId;
     std::string editorId;
     int64_t revision = -1;
+    std::string numericContext;
 };
 
 struct ChatCitation {

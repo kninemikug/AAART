@@ -1,9 +1,9 @@
 CHAT_LIVE_UNKNOWN;Unable to confirm the response. If you requested a photo change, check its current value before sending another request.
-CHAT_LIVE_ALLOW;Allow exposure adjustment from chat
-CHAT_LIVE_HELP;Open a photo and enter “set exposure to 0.75 EV”. Your choice is saved for the next launch.
-CHAT_LIVE_START_ERROR;Unable to enable exposure adjustment. The setting is off; check the connection and try again.
-CHAT_LIVE_UNAVAILABLE;Exposure adjustment from chat is currently available on macOS.
-CHAT_LIVE_SAVE_WARNING;Exposure adjustment is off for this run, but the choice could not be saved. Check the setting when you next launch ART.
+CHAT_LIVE_ALLOW;Allow photo numeric adjustments from chat
+CHAT_LIVE_HELP;Open a photo and enter “set saturation to 20” or “list controls”. Disabled tools are enabled when applying a value. Your choice is saved.
+CHAT_LIVE_START_ERROR;Unable to enable photo numeric adjustments. The setting is off; check the connection and try again.
+CHAT_LIVE_UNAVAILABLE;Photo numeric adjustment from chat is currently available on macOS.
+CHAT_LIVE_SAVE_WARNING;Photo numeric adjustment is off for this run, but the choice could not be saved. Check the setting when you next launch ART.
 CHAT_LIVE_TIMEOUT;The response timed out. If you requested a photo change, check its current value before sending another request.
 CHAT_LIVE_CANCELLED;Stopped waiting for the response. If you requested a photo change, check its current value; an applied edit is retained.
 #00 default translation file
@@ -34,7 +34,7 @@ CHAT_STORE;Search database folder
 CHAT_TIMEOUT;The request timed out. Please try again.
 CHAT_TITLE;Chat
 CHAT_TOGGLE;Show or hide the chat panel
-CHAT_WELCOME;Ask about ART's features and editing techniques. Answers include sources. With live exposure enabled, use “set exposure to 0.75 EV”. General profile application is not supported yet.
+CHAT_WELCOME;Ask about ART's features and editing techniques. Answers include sources. Enable photo numeric adjustments, then use “set saturation to 20” or “list controls”. Disabled tools are enabled with the edit. General profile application is not supported yet.
 CHAT_WORKING;Preparing your answer…
 CHAT_YOU;You
 ADJUSTER_RESET_TO_DEFAULT;<b>Click</b> - reset to default value.\n<b>Ctrl</b>+<b>click</b> - reset to last saved value.

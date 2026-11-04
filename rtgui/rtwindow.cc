@@ -596,6 +596,7 @@ RTWindow::RTWindow()
         target.sessionId = controller.getSessionId();
         target.editorId = editor->getEditorId();
         target.revision = static_cast<int64_t>(revision->valuedouble);
+        target.numericContext = editor->getToolPanelCoordinator()->numericContext();
         return target;
     });
     reveal->add(*chatpanel_);

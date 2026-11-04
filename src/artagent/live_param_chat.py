@@ -38,6 +38,11 @@ def _response(request_id, status, message, code=None):
 
 def try_apply(text, context, request_id):
     """Return None for ordinary questions; never infer edits from answer text."""
+    from .numeric_chat import try_numeric
+    # Existing four-field clients retain the original exposure-only contract.
+    # The native GUI now freezes the numeric binding as a fifth field.
+    if isinstance(context, dict) and "numeric_context_id" in context:
+        return try_numeric(text, context, request_id)
     try:
         value = _value(text)
     except ValueError:
@@ -45,7 +50,7 @@ def try_apply(text, context, request_id):
             "노출 절대값을 -12~12 EV의 숫자로 지정해주세요. 예: /exposure 0.75",
             "INVALID_VALUE")
     if value is None:
-        return None
+        return try_numeric(text, context, request_id)
     try:
         required = {"socket_path", "session_id", "editor_id", "base_revision"}
         if not isinstance(context, dict) or set(context) != required:

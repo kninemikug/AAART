@@ -136,6 +136,9 @@ void ChatConnection::send(const ChatSettings &settings,
             cJSON_AddStringToObject(context, "session_id", target.sessionId.c_str());
             cJSON_AddStringToObject(context, "editor_id", target.editorId.c_str());
             cJSON_AddNumberToObject(context, "base_revision", target.revision);
+            if (!target.numericContext.empty()) {
+                cJSON_AddStringToObject(context, "numeric_context_id", target.numericContext.c_str());
+            }
             job->hasLiveTarget = true;
         }
     }

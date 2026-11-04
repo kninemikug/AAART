@@ -151,6 +151,7 @@ BlackWhite::BlackWhite()
         new Adjuster(/*M("TP_BWMIX_RED")*/ "", -100, 200, 1, 33, imgIcon[0]));
 
     mixerRed->setAdjusterListener(this);
+    mixerRed->get_accessible()->set_name(M("TP_CHMIXER_RED"));
     mixerRed->set_tooltip_markup(M("TP_BWMIX_RGB_TOOLTIP"));
     mixerRed->show();
     mixerVBox->pack_start(*mixerRed, Gtk::PACK_SHRINK, 0);
@@ -159,6 +160,7 @@ BlackWhite::BlackWhite()
         new Adjuster(/*M("TP_BWMIX_GREEN")*/ "", -100, 200, 1, 33, imgIcon[3]));
 
     mixerGreen->setAdjusterListener(this);
+    mixerGreen->get_accessible()->set_name(M("TP_CHMIXER_GREEN"));
     mixerGreen->set_tooltip_markup(M("TP_BWMIX_RGB_TOOLTIP"));
     mixerGreen->show();
     mixerVBox->pack_start(*mixerGreen, Gtk::PACK_SHRINK, 0);
@@ -167,6 +169,7 @@ BlackWhite::BlackWhite()
         new Adjuster(/*M("TP_BWMIX_BLUE")*/ "", -100, 200, 1, 33, imgIcon[5]));
 
     mixerBlue->setAdjusterListener(this);
+    mixerBlue->get_accessible()->set_name(M("TP_CHMIXER_BLUE"));
     mixerBlue->set_tooltip_markup(M("TP_BWMIX_RGB_TOOLTIP"));
     mixerBlue->show();
     mixerVBox->pack_start(*mixerBlue, Gtk::PACK_SHRINK, 0);
@@ -185,6 +188,7 @@ BlackWhite::BlackWhite()
                                         1, 0, imgIcon[8]));
 
     gammaRed->setAdjusterListener(this);
+    gammaRed->get_accessible()->set_name(M("TP_CHMIXER_RED"));
     gammaRed->set_tooltip_markup(M("TP_BWMIX_GAM_TOOLTIP"));
     gammaRed->show();
     gammaVBox->pack_start(*gammaRed, Gtk::PACK_SHRINK, 0);
@@ -193,6 +197,7 @@ BlackWhite::BlackWhite()
                                           100, 1, 0, imgIcon[9]));
 
     gammaGreen->setAdjusterListener(this);
+    gammaGreen->get_accessible()->set_name(M("TP_CHMIXER_GREEN"));
     gammaGreen->set_tooltip_markup(M("TP_BWMIX_GAM_TOOLTIP"));
     gammaGreen->show();
     gammaVBox->pack_start(*gammaGreen, Gtk::PACK_SHRINK, 0);
@@ -201,6 +206,7 @@ BlackWhite::BlackWhite()
                                          100, 1, 0, imgIcon[10]));
 
     gammaBlue->setAdjusterListener(this);
+    gammaBlue->get_accessible()->set_name(M("TP_CHMIXER_BLUE"));
     gammaBlue->set_tooltip_markup(M("TP_BWMIX_GAM_TOOLTIP"));
     gammaBlue->show();
     gammaVBox->pack_start(*gammaBlue, Gtk::PACK_SHRINK, 0);

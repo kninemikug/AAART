@@ -422,7 +422,7 @@ if(APPLE)
         )
     target_link_libraries(test_liveparam PRIVATE "-framework ApplicationServices -framework Foundation")
 
-    add_executable(test_liveparam_gui test_liveparam_gui.cc test_liveparam_socket.cc)
+    add_executable(test_liveparam_gui test_liveparam_gui.cc test_liveparam_socket.cc test_numericwidgets.cc)
     add_dependencies(test_liveparam_gui UpdateInfo)
     target_compile_definitions(test_liveparam_gui PUBLIC GUIVERSION ART_TEST_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
     set_target_properties(test_liveparam_gui PROPERTIES COMPILE_FLAGS "${CMAKE_CXX_FLAGS}")

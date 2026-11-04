@@ -751,6 +751,7 @@ ColorCorrection::ColorCorrection()
                              nullptr, nullptr, false, false));
         }
         lfactor[c]->setAdjusterListener(this);
+        lfactor[c]->get_accessible()->set_name(M("TP_COLORCORRECTION_L"));
         vb->pack_start(*lfactor[c]);
 
         f->add(*vb);

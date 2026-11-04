@@ -1,6 +1,4 @@
 """Numeric catalogue and mutation contracts over real Unix stream peers."""
-import copy
-
 import pytest
 
 from artagent.live_param import Client, LiveParamError

@@ -1,5 +1,6 @@
 #include "cachemanager.h"
 #include "chatpanel.h"
+#include "colorwheel.h"
 #include "config.h"
 #include "multilangmgr.h"
 #include "cropwindow.h"
@@ -19,6 +20,7 @@
 #include "rtwindow.h"
 #include "soundman.h"
 #include "toolpanelcoord.h"
+#include "thresholdadjuster.h"
 #include "test_liveparam_socket.h"
 #include "wbprovider.h"
 #include "../rtengine/cJSON.h"
@@ -48,6 +50,8 @@
 #include <unistd.h>
 
 extern Options options;
+bool testNumericWidgets();
+bool testNumericModes(const std::vector<ToolPanel *> &, const std::string &);
 using rtengine::FullPartialProfile;
 
 // Globals expected by rtgui_core (defined in main.cc for ART executable)
@@ -2551,6 +2555,196 @@ bool test_t21_numeric_protocol(RTWindow *win, const std::string &directory)
     return true;
 }
 
+bool test_t22_numeric_chat(RTWindow *win, const std::string &directory)
+{
+    std::cout << "[T22] Native chat numeric catalogue, activation and frozen context" << std::endl;
+    FrameFixture fixture{nullptr, art::liveparam::LiveParamController::getInstance()};
+    GUI_ASSERT(fixture.open(win, directory, "t22"), "numeric chat photo opened");
+    auto *tools = fixture.panel->getToolPanelCoordinator();
+    auto *panel = findWidget<ChatPanel>(win);
+    auto *input = panel ? chatInput(panel) : nullptr;
+    auto *settings = panel ? findWidget<Gtk::Grid>(panel) : nullptr;
+    GUI_ASSERT(input && settings, "real chat widgets available");
+    configureChatSettings(settings, directory);
+    auto begin = [&](const Glib::ustring &text) {
+        input->set_text(text);
+        g_signal_emit_by_name(input->gobj(), "activate");
+        return !input->get_sensitive();
+    };
+    auto finish = [&]() {
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(90);
+        while (!input->get_sensitive() && std::chrono::steady_clock::now() < deadline) {
+            pumpGuiEvents(10);
+        }
+        return input->get_sensitive() && waitUntilIdle(fixture.panel);
+    };
+    auto committed = [&]() {
+        rtengine::procparams::ProcParams p;
+        fixture.panel->getImageProcessor()->getCommittedParams(&p);
+        return p;
+    };
+    const auto initialRevision = fixture.field("revision");
+    const auto initialHistory = fixture.panel->getHistory()->getHistorySize();
+    GUI_ASSERT(begin("조정 가능한 항목 보여줘") && finish() &&
+               fixture.field("revision") == initialRevision &&
+               fixture.panel->getHistory()->getHistorySize() == initialHistory,
+               "catalogue uses real Python without search-store initialization or mutation");
+    GUI_ASSERT(begin("채도를 20으로 설정해줘") && finish(), "Korean saturation command completes");
+    auto parameters = committed();
+    std::cout << "  numeric chat: " << fixture.query() << " saturation=" << parameters.saturation.saturation
+        << " enabled=" << parameters.saturation.enabled << " history=" << initialHistory << "->"
+        << fixture.panel->getHistory()->getHistorySize() << std::endl;
+    GUI_ASSERT(parameters.saturation.enabled && parameters.saturation.saturation == 20 &&
+               fixture.field("revision") == initialRevision + 1 &&
+               fixture.panel->getHistory()->getHistorySize() == initialHistory + 1 &&
+               fixture.query().find("READY") != std::string::npos,
+               "disabled tool enable and native value produce one committed ready edit");
+    GUI_ASSERT(begin("색온도를 6500으로 설정해줘") && finish() &&
+               committed().wb.temperature == 6500, "Korean white balance name reaches the native tool");
+    GUI_ASSERT(begin("set resize width to 1000") && finish() &&
+               committed().resize.enabled && committed().resize.width == 1000,
+               "English standalone spin command reaches native resize handling");
+    GUI_ASSERT(begin("샤프닝 반경을 0.8로 설정해줘") && finish(), "Korean sharpening request finishes");
+    parameters = committed();
+    std::cout << "  sharpening: " << parameters.sharpening.method << " radius=" << parameters.sharpening.radius
+        << " deconv=" << parameters.sharpening.deconvradius << " enabled=" << parameters.sharpening.enabled << std::endl;
+    GUI_ASSERT(parameters.sharpening.enabled && std::fabs((parameters.sharpening.method == "rld"
+                   ? parameters.sharpening.deconvradius : parameters.sharpening.radius) - .8) < 1e-6,
+               "Korean tool-qualified command reaches sharpening");
+    GUI_ASSERT(begin("채도를 30으로 설정해줘"), "context race request starts");
+    // A GUI-only change need not increment the engine revision. The send-time
+    // digest must still prevent applying to a changed tool/region/curve binding.
+    for (const auto &control : tools->numericControls()) {
+        if (control.tool == "saturation" && control.label.find(M("TP_SATURATION_SATURATION")) != std::string::npos) {
+            dynamic_cast<Adjuster *>(control.widget)->setValue(21);
+            break;
+        }
+    }
+    const auto frozenRevision = fixture.field("revision");
+    GUI_ASSERT(finish() && committed().saturation.saturation == 20 &&
+               fixture.field("revision") == frozenRevision,
+               "changed GUI context cannot apply even when committed revision is unchanged");
+    fixture.panel->close();
+    GUI_ASSERT(begin("채도를 20으로 설정해줘") && finish(), "no-photo refusal completes through the chat");
+    std::cout << "  -> [T22] PASSED!" << std::endl;
+    return true;
+}
+
+bool test_t23_numeric_widgets(RTWindow *, const std::string &)
+{
+    std::cout << "[T23] Native compound controls, curve coordinates and dynamic LUT" << std::endl;
+    return testNumericWidgets();
+}
+
+bool test_t24_numeric_modes(RTWindow *win, const std::string &directory)
+{
+    std::cout << "[T24] Numeric catalogue across tool modes, curves and regions" << std::endl;
+    FrameFixture fixture{nullptr, art::liveparam::LiveParamController::getInstance()};
+    GUI_ASSERT(fixture.open(win, directory, "t24"), "mode inventory photo opened");
+    auto *tools = fixture.panel->getToolPanelCoordinator();
+    std::set<ToolPanel *> owners;
+    for (const auto &control : tools->numericControls()) { owners.insert(control.owner); }
+    const bool passed = testNumericModes({owners.begin(), owners.end()}, directory + "/t24-modes.tsv");
+    GUI_ASSERT(waitUntilIdle(fixture.panel) && passed, "all structural mode catalogues and local-region context pass");
+    fixture.panel->close();
+    std::cout << "  -> [T24] PASSED!" << std::endl;
+    return true;
+}
+
+bool test_t25_numeric_output(RTWindow *win, const std::string &directory)
+{
+    using namespace art::liveparam;
+    using namespace rtengine::procparams;
+    std::cout << "[T25] Numeric transactions match manual profiles and exported pixels" << std::endl;
+    FrameFixture fixture{nullptr, LiveParamController::getInstance()};
+    GUI_ASSERT(fixture.open(win, directory, "t25"), "output comparison photo opened");
+    auto *tools = fixture.panel->getToolPanelCoordinator();
+    auto *processor = fixture.panel->getImageProcessor();
+    ProcParams initial;
+    processor->getCommittedParams(&initial);
+    initial.saturation.enabled = initial.resize.enabled = initial.colorcorrection.enabled = false;
+    initial.sharpening.method = "usm";
+    initial.sharpening.enabled = false;
+    const auto reset = [&]() {
+        FullPartialProfile profile(initial);
+        tools->profileChange(&profile, rtengine::EvProfileChanged, "T25 baseline");
+        return waitUntilIdle(fixture.panel);
+    };
+    GUI_ASSERT(reset(), "controlled native baseline prepared");
+    struct Edit { std::string tool, label; NumericControl::Kind kind; unsigned component; double value; };
+    const Edit edits[] = {
+        {"saturation", M("TP_SATURATION_SATURATION"), NumericControl::Kind::ADJUSTER, 0, 20},
+        {"whitebalance", M("TP_WBALANCE_TEMPERATURE"), NumericControl::Kind::ADJUSTER, 0, 6500},
+        {"resize", M("TP_RESIZE_W"), NumericControl::Kind::SPIN, 0, 1000},
+        {"sharpening", "", NumericControl::Kind::THRESHOLD, 0, 10},
+        {"colorcorrection", "", NumericControl::Kind::WHEEL, 1, 20},
+    };
+    const auto find = [&](const Edit &edit) {
+        for (const auto &control : tools->numericControls()) {
+            if (control.tool == edit.tool && control.kind == edit.kind && control.component == edit.component &&
+                control.available && (edit.label.empty() || control.label.find(edit.label) != std::string::npos)) { return control; }
+        }
+        return NumericControl();
+    };
+    for (const auto &edit : edits) {
+        const auto control = find(edit);
+        const auto revision = fixture.field("revision");
+        const auto history = fixture.panel->getHistory()->getHistorySize();
+        GUI_ASSERT(control.widget && tools->applyExternalNumeric(control.id, edit.value, true).error.empty() &&
+                   waitUntilIdle(fixture.panel), "external representative numeric transaction applied");
+        GUI_ASSERT(fixture.field("revision") == revision + 1 &&
+                   fixture.panel->getHistory()->getHistorySize() == history + 1,
+                   "compound callbacks and tool activation create one revision and history row");
+    }
+    ProcParams external;
+    processor->getCommittedParams(&external);
+    external.save(nullptr, directory + "/t25-external.arp");
+    SaveFormat format("tif", 16, 16, false);
+    const auto externalImage = directory + "/t25-external.tif";
+    GUI_ASSERT(fixture.panel->saveImmediately(externalImage, format), "numeric GUI export saved");
+    GUI_ASSERT(reset(), "manual reference starts from the same baseline");
+    for (const auto &edit : edits) {
+        auto control = find(edit);
+        GUI_ASSERT(control.widget, "manual native control found");
+        auto *owner = dynamic_cast<FoldableToolPanel *>(control.owner);
+        if (owner && owner->getUseEnabled() && !owner->getEnabled()) {
+            owner->setEnabled(true);
+            owner->enabledChanged();
+            GUI_ASSERT(waitUntilIdle(fixture.panel), "manual tool enable settled");
+        }
+        control = find(edit);
+        if (auto *adjuster = dynamic_cast<Adjuster *>(control.widget)) {
+            adjuster->setValue(edit.value);
+            adjuster->setAutoValue(false);
+            adjuster->forceNotifyListener();
+        } else if (auto *spin = dynamic_cast<Gtk::SpinButton *>(control.widget)) {
+            spin->set_value(edit.value);
+            spin->update();
+        } else if (auto *threshold = dynamic_cast<ThresholdAdjuster *>(control.widget)) {
+            double positions[4];
+            auto *selector = threshold->getThresholdSelector();
+            selector->getPositions(positions[0], positions[1], positions[2], positions[3]);
+            positions[edit.component] = edit.value;
+            selector->setPositions(positions[0], positions[1], positions[2], positions[3]);
+            selector->signal_value_changed().emit();
+            pumpGuiEvents(options.adjusterMaxDelay + 100);
+        } else if (auto *wheel = dynamic_cast<ColorWheel *>(control.widget)) {
+            wheel->setParams(.2, 0, 1, true);
+        } else { GUI_ASSERT(false, "representative has a real manual native path"); }
+        GUI_ASSERT(waitUntilIdle(fixture.panel), "manual native value settled");
+    }
+    ProcParams manual;
+    processor->getCommittedParams(&manual);
+    manual.save(nullptr, directory + "/t25-manual.arp");
+    GUI_ASSERT(manual == external, "all serialized parameters match manual input exactly");
+    const auto manualImage = directory + "/t25-manual.tif";
+    GUI_ASSERT(fixture.panel->saveImmediately(manualImage, format) && equalTiffPixels(externalImage, manualImage),
+               "external and manual native edits export identical pixels (max_abs_diff=0)");
+    fixture.panel->close();
+    std::cout << "  -> [T25] PASSED! artifacts: " << directory << std::endl;
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -2580,6 +2774,10 @@ int main(int argc, char **argv)
         {"T19", test_t19_numeric_catalog},
         {"T20", test_t20_numeric_apply},
         {"T21", test_t21_numeric_protocol},
+        {"T22", test_t22_numeric_chat},
+        {"T23", test_t23_numeric_widgets},
+        {"T24", test_t24_numeric_modes},
+        {"T25", test_t25_numeric_output},
     };
     std::set<std::string> selected;
     for (int i = 1; i < argc; ++i) {

@@ -104,6 +104,10 @@ ChMixer::ChMixer()
         Gtk::manage(new Adjuster("", -RANGE, RANGE, 0.1, 100, imgIcon[8]));
 
     for (int i = 0; i < 3; i++) {
+        const Glib::ustring channels[] = {M("TP_CHMIXER_RED"), M("TP_CHMIXER_GREEN"), M("TP_CHMIXER_BLUE")};
+        red[i]->get_accessible()->set_name(channels[0] + " / " + channels[i]);
+        green[i]->get_accessible()->set_name(channels[1] + " / " + channels[i]);
+        blue[i]->get_accessible()->set_name(channels[2] + " / " + channels[i]);
         red[i]->setAdjusterListener(this);
         green[i]->setAdjusterListener(this);
         blue[i]->setAdjusterListener(this);
