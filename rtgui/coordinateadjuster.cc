@@ -186,6 +186,7 @@ void CoordinateAdjuster::setPos(std::vector<double> &pos)
 void CoordinateAdjuster::startNumericalAdjustment(
     const std::vector<Boundaries> &newBoundaries)
 {
+    ++numericBindingVersion_;
     for (size_t i = 0; i < axisAdjusters.size(); ++i) {
         Gtk::SpinButton *currSpinButton = axisAdjusters.at(i)->spinButton;
         currSpinButton->set_sensitive(true);
@@ -207,6 +208,7 @@ void CoordinateAdjuster::switchAdjustedPoint(
     if (status != CA_STATUS_EDITING) {
         return;
     }
+    ++numericBindingVersion_;
 
     for (size_t i = 0; i < axisAdjusters.size(); ++i) {
         AxisAdjuster *currAxis = axisAdjusters.at(i);
@@ -247,6 +249,7 @@ void CoordinateAdjuster::showMe(CoordinateProvider *provider)
 
 void CoordinateAdjuster::stopNumericalAdjustment()
 {
+    ++numericBindingVersion_;
     for (size_t i = 0; i < axisAdjusters.size(); ++i) {
         axisAdjusters.at(i)->spinButtonConn.block(true);
         axisAdjusters.at(i)->spinButton->set_sensitive(false);

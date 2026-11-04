@@ -116,6 +116,10 @@ public:
 
     void setBgCurveProvider(ThresholdCurveProvider *provider);
     ThresholdSelector *getThresholdSelector() { return &tSelector; };
+    Glib::ustring getNumericLabel() const
+    {
+        return label ? label->get_text() : Glib::ustring();
+    }
 
     template <typename T> rtengine::procparams::Threshold<T> getValue()
     {

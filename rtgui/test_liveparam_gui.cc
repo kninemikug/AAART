@@ -2360,6 +2360,51 @@ bool test_t18_live_exposure_setting(RTWindow *win, const std::string &directory)
     return true;
 }
 
+bool test_t19_numeric_catalog(RTWindow *win, const std::string &directory)
+{
+    std::cout << "[T19] All photo-tool numeric controls and stable context" << std::endl;
+    FrameFixture fixture{nullptr, art::liveparam::LiveParamController::getInstance()};
+    GUI_ASSERT(fixture.open(win, directory, "t19"), "numeric catalogue photo opened");
+    auto *tools = fixture.panel->getToolPanelCoordinator();
+    const auto controls = tools->numericControls();
+    std::unique_ptr<cJSON, decltype(&cJSON_Delete)> catalogue(cJSON_CreateArray(), cJSON_Delete);
+    std::set<std::string> ids;
+    std::set<std::string> families;
+    for (const auto &control : controls) {
+        GUI_ASSERT(ids.insert(control.id).second && !control.tool.empty() && !control.label.empty(),
+                   "numeric controls have unique identities and readable names");
+        GUI_ASSERT(std::isfinite(control.minimum) && std::isfinite(control.maximum) &&
+                   std::isfinite(control.value) && control.minimum <= control.maximum && control.step > 0,
+                   "numeric metadata comes from finite GUI ranges");
+        families.insert(control.tool);
+        auto *entry = cJSON_CreateObject();
+        cJSON_AddStringToObject(entry, "id", control.id.c_str());
+        cJSON_AddStringToObject(entry, "tool", control.tool.c_str());
+        cJSON_AddStringToObject(entry, "label", control.label.c_str());
+        cJSON_AddNumberToObject(entry, "kind", int(control.kind));
+        cJSON_AddNumberToObject(entry, "min", control.minimum);
+        cJSON_AddNumberToObject(entry, "max", control.maximum);
+        cJSON_AddBoolToObject(entry, "available", control.available);
+        cJSON_AddItemToArray(catalogue.get(), entry);
+    }
+    GUI_ASSERT(controls.size() > 150 && families.count("saturation") && families.count("whitebalance") &&
+               families.count("sharpening") && families.count("crop") && families.count("resize"),
+               "catalogue spans photo tools instead of an exposure whitelist");
+    GUI_ASSERT(ids.size() == tools->numericControls().size(), "repeated traversal does not duplicate nested fields");
+    const auto before = tools->numericContext();
+    GUI_ASSERT(before.size() == 64 && before == tools->numericContext(), "unchanged GUI has a stable context digest");
+    GUI_ASSERT(tools->applyExternalExposure(0.5) && waitUntilIdle(fixture.panel) &&
+               before != tools->numericContext(), "GUI changes invalidate the previous numeric context");
+    std::cout << "  Catalogue controls=" << controls.size() << " tools=" << families.size() << std::endl;
+    std::unique_ptr<char, decltype(&cJSON_free)> catalogueBytes(
+        cJSON_PrintUnformatted(catalogue.get()), cJSON_free);
+    std::ofstream(directory + "/t19-controls.json") << catalogueBytes.get();
+    std::cout << "  Catalogue: " << directory << "/t19-controls.json" << std::endl;
+    fixture.panel->close();
+    std::cout << "  -> [T19] PASSED!" << std::endl;
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -2386,6 +2431,7 @@ int main(int argc, char **argv)
         {"T16", test_t16_python_chat},
         {"T17", test_t17_selected_tab},
         {"T18", test_t18_live_exposure_setting},
+        {"T19", test_t19_numeric_catalog},
     };
     std::set<std::string> selected;
     for (int i = 1; i < argc; ++i) {

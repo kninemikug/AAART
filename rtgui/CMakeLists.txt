@@ -16,6 +16,7 @@ set(CLISOURCEFILES
 set(NONCLISOURCEFILES
     liveparamcontroller.cc
     liveparamserver.cc
+    numericcontrols.cc
     chatconnection.cc
     chatinput.cc
     chatpanel.cc

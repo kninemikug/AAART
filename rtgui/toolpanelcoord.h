@@ -51,6 +51,7 @@
 #include "toneequalizer.h"
 #include "toolbar.h"
 #include "toolpanel.h"
+#include "numericcontrols.h"
 #include "vignetting.h"
 #include "whitebalance.h"
 #include <gtkmm.h>
@@ -275,6 +276,14 @@ public:
     bool isExposureEnabled() const;
     double getExposureCompensation() const;
     bool applyExternalExposure(double expcomp);
+    std::vector<art::liveparam::NumericControl> numericControls() const
+    {
+        return art::liveparam::collectNumericControls(toolPanels);
+    }
+    std::string numericContext() const
+    {
+        return art::liveparam::numericContextId(toolPanels);
+    }
 
     // update the "expanded" state of the Tools
     void updateToolState();

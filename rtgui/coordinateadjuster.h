@@ -20,6 +20,7 @@
 #define _COORDINATEADJUSTER_
 
 #include <gtkmm.h>
+#include <cstdint>
 
 class CurveEditorSubGroup;
 
@@ -77,6 +78,7 @@ public:
 class CoordinateAdjuster: public Gtk::FlowBox {
 
 public:
+    uint64_t numericBindingVersion() const { return numericBindingVersion_; }
     //-------------------------------- AxisAdjuster -------------------
     class AxisAdjuster {
     private:
@@ -110,6 +112,7 @@ public:
     //---------------------------------------------------------------
 
 private:
+    uint64_t numericBindingVersion_ = 0;
     typedef enum {
         CA_STATUS_IDLE,
         CA_STATUS_EDITING,

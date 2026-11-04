@@ -228,6 +228,8 @@ public:
     void setBgCurveProvider(ThresholdCurveProvider *provider);
     bool isStartAtOne() { return initalEq1; }
     bool isDouble() { return doubleThresh; }
+    void numericRange(unsigned component, double &minimum, double &maximum,
+                      double &step);
     void styleChanged(const Glib::RefPtr<Gtk::Style> &style);
     unsigned int getPrecision() { return precisionTop; }
     void reset();
