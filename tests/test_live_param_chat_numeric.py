@@ -135,3 +135,35 @@ def test_namesake_tool_and_explicit_other_tool_remain_distinct(peer, text, expec
     response = try_apply(text, context(server), "same-label")
     assert response["status"] == "COMPLETED"
     assert next(r for r in server.requests if r["op"] == "set_param")["params"] == {expected: 20}
+
+
+@pytest.mark.parametrize("text,entry", [
+    ("채도를 20EV로 설정해줘", item()),
+    ("set saturation to 20K", item()),
+    ("set saturation to 20%", item()),
+    # Width can be in cm/inches in the native GUI. The catalogue does not
+    # publish that unit, so a px suffix cannot be interpreted safely.
+    ("set resize width to 20px", dict(item(), tool="resize", toolLabel="Resize", label="Width")),
+    ("색온도를 6500EV로 설정해줘", dict(item(), tool="whitebalance",
+        toolLabel="White Balance", label="Temperature", min=1500, max=60000)),
+])
+def test_unverified_units_never_reach_a_numeric_mutation(peer, text, entry):
+    server = peer(responder([entry]))
+    response = try_apply(text, context(server), "wrong-unit")
+    assert response["status"] == "FAILED", response
+    assert response["error"]["code"] == "INVALID_VALUE"
+    assert "단위" in response["message"]
+    assert all(r["op"] == "list_params" for r in server.requests)
+
+
+@pytest.mark.parametrize("text,entry,expected", [
+    ("노출을 0.75EV로 설정해줘", dict(item("Exposure.Compensation"),
+        tool="exposure", toolLabel="Exposure", label="Exposure compensation", min=-12, max=12), .75),
+    ("set temperature to 6500K", dict(item(), tool="whitebalance",
+        toolLabel="White Balance", label="Temperature", min=1500, max=60000), 6500),
+])
+def test_intrinsic_exposure_and_temperature_units_remain_supported(peer, text, entry, expected):
+    server = peer(responder([entry]))
+    response = try_apply(text, context(server), "known-unit")
+    assert response["status"] == "COMPLETED", response
+    assert next(r for r in server.requests if r["op"] == "set_param")["params"] == {entry["key"]: expected}

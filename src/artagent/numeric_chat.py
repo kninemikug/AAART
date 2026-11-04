@@ -11,11 +11,11 @@ from .live_param import Client, LiveParamError, Target
 
 NUMBER = r"[+-]?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?"
 COMMANDS = (
-    rf"(?P<name>.+?)(?:을|를)?\s*(?P<value>{NUMBER})\s*(?:EV|K|%|px|도)?\s*"
+    rf"(?P<name>.+?)(?:을|를)?\s*(?P<value>{NUMBER})\s*(?P<unit>EV|K|%|px|도)?\s*"
     r"(?:으로|로)\s*(?:설정|적용)(?:해\s*줘|해\s*주세요|해주세요|해|하세요)?[.!]?",
-    rf"set\s+(?P<name>.+?)\s+to\s+(?P<value>{NUMBER})(?:\s*(?:EV|K|%|px))?[.!]?",
+    rf"set\s+(?P<name>.+?)\s+to\s+(?P<value>{NUMBER})(?:\s*(?P<unit>EV|K|%|px))?[.!]?",
     rf"/set\s+(?P<name>.+?)\s+(?P<value>{NUMBER})",
-    rf"/exposure\s+(?P<value>{NUMBER})(?:\s*EV)?",
+    rf"/exposure\s+(?P<value>{NUMBER})(?:\s*(?P<unit>EV))?",
 )
 
 
@@ -104,14 +104,14 @@ def _parse(text):
         listing = re.fullmatch(r"list controls(?:\s+(?P<filter>.*?))?"
             r"(?:\s+page\s+(?P<page>[0-9]+))?", text, re.I)
     if listing:
-        return ("list", listing["filter"] or "", int(listing["page"] or 1))
+        return ("list", listing["filter"] or "", int(listing["page"] or 1), "")
     for pattern in COMMANDS:
         match = re.fullmatch(pattern, text, re.I)
         if match:
             name = match.groupdict().get("name") or "exposure"
             if re.search(r"\s(?:and|then|그리고)\s|하지\s*마", name, re.I):
                 return None
-            return ("set", name.strip(), float(match["value"]))
+            return ("set", name.strip(), float(match["value"]), match.groupdict().get("unit") or "")
     return None
 
 
@@ -126,7 +126,7 @@ def try_numeric(text, context, request_id):
     command = _parse(text)
     if command is None:
         return None
-    action, name, value = command
+    action, name, value, unit = command
     if action == "set" and not math.isfinite(value):
         return _response(request_id, "FAILED", "유한한 숫자의 절대값을 지정해주세요.", "INVALID_VALUE")
     try:
@@ -174,6 +174,14 @@ def try_numeric(text, context, request_id):
             return _response(request_id, "FAILED", "같은 이름의 항목이 여러 개입니다. 도구명이나 항목 번호를 함께 지정해주세요.\n"
                 + "\n".join(_row(i, e) for i, e in matches[:12]), "AMBIGUOUS_CONTROL")
         _, entry = matches[0]
+        # Units of generic controls can depend on the current mode (e.g. resize
+        # width). Only these intrinsic units are known from the current contract.
+        unit_known = ((unit.casefold() == "ev" and entry["key"] == "Exposure.Compensation")
+            or (unit.casefold() == "k" and entry["tool"] == "whitebalance"
+                and "temperature" in _aliases(entry["label"])))
+        if unit and not unit_known:
+            return _response(request_id, "FAILED", "지정한 단위를 현재 항목에서 확인할 수 없습니다. "
+                "GUI의 단위를 확인한 뒤 단위 없이 숫자만 지정해주세요. 단위 변환은 수행하지 않습니다.", "INVALID_VALUE")
         if not entry["available"] or entry["pending"] or not entry["min"] <= value <= entry["max"]:
             code = "BUSY" if entry["pending"] else "TOOL_DISABLED" if not entry["available"] else "INVALID_VALUE"
             return _response(request_id, "FAILED", "현재 모드·처리 상태와 입력 범위를 확인해주세요.\n"
