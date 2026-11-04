@@ -8,6 +8,7 @@ from dataclasses import asdict
 import json
 from pathlib import Path
 import sys
+from time import monotonic
 from typing import Any, Callable
 
 
@@ -130,6 +131,7 @@ def display_error(error: Any) -> dict | None:
 
 def process_request(payload: Any, graph_factory: Callable[[], Any]) -> dict:
     """Validate a request and serialize the router response."""
+    started = monotonic()
     request_id = (
         payload.get("request_id", "") if isinstance(payload, dict) else ""
     )
@@ -153,7 +155,8 @@ def process_request(payload: Any, graph_factory: Callable[[], Any]) -> dict:
     from artagent.graph import RequestInput, RuntimeCapabilities
     from artagent.answer import generation_time_budget
 
-    with generation_time_budget(GUI_GENERATION_BUDGET_SECONDS):
+    remaining = max(0.0, GUI_GENERATION_BUDGET_SECONDS - (monotonic() - started))
+    with generation_time_budget(remaining):
         result = graph_factory().invoke({
             "request": RequestInput(request_id=request_id, text=text.strip()),
             "capabilities": RuntimeCapabilities(search_ready=True),

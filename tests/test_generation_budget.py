@@ -12,7 +12,8 @@ from artagent import answer, gui_bridge
 from artagent.graph import create_answer_node, create_search_nodes
 
 
-def test_gui_retry_returns_structured_failure_before_outer_timeout(monkeypatch):
+@pytest.mark.parametrize("preparation", [0, 40])
+def test_gui_retry_returns_structured_failure_before_outer_timeout(monkeypatch, preparation):
     elapsed = [0.0]
     timeouts = []
     durations = iter([110, 110, 100])
@@ -23,6 +24,13 @@ def test_gui_retry_returns_structured_failure_before_outer_timeout(monkeypatch):
         {"status": "INSUFFICIENT_EVIDENCE", "answer": "아직 부족합니다.", "citation_ids": []},
     ])
     monkeypatch.setattr(answer, "monotonic", lambda: elapsed[0], raising=False)
+    monkeypatch.setattr(gui_bridge, "monotonic", lambda: elapsed[0], raising=False)
+
+    def prepare(*args):
+        elapsed[0] += preparation
+        return None
+
+    monkeypatch.setattr("artagent.live_param_chat.try_apply", prepare)
     monkeypatch.setenv("LLM_PROVIDER", "codex")
     monkeypatch.setattr("shutil.which", lambda name: "/fake/codex")
     monkeypatch.setattr(answer, "_get_codex_version", lambda binary: "test-version")
@@ -56,11 +64,11 @@ def test_gui_retry_returns_structured_failure_before_outer_timeout(monkeypatch):
         ),
     )
     assert elapsed[0] == 270
-    assert timeouts == [120, 120, 50]
+    assert timeouts == [120, 120, 50 - preparation]
     assert response["status"] == "FAILED"
     assert response["steps"][0]["error"]["code"] == "ANSWER_GENERATION_FAILED"
     assert store.search.call_count == 2
-    assert observations[-1]["trace"]["process_error"]["timeout_seconds"] == 50
+    assert observations[-1]["trace"]["process_error"]["timeout_seconds"] == 50 - preparation
 
 
 def test_version_probe_uses_remaining_time_and_exhaustion_never_sends_request(monkeypatch):
