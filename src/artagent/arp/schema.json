@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "T19 ART profile v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ppversion", "groups"],
+  "properties": {
+    "ppversion": {"type": "integer", "const": 1045},
+    "groups": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "Exposure": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["Enabled", "Compensation"],
+          "properties": {
+            "Enabled": {"type": "boolean", "const": true},
+            "Compensation": {"type": "number", "minimum": -12, "maximum": 12}
+          }
+        }
+      }
+    }
+  }
+}
