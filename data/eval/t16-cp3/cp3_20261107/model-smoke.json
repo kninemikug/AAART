@@ -1,0 +1,57 @@
+{
+  "raw": "{\"answer\": \"검증\", \"citation_ids\": []}",
+  "usage": {
+    "input_tokens": 13406,
+    "output_tokens": 14,
+    "total_tokens": 13420,
+    "cached_input_tokens": 12416,
+    "reasoning_output_tokens": 0
+  },
+  "meta": {
+    "llm_provider": "codex-cli",
+    "model_id": "gpt-5.6-sol",
+    "endpoint": "codex exec",
+    "generation_config": {
+      "temperature": null,
+      "prompt_version": "t16-rewrite-v1"
+    },
+    "_finish_reason": null,
+    "_trace": {
+      "trace_schema": "t11-codex-trace-v2",
+      "cli_version": "codex-cli 0.166.0",
+      "process_returncode": 0,
+      "execution_policy": {
+        "model_id": "gpt-5.6-sol",
+        "workdir_mode": "ephemeral_temp",
+        "sandbox": "read-only",
+        "ignore_user_config": true,
+        "config_overrides": {
+          "features.shell_tool": "false",
+          "features.unified_exec": "false",
+          "web_search": "\"disabled\""
+        },
+        "config_source": "cli_args",
+        "application_status": "confirmed",
+        "tools_enabled": false
+      },
+      "stdout_jsonl": "{\"type\":\"thread.started\",\"thread_id\":\"01a1b4d4-e112-7023-8c61-927cec709476\"}\n{\"type\":\"turn.started\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"agent_message\",\"text\":\"{\\\"answer\\\":\\\"검증\\\",\\\"citation_ids\\\":[]}\"}}\n{\"type\":\"turn.completed\",\"usage\":{\"input_tokens\":13406,\"cached_input_tokens\":12416,\"cache_write_input_tokens\":0,\"output_tokens\":14,\"reasoning_output_tokens\":0}}\n",
+      "stderr": "Reading additional input from stdin...\n",
+      "process_error": null,
+      "validation": {
+        "status": "verified",
+        "summary_status": "complete",
+        "summary_error": null,
+        "event_count": 4,
+        "thread_id": "01a1b4d4-e112-7023-8c61-927cec709476",
+        "turn_started_count": 1,
+        "turn_completed_count": 1,
+        "observed_item_types": [
+          "agent_message"
+        ],
+        "additional_tool_count": 0,
+        "error_reason": null
+      }
+    },
+    "_output_file_content": "{\"answer\":\"검증\",\"citation_ids\":[]}"
+  }
+}

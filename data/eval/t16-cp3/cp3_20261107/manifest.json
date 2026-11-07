@@ -1,0 +1,73 @@
+{
+  "code_commit": "4a1a9e21eba253901fff148f36326c35dd6bb871",
+  "code_hashes": {
+    "scripts/eval_t15_rerank.py": "50eda04569b04640a55f1315e8e0ab4731f479b9bea947adac1ce8be1e2d2829",
+    "scripts/t15_evaluation.py": "47483433b5db5406d7ad9ed28bbc2118b9eafab14fbd7a697b6ce40750e1c207",
+    "scripts/t15_answer_validation.py": "07615cf103116be8d6dcdc45674230d48cbef72bab3c432161ab9c73c570245c",
+    "scripts/t15_score_archive.py": "6ba9b17dad1f8bf92917d18ad3fc6a0278cb7b2586ccc9a69a9ac8b589e24df7",
+    "scripts/check_t14_graph_connection.py": "d3e75fbea4269e1c7b28507d68fe699ebac08eacd608f1208e0d73749e869175",
+    "scripts/run_t14_ab_eval.py": "12e518d5714ae180fd2981fe6f2481ce54fd559aefd1b0682697a8002cdeae7d",
+    "tests/test_router.py": "cab92ab2d8723f483f043a006132e4f36eb9a371e09670fb06260acfc58640fd",
+    "src/artagent/answer.py": "0ebe1610a8d588a6b15be3523e5280f41d1b18368eff40f08a0c13d02633ff5e",
+    "src/artagent/answer_validation.py": "4976f2a3accfc6ac7a008bd909a8e05faa307ea18f5c1d4c0548edddbeaa4488",
+    "src/artagent/retrieval/__init__.py": "a690a6d2e91c5bce11aba318bb949760711401ee9a5befa0b62473f0b06f09f3",
+    "src/artagent/retrieval/embedding.py": "9c1c670c75136f9d4cdc54851874cada6e0841f849e9768565d5600b30b5fa0e",
+    "src/artagent/retrieval/provenance.py": "d339cda46749f9db88fb73f09acc2c8b275f3a091ad29b40275ed576d403c204",
+    "src/artagent/retrieval/rerank.py": "cf48a0319689f323b10c8d362810f5d73f182805bf7bb284ee0b7f59453fbf88",
+    "src/artagent/retrieval/store.py": "405f847cec288a5790a25ed0ff8b05eb0c5b5d6314d31f32ad3b7599a7fbb3df",
+    "src/artagent/retrieval/types.py": "68d06c6c35f0ca420e72ca708c505ecd9af65f338019debd022dd0903716afb7",
+    "src/artagent/graph/__init__.py": "c1648aafc0fa6074a610d32859dcde605ad5f61fa489df0558aa9df878426cc0",
+    "src/artagent/graph/answer.py": "0a8202bbadda1c4f2cbedd02fcfe66ae1fbb975b1e18dbbdcfc838de3ef26ba6",
+    "src/artagent/graph/graph.py": "c466e060f588a2c7244f5dd14281cb66f6273b84f480ee970bc54087a817d011",
+    "src/artagent/graph/nodes.py": "e3f66df511372e2ec11303ef15f43ca54fb2a83a0cbf986881473302a6179d07",
+    "src/artagent/graph/research.py": "4ce374b07ff9339bd79c1b19332c31319805b38073555699fef79f94ad26d4ce",
+    "src/artagent/graph/rewrite.py": "d282071e35d2e220113c30d6333661edb6fa789fcb3f08f7c76d3057fdc54861",
+    "src/artagent/graph/router.py": "2cdb94b2ac1547c4e062b6a5329f36f3eacffcc5753938f4b45687c41fdf64fd",
+    "src/artagent/graph/search.py": "56091e17df34007def8d12f4747e56931a759bf2f45e9d8c7b5169acb6cdd2b3",
+    "src/artagent/graph/state.py": "e7b0863255b69ede779ccf6f86db1495255bd659e311b9402422a0da7f96ec9f"
+  },
+  "harness_sha256": "660ec1695b5844f7429492f2c2fbb5e08b0d1e14c251b30d60549af2135a6460",
+  "python": "3.14.3 (main, Feb  3 2026, 15:32:20) [Clang 17.0.0 (clang-1700.6.3.2)]",
+  "model": "gpt-5.6-sol",
+  "provider": "codex-cli",
+  "codex_version": "codex-cli 0.166.0",
+  "inputs": {
+    "docs/T08_2_t9_handoff_reference.json": "2c7081ba6a7c37b00735b0be2ef362f5b0c2a86cd41fe97bbb2a3b5ebdc195bc",
+    "docs/search_eval_queries.json": "91b7fb50b23c0514d3e3d24579cad32a07dc6dcc3c8a40774b9e2e9da0fa14e8",
+    "docs/T11_execution_records.jsonl": "5d3d9a7df432cbfac741d479c554aae69a6dfbc8039ed166331d7f5a8d1b64b7"
+  },
+  "settings": {
+    "rewrite_enabled": true,
+    "hyde_enabled": false,
+    "candidate_k": 20,
+    "top_k": 5,
+    "min_score": 0.5,
+    "rerank_weight": 0.25,
+    "reranker": "lexical_bm25"
+  },
+  "query_ids": [
+    "Q001",
+    "Q004",
+    "Q014",
+    "Q021",
+    "Q033",
+    "Q044",
+    "Q054",
+    "Q063",
+    "Q072",
+    "Q080",
+    "Q084",
+    "Q086",
+    "Q092",
+    "Q093",
+    "Q096"
+  ],
+  "scope_regressions": [
+    "Q010",
+    "Q077"
+  ],
+  "missing_case": {
+    "text": "GitHub Issue #999999999에서 보고한 ART 오류의 원인과 해결 방법은 무엇인가요?",
+    "kind": "고정 자료에 없는 지정 Issue의 정상 빈 검색"
+  }
+}

@@ -1,0 +1,5 @@
+store/
+gui-settings/
+gui-cache/
+*.log
+records.jsonl

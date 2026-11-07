@@ -1,0 +1,80 @@
+{
+  "date": "2026-11-07",
+  "gates": {
+    "passed": [
+      "G1",
+      "G2",
+      "G3",
+      "G4"
+    ],
+    "pending": [
+      "G5"
+    ],
+    "abandoned": []
+  },
+  "automated_audits": [
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "e64628",
+        "wall_time_seconds": 0.000007333,
+        "exit_code": 0,
+        "original_token_count": 5,
+        "output": "RECORDS_VERIFIED\n"
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "bbe086",
+        "wall_time_seconds": 0.000004125,
+        "exit_code": 0,
+        "original_token_count": 62,
+        "output": "RECORDS_VERIFIED\nFALLBACK_VERIFIED\nREJECTED 추가 재검색 예산 초과\nREJECTED 미지원 답변 상태 변조\nREJECTED 외부 도구 실행 기록\nREJECTED 원문 세그먼트 변조\nREJECTED 세 번째 검색 시도\nAUDIT_CONTROLS_VERIFIED\n"
+      }
+    }
+  ],
+  "observed_markers": [
+    "STORE_VERIFIED",
+    "RECORDS_VERIFIED",
+    "FALLBACK_VERIFIED",
+    "INTERFACES_VERIFIED",
+    "AUDIT_CONTROLS_VERIFIED",
+    "CLI_VERIFIED",
+    "BRIDGE_VERIFIED"
+  ],
+  "focused_tests": {
+    "exit_code": 0,
+    "passed": 133,
+    "warnings": 1,
+    "seconds": 7.02,
+    "log": "focused-tests.txt"
+  },
+  "completed_requests": {
+    "selected_graph": 18,
+    "default_bridge": 5,
+    "default_repl": 3
+  },
+  "retained_generation_calls": {
+    "selected_graph": 38,
+    "default_bridge": 6,
+    "default_repl": 5
+  },
+  "manual_slice1": {
+    "equivalent": 13,
+    "improved": [
+      "Q044",
+      "Q086"
+    ],
+    "regressed": []
+  },
+  "gui": {
+    "startup_observed": true,
+    "send": false,
+    "reply_display": false,
+    "cancel": false,
+    "close": false,
+    "reason": "macOS 접근성 실제 창 접근 차단; 사용자 권한 재설정 요청 대기"
+  },
+  "runtime_source_changes": 0
+}

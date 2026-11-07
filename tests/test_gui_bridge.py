@@ -3,24 +3,21 @@
 import io
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from artagent import gui_bridge
-from artagent.graph import AnswerResult, Citation, ErrorInfo, RetrievalBundle
+from artagent.graph import AnswerResult, Citation, ErrorInfo, create_search_nodes
 
 
 def make_graph(status="SUPPORTED", calls=None):
     """Keep routing real while substituting retrieval and answer generation."""
     calls = calls if calls is not None else []
 
-    def search(state):
+    def search(query, session, **filters):
         calls.append("search")
-        path = state["decision"].plan[state["cursor"]].path.value
-        return {"retrieval": RetrievalBundle(
-            query=state["request"].text,
-            source_filter="RAWPEDIA" if path == "DOC_QA" else "GITHUB",
-        )}
+        return []
 
     def answer(state):
         calls.append("answer")
@@ -32,8 +29,9 @@ def make_graph(status="SUPPORTED", calls=None):
 
     return gui_bridge.create_gui_graph(
         Path("missing-reference"), Path("missing-store"), Path.cwd(),
-        search_nodes={"SEARCH_RAWPEDIA": search, "SEARCH_GITHUB": search},
+        search_nodes=create_search_nodes(SimpleNamespace(search=search), None),
         answer_node=answer,
+        research_generate=lambda prompt: prompt.split("User Query:\n", 1)[1].split("\n", 1)[0],
     )
 
 
@@ -72,14 +70,14 @@ def test_mixed_request_keeps_answer_out_of_execute_step():
     assert result["steps"][1]["citations"] == []
 
 
-def test_insufficient_evidence_does_not_enter_unconnected_research():
+def test_insufficient_evidence_retries_once_and_preserves_semantic_state():
     calls = []
     result = gui_bridge.process_request(
         request(), lambda: make_graph("INSUFFICIENT_EVIDENCE", calls),
     )
     assert result["status"] == "INSUFFICIENT_EVIDENCE"
-    assert calls == ["search", "answer"]
-    assert result["steps"][0]["error"]["code"] == "INSUFFICIENT_EVIDENCE"
+    assert calls == ["search", "answer", "search", "answer"]
+    assert result["steps"][0]["error"] is None
 
 
 def test_clarification_is_a_response_without_completed_steps():

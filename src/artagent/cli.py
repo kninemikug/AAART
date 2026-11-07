@@ -38,6 +38,7 @@ from .graph import (
     create_search_nodes,
 )
 from .graph.nodes import dispatch_node
+from .graph.research import create_research_node, generate_search_query
 from .retrieval.embedding import EncoderSession, load_encoder
 from .retrieval.store import RetrievalStore
 
@@ -85,27 +86,13 @@ def create_dispatch_wrapper() -> Callable[[AgentState], dict[str, Any]]:
     return dispatch_wrapper
 
 
-def research_wrapper(state: AgentState) -> dict[str, Any]:
-    """재검색 없이 INSUFFICIENT_EVIDENCE 오류로 종결하는 RESEARCH 래퍼."""
-    trace = list(state.get("trace", []))
-    trace.append("RESEARCH")
-    return {
-        "error": ErrorInfo(
-            code="INSUFFICIENT_EVIDENCE",
-            message="근거가 부족하여 답변할 수 없습니다.",
-            node="RESEARCH",
-            recoverable=False,
-        ),
-        "trace": trace,
-    }
-
-
 def build_repl_graph(
     store: RetrievalStore,
     session: EncoderSession,
     *,
     source_root: Optional[Path] = None,
     generate: Optional[Callable[..., Any]] = None,
+    research_generate: Optional[Callable[[str], str]] = None,
 ) -> CompiledStateGraph:
     """최소 REPL용 라우터 그래프 빌드 및 override 노드 연결."""
     search_nodes = create_search_nodes(
@@ -124,7 +111,9 @@ def build_repl_graph(
         **search_nodes,
         "ANSWER": ans_node,
         "DISPATCH": create_dispatch_wrapper(),
-        "RESEARCH": research_wrapper,
+        "RESEARCH": create_research_node(
+            generate=research_generate if research_generate is not None else generate_search_query,
+        ),
     }
     return create_router_graph(node_overrides=overrides)
 

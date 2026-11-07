@@ -27,9 +27,9 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT))
 
 from scripts.t15_evaluation import (
-    CODE_PATHS, MODEL_IDS, SLICE1_QIDS, FOCUS_12_QIDS, T17_CRITICAL_31_QIDS,
+    MODEL_IDS, SLICE1_QIDS, FOCUS_12_QIDS, T17_CRITICAL_31_QIDS,
     EXPECTED_FILES, MissingEvidence, RecordVerifier, audit_run, calculate_first_gold_rank,
-    compare_quality, compute_metrics_for_records, digest, doc_ids_from_hit,
+    capture_code_identity, compare_quality, compute_metrics_for_records, digest, doc_ids_from_hit,
     evaluate_gates, extract_counter_evidence_ids, fit_bm25_from_snapshot, read_rows,
     regressions, result_digest, score_result_digest, select_condition, sha256_file, should_expand_candidates,
     summarize, verify_manifest, verify_protocol, verify_routes,
@@ -83,6 +83,7 @@ def model_identity(model_id: str) -> dict:
 
 
 def cmd_prepare(args) -> int:
+    code_commit, code_hashes = capture_code_identity()
     out = Path(args.output_dir).resolve()
     out.mkdir(parents=True, exist_ok=False)
     paths = {"queries": Path(args.queries).resolve(), "reference": Path(args.reference).resolve(),
@@ -105,8 +106,8 @@ def cmd_prepare(args) -> int:
     models["R3"] = {"model_id": "lexical_bm25", "corpus_fingerprint": bm25.corpus_fingerprint,
                     "n_docs": bm25.n_docs, "k1": bm25.k1, "b": bm25.b, "tokenizer": "unicode_word_v1"}
     protocol = {"schema_version": 3, "created_at": datetime.now(timezone.utc).isoformat(), "inputs": inputs,
-                "snapshot_fingerprint": digest(snapshot), "code_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
-                "code_sha256": {name: sha256_file(ROOT / name) for name in CODE_PATHS}, "models": models,
+                "snapshot_fingerprint": digest(snapshot), "code_commit": code_commit,
+                "code_sha256": code_hashes, "models": models,
                 "grid": {"candidate_k": [20, 40], "top_k": [3, 5, 10, 20], "min_score": [None, 0., .2, .5, .7],
                          "rerank_weight": [.05, .1, .2, .25, .5, 1.]},
                 "runtime": {"python": sys.version, "executable": sys.executable, "device": "cpu", "threads": 4, "seed": 0},

@@ -1,7 +1,7 @@
 """Tests for Task 22 Terminal Chat Minimal REPL (src/artagent/cli.py).
 
 Verifies command-line argument parsing, resource loading validation,
-node override behavior (DISPATCH wrapper for EXECUTE, RESEARCH wrapper),
+node override behavior (DISPATCH wrapper for EXECUTE, one retry for insufficient evidence),
 response rendering, REPL loop lifecycle, and graph E2E execution.
 """
 
@@ -22,7 +22,6 @@ from artagent.cli import (
     main,
     parse_args,
     render_response,
-    research_wrapper,
     run_repl,
 )
 from artagent.graph import (
@@ -249,16 +248,46 @@ def test_dispatch_wrapper_delegates_doc_qa() -> None:
     assert "DISPATCH" in result.get("trace", [])
 
 
-def test_research_wrapper_returns_insufficient_evidence() -> None:
+def test_runtime_rewrite_adapter_extracts_only_search_query(monkeypatch) -> None:
+    from artagent.graph.research import generate_search_query
+
+    transport = MagicMock(return_value=(json.dumps({"answer": "exposure tools", "citation_ids": []}), None, {}))
+    monkeypatch.setattr("artagent.answer.generate_llm_response", transport)
+    assert generate_search_query("query rewrite prompt") == "exposure tools"
+    assert transport.call_count == 1
+    assert transport.call_args.kwargs["context_citations"] == {}
+    assert transport.call_args.kwargs["prompt_version"] == "t16-rewrite-v1"
+
+
+@pytest.mark.parametrize("response", [
+    {"answer": "query", "citation_ids": ["C1"]},
+    {"answer": "", "citation_ids": []},
+    {"answer": ["query"], "citation_ids": []},
+    {"answer": "query"}, [],
+])
+def test_runtime_rewrite_adapter_rejects_non_query_response(monkeypatch, response):
+    from artagent.graph.research import generate_search_query
+
+    transport = MagicMock(return_value=(json.dumps(response), None, {}))
+    monkeypatch.setattr("artagent.answer.generate_llm_response", transport)
+    with pytest.raises(ValueError):
+        generate_search_query("query rewrite prompt")
+    assert transport.call_count == 1
+
+
+def test_research_node_rejects_missing_search_context() -> None:
+    from artagent.graph.research import create_research_node
     state: AgentState = {
         "request": RequestInput(request_id="r1", text="알 수 없는 질문"),
         "trace": ["INTAKE", "ROUTE", "DISPATCH", "SEARCH_RAWPEDIA", "ANSWER"],
     }
 
-    result = research_wrapper(state)
+    generate = MagicMock()
+    result = create_research_node(generate=generate)(state)
 
     assert result["error"] is not None
-    assert result["error"].code == "INSUFFICIENT_EVIDENCE"
+    assert result["error"].code == "CONTRACT_VIOLATION"
+    generate.assert_not_called()
     assert result["error"].node == "RESEARCH"
     assert result["trace"][-1] == "RESEARCH"
 
@@ -653,7 +682,7 @@ def test_e2e_doc_qa_query(tmp_path: Path) -> None:
     assert len(step.answer.citations) == 1
 
 
-def test_e2e_insufficient_evidence_terminates_without_re_search(tmp_path: Path) -> None:
+def test_e2e_insufficient_evidence_retries_once_then_terminates(tmp_path: Path) -> None:
     mock_store = MagicMock()
     mock_session = MagicMock()
     mock_store.search.return_value = [_make_mock_hit(tmp_path)]
@@ -665,11 +694,13 @@ def test_e2e_insufficient_evidence_terminates_without_re_search(tmp_path: Path) 
             "citation_ids": [],
         })
 
+    rewrite = MagicMock(return_value="노출 보정 방법을 알려줘")
     graph = build_repl_graph(
         store=mock_store,
         session=mock_session,
         source_root=tmp_path,
         generate=mock_gen,
+        research_generate=rewrite,
     )
 
     req = RequestInput(request_id="req_insuf", text="노출 보정 방법을 알려줘")
@@ -681,12 +712,13 @@ def test_e2e_insufficient_evidence_terminates_without_re_search(tmp_path: Path) 
     resp = result["response"]
     assert resp is not None
     assert resp.status == ResponseStatus.INSUFFICIENT_EVIDENCE.value
-    assert mock_store.search.call_count == 1
+    assert mock_store.search.call_count == 2
+    assert rewrite.call_count == 1
     assert "RESEARCH" in result["trace"]
     step = resp.completed_steps[0]
     assert step.status == "INSUFFICIENT_EVIDENCE"
-    assert step.error is not None
-    assert step.error.code == "INSUFFICIENT_EVIDENCE"
+    assert step.error is None
+    assert result["research_count"] == 1
 
 
 def test_e2e_execute_query_blocked(tmp_path: Path) -> None:
