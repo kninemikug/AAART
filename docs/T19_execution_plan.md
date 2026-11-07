@@ -394,3 +394,11 @@ env T19_RUN_DIR=data/eval/t19/live-v4-rechecked PYTHONDONTWRITEBYTECODE=1 \
 첫 명령은 **attempted=20·valid=20·accepted=true·종료 코드 0**, 두 번째는 **20 passed**다. 여기서 `attempted`는 검증한 사례 수이며 실제 누적 호출 수는 재시도를 포함해 **21회**다. 평가기는 소스·고정 사례·RAW·특성 지문, 원시 응답·실행 증거·저장 프로필을 독립적으로 재검증했다. 검증한 실제 실행 환경은 macOS arm64이며, 20건은 모두 같은 고정 NEF 특성을 사용한다. 모든 프로필의 렌더나 다른 OS·제공처의 실제 실행을 검증한 결과로 확대하지 않는다.
 
 전체 회귀의 경고 3개는 기존 Chroma·Torch의 폐기 예고이며 억제하지 않았다. 명시값 불일치 거부, 고정 20건의 ≥90% 키·제약 검사, 실제 ART-cli 렌더와 원본 보존을 확인하여 T19의 두 완료 조건을 충족했다.
+
+## 15. PR 병합 전 최신 기본 브랜치 통합 검증
+
+2026-11-07 [PR #22](https://github.com/kninemikug/AAART/pull/22) 병합을 위해 기본 브랜치 `07a47b976`을 반영했다. 통합 기준 커밋은 **cfaa855fb**이며 충돌 없이 병합했다. `tasks/todo.md`의 다른 작업 상태와 T19 완료 상태를 함께 유지했다.
+
+T19 생성기·스키마·런타임·평가기·렌더 스크립트·관련 테스트와 엔진·GUI 코드는 검토 기준 `eaee6ddd4` 이후 변경되지 않았다. `live-v4-rechecked`의 소스 지문과 실제 호출 증거를 다시 검사하여 **20/20·accepted=true**를 확인했다. PR 변경 파일의 JSON 판독·비밀정보 검사와 diff 공백 검사도 통과했다.
+
+최신 기본 브랜치가 포함된 전체 소스에서 §12의 동일한 venv·오프라인·소켓 허용 조건으로 전체 회귀를 다시 실행했다. 결과는 **1485 passed, 3 warnings · 382.73초**, 종료 코드 **0**이다. [통합 전체 로그](../data/eval/t19/pytest-merge-main.txt)와 [인수 기록의 통합 검증 항목](../data/eval/t19/acceptance.json)에 실행 커밋·기본 브랜치 커밋·로그 해시를 보존한다. 경고 3건은 기존 Chroma·Torch 폐기 예고이며 새 skip·xfail·억제를 추가하지 않았다.

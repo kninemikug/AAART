@@ -46,7 +46,17 @@
     "recorded_run_passed": 20,
     "recorded_run_seconds": 9.14,
     "full_source_unchanged_since": "eaee6ddd4",
-    "recorded_run": "data/eval/t19/live-v4-rechecked"
+    "recorded_run": "data/eval/t19/live-v4-rechecked",
+    "integration_main": {
+      "source_commit": "cfaa855fb2f201e3e423a8911b16fbaee52d37fe",
+      "main_commit": "07a47b976bd506a89ded24fa2a873c923658df27",
+      "passed": 1485,
+      "warnings": 3,
+      "seconds": 382.73,
+      "exit_code": 0,
+      "log": "data/eval/t19/pytest-merge-main.txt",
+      "log_sha256": "3dd1ad0f6d7f9b5f2931c45d70b5957979cec810c2b27409f5204de9007d8f35"
+    }
   },
   "prior_interruption": {
     "report": "data/eval/t19/acceptance-v4-interrupted.json",
