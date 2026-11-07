@@ -8,6 +8,7 @@ from dataclasses import asdict
 import json
 from pathlib import Path
 import sys
+from time import monotonic
 from typing import Any, Callable
 
 
@@ -17,6 +18,8 @@ UNSUPPORTED_MESSAGE = (
     "예: 채도를 20으로 설정해줘. 목록: 조정 가능한 항목 보여줘"
 )
 MAX_REQUEST_BYTES = 65536
+# 네이티브 패널의 300초 제한 전에 응답 직렬화·프로세스 정리를 마친다.
+GUI_GENERATION_BUDGET_SECONDS = 270
 
 
 def create_gui_graph(
@@ -26,6 +29,7 @@ def create_gui_graph(
     *,
     search_nodes: dict | None = None,
     answer_node: Callable | None = None,
+    research_generate: Callable[[str], str] | None = None,
 ) -> Any:
     """Connect Q&A nodes; keep execution disabled and retrieval lazy."""
     from artagent.graph import (
@@ -33,6 +37,7 @@ def create_gui_graph(
         create_router_graph, create_search_nodes,
     )
     from artagent.graph.nodes import dispatch_node
+    from artagent.graph.research import create_research_node, generate_search_query
 
     services = search_nodes
 
@@ -85,19 +90,13 @@ def create_gui_graph(
             }
         return dispatch_node(state)
 
-    def stop_research(state):
-        return {
-            "error": ErrorInfo(
-                "INSUFFICIENT_EVIDENCE", "근거가 부족하여 답변할 수 없습니다.",
-                "RESEARCH",
-            ),
-            "trace": [*state.get("trace", []), "RESEARCH"],
-        }
-
     return create_router_graph(node_overrides={
         "SEARCH_RAWPEDIA": search, "SEARCH_GITHUB": search,
         "ANSWER": answer_node or create_answer_node(source_root=source_root),
-        "DISPATCH": dispatch, "RESEARCH": stop_research,
+        "DISPATCH": dispatch,
+        "RESEARCH": create_research_node(
+            generate=research_generate if research_generate is not None else generate_search_query,
+        ),
     })
 
 
@@ -132,6 +131,7 @@ def display_error(error: Any) -> dict | None:
 
 def process_request(payload: Any, graph_factory: Callable[[], Any]) -> dict:
     """Validate a request and serialize the router response."""
+    started = monotonic()
     request_id = (
         payload.get("request_id", "") if isinstance(payload, dict) else ""
     )
@@ -153,11 +153,14 @@ def process_request(payload: Any, graph_factory: Callable[[], Any]) -> dict:
         return live_response
 
     from artagent.graph import RequestInput, RuntimeCapabilities
+    from artagent.answer import generation_time_budget
 
-    result = graph_factory().invoke({
-        "request": RequestInput(request_id=request_id, text=text.strip()),
-        "capabilities": RuntimeCapabilities(search_ready=True),
-    })
+    remaining = max(0.0, GUI_GENERATION_BUDGET_SECONDS - (monotonic() - started))
+    with generation_time_budget(remaining):
+        result = graph_factory().invoke({
+            "request": RequestInput(request_id=request_id, text=text.strip()),
+            "capabilities": RuntimeCapabilities(search_ready=True),
+        })
     response = result.get("response")
     if response is None:
         return error_response(

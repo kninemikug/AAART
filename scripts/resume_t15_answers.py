@@ -72,10 +72,10 @@ def execute_missing(cases: list[dict], existing: dict, generate, emit) -> list[t
     return attempted
 
 
-def load_sources(paths: list[Path], *, ancestors: frozenset[Path] = frozenset()):
+def load_sources(paths: list[Path], *, ancestors: frozenset[Path] = frozenset(), historical: bool = False):
     manifests, protocols, cases, rows = [], [], None, []
     for path in paths:
-        protocol, manifest = verify_manifest(path)
+        protocol, manifest = verify_manifest(path, historical=True) if historical else verify_manifest(path)
         if manifest.get("phase") != "t17":
             raise ValueError("실제 답변 실행만 이어받을 수 있습니다.")
         if "resumption" in manifest:
@@ -114,14 +114,14 @@ def check_origins(out: Path, *, ancestors: frozenset[Path] = frozenset()) -> dic
     out = out.resolve()
     if out in ancestors:
         raise ValueError("이어 실행 원본 계보 순환")
-    _, manifest = verify_manifest(out)
+    _, manifest = verify_manifest(out, historical=True)
     resume = manifest["resumption"]
     check_helper_source(out, resume)
     paths = [ROOT / source["path"] for source in resume["sources"]]
     for path, source in zip(paths, resume["sources"]):
         if sha256_file(path / "manifest.json") != source["manifest_sha256"]:
             raise ValueError("이어 실행 원본 manifest 변경")
-    _, _, cases, sources = load_sources(paths, ancestors=ancestors | {out})
+    _, _, cases, sources = load_sources(paths, ancestors=ancestors | {out}, historical=True)
     if digest(cases) != digest(json.loads((out / "cases.json").read_bytes())):
         raise ValueError("이어 실행 입력 변경")
     origins = json.loads((out / "origins.json").read_bytes())

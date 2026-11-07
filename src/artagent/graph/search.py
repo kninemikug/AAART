@@ -6,7 +6,7 @@ query rewriting (rewrite.py) and T09 vector search (store.py) to AgentState.
 
 from __future__ import annotations
 
-from dataclasses import asdict
+from dataclasses import asdict, replace
 import re
 import time
 from typing import Any, Callable, Optional, Sequence
@@ -241,21 +241,47 @@ def _create_search_node(
     if min_score is not None and not (0.0 <= min_score <= 1.0):
         raise ValueError(f"min_score는 0.0과 1.0 사이여야 합니다: {min_score}")
 
+    settings = {
+        "snapshot_ref": snapshot_ref, "candidate_k": candidate_k, "top_k": top_k,
+        "min_score": min_score, "rerank_weight": rerank_weight,
+        "reranker_id": str(getattr(reranker, "model_id", "unknown")) if reranker is not None else None,
+    }
+
     def search(state: AgentState) -> dict[str, Any]:
         node_name = "SEARCH_RAWPEDIA" if source_type == "rawpedia" else "SEARCH_GITHUB"
         trace = list(state.get("trace", []))
         trace.append(node_name)
+        if state.get("error"):
+            return {"error": state["error"], "trace": trace}
         step_query, constraints = _extract_query_and_constraints(state, preserve_literals=True)
         req_text = state.get("request").text if state.get("request") else ""
         target_group_ids = resolve_github_targets(step_query, req_text) if source_type == "github" else None
         started = time.perf_counter()
-        search_input = prepare_search_input(
-            step_query,
-            generate=generate,
-            rewrite_enabled=rewrite_enabled,
-            hyde_enabled=hyde_enabled,
-            constraints=constraints,
-        )
+        prepared = state.get("research_input")
+        if prepared is not None:
+            from .research import validate_research_input
+
+            try:
+                prepared = validate_research_input(state)
+                if prepared.source_type != source_type or prepared.settings != settings:
+                    raise ValueError("재검색의 출처·검색 설정이 최초 검색과 다릅니다.")
+                if prepared.phase == "SEARCHED":
+                    return {"retrieval": state["retrieval"], "error": None, "trace": trace}
+                search_input = prepared.search_input
+            except (ValueError, TypeError, AttributeError) as exc:
+                return {"error": ErrorInfo("CONTRACT_VIOLATION", str(exc), node_name),
+                        "trace": trace}
+        else:
+            decision = state.get("decision")
+            cursor = state.get("cursor", 0)
+            if (decision and 0 <= cursor < len(decision.plan)
+                    and state.get("research_step_id") == decision.plan[cursor].step_id):
+                return {"error": ErrorInfo("CONTRACT_VIOLATION", "할당된 재검색의 준비 기록 누락", node_name),
+                        "trace": trace}
+            search_input = prepare_search_input(
+                step_query, generate=generate, rewrite_enabled=rewrite_enabled,
+                hyde_enabled=hyde_enabled, constraints=constraints,
+            )
 
         hits: list[SearchHit] = []
         candidate_hits: list[SearchHit] = []
@@ -355,11 +381,15 @@ def _create_search_node(
             snapshot_ref=snapshot_ref,
         )
 
-        return {
+        updates = {
             "retrieval": bundle,
+            "search_settings": dict(settings),
             "error": None,
             "trace": trace,
         }
+        if prepared is not None:
+            updates["research_input"] = replace(prepared, phase="SEARCHED")
+        return updates
 
     return search
 

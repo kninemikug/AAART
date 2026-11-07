@@ -1,0 +1,31 @@
+{
+  "kind": "수동 관찰 기록, 원시 도구 응답의 대체물이 아님",
+  "capture_id": "be844782-b5d7-4f7c-bc53-ba20986cbf52",
+  "pid": 97990,
+  "window_id": 145071,
+  "screenshot": "gui-startup.png",
+  "observed": "별도 설정의 앱과 채팅 패널 시작 화면, 사진 미개방, 수치 조정 비활성",
+  "actions": [
+    {
+      "id": "f6bc87ae-c142-481d-bd6a-ddf1a286facb",
+      "error": "window_not_focused",
+      "result": "coordinate click aborted; no focused window"
+    },
+    {
+      "id": "7d5cd4c7-ab55-4ccd-84e0-2b2879ee707f",
+      "error": "window_not_focused",
+      "result": "restore-window 재시도 후에도 입력 초점 미확보"
+    },
+    {
+      "id": "f2cd3a93-ca2d-4976-b87b-5f62720642e6",
+      "error": "permission_denied",
+      "result": "visible windows but no accessibility window; AX reads stayed blocked for 1500ms after retries"
+    }
+  ],
+  "permission_status": {
+    "accessibility": "granted 표시",
+    "screenshots": "granted 표시",
+    "actual_window_access": "denied"
+  },
+  "pending": "사용자에게 Orca Computer Use 접근성 권한 재설정을 요청함. 화면 전송·답변·취소·종료는 미검증."
+}

@@ -1,0 +1,35 @@
+{
+  "sha256": {
+    ".gitignore": "3cf82d8c72c06e9d59a44382597640d4c1d2ea39660fb25b8cdafb1ba828b6c1",
+    "audit-controls.txt": "aeb653e12f04517c707589d925e1f496029ef2c5bce07a762882707f454782f0",
+    "audit.py": "8906eede2c00d2ced7ef105e61686aac73ad333e37c9b42841cce3d6782931c9",
+    "bridge-records.jsonl": "3d32e047191e24188571ac172cc8ecf9093dff6dc2dce29e0f5f324588152ad9",
+    "check_audit_controls.py": "b02eb3e70ac36e3dc77965538de07df03e0ca70468f52774574af3d1ba4a2c6c",
+    "check_bridge.py": "2c41c90da58628094717fa807d8a0753753079bb871b6d53129fb08b5907e61d",
+    "check_cli.py": "aa29ab7c15efd2870be65feb0e94c3f63c60751fd0a37072271513da2bbbc83a",
+    "cli-record.json": "69da95c47927dcca196f7930740989bd42518ac40ba55d6e4dbd34856542fae6",
+    "focused-tests.txt": "3ed0449671126707c0e6f0fc1828859f8b53ff239df94ad651a69b636a9a0dbf",
+    "gui-launch.json": "dfcbd03331b6d022c152906fb9a41dd41d7d7b2b1e91a601cc2eaf2ad3281c92",
+    "gui-observation.json": "118c439ca656af00dc790e37dba8d63d277f8804dd9b097bcb048e857e97d9e2",
+    "gui-python": "5af66fd803791c47a6200dfd016f33ba00fe6e4a2fd66bd113793eff34b1252e",
+    "gui-records.jsonl": "7dd8a44e613d0ed8b30621b4e30b1c0f153491e1a27ecf17ac71dbad5663122e",
+    "gui-startup.png": "331fc10b7ba13904d7cd7ca62a2c3560a1c3d88b2289b07a5cc6c3a4c85381e9",
+    "manifest.json": "a65431a818fda1f7ee8c7e4baf06bd59bd7d112beda1e6162cd9d66b60d43ff9",
+    "model-smoke.json": "8033bf564a7f39a21a9958cba4736943853c6878dc157861709b3ad5d67c6dc4",
+    "records.jsonl.gz": "b96fdcd3ec81c39ac92da8ea128ccdbb613619e9952ed51519b46579b153a4c0",
+    "run-at-execution.py.gz": "536c1709673d253f17eafd6561f0112a860a2bd4edc1d0da75ee1e562d81674d",
+    "run.py": "e3ab16cbed43a25da58d6516231089794655613750d09466c12a205b6f73aaa4",
+    "runtime-files.json": "4aca4691ad687a7c578e65e5a597027516501266613cd7353ef39d28b4ece391",
+    "store-verification.json": "bb90a1abe4f14f50fcb6ca4c46b2caa46f469ec0c7561d3a46d95e9627a215f8",
+    "verification.json": "20beea0186f0ec61add1839ca897f3d2caea0932ef6a1e78623cd6f8d95c7c32"
+  },
+  "excluded_local_directories": [
+    "store",
+    "gui-settings",
+    "gui-cache"
+  ],
+  "excluded_local_files": [
+    "records.jsonl"
+  ],
+  "raw_record_compression": "records.jsonl.gz; gzip mtime=0"
+}
