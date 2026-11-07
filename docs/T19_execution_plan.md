@@ -2,7 +2,7 @@
 
 작성일: 2026-11-04 · 대상: T19 / A-18 · 구현 담당: A · 조사 기준: `2c701b81e`
 
-이 문서는 구현 계획이다. 이번 산출물은 `docs/T19_execution_plan.md` 한 파일이며, 아래의 모듈·테스트·명령은 후속 구현 및 검증 계획이다. 현재 생성 성공률이나 실제 렌더 성공을 확인한 기록으로 해석하지 않는다.
+§1~11은 2026-11-04에 작성한 최초 구현 계획을 보존한다. 최초 산출물은 `docs/T19_execution_plan.md` 한 파일이었다. 후속 구현·실제 실행 결과와 현재 사용법은 §12에 기록하며, 최초 계획의 미실행 표기를 현재 상태로 해석하지 않는다.
 
 ## 1. 기준과 완료 조건
 
@@ -228,3 +228,83 @@ WB 기준 누락·불가능한 범위·모순 지시·미지원 도구 요청은
 - T18 계약·RAW 해시·런타임이 준비되지 않음, 실제 20건에서 18건 미만 통과, 실제 렌더 0건. 해당 실패를 기록하고 T19 완료를 선언하지 않는다.
 
 헤더만 새 버전으로 바뀐 경우에도 차이를 검토하고 스키마·검증·CLI 빌드 근거를 함께 갱신한 뒤 재개한다. PPVERSION 증가는 생성기의 오류를 숨기는 수단으로 사용하지 않는다.
+
+## 12. 구현과 인수 기록
+
+구현·검증일: 2026-11-05~2026-11-07. 이 절은 실제 실행 기록이며 §1~11의 최초 계획과 구분한다. **실제 생성 20/20, 실제 렌더 1건, 전체 pytest 1298 passed로 T19 인수를 완료했다.**
+
+### 구현 계약과 사용법
+
+`src/artagent/arp/schema.json`은 기존 PPVERSION **1045**의 노출·WB·채도·생동감 부분 프로필을 정의한다. `generator.py`는 T18 계약 검사, 요청별 허용 키 결정, 구조화 제안 검증, 결정적 INI 직렬화·재파싱을 담당한다. `runtime.py`는 기존 제공처의 단일 호출과 실행 증거 검사를 분리한다. 계획 당시 생성기 내부에 둘 예정이던 런타임 처리는 답변 모듈과 결합하지 않고 독립 검증하기 위해 작은 별도 파일로 나눴다.
+
+공개 함수는 `generate_profile(request, features, runtime=..., header_path=...)`, `validate_profile`, `serialize_profile`, `parse_profile`이다. 생성 함수는 파일을 쓰지 않고 `status`와 결과를 반환한다. 성공 상태는 `ok`, 실패 상태는 `validation_error`·`runtime_error`·`needs_input`·`unsupported_request`다. CLI가 검증된 성공 결과만 새 `.arp`에 기록하며 기존 출력·RAW·표준 sidecar 경로를 덮어쓰지 않는다.
+
+초기 요청 해석은 한국어·영어의 노출/밝기·WB/색온도·채도/생동감 용어로 한정한다. 명시한 도구·키 외의 제안은 거부한다. 처리할 수 없는 부정 지시나 WB 상대량은 `needs_input`으로 반환한다. 예를 들어 `색온도를 2000K 낮춰줘`는 절대 온도 2000K로 바꾸지 않는다. `WB 5500K`는 절대 온도, Green을 생략하면 중립값 1.0을 명시한다. T18의 계수를 Kelvin으로 환산하지 않는다. `촬영 WB 유지`는 Camera 방식으로 처리한다. 세션 증분 수정과 실패 피드백 재생성은 포함하지 않았다.
+
+Python **3.14.3**의 기존 프로젝트 venv를 사용했다. 소비 시 설치를 확인한 기존 패키지는 jsonschema **4.26.0**, pytest **9.1.1**, NumPy **2.5.3**이며 새 패키지는 설치하지 않았다. JPEG 검증에는 기존 libjpeg-turbo **3.2.0**의 `djpeg`를 사용한다. 렌더 스크립트 테스트의 작은 JPEG 준비에는 같은 설치의 `cjpeg`를 사용한다.
+
+실제 사용한 런타임은 코드 기본값을 승계한 **codex-cli 0.166.0 / gpt-5.6-sol**이다. 제공처·모델 환경변수는 미설정이었다. 임시 작업 폴더·읽기 전용 모드·사용자 설정 무시·셸 도구와 웹 검색 비활성화를 적용하며, 반환 이벤트·최종 파일·정상 종료·호출 1회 증거를 대조한다. 다른 제공처로 자동 전환하지 않는다. 기존 명시적 호환 API 분기도 지원하며 응답 형식·종료·도구 호출 거부는 모의 응답으로 검증했다. 호환 API의 실제 호출은 이번 인수 범위가 아니다.
+
+샌드박스 내부에서는 런타임 초기화가 `Operation not permitted`로 실패했다. 해당 기록은 `build/t19-checks/sandbox-first/`에 보존했고 완료 근거에 포함하지 않았다. 이후 허용된 실행 환경에서 실제 평가를 수행했다. 최초 `live-v1`의 20/20 결과도 보존하되 최종 소스의 인수 근거는 보완 후 새 실행인 `live-v2`로 한정한다.
+
+```bash
+T19_PYTHON=/Users/user/Workspace/Programming/Projects/AAART/venv/bin/python3
+env PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 "$T19_PYTHON" -m artagent.arp.generator \
+  --request '노출 +0.5 EV, WB 5200K, 채도 +10, 생동감 +5' \
+  --features data/eval/t19/live-v2/features.json --output /tmp/t19-example.arp
+env T19_PYTHON="$T19_PYTHON" PYTHONDONTWRITEBYTECODE=1 \
+  bash scripts/test_art_cli.sh /tmp/t19-example.arp /tmp/t19-render
+```
+
+`/tmp/t19-example.arp`는 존재하지 않는 새 경로여야 한다. 렌더 스크립트는 인수 없는 기존 실행법도 유지한다. 프로필을 명시하면 현재 스키마·헤더 버전을 먼저 검사하며 `ART_CLI_PATH`, `ART_RAW_FILE`, `T19_PYTHON`으로 실행 환경을 명시할 수 있다. JPEG는 새 임시 폴더에서 생성·전체 디코딩한 뒤에만 출력 경로로 옮긴다. 옛 JPEG·빈 파일·손상 파일·비정상 종료로 성공 판정을 만들 수 없으며 실패 시 기존 JPEG를 보존한다.
+
+### 검증 범위와 버전 판정
+
+구현 전 실패를 확인한 테스트를 추가한 뒤 정상·경계·거부 경로를 구현했다. 별도 코드 검토에서 확인한 EXIF 타입, boolean bin 경계, 매우 큰 정수, 변경 금지 지시, 상대 WB 기준, API의 잘못된 message 구조, 저장된 실행 증거와 평가 중단 조건을 보완했다. 실행 기록의 통과 플래그를 신뢰하지 않고 재검증하며, 단일 JSON 실패는 분모에 남긴 채 다음 요청을 처리한다. 환경 준비 실패만 조기 중단하고 미실행 사례를 성공으로 세지 않는다.
+
+관련 검사 **202 passed**를 확인했다. 여기에는 20건 기록의 재생 검증, 실행 증거 변조 거부, 첫 응답 결함 시에도 20건을 시도하여 19/20을 집계하는 검사가 포함된다. 오프라인 모의 검증은 실제 생성 통과율과 별개다.
+
+ART-cli는 이 작업 폴더에서 Release·아웃오브소스로 빌드했다. 바이너리의 빌드 기준은 `8d7efb27c`이며, 이후 생성기 커밋과 비교해 `rtengine/`·`rtgui/`·`cmake/`·최상위 CMake 변경이 없음을 확인했다. 바이너리 SHA-256은 `ef53085775d14bf34427f096a1aba4c20279d97643eca47b36803606112940fd`다. 코어·프로필 형식·기존 도구 의미를 변경하지 않았으므로 **PPVERSION은 1045를 유지**한다.
+
+실제 렌더는 원래 출력과 측정 조건이 다른 T18 통계의 일치 검사가 아니다. 예비 C06 렌더의 JPEG 실측 크기는 **2006×3031**이었다. 사용자 프로필 디렉터리 부재 진단이 stderr에 있었으나, 명시한 프로필 적용·종료 코드 0·새 JPEG의 전체 디코딩 성공을 확인했다. 이 진단을 숨기거나 GUI 지원 검증으로 확대하지 않는다.
+
+### 최종 실제 생성·렌더 결과
+
+고정 사례는 [20건 입력 표](../tests/t19_cases.py), 기계 판독 결과는 [인수 기록](../data/eval/t19/acceptance.json), 원시 응답·실행 로그·구조화 값·`.arp`·특성·소스 지문은 [live-v2 매니페스트](../data/eval/t19/live-v2/manifest.json)와 같은 폴더에 보관한다. JPEG와 빌드 바이너리는 추적하지 않는다. 최초 응답을 교체하거나 실패를 재호출로 숨기지 않았다.
+
+| 항목 | 실제 결과 |
+|---|---|
+| 생성 시도 / 고정 분모 | **20 / 20** |
+| 키·타입·범위·결합·버전 검증 | **20 / 20 (100%)**, 기준 18개 이상 충족 |
+| 별도 요청 방향·명시값 검사 | **20 / 20** |
+| 네트워크 없는 원시 응답·실행 기록 재검증 | 통과. 손상된 종료 코드·호출 수·도구 이벤트는 거부 |
+| 실제 렌더 | `live-v2/C06.arp` → 고정 `sample1.nef`, 종료 코드 **0** |
+| 새 JPEG | **1,591,985바이트 · 2006×3031**, `djpeg -strict` 전체 디코딩 성공 |
+| JPEG SHA-256 | `c8499c810cecfbbdc66d38f4d4c8175bf208f35a058ec57535d8d9b70a626e8e` |
+| 원본 보존 | RAW SHA-256 및 입력 폴더 파일 목록 전후 동일 |
+| 검증한 환경 | macOS arm64, 실제 Codex 런타임·ART-cli. 다른 OS·GUI·호환 API 실제 호출은 미검증 |
+
+평가 입력 20개는 독립 사진 20장이 아니며 모두 같은 고정 NEF 특성을 사용한다. 이는 이 카드의 프로필 형식·제약·렌더 인수이고 화질 개선률이나 Lightroom과의 동등성 평가가 아니다. 실제 렌더는 C06 한 건이며 나머지 19개 전체 렌더 성공을 주장하지 않는다.
+
+```bash
+env PYTHONDONTWRITEBYTECODE=1 "$T19_PYTHON" scripts/evaluate_arp_generator.py \
+  check --run-dir data/eval/t19/live-v2
+env T19_RUN_DIR=data/eval/t19/live-v2 PYTHONDONTWRITEBYTECODE=1 \
+  "$T19_PYTHON" -m pytest -p no:cacheprovider tests/test_arp_evaluation.py -q
+```
+
+첫 명령은 **20/20·accepted=true**, 두 번째는 **5 passed**였다. 재검증은 현재 소스 지문·고정 사례·RAW·특성·원시 응답·실행 로그·저장 프로필을 대조하므로 이들 중 하나가 바뀌면 먼저 해당 불일치를 처리해야 한다. 새 실제 평가는 기존 기록을 덮지 않는 새 `--run-dir`을 지정해 `run`으로 실행한다.
+
+### 전체 회귀와 최종 판정
+
+```bash
+env -u T09_REPRO_DIR -u T09_SOURCE_ROOT -u T09_REFERENCE_PATH \
+  PYTHONDONTWRITEBYTECODE=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+  "$T19_PYTHON" -m pytest -p no:cacheprovider tests -q --tb=short
+```
+
+샌드박스 내부의 첫 실행은 **1195 passed, 103 failed, 3 warnings**였다. 103건은 모두 기존 IPC 테스트의 Unix 소켓 `bind`에서 발생한 `PermissionError: Operation not permitted`임을 확인했고, 단일 테스트로도 같은 실패를 재현했다. 테스트 코드를 수정하거나 검사를 생략하지 않고 허용된 실행 환경에서 위 명령을 다시 실행했다.
+
+최종 결과는 **1298 passed, 3 warnings · 364.60초**다. [전체 실행 로그](../data/eval/t19/pytest.txt)를 보존한다. 경고는 기존 Chroma의 `asyncio.iscoroutinefunction` 폐기 예고 1건과 Torch의 `max_length` 폐기 예고 2건이며 억제하지 않았다. 고정 모델 캐시·추적 입력으로 기존 T9 테스트 준비도 수행했고 다운로드는 하지 않았다.
+
+T19의 두 완료 조건과 관련·전체 회귀를 충족했다. 후속 잔여는 T20의 오류 피드백 재생성, T21의 세션 증분 수정, 다른 OS와 별도 제공처의 실제 실행 검증이다. 기존 프로필 형식과 영상 처리 의미를 바꾸지 않은 범위에서 완료했으며 PPVERSION 증가·GUI 지원 범위 확대는 수행하지 않았다.

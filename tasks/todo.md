@@ -267,11 +267,13 @@
 ## Task 19: .arp 구조화 생성기 (A-18)
 **설명:** 요청+사진 특성에 필요한 `.arp` 키와 제약을 이 시점에 정하고, 그 기준으로 프로필을 생성하는 모듈. PPVERSION 일치 검증을 내장한다.
 **완료 기준:**
-- [ ] 20개 생성 프로필 중 ≥90%가 선택한 키·제약 검증 통과
-- [ ] ≥1개가 실제 ART-cli 렌더링 성공(sample1.nef)
+- [x] 20개 생성 프로필 중 ≥90%가 선택한 키·제약 검증 통과
+- [x] ≥1개가 실제 ART-cli 렌더링 성공(sample1.nef)
 **검증:** pytest + test_art_cli.sh 변형(생성 프로필 지정)
 **의존:** T2 (PPVERSION 기록), T18, 런타임 LLM · **담당:** A · **예상 파일:** `src/artagent/arp/schema.json`, `src/artagent/arp/__init__.py`, `src/artagent/arp/generator.py`, `tests/test_arp_generator.py`
 **규모:** M
+
+**상태:** 2026-11-07 완료. 노출·WB·채도·생동감의 구조화 생성, PPVERSION 1045 일치 검사와 결정적 직렬화를 구현했다. 실제 고정 요청 20/20 키·제약 및 요청 검사 통과, C06 프로필로 `sample1.nef` 렌더·JPEG 전체 디코딩·원본 보존을 확인했다. 관련 검사 202개와 전체 pytest 1298개 통과. [구현·인수 기록](../docs/T19_execution_plan.md#12-구현과-인수-기록), [검증 결과](../data/eval/t19/acceptance.json). 실제 실행 범위는 macOS arm64이며 T20 재생성·T21 세션은 후속 범위다.
 
 ## Task 20: ART-cli 피드백 루프 (A-20)
 **설명:** 생성→ART-cli 실행→실패 감지(exit code·출력 부재)→오류 피드백 재생성(≤3회)의 render-or-retry 루프.
