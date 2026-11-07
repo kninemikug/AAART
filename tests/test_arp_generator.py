@@ -388,3 +388,100 @@ def test_coordinated_preservation_applies_to_every_named_tool(features, query, g
 ])
 def test_valid_reset_and_sentence_punctuation_remain_supported(features, query, groups):
     assert generate_profile(query, features, runtime=runtime_reply(groups))["status"] == "ok"
+
+
+@pytest.mark.parametrize("query,groups", [
+    ("노출 +0.5 EV", {"Exposure": {"Compensation": -2}}),
+    ("채도를 12로 설정", {"Saturation": {"Saturation": -50}}),
+    ("생동감 18로 설정", {"Saturation": {"Vibrance": 10}}),
+    ("노출 +0.3 EV, 채도 -8, 생동감 +5", {"Exposure": {"Compensation": 0.3}, "Saturation": {"Saturation": -8, "Vibrance": 50}}),
+])
+def test_proposal_cannot_contradict_an_explicit_numeric_target(features, query, groups):
+    result = generate_profile(query, features, runtime=runtime_reply(groups))
+    assert result["status"] == "validation_error"
+    assert "arp" not in result
+
+
+@pytest.mark.parametrize("query,groups", [
+    ("노출 +0.5 EV", {"Exposure": {"Compensation": 0.5}}),
+    ("exposure=.5EV", {"Exposure": {"Compensation": 0.5}}),
+    ("exposure=.5EV.", {"Exposure": {"Compensation": 0.5}}),
+    ("노출 -5e-1 EV", {"Exposure": {"Compensation": -0.5}}),
+    ("+0.25EV", {"Exposure": {"Compensation": 0.25}}),
+    ("채도를 +12로 설정", {"Saturation": {"Saturation": 12}}),
+    ("saturation=1.2e1", {"Saturation": {"Saturation": 12}}),
+    ("set saturation to 12", {"Saturation": {"Saturation": 12}}),
+    ("채도 12, +0.5EV", {"Saturation": {"Saturation": 12}, "Exposure": {"Compensation": 0.5}}),
+    ("생동감 값은 18로 설정", {"Saturation": {"Vibrance": 18}}),
+    ("노출을 0 EV로 되돌려줘", {"Exposure": {"Compensation": 0}}),
+    ("채도 -100, 생동감 100", {"Saturation": {"Saturation": -100, "Vibrance": 100}}),
+])
+def test_explicit_numeric_targets_accept_equivalent_values(features, query, groups):
+    result = generate_profile(query, features, runtime=runtime_reply(groups))
+    assert result["status"] == "ok", result
+    assert result["contract"]["exact_values"] == groups
+
+
+@pytest.mark.parametrize("query,status", [
+    ("노출 +13 EV", "validation_error"),
+    ("채도 101", "validation_error"),
+    ("생동감 -101", "validation_error"),
+    ("채도 12.5", "validation_error"),
+    ("노출 1e EV", "validation_error"),
+    ("노출 0.5 EVoops", "validation_error"),
+    ("채도 12.3.4", "validation_error"),
+    ("노출 NaN EV", "validation_error"),
+    ("채도 Infinity", "validation_error"),
+    ("노출 +0.3 EV 또는 +0.5 EV", "needs_input"),
+    ("채도 12 또는 14", "needs_input"),
+    ("채도 10에서 20으로", "needs_input"),
+])
+def test_invalid_or_ambiguous_numeric_targets_prevent_inference(features, query, status):
+    def forbidden(prompt):
+        pytest.fail("numeric target must be checked before inference")
+    result = generate_profile(query, features, runtime=forbidden)
+    assert result["status"] == status
+    assert "arp" not in result
+
+
+@pytest.mark.parametrize("query,groups", [
+    ("밝게 해줘", {"Exposure": {"Compensation": -0.5}}),
+    ("어둡게 해줘", {"Exposure": {"Compensation": 0.5}}),
+    ("채도를 올려줘", {"Saturation": {"Saturation": -10}}),
+    ("생동감을 줄여줘", {"Saturation": {"Vibrance": 10}}),
+])
+def test_unambiguous_direction_is_checked_without_a_numeric_target(features, query, groups):
+    result = generate_profile(query, features, runtime=runtime_reply(groups))
+    assert result["status"] == "validation_error"
+    assert "arp" not in result
+
+
+@pytest.mark.parametrize("query,status", [
+    ("1e EV", "validation_error"), ("+0.5.5 EV", "validation_error"), (".5.5EV", "validation_error"),
+    ("0.3~0.5EV", "needs_input"), ("0.3 또는 0.5EV", "needs_input"),
+    ("0.5 EV 또는 1", "needs_input"), ("0.5EV_", "validation_error"),
+    ("채도 12 EV", "validation_error"),
+])
+def test_ev_unit_cannot_bypass_numeric_or_tool_binding(features, query, status):
+    def forbidden(prompt):
+        pytest.fail("malformed or misbound EV must fail before inference")
+    assert generate_profile(query, features, runtime=forbidden)["status"] == status
+
+
+@pytest.mark.parametrize("query,good,bad", [
+    ("increase saturation", {"Saturation": {"Saturation": 15}}, {"Saturation": {"Saturation": -15}}),
+    ("reduce saturation; exposure +0.5EV", {"Saturation": {"Saturation": -15}, "Exposure": {"Compensation": 0.5}},
+     {"Saturation": {"Saturation": 15}, "Exposure": {"Compensation": 0.5}}),
+])
+def test_direction_before_tool_is_bound_to_that_tool(features, query, good, bad):
+    assert generate_profile(query, features, runtime=runtime_reply(good))["status"] == "ok"
+    assert generate_profile(query, features, runtime=runtime_reply(bad))["status"] == "validation_error"
+
+
+@pytest.mark.parametrize("query,groups", [
+    ("reduce exposure and increase saturation", {"Exposure": {"Compensation": -0.5}, "Saturation": {"Saturation": 15}}),
+    ("WB 5500K, increase saturation", {"White Balance": {"Setting": "CustomTemp", "Temperature": 5500, "Green": 1}, "Saturation": {"Saturation": 15}}),
+])
+def test_direction_prefix_is_not_owned_by_the_previous_tool(features, query, groups):
+    result = generate_profile(query, features, runtime=runtime_reply(groups))
+    assert result["status"] == "ok", result
