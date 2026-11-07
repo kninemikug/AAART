@@ -1,0 +1,12 @@
+[Version]
+Version=1045
+
+[Exposure]
+Enabled=true
+Compensation=-0.25
+
+[White Balance]
+Enabled=true
+Setting=CustomTemp
+Temperature=5500
+Green=1.05

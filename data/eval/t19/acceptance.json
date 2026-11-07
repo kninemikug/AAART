@@ -1,4 +1,7 @@
 {
+  "run": "live-v3",
+  "generator_commit": "bf6306b08",
+  "prompt_version": "t19-profile-v2",
   "evaluation": {
     "attempted": 20,
     "total": 20,
@@ -15,29 +18,24 @@
     "cli_sha256": "ef53085775d14bf34427f096a1aba4c20279d97643eca47b36803606112940fd",
     "cli_core_commit": "8d7efb27c",
     "exit_code": 0,
-    "stdout": "Running ART-cli on data/fivek_sample/sample1.nef...\nART, version 8d7efb27c, command line.\n  Processing: data/fivek_sample/sample1.nef\n  Merging procparams #0\nSUCCESS: Fresh JPEG generated and decoded: build/t19-checks/render-v2/sample1.jpg\n",
+    "stdout": "Running ART-cli on data/fivek_sample/sample1.nef...\nART, version 8d7efb27c, command line.\n  Processing: data/fivek_sample/sample1.nef\n  Merging procparams #0\nSUCCESS: Fresh JPEG generated and decoded: build/t19-checks/render-v3/sample1.jpg\n",
     "stderr": "Error: the user's processing profile path doesn't point to a directory or doesn't exist!\n\n",
-    "jpeg_sha256": "c8499c810cecfbbdc66d38f4d4c8175bf208f35a058ec57535d8d9b70a626e8e",
+    "jpeg_sha256": "878f1bfeec93082b546d07a767f0568c05c5c121c2523d5bd56d3efc94e160cd",
     "jpeg_bytes": 1591985,
     "width": 2006,
     "height": 3031,
     "full_decode": "djpeg -strict",
     "raw_unchanged": true,
     "source_directory_unchanged": true,
-    "jpeg_path": "build/t19-checks/render-v2/sample1.jpg"
+    "jpeg_path": "build/t19-checks/render-v3/sample1.jpg"
   },
   "tests": {
-    "focused_passed": 202,
-    "live_record_replay_passed": 5,
-    "full_passed": 1298,
+    "focused_passed": 248,
+    "live_record_replay_passed": 20,
+    "full_passed": 1344,
     "full_warnings": 3,
-    "full_seconds": 364.6,
-    "full_log_sha256": "a3b6cff0f6605df639bed71f5c3b5829cf09f740dc9239d50765862bc6fe024f",
-    "sandbox_run": {
-      "passed": 1195,
-      "failed": 103,
-      "warnings": 3,
-      "failure": "Unix socket bind: Operation not permitted"
-    }
+    "full_seconds": 372.71,
+    "full_log": "data/eval/t19/pytest-v3.txt",
+    "full_log_sha256": "0852bc0aabfc52fed0e4e5e388001bcc21e468ae859a72a6631afbd79769dc1a"
   }
 }

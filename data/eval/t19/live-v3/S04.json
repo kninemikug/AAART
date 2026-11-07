@@ -1,0 +1,46 @@
+{
+  "prompt_version": "t19-profile-v2",
+  "request_sha256": "18332effb00ade9b02ce9e291cb0873fc0c6a3d51e04baa8a7ce55c0aa960c20",
+  "features_sha256": "e0468b1135d6029044b53cbc219516d4af37b89fa949ce732633164d2f759894",
+  "contract": {
+    "allowed_keys": {
+      "Saturation": [
+        "Vibrance"
+      ]
+    },
+    "wb_reference": null
+  },
+  "runtime": {
+    "provider": "codex-cli",
+    "model": "gpt-5.6-sol",
+    "call_count": 1,
+    "timeout_seconds": 120,
+    "tools_enabled": false,
+    "cli_version": "codex-cli 0.166.0",
+    "returncode": 0,
+    "stdout_jsonl": "{\"type\":\"thread.started\",\"thread_id\":\"01a1b439-e66f-7bd2-ac34-c5a1bd8b7d18\"}\n{\"type\":\"turn.started\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"agent_message\",\"text\":\"{\\\"groups\\\":{\\\"Saturation\\\":{\\\"Vibrance\\\":18}},\\\"reason\\\":\\\"요청에 따라 생동감을 18로 설정했습니다.\\\"}\"}}\n{\"type\":\"turn.completed\",\"usage\":{\"input_tokens\":15364,\"cached_input_tokens\":0,\"cache_write_input_tokens\":0,\"output_tokens\":33,\"reasoning_output_tokens\":0}}\n",
+    "stderr": "",
+    "usage": {
+      "input_tokens": 15364,
+      "cached_input_tokens": 0,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 33,
+      "reasoning_output_tokens": 0
+    },
+    "evidence_verified": true
+  },
+  "raw_response": "{\"groups\":{\"Saturation\":{\"Vibrance\":18}},\"reason\":\"요청에 따라 생동감을 18로 설정했습니다.\"}",
+  "status": "ok",
+  "profile": {
+    "ppversion": 1045,
+    "groups": {
+      "Saturation": {
+        "Enabled": true,
+        "Vibrance": 18
+      }
+    }
+  },
+  "arp": "[Version]\nVersion=1045\n\n[Saturation]\nEnabled=true\nVibrance=18\n",
+  "reason": "요청에 따라 생동감을 18로 설정했습니다.",
+  "warnings": []
+}
