@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 from typing import Any
 import urllib.request
+import urllib.error
 
 
 class RuntimeFailure(RuntimeError):
@@ -75,9 +76,55 @@ def validate_evidence(metadata: dict, raw_response: str) -> Any:
     return usage
 
 
+def validate_failure_evidence(metadata: dict, raw_response: Any) -> str:
+    """Reconstruct a runtime failure from captured evidence, not a stored status."""
+    if type(metadata.get("call_count")) is not int or metadata["call_count"] != 1:
+        raise ValueError("Missing failed invocation count")
+    if metadata.get("provider") == "openai-compatible":
+        if "response_body" not in metadata:
+            transport = metadata.get("transport_error")
+            if isinstance(transport, dict) and transport.get("kind") == "http":
+                status = transport.get("status")
+                if type(status) is int and 400 <= status <= 599:
+                    return "Compatible API invocation failed (HTTPError)"
+            if isinstance(transport, dict) and transport.get("kind") == "network":
+                if transport.get("exception") in ("URLError", "TimeoutError", "ConnectionError", "ConnectionResetError", "OSError", "SSLError", "RemoteDisconnected"):
+                    return f"Compatible API invocation failed ({transport['exception']})"
+            if isinstance(metadata.get("response_text"), str):
+                from .generator import strict_json
+                try:
+                    strict_json(metadata["response_text"])
+                except ValueError as exc:
+                    return f"Compatible API invocation failed ({type(exc).__name__})"
+            raise ValueError("Missing failed API response evidence")
+        try:
+            validate_evidence(metadata, raw_response)
+        except ValueError:
+            return "Compatible API invocation failed (ValueError)"
+        raise ValueError("API evidence describes a successful invocation")
+    if metadata.get("provider") != "codex-cli" or not isinstance(raw_response, str):
+        raise ValueError("Unknown failed invocation")
+    if not all(isinstance(metadata.get(key), str) for key in ("stdout_jsonl", "stderr")):
+        raise ValueError("Missing failed process capture")
+    if metadata.get("timeout") is True:
+        if type(metadata.get("timeout_seconds")) is not int or metadata["timeout_seconds"] <= 0:
+            raise ValueError("Missing timeout bound")
+        return "Runtime timeout"
+    code = metadata.get("returncode")
+    if type(code) is not int:
+        raise ValueError("Missing failed process exit status")
+    if code != 0:
+        return f"codex process failed: exit {code}"
+    try:
+        validate_evidence(metadata, raw_response)
+    except ValueError as exc:
+        return str(exc)
+    raise ValueError("Process evidence describes a successful invocation")
+
+
 def _codex(prompt: str) -> dict:
     model = os.getenv("LLM_MODEL") or os.getenv("CODEX_MODEL") or "gpt-5.6-sol"
-    metadata: dict[str, Any] = {"provider": "codex-cli", "model": model, "call_count": 1,
+    metadata: dict[str, Any] = {"provider": "codex-cli", "model": model, "call_count": 0,
                                "timeout_seconds": 120, "tools_enabled": False}
     raw = ""
     try:
@@ -97,6 +144,7 @@ def _codex(prompt: str) -> dict:
                        "--ephemeral", "--json", "-c", "features.shell_tool=false",
                        "-c", "features.unified_exec=false", "-c", 'web_search="disabled"',
                        "-o", str(output), "-"]
+            metadata["call_count"] = 1
             process = subprocess.run(command, input=prompt, capture_output=True, text=True, timeout=120)
             metadata.update(returncode=process.returncode, stdout_jsonl=process.stdout, stderr=process.stderr)
             if output.is_file():
@@ -119,7 +167,7 @@ def _compatible_api(prompt: str) -> dict:
     model = os.getenv("LLM_MODEL") or os.getenv("OPENAI_MODEL") or "gpt-5.6-sol"
     base = os.getenv("LLM_BASE_URL") or os.getenv("OPENAI_BASE_URL")
     key = os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
-    metadata = {"provider": "openai-compatible", "model": model, "call_count": 1,
+    metadata = {"provider": "openai-compatible", "model": model, "call_count": 0,
                 "tools_enabled": False, "timeout_seconds": 60, "temperature": 0}
     raw = ""
     try:
@@ -133,8 +181,11 @@ def _compatible_api(prompt: str) -> dict:
         body = {"model": model, "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0, "response_format": {"type": "json_object"}}
         request = urllib.request.Request(url, data=json.dumps(body).encode(), headers=headers)
+        metadata["call_count"] = 1
         with urllib.request.urlopen(request, timeout=60) as response:
-            data = json.loads(response.read())
+            metadata["response_text"] = _text(response.read())
+        from .generator import strict_json
+        data = strict_json(metadata["response_text"])
         metadata["response_body"] = data
         if isinstance(data, dict) and isinstance(data.get("choices"), list) and len(data["choices"]) == 1:
             choice = data["choices"][0]
@@ -142,7 +193,13 @@ def _compatible_api(prompt: str) -> dict:
                 raw = choice["message"].get("content")
         metadata["usage"] = validate_evidence(metadata, raw)
         return {"raw_response": raw, "metadata": metadata}
-    except (OSError, ValueError, TypeError, KeyError) as exc:
+    except urllib.error.HTTPError as exc:
+        metadata["transport_error"] = {"kind": "http", "status": exc.code}
+        raise RuntimeFailure("Compatible API invocation failed (HTTPError)", metadata, raw) from exc
+    except OSError as exc:
+        metadata["transport_error"] = {"kind": "network", "exception": type(exc).__name__}
+        raise RuntimeFailure(f"Compatible API invocation failed ({type(exc).__name__})", metadata, raw) from exc
+    except (ValueError, TypeError, KeyError) as exc:
         raise RuntimeFailure(f"Compatible API invocation failed ({type(exc).__name__})", metadata, raw) from exc
 
 

@@ -12,7 +12,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-from artagent.arp.generator import generate_profile, parse_profile, strict_json
+from artagent.arp.generator import PROMPT_VERSION, generate_profile, parse_profile, strict_json
+from artagent.arp.runtime import RuntimeFailure, validate_evidence, validate_failure_evidence
 from artagent.features import dumps_features, extract_features
 
 CASE_PATH = ROOT / "tests/t19_cases.py"
@@ -21,6 +22,9 @@ CASES = CASE_DEFINITIONS["CASES"]
 MATCHES = CASE_DEFINITIONS["matches_request"]
 SAMPLE = ROOT / "data/fivek_sample/sample1.nef"
 SAMPLE_HASH = "18e287009b15b20fc73fd2223ed1551231f3853398a38a7b0a4308b630e1f805"
+SOURCE_PATHS = ("rtgui/ppversion.h", "src/artagent/arp/schema.json",
+                "src/artagent/arp/generator.py", "src/artagent/arp/runtime.py",
+                "scripts/evaluate_arp_generator.py")
 
 
 def sha(path):
@@ -43,10 +47,7 @@ def evaluate(run_dir: Path) -> dict:
     manifest = {"cases": CASES, "cases_sha256": sha(CASE_PATH), "raw_sha256": SAMPLE_HASH,
                 "features_sha256": sha(run_dir / "features.json"),
                 "source_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
-                "sources": {str(path.relative_to(ROOT)): sha(path) for path in [
-                    ROOT / "rtgui/ppversion.h", ROOT / "src/artagent/arp/schema.json",
-                    ROOT / "src/artagent/arp/generator.py", ROOT / "src/artagent/arp/runtime.py",
-                    Path(__file__).resolve()]}}
+                "sources": {path: sha(ROOT / path) for path in SOURCE_PATHS}}
     write_json(run_dir / "manifest.json", manifest)
     for case_id, query, expected in CASES:
         result = generate_profile(query, features)
@@ -72,7 +73,10 @@ def check(run_dir: Path) -> dict:
         raise ValueError("RAW identity mismatch")
     if manifest["features_sha256"] != sha(run_dir / "features.json"):
         raise ValueError("Feature input changed")
-    for path, digest in manifest["sources"].items():
+    sources = manifest.get("sources")
+    if not isinstance(sources, dict) or set(sources) != set(SOURCE_PATHS):
+        raise ValueError("Missing or unexpected source fingerprints")
+    for path, digest in sources.items():
         if sha(ROOT / path) != digest:
             raise ValueError(f"Evaluation source changed: {path}")
     features = strict_json((run_dir / "features.json").read_text())
@@ -81,19 +85,48 @@ def check(run_dir: Path) -> dict:
         record = run_dir / f"{case_id}.json"
         if not record.is_file():
             continue
-        attempted += 1
         saved = strict_json(record.read_text())
-        if saved["status"] != "ok":
-            continue
-        metadata = saved["runtime"]
-        from artagent.arp.runtime import validate_evidence
-        validate_evidence(metadata, saved["raw_response"])
-        replay = generate_profile(query, features, runtime=lambda prompt: {
-            "raw_response": saved["raw_response"], "metadata": metadata})
-        for key in ("status", "profile", "arp", "request_sha256", "features_sha256", "contract", "prompt_version"):
+        if not isinstance(saved, dict) or saved.get("status") not in (
+                "ok", "runtime_error", "validation_error", "needs_input", "unsupported_request"):
+            raise ValueError(f"Invalid saved status: {case_id}")
+        identities = {"request_sha256": hashlib.sha256(query.encode()).hexdigest(),
+                      "features_sha256": hashlib.sha256(json.dumps(features, ensure_ascii=False, sort_keys=True, allow_nan=False).encode()).hexdigest(),
+                      "prompt_version": PROMPT_VERSION}
+        if any(saved.get(key) != value for key, value in identities.items()):
+            raise ValueError(f"Missing or changed request identity: {case_id}")
+        metadata, raw = saved.get("runtime"), saved.get("raw_response")
+        failure = None
+        if "runtime" in saved:
+            if not isinstance(metadata, dict) or "raw_response" not in saved:
+                raise ValueError(f"Missing invocation evidence: {case_id}")
+            try:
+                validate_evidence(metadata, raw)
+            except ValueError:
+                if saved["status"] != "runtime_error":
+                    raise
+                failure = validate_failure_evidence(metadata, raw)
+        runtime_called = False
+        def recorded_runtime(prompt):
+            nonlocal runtime_called
+            runtime_called = True
+            if metadata is None:
+                raise ValueError("Missing invocation evidence")
+            if failure is not None:
+                raise RuntimeFailure(failure, metadata, raw)
+            return {"raw_response": raw, "metadata": metadata}
+        replay = generate_profile(query, features, runtime=recorded_runtime)
+        if runtime_called != ("runtime" in saved):
+            raise ValueError(f"Invocation evidence does not match execution: {case_id}")
+        for key in ("status", "profile", "arp", "request_sha256", "features_sha256", "contract", "prompt_version", "error", "reason", "warnings"):
             if replay.get(key) != saved.get(key):
                 raise ValueError(f"Replay mismatch: {case_id}.{key}")
-        if replay["status"] != "ok" or parse_profile((run_dir / f"{case_id}.arp").read_text()) != replay["profile"]:
+        attempted += 1
+        profile_path = run_dir / f"{case_id}.arp"
+        if replay["status"] != "ok":
+            if profile_path.exists():
+                raise ValueError(f"Failed record has an output profile: {case_id}")
+            continue
+        if parse_profile(profile_path.read_text()) != replay["profile"]:
             raise ValueError(f"Invalid stored profile: {case_id}")
         passed += 1
         intent += int(MATCHES(replay["profile"], expected))
