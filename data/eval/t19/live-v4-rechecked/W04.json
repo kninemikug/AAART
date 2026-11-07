@@ -1,0 +1,56 @@
+{
+  "prompt_version": "t19-profile-v3",
+  "request_sha256": "c4b9b8080ade0f04ea81af22c1e467c80b7d5c5111abec9b872283f6160bcd66",
+  "features_sha256": "e0468b1135d6029044b53cbc219516d4af37b89fa949ce732633164d2f759894",
+  "contract": {
+    "allowed_keys": {
+      "White Balance": [
+        "Setting",
+        "Temperature",
+        "Green"
+      ]
+    },
+    "wb_reference": {
+      "Setting": "CustomTemp",
+      "Temperature": 4200,
+      "Green": 0.9
+    },
+    "exact_values": {},
+    "directions": {}
+  },
+  "runtime": {
+    "provider": "codex-cli",
+    "model": "gpt-5.6-sol",
+    "call_count": 1,
+    "timeout_seconds": 120,
+    "tools_enabled": false,
+    "cli_version": "codex-cli 0.166.0",
+    "returncode": 0,
+    "stdout_jsonl": "{\"type\":\"thread.started\",\"thread_id\":\"01a1b4c4-f614-7751-bc3d-b6d41433a2c0\"}\n{\"type\":\"turn.started\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"agent_message\",\"text\":\"{\\\"groups\\\":{\\\"White Balance\\\":{\\\"Setting\\\":\\\"CustomTemp\\\",\\\"Temperature\\\":4200,\\\"Green\\\":0.9}},\\\"reason\\\":\\\"요청한 화이트밸런스 수치를 WB 기준값에 따라 적용했습니다.\\\"}\"}}\n{\"type\":\"turn.completed\",\"usage\":{\"input_tokens\":15422,\"cached_input_tokens\":8192,\"cache_write_input_tokens\":0,\"output_tokens\":49,\"reasoning_output_tokens\":0}}\n",
+    "stderr": "",
+    "usage": {
+      "input_tokens": 15422,
+      "cached_input_tokens": 8192,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 49,
+      "reasoning_output_tokens": 0
+    },
+    "evidence_verified": true
+  },
+  "raw_response": "{\"groups\":{\"White Balance\":{\"Setting\":\"CustomTemp\",\"Temperature\":4200,\"Green\":0.9}},\"reason\":\"요청한 화이트밸런스 수치를 WB 기준값에 따라 적용했습니다.\"}",
+  "status": "ok",
+  "profile": {
+    "ppversion": 1045,
+    "groups": {
+      "White Balance": {
+        "Enabled": true,
+        "Setting": "CustomTemp",
+        "Temperature": 4200,
+        "Green": 0.9
+      }
+    }
+  },
+  "arp": "[Version]\nVersion=1045\n\n[White Balance]\nEnabled=true\nSetting=CustomTemp\nTemperature=4200\nGreen=0.9\n",
+  "reason": "요청한 화이트밸런스 수치를 WB 기준값에 따라 적용했습니다.",
+  "warnings": []
+}

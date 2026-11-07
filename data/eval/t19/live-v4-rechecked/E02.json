@@ -1,0 +1,52 @@
+{
+  "prompt_version": "t19-profile-v3",
+  "request_sha256": "298670f1f85640aeb421bb6feb41620a8f072b8847e8d1bb0373d1280a96f4ae",
+  "features_sha256": "e0468b1135d6029044b53cbc219516d4af37b89fa949ce732633164d2f759894",
+  "contract": {
+    "allowed_keys": {
+      "Exposure": [
+        "Compensation"
+      ]
+    },
+    "wb_reference": null,
+    "exact_values": {},
+    "directions": {
+      "Exposure": {
+        "Compensation": -1
+      }
+    }
+  },
+  "runtime": {
+    "provider": "codex-cli",
+    "model": "gpt-5.6-sol",
+    "call_count": 1,
+    "timeout_seconds": 120,
+    "tools_enabled": false,
+    "cli_version": "codex-cli 0.166.0",
+    "returncode": 0,
+    "stdout_jsonl": "{\"type\":\"thread.started\",\"thread_id\":\"01a1b47b-9f74-7253-acc8-e31cdcc4d1a6\"}\n{\"type\":\"turn.started\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"agent_message\",\"text\":\"{\\\"groups\\\":{\\\"Exposure\\\":{\\\"Compensation\\\":-0.25}},\\\"reason\\\":\\\"요청대로 노출을 조금 낮추되, 이미 어두운 사진 특성을 고려해 완만한 -0.25로 제안합니다.\\\"}\"}}\n{\"type\":\"turn.completed\",\"usage\":{\"input_tokens\":14857,\"cached_input_tokens\":8192,\"cache_write_input_tokens\":0,\"output_tokens\":53,\"reasoning_output_tokens\":0}}\n",
+    "stderr": "",
+    "usage": {
+      "input_tokens": 14857,
+      "cached_input_tokens": 8192,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 53,
+      "reasoning_output_tokens": 0
+    },
+    "evidence_verified": true
+  },
+  "raw_response": "{\"groups\":{\"Exposure\":{\"Compensation\":-0.25}},\"reason\":\"요청대로 노출을 조금 낮추되, 이미 어두운 사진 특성을 고려해 완만한 -0.25로 제안합니다.\"}",
+  "status": "ok",
+  "profile": {
+    "ppversion": 1045,
+    "groups": {
+      "Exposure": {
+        "Enabled": true,
+        "Compensation": -0.25
+      }
+    }
+  },
+  "arp": "[Version]\nVersion=1045\n\n[Exposure]\nEnabled=true\nCompensation=-0.25\n",
+  "reason": "요청대로 노출을 조금 낮추되, 이미 어두운 사진 특성을 고려해 완만한 -0.25로 제안합니다.",
+  "warnings": []
+}
