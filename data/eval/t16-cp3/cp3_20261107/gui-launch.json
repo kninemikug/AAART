@@ -1,0 +1,28 @@
+{
+  "binary": "/Users/user/orca/workspaces/AAART/T-live-param/build/liveparam-numeric-checks/ARTChatControls.app/Contents/MacOS/ART",
+  "binary_sha256": "85eb694ae7921a196648fbbfa94a5d1feef47bd0b9096bec1ddddeada0d0cbb8",
+  "pid": 97990,
+  "settings": "/Users/user/orca/workspaces/AAART/T16-fallback/data/eval/t16-cp3/cp3_20261107/gui-settings",
+  "source": "/Users/user/orca/workspaces/AAART/T16-fallback",
+  "python": "/Users/user/orca/workspaces/AAART/T16-fallback/data/eval/t16-cp3/cp3_20261107/gui-python",
+  "native_source_hashes": {
+    "rtgui/chatpanel.cc": "2c4043401036f32419221281aa1f9887820db3b7eef302d8e458ec0dd4c659d9",
+    "rtgui/chatconnection.cc": "b61761297d5f7ec60909b0cb105734257179ae3e5d617a57058e670cd40c83a7",
+    "rtgui/chatinput.cc": "2f839f127b62236ee066d3252275a5a133054231864b713566a27c5c3b6046b0",
+    "rtgui/chatpanel.h": "7c95e0a51cd61c73a225bae4a6d4c9bf8a859e884bce8b89cd3634d4d91c6706",
+    "rtgui/chatconnection.h": "4cf4c447649f6fd75703175cf0ffa4453c439848e8baeef3d356c81e259d0401"
+  },
+  "matching_build_source_root": "/Users/user/orca/workspaces/AAART/T-live-param",
+  "second_launch": {
+    "pid": 464,
+    "method": "open -n -a; isolated ART_SETTINGS and ART_CACHE; -N"
+  },
+  "cleanup": {
+    "first_pid": 97990,
+    "first_absent_on_later_process_listing": true,
+    "second_pid": 464,
+    "termination": "SIGTERM returned exit 0",
+    "existing_user_pid": 69296,
+    "user_process_untouched": true
+  }
+}

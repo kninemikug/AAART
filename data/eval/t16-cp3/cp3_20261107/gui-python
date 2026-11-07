@@ -1,0 +1,44 @@
+#!/Users/user/Workspace/Programming/Projects/AAART/venv/bin/python3
+"""네이티브 패널이 호출하는 실제 브리지의 관측 전용 실행기."""
+from dataclasses import asdict
+import json
+import os
+from pathlib import Path
+import sys
+import time
+
+OUT = Path(__file__).resolve().parent
+ROOT = OUT.parents[3]
+sys.path.insert(0, str(ROOT / "src"))
+os.environ.update(LLM_PROVIDER="codex", LLM_MODEL="gpt-5.6-sol", HF_HUB_OFFLINE="1", TRANSFORMERS_OFFLINE="1", PYTHONDONTWRITEBYTECODE="1")
+from artagent import gui_bridge
+
+
+def record(value):
+    with (OUT / "gui-records.jsonl").open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(value, ensure_ascii=False) + "\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+
+
+factory = gui_bridge.create_gui_graph
+
+
+class ObservedGraph:
+    def __init__(self, graph):
+        self.graph = graph
+
+    def invoke(self, state):
+        started = time.monotonic()
+        request = asdict(state["request"])
+        record({"event": "started", "pid": os.getpid(), "request": request})
+        result = self.graph.invoke(state)
+        record({"event": "completed", "pid": os.getpid(), "request": request,
+                "trace": result.get("trace"), "research_count": result.get("research_count"),
+                "response": asdict(result["response"]), "elapsed_seconds": time.monotonic() - started})
+        return result
+
+
+gui_bridge.create_gui_graph = lambda *a, **kw: ObservedGraph(factory(*a, **kw))
+assert sys.argv[1:4] == ["-u", "-m", "artagent.gui_bridge"]
+raise SystemExit(gui_bridge.main(sys.argv[4:]))
