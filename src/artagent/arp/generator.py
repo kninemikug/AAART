@@ -18,7 +18,7 @@ from jsonschema import Draft202012Validator, validators
 ROOT = Path(__file__).resolve().parents[3]
 HEADER_PATH = ROOT / "rtgui/ppversion.h"
 SCHEMA_PATH = Path(__file__).with_name("schema.json")
-PROMPT_VERSION = "t19-profile-v1"
+PROMPT_VERSION = "t19-profile-v2"
 
 # JSON Schema considers 1.0 an integer; ART's integer fields require Python ints.
 _TYPES = Draft202012Validator.TYPE_CHECKER.redefine_many({
@@ -217,44 +217,135 @@ class _RequestError(ValueError):
         self.status = status
 
 
-def _request_contract(request: str) -> dict:
-    """Select the bounded Korean/English vocabulary supported by this first version."""
-    # Remove explicit no-change clauses before selecting tools. A second positive
-    # mention of the same adjustment is ambiguous, so ask instead of guessing.
-    for word in ("노출", "채도", "생동감", "saturation", "vibrance", "exposure"):
-        pattern = (rf"{word}(?:[은는을를]|\s)*(?:(?:바꾸|변경하|조절하|조정하|수정하)지\s*(?:마|말|않)\S*|"
-                   r"(?:그대로\s*)?(?:유지|보존)\S*)")
-        cleaned, removed = re.subn(pattern, "", request, flags=re.I)
-        if removed and re.search(word, cleaned, re.I):
-            raise _RequestError("needs_input", f"Conflicting instructions for {word}")
-        request = cleaned
-    if re.search(r"지\s*(?:마|말|않)|do\s+not|don't|\bunchanged\b", request, re.I):
+_NUMBER = r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?"
+_WB_WORDS = r"화이트.?밸런스|화밸|색온도|white.?balance|\bwb\b"
+_TOOL_MARKERS = re.compile(
+    r"(?P<Exposure>노출|밝|어둡|\bev\b|exposure|bright|dark)|"
+    r"(?P<Saturation>채도|saturation)|(?P<Vibrance>생동|vibrance)|"
+    rf"(?P<WB>{_WB_WORDS}|노란|노랗|노랑|따뜻|차갑|warmer|cooler|kelvin|"
+    rf"\bgreen\b|그린|{_NUMBER}\s*(?:k\b|켈빈))", re.I,
+)
+
+
+def _preserved_tools(request: str) -> tuple[str, set[str]]:
+    """Remove understood preservation clauses, remembering what cannot be edited."""
+    preserved = set()
+    aliases = {"Exposure": r"노출|밝기|exposure|brightness",
+               "Saturation": r"채도|saturation", "Vibrance": r"생동감|vibrance",
+               "WB": _WB_WORDS}
+    no_change = (
+        r"(?:(?:변경|변화|조절|조정|수정)\s*없이|"
+        r"(?:바꾸|변경하|조절하|조정하|수정하|건드리)지\s*"
+        r"(?:마(?:세요)?|말(?:고|아줘|아)?|않(?:고|아)?)|"
+        r"(?:그대로\s*)?(?:유지|보존)(?:해줘|해주세요)?)"
+    )
+    # Lists belong to one preservation instruction. Removing just the first or
+    # last item would turn the remaining names into permission to edit them.
+    any_tool = "(?:" + "|".join(aliases.values()) + ")"
+    joiner = r"(?:\s*,?\s*(?:\band\b|\bor\b|와|과|및)\s*|\s*,\s*)"
+    sequence = rf"(?P<tools>{any_tool}(?:{joiner}(?:the\s+)?{any_tool})+)"
+    coordinated = [
+        rf"{sequence}(?:[은는을를]|\s)*{no_change}",
+        rf"(?:without\s+(?:changing|altering|adjusting)|(?:do\s+not|don't)\s+(?:change|adjust|touch))\s+(?:the\s+)?{sequence}",
+        rf"(?:keep|leave)\s+(?:the\s+)?{sequence}\s+unchanged\b",
+    ]
+    def remove_list(match):
+        for name, words in aliases.items():
+            if re.search(words, match.group("tools"), re.I):
+                preserved.add(name)
+        return " "
+    for pattern in coordinated:
+        request = re.sub(pattern, remove_list, request, flags=re.I)
+    for name, words in aliases.items():
+        tool = rf"(?:{words})"
+        patterns = [
+            rf"{tool}(?:[은는을를]|\s)*{no_change}",
+            rf"(?:without\s+(?:changing|altering|adjusting)|(?:do\s+not|don't)\s+(?:change|adjust|touch))\s+(?:the\s+)?{tool}\b",
+            rf"(?:keep|leave)\s+(?:the\s+)?{tool}\s+unchanged\b",
+        ]
+        for pattern in patterns:
+            request, removed = re.subn(pattern, " ", request, flags=re.I)
+            if removed:
+                preserved.add(name)
+    return request, preserved
+
+
+def _wb_text(request: str) -> str:
+    """Keep every WB span, including punctuation; exclude other tools' directions."""
+    markers = list(_TOOL_MARKERS.finditer(request))
+    parts = []
+    for index, marker in enumerate(markers):
+        if marker.lastgroup != "WB":
+            continue
+        start = marker.start()
+        prefix_start = markers[index - 1].end() if index else 0
+        prefix = re.search(r"(?:현재|기준|촬영|camera)\s*$", request[prefix_start:start], re.I)
+        if prefix:
+            start = prefix_start + prefix.start()
+        end = markers[index + 1].start() if index + 1 < len(markers) else len(request)
+        parts.append(request[start:end])
+    return " ".join(parts)
+
+
+def _green_values(request: str) -> set[float]:
+    """An explicit Green label must be followed by one complete numeric token."""
+    values = set()
+    for marker in re.finditer(r"(?:\bgreen\b|그린)\s*[=:]?\s*", request, re.I):
+        remaining = request[marker.end():]
+        token = re.match(r"[^\s,;!?。]+", remaining)
+        number = token.group().removesuffix(".") if token else ""
+        if token is None or re.fullmatch(_NUMBER, number) is None:
+            raise ValueError("Invalid explicit Green number")
+        tail = remaining[token.end():]
+        if re.match(r",\d", tail):
+            raise ValueError("Invalid explicit Green number")
+        value = float(number)
+        if not math.isfinite(value):
+            raise ValueError("Non-finite Green number")
+        values.add(value)
+    return values
+
+
+def _request_contract(request: str, *, header_path: Path = HEADER_PATH) -> dict:
+    """Select complete supported edits; ambiguous instructions require clarification."""
+    request, preserved = _preserved_tools(request)
+    if re.search(r"지\s*(?:마|말|않)|(?:변경|변화|수정|조절)\s*없이|\b(?:without|not|never|unchanged)\b|don't", request, re.I):
         raise _RequestError("needs_input", "Clarify the requested changes and preserved tools")
-    if re.search(r"노이즈|선명|샤픈|자르|크롭|검정점|블랙|대비|톤.?커브|흑백|\b(noise|sharpen|crop|contrast|hdr)\b|black.?point|tone.?curve", request, re.I):
-        raise _RequestError("unsupported_request", "Supported tools: exposure, white balance, saturation/vibrance")
+    if re.search(
+        r"노이즈|선명|샤픈|자르|크롭|검정점|블랙|대비|톤.?커브|흑백|회전|"
+        r"\d+\s*도\s*(?:돌려|돌리)|(?:사진|이미지)(?:을|를)?\s*돌려|"
+        r"비네팅|비네트|리사이즈|크기|수평|원근|왜곡|안개|헤이즈|텍스처|마스크|워터마크|"
+        r"\b(?:noise|denoise|sharpen|crop|contrast|hdr|rotate|rotation|resize|vignet\w*|"
+        r"straighten|perspective|distortion|dehaze|texture|mask|watermark)\b|black.?point|tone.?curve",
+        request, re.I,
+    ):
+        raise _RequestError("unsupported_request", "All requested tools must be supported: exposure, WB, saturation/vibrance")
+    mentioned = {marker.lastgroup for marker in _TOOL_MARKERS.finditer(request)}
+    if mentioned & preserved:
+        raise _RequestError("needs_input", "Conflicting change/preservation instructions")
     allowed = {}
-    if re.search(r"노출|밝|어둡|\bev\b|exposure|bright|dark", request, re.I):
+    if "Exposure" in mentioned:
         allowed["Exposure"] = ["Compensation"]
     saturation = []
-    if re.search(r"채도|saturation", request, re.I):
+    if "Saturation" in mentioned:
         saturation.append("Saturation")
-    if re.search(r"생동|vibrance", request, re.I):
+    if "Vibrance" in mentioned:
         saturation.append("Vibrance")
     if saturation:
         allowed["Saturation"] = saturation
     wb = None
-    wb_match = re.search(r"화이트.?밸런스|화밸|색온도|노란|노랗|노랑|따뜻|차갑|white.?balance|\bwb\b|kelvin|\bgreen\b|그린|\d\s*k\b|켈빈", request, re.I)
-    if wb_match:
-        wb_clause = re.split(r"[,;!?。\n]|(?<!\d)\.(?!\d)|노출|채도|생동감|exposure|saturation|vibrance",
-                             request[wb_match.start():], maxsplit=1, flags=re.I)[0]
-        if (re.search(r"기준|현재|낮춰|낮추|높여|높이|줄여|줄이|올려|내려|늘려|증가|감소|더\s*따뜻|더\s*차갑|warmer|cooler|increase|decrease|\bby\b", wb_clause, re.I)
-                and not re.search(r"절대|absolute|(?:k\b|켈빈)\s*(?:로|으로)", wb_clause, re.I)):
+    if "WB" in preserved:
+        wb = {"Setting": "Camera"}
+    elif "WB" in mentioned:
+        wb_text = _wb_text(request)
+        if (re.search(r"기준|현재|낮춰|낮추|높여|높이|줄여|줄이|올려|내려|늘려|증가|감소|따뜻|차갑|warmer|cooler|increase|decrease|\bby\b", wb_text, re.I)
+                and not re.search(r"절대|absolute|(?:k\b|켈빈)\s*(?:로|으로)", wb_text, re.I)):
             raise _RequestError("needs_input", "Relative WB adjustment requires an unambiguous absolute target in K")
-        temperatures = set(re.findall(r"(?<![\d.])([+-]?\d+(?:\.\d+)?)\s*(?:k\b|켈빈)", request, re.I))
-        greens = set(re.findall(r"(?:green|그린)\s*[=:]?\s*([+-]?\d+(?:\.\d+)?)", request, re.I))
+        temperatures = set(re.findall(rf"(?<![\d.eE])({_NUMBER})\s*(?:k\b|켈빈)", request, re.I))
+        greens = _green_values(request)
         if len(temperatures) == 1 and len(greens) <= 1:
             temperature = float(next(iter(temperatures)))
-            if not temperature.is_integer():
+            if not math.isfinite(temperature) or not temperature.is_integer():
                 raise ValueError("Temperature must be an integer Kelvin value")
             wb = {"Setting": "CustomTemp", "Temperature": int(temperature),
                   "Green": float(next(iter(greens))) if greens else 1.0}
@@ -262,9 +353,10 @@ def _request_contract(request: str) -> dict:
             wb = {"Setting": "Camera"}
         else:
             raise _RequestError("needs_input", "Specify one absolute WB temperature in K (optional Green), or preserve camera WB")
+    if wb is not None:
         allowed["White Balance"] = list(wb)
-        validate_profile({"ppversion": load_schema()["properties"]["ppversion"]["const"],
-                          "groups": {"White Balance": {"Enabled": True, **wb}}})
+        validate_profile({"ppversion": load_schema(header_path)["properties"]["ppversion"]["const"],
+                          "groups": {"White Balance": {"Enabled": True, **wb}}}, header_path=header_path)
     if not allowed:
         raise _RequestError("unsupported_request", "No supported adjustment was identified")
     return {"allowed_keys": allowed, "wb_reference": wb}
@@ -286,7 +378,7 @@ def generate_profile(
         _validate_features(features)
         result.update(request_sha256=hashlib.sha256(request.encode()).hexdigest(),
                       features_sha256=hashlib.sha256(_canonical(features).encode()).hexdigest())
-        contract = _request_contract(request)
+        contract = _request_contract(request, header_path=header_path)
         result["contract"] = contract
     except _RequestError as exc:
         return dict(result, status=exc.status, error=str(exc))

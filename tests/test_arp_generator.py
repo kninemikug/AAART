@@ -172,7 +172,6 @@ def test_selected_tools_generate(features, query, groups):
     ("색온도를 2000K 낮춰줘", "needs_input"),
     ("WB 5500K 기준에서 조금 더 따뜻하게 해줘", "needs_input"),
     ("색온도 1000K 줄여줘", "needs_input"),
-    ("brighten; don't change saturation", "needs_input"),
     ("밝게 하고 채도는 올리지 마", "needs_input"),
     ("크롭해줘", "unsupported_request"),
     ("밝게 하고 노이즈 제거", "unsupported_request"),
@@ -300,3 +299,92 @@ def test_negated_adjustment_is_not_requested(features):
     changed = generate_profile(query, features, runtime=runtime_reply({
         "Exposure": {"Compensation": 0.3}, "Saturation": {"Saturation": 70}}))
     assert changed["status"] == "validation_error"
+
+
+@pytest.mark.parametrize("query", [
+    "채도 변경 없이 밝게 해줘", "채도 변화 없이 밝게 해줘",
+    "brighten without changing saturation", "brighten; keep saturation unchanged",
+    "brighten; don't change saturation",
+    "채도는 바꾸지 말고 밝게 해줘",
+])
+def test_preservation_clauses_never_authorize_saturation(features, query):
+    good = generate_profile(query, features,
+                            runtime=runtime_reply({"Exposure": {"Compensation": 0.5}}))
+    assert good["status"] == "ok", good
+    bad = generate_profile(query, features, runtime=runtime_reply({
+        "Exposure": {"Compensation": 0.5}, "Saturation": {"Saturation": 50}}))
+    assert bad["status"] == "validation_error"
+
+
+@pytest.mark.parametrize("query", [
+    "WB를 2000K, 낮춰줘", "WB를 2000K; 낮춰줘", "WB를 2000K. 낮춰줘",
+    "WB 5500K, 조금 더 따뜻하게 해줘", "현재 WB 5500K. 밝게 하고 더 따뜻하게 해줘",
+])
+def test_relative_wb_cannot_hide_behind_punctuation(features, query):
+    def forbidden(prompt):
+        pytest.fail("a relative WB request needs a target before inference")
+    result = generate_profile(query, features, runtime=forbidden)
+    assert result["status"] == "needs_input"
+
+
+@pytest.mark.parametrize("query", [
+    "밝게 해주고 회전해줘", "밝게 해주고 비네팅을 제거해줘",
+    "brighten and rotate", "밝게 해주고 크기를 변경해줘",
+])
+def test_mixed_unsupported_edits_do_not_partially_succeed(features, query):
+    def forbidden(prompt):
+        pytest.fail("all requested tools must be supported before inference")
+    result = generate_profile(query, features, runtime=forbidden)
+    assert result["status"] == "unsupported_request"
+
+
+@pytest.mark.parametrize("text,value", [(".8", 0.8), ("1e-1", 0.1), ("+8e-1", 0.8)])
+def test_green_number_is_parsed_as_a_complete_token(features, text, value):
+    result = generate_profile(f"WB 5500K Green={text}", features, runtime=runtime_reply({
+        "White Balance": {"Setting": "CustomTemp", "Temperature": 5500, "Green": value}}))
+    assert result["status"] == "ok", result
+    assert result["contract"]["wb_reference"]["Green"] == value
+
+
+@pytest.mark.parametrize("text", ["1e", "1e-", "1.2.3", "oops", "1,1"])
+def test_malformed_explicit_green_is_not_defaulted(features, text):
+    def forbidden(prompt):
+        pytest.fail("malformed Green must fail before inference")
+    result = generate_profile(f"WB 5500K Green={text}", features, runtime=forbidden)
+    assert result["status"] == "validation_error"
+
+
+@pytest.mark.parametrize("query", ["WB 5500K, 채도를 줄여줘", "WB 5500K. 노출을 높여줘"])
+def test_other_tool_directions_do_not_turn_absolute_wb_into_a_delta(features, query):
+    groups = {"White Balance": {"Setting": "CustomTemp", "Temperature": 5500, "Green": 1.0}}
+    if "채도" in query:
+        groups["Saturation"] = {"Saturation": -5}
+    else:
+        groups["Exposure"] = {"Compensation": 0.3}
+    assert generate_profile(query, features, runtime=runtime_reply(groups))["status"] == "ok"
+
+
+@pytest.mark.parametrize("query,good,bad", [
+    ("brighten without changing saturation or vibrance", {"Exposure": {"Compensation": 0.5}},
+     {"Exposure": {"Compensation": 0.5}, "Saturation": {"Vibrance": 50}}),
+    ("brighten without changing saturation, or the vibrance", {"Exposure": {"Compensation": 0.5}},
+     {"Exposure": {"Compensation": 0.5}, "Saturation": {"Vibrance": 50}}),
+    ("밝게, 채도와 생동감은 유지해줘", {"Exposure": {"Compensation": 0.5}},
+     {"Exposure": {"Compensation": 0.5}, "Saturation": {"Saturation": 50}}),
+    ("don't change exposure or saturation; WB 5500K",
+     {"White Balance": {"Setting": "CustomTemp", "Temperature": 5500, "Green": 1}},
+     {"White Balance": {"Setting": "CustomTemp", "Temperature": 5500, "Green": 1},
+      "Saturation": {"Saturation": 50}}),
+])
+def test_coordinated_preservation_applies_to_every_named_tool(features, query, good, bad):
+    assert generate_profile(query, features, runtime=runtime_reply(good))["status"] == "ok"
+    assert generate_profile(query, features, runtime=runtime_reply(bad))["status"] == "validation_error"
+
+
+@pytest.mark.parametrize("query,groups", [
+    ("노출을 0 EV로 되돌려줘", {"Exposure": {"Compensation": 0}}),
+    ("채도를 0으로 되돌려줘", {"Saturation": {"Saturation": 0}}),
+    ("WB 5500K Green=1.1.", {"White Balance": {"Setting": "CustomTemp", "Temperature": 5500, "Green": 1.1}}),
+])
+def test_valid_reset_and_sentence_punctuation_remain_supported(features, query, groups):
+    assert generate_profile(query, features, runtime=runtime_reply(groups))["status"] == "ok"
