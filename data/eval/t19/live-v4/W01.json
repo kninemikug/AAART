@@ -1,0 +1,50 @@
+{
+  "prompt_version": "t19-profile-v3",
+  "request_sha256": "03139c7a730080451f1008845ff9ee989d9bbf8e173d2cacc2addbb9ca742f21",
+  "features_sha256": "e0468b1135d6029044b53cbc219516d4af37b89fa949ce732633164d2f759894",
+  "contract": {
+    "allowed_keys": {
+      "White Balance": [
+        "Setting"
+      ]
+    },
+    "wb_reference": {
+      "Setting": "Camera"
+    },
+    "exact_values": {},
+    "directions": {}
+  },
+  "runtime": {
+    "provider": "codex-cli",
+    "model": "gpt-5.6-sol",
+    "call_count": 1,
+    "timeout_seconds": 120,
+    "tools_enabled": false,
+    "cli_version": "codex-cli 0.166.0",
+    "returncode": 0,
+    "stdout_jsonl": "{\"type\":\"thread.started\",\"thread_id\":\"01a1b4c4-c3fa-7522-a74e-d7d832f8e0a2\"}\n{\"type\":\"turn.started\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"agent_message\",\"text\":\"{\\\"groups\\\":{\\\"White Balance\\\":{\\\"Setting\\\":\\\"Camera\\\"}},\\\"reason\\\":\\\"촬영 시 카메라의 화이트 밸런스를 그대로 유지합니다.\\\"}\"}}\n{\"type\":\"turn.completed\",\"usage\":{\"input_tokens\":15387,\"cached_input_tokens\":12416,\"cache_write_input_tokens\":0,\"output_tokens\":35,\"reasoning_output_tokens\":0}}\n",
+    "stderr": "",
+    "usage": {
+      "input_tokens": 15387,
+      "cached_input_tokens": 12416,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 35,
+      "reasoning_output_tokens": 0
+    },
+    "evidence_verified": true
+  },
+  "raw_response": "{\"groups\":{\"White Balance\":{\"Setting\":\"Camera\"}},\"reason\":\"촬영 시 카메라의 화이트 밸런스를 그대로 유지합니다.\"}",
+  "status": "ok",
+  "profile": {
+    "ppversion": 1045,
+    "groups": {
+      "White Balance": {
+        "Enabled": true,
+        "Setting": "Camera"
+      }
+    }
+  },
+  "arp": "[Version]\nVersion=1045\n\n[White Balance]\nEnabled=true\nSetting=Camera\n",
+  "reason": "촬영 시 카메라의 화이트 밸런스를 그대로 유지합니다.",
+  "warnings": []
+}

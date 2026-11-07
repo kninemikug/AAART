@@ -1,0 +1,46 @@
+{
+  "prompt_version": "t19-profile-v2",
+  "request_sha256": "011241bc5695c5d2ce3945601412bf20c2bb0d2d2a07b4a7eae4699be500ee1a",
+  "features_sha256": "e0468b1135d6029044b53cbc219516d4af37b89fa949ce732633164d2f759894",
+  "contract": {
+    "allowed_keys": {
+      "Exposure": [
+        "Compensation"
+      ]
+    },
+    "wb_reference": null
+  },
+  "runtime": {
+    "provider": "codex-cli",
+    "model": "gpt-5.6-sol",
+    "call_count": 1,
+    "timeout_seconds": 120,
+    "tools_enabled": false,
+    "cli_version": "codex-cli 0.166.0",
+    "returncode": 0,
+    "stdout_jsonl": "{\"type\":\"thread.started\",\"thread_id\":\"01a1b439-23da-7261-b7bc-ccd94a1650fa\"}\n{\"type\":\"turn.started\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"agent_message\",\"text\":\"{\\\"groups\\\":{\\\"Exposure\\\":{\\\"Compensation\\\":0.5}},\\\"reason\\\":\\\"사진이 어두운 편이며 요청한 대로 조금 밝게 하기 위해 노출을 0.5 EV 높였습니다.\\\"}\"}}\n{\"type\":\"turn.completed\",\"usage\":{\"input_tokens\":15357,\"cached_input_tokens\":12416,\"cache_write_input_tokens\":0,\"output_tokens\":47,\"reasoning_output_tokens\":0}}\n",
+    "stderr": "",
+    "usage": {
+      "input_tokens": 15357,
+      "cached_input_tokens": 12416,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 47,
+      "reasoning_output_tokens": 0
+    },
+    "evidence_verified": true
+  },
+  "raw_response": "{\"groups\":{\"Exposure\":{\"Compensation\":0.5}},\"reason\":\"사진이 어두운 편이며 요청한 대로 조금 밝게 하기 위해 노출을 0.5 EV 높였습니다.\"}",
+  "status": "ok",
+  "profile": {
+    "ppversion": 1045,
+    "groups": {
+      "Exposure": {
+        "Enabled": true,
+        "Compensation": 0.5
+      }
+    }
+  },
+  "arp": "[Version]\nVersion=1045\n\n[Exposure]\nEnabled=true\nCompensation=0.5\n",
+  "reason": "사진이 어두운 편이며 요청한 대로 조금 밝게 하기 위해 노출을 0.5 EV 높였습니다.",
+  "warnings": []
+}

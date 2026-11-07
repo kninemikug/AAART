@@ -1,0 +1,17 @@
+[Version]
+Version=1045
+
+[Exposure]
+Enabled=true
+Compensation=0.5
+
+[White Balance]
+Enabled=true
+Setting=CustomTemp
+Temperature=5200
+Green=1.0
+
+[Saturation]
+Enabled=true
+Saturation=10
+Vibrance=5

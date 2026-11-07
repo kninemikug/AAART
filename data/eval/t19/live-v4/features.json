@@ -1,0 +1,249 @@
+{
+  "analysis": {
+    "bit_depth": 16,
+    "color_space": "linear_srgb",
+    "decoder": {
+      "name": "dcraw_emu",
+      "sha256": "87231c7b8e3923e2ae701a8b28074fcc98a8f6932835b2597162dc2687a31e40",
+      "version": "0.22.2",
+      "version_source": "libraw.pc"
+    },
+    "decoder_options": [
+      "-4",
+      "-o",
+      "1",
+      "-q",
+      "3",
+      "-H",
+      "0",
+      "-b",
+      "1",
+      "-c",
+      "0",
+      "-m",
+      "0",
+      "-n",
+      "0",
+      "-t",
+      "0",
+      "-r",
+      "1.98046875",
+      "1.0",
+      "1.671875",
+      "1.0",
+      "-Z",
+      "-"
+    ],
+    "height": 2014,
+    "metadata_tool": {
+      "name": "exiv2",
+      "version": "0.28.8"
+    },
+    "numpy_version": "2.5.3",
+    "pipeline_version": "t18-linear-rgb-v1",
+    "pixel_count": 6120546,
+    "ppm_sha256": "d6c0d4098988e60104c90d3b737b5ad0172c941c816ccbde858605f0c1bba176",
+    "threads": 1,
+    "wb_applied": "camera",
+    "width": 3039
+  },
+  "exif": {
+    "camera": {
+      "make": "NIKON CORPORATION",
+      "model": "NIKON D70"
+    },
+    "iso": 200,
+    "shutter_seconds": 0.005,
+    "source_tags": {
+      "camera.make": "Exif.Image.Make",
+      "camera.model": "Exif.Image.Model",
+      "iso": "Exif.Nikon3.ISOSpeed",
+      "shutter_seconds": "Exif.Photo.ExposureTime",
+      "white_balance.camera_multipliers": "Exif.NikonCb3.WB_RGBGLevels",
+      "white_balance.mode": "Exif.Photo.WhiteBalance",
+      "white_balance.preset": "Exif.Nikon3.WhiteBalance",
+      "white_balance.temperature_kelvin": null
+    },
+    "white_balance": {
+      "camera_multipliers": {
+        "b": 1.671875,
+        "g1": 1.0,
+        "g2": 1.0,
+        "r": 1.980469
+      },
+      "mode": "auto",
+      "preset": "AUTO",
+      "temperature_kelvin": null
+    }
+  },
+  "histogram": {
+    "bin_count": 16,
+    "bin_edges": [
+      0,
+      0.0625,
+      0.125,
+      0.1875,
+      0.25,
+      0.3125,
+      0.375,
+      0.4375,
+      0.5,
+      0.5625,
+      0.625,
+      0.6875,
+      0.75,
+      0.8125,
+      0.875,
+      0.9375,
+      1
+    ],
+    "channels": {
+      "b": {
+        "counts": [
+          2962316,
+          1250364,
+          627418,
+          381230,
+          241200,
+          151582,
+          112061,
+          67341,
+          47091,
+          39915,
+          36137,
+          32897,
+          27551,
+          23243,
+          18785,
+          101415
+        ],
+        "mean": 0.134283,
+        "probabilities": [
+          0.483995,
+          0.20429,
+          0.10251,
+          0.062287,
+          0.039408,
+          0.024766,
+          0.018309,
+          0.011002,
+          0.007694,
+          0.006521,
+          0.005904,
+          0.005375,
+          0.004501,
+          0.003798,
+          0.003069,
+          0.01657
+        ]
+      },
+      "g": {
+        "counts": [
+          2889965,
+          1503300,
+          692549,
+          336784,
+          203968,
+          122749,
+          89872,
+          73899,
+          48685,
+          33365,
+          23468,
+          17790,
+          11640,
+          9672,
+          7414,
+          55426
+        ],
+        "mean": 0.116639,
+        "probabilities": [
+          0.472174,
+          0.245615,
+          0.113152,
+          0.055025,
+          0.033325,
+          0.020055,
+          0.014684,
+          0.012074,
+          0.007954,
+          0.005451,
+          0.003834,
+          0.002907,
+          0.001902,
+          0.00158,
+          0.001211,
+          0.009056
+        ]
+      },
+      "r": {
+        "counts": [
+          2463241,
+          1289356,
+          750743,
+          405109,
+          342818,
+          286850,
+          196790,
+          122833,
+          85361,
+          57166,
+          39223,
+          22284,
+          12541,
+          9952,
+          10619,
+          25660
+        ],
+        "mean": 0.144494,
+        "probabilities": [
+          0.402454,
+          0.21066,
+          0.122659,
+          0.066188,
+          0.056011,
+          0.046867,
+          0.032152,
+          0.020069,
+          0.013947,
+          0.00934,
+          0.006408,
+          0.003641,
+          0.002049,
+          0.001626,
+          0.001735,
+          0.004192
+        ]
+      }
+    },
+    "luminance": {
+      "mean": 0.123835,
+      "shadow_fraction": 0.371906
+    },
+    "saturation": {
+      "mean": 0.455694
+    }
+  },
+  "schema_version": 1,
+  "signals": {
+    "deferred_reasons": [],
+    "is_dark": true,
+    "red_green_imbalance": 0.070445,
+    "rules_version": "t18-thresholds-v1",
+    "thresholds": {
+      "boundary_margin": 0.0001,
+      "dark_mean": 0.18,
+      "red_green_imbalance_max": 0.1,
+      "saturation_min": 0.1,
+      "yellow_excess": 0.08,
+      "yellow_luminance_min": 0.02
+    },
+    "yellow_excess": -0.0094,
+    "yellow_tendency": false
+  },
+  "source": {
+    "path": "data/fivek_sample/sample1.nef",
+    "sha256": "18e287009b15b20fc73fd2223ed1551231f3853398a38a7b0a4308b630e1f805"
+  },
+  "warnings": []
+}
