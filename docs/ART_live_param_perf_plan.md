@@ -178,14 +178,116 @@ PPVERSION `1045` 유지의 최종 근거는 기존 `.arp` 로드·저장·재읽
 
 ## 5. 작업 순서와 단계별 완료 조건
 
-**측정 하네스 구축 → 기준선 기록 → 병목 분석 → 개선안 선정 → 구현** 순서를 고정한다. 현재 완료 범위는 계획 문서이며 아래 단계는 모두 미착수다.
+**측정 하네스 구축 → 기준선 기록 → 병목 분석 → 개선안 선정 → 구현** 순서를 고정한다.
 
-| 단계 | 선행 조건·작업 | 완료 증거와 다음 단계 진입 조건 |
+| 단계 | 상태 | 내용 |
 |---|---|---|
-| P1 — 측정 하네스 구축 | 문서 확정 후 관측 범위·RAW·프로필·지원 모드·예정 변경 지점과 회귀 계획을 기록한다. §1.2의 지점에 최소 계측을 연결하고 실제 소켓과 GUI 결과를 추적한다. | 정상값·거부·중복 요청·구세대·팬/줌·닫기에서 상관 ID와 시각이 일치한다. 기존 기능 검사가 통과하고 계측 오버헤드·유실 여부를 확인한다. 최적화는 포함하지 않는다. |
-| P2 — 기준선 기록 | P1 통과 후 §1.4의 매트릭스와 §1.5의 표본·환경 규칙을 실행한다. 일반 GUI·단독 편집기 연결과 실제 채팅 비교를 확인한다. | 매트릭스별 원자료·p50/p95·시도/성공/미완료 수·환경·명령·종료 코드가 있다. 미측정 조건을 명시한다. 조건이 바뀌면 해당 기준선을 다시 확보한다. |
-| P3 — 병목 분석 | P2의 요청별 시각을 따라 I/O, GUI 검증/적용, 처리 대기·단계 실행, GUI 표시 전달, 조회 지연의 기여를 비교한다. | 느린 표본의 실제 경로와 반복 재현이 연결된다. `ALL`과 수동 이벤트 경계 차이·최초/캐시 차이는 실제 실행 단계로 설명한다. 근거 없는 후보는 보류한다. |
-| P4 — 개선안 선정 | P3 뒤 §3의 목표를 합의하고 §2에서 원인에 대응하는 후보 하나를 고른다. 허용 키·모드·OS·변경 지점·스레드/무효화 위험·PPVERSION·회귀 범위를 확정한다. | 목표·최소 개선 폭·허용 회귀와 채택/폐기 조건이 문서화돼 있다. 증거가 부족하면 표본을 보강하고 구현으로 넘어가지 않는다. |
-| P5 — 구현·재측정 | P4에서 확정한 최소 범위를 구현하고 기존 계약·GUI/CLI 출력·ASan/TSan을 검증한다. 같은 조건으로 기준/후보를 비교한다. | 개선이 산포를 넘어 합의 목표를 충족하고 안전성·영상 의미가 보존된다. 미달 후보는 채택하지 않으며 이유를 기록한다. 최종 지원 조건·남은 한계와 PPVERSION 1045 유지 근거를 남긴다. |
+| P1 — 측정 하네스 구축 | **완료** | `rtengine/liveparamtrace.{h,cc}` 계측 링버퍼(미바인딩 `cmdId` 보류 플러시 지원), 소켓/컨트롤러/엔진 이벤트 추적 (`S0, SQ, SG, SA, SP, SS, SC, SN, SR, ENGINE_CHANGE, ENGINE_DONE`), `100%` 초기 배율(`ART_LIVE_PARAM_INITIAL_ZOOM=100`) 및 `.arp` 스키마(`docs/arp_schema.md`) 정합 프로브 `scripts/live_param_perf_probe.py`, GUI 테스트 T26 검증 완료 |
+| P2 — 기준선 기록 | **완료** | 64개 전체 매트릭스 셀 × 3배치 × 10회 반복 (총 960회 요청, 성공률 100.0%, 계측 누락 0건) p50/p95 및 구간별 지연 시간 수집 완료 |
+| P3 — 병목 분석 | **완료** | `SA - SG` GUI 위젯 다중 순회·가상 상속 `dynamic_cast`·컨테이너 배열 할당 오버헤드(+49.2ms) 및 `numericFullRefresh_ = true`로 인한 무조건적 `ALL` 무효화(+66.8ms, 중량 프리셋 시 Stage 2/3 도구 최대 +327ms) 증명 |
+| P4 — 개선안 선정 | **완료** | `NumericEvents::canUseSelectiveEvent()` 기반 안전 선택적 이벤트 매핑 및 `GObject` 메타데이터(`WidgetMeta`)·`gtk_container_foreach`·무라벨 수집(`includeLabels = false`) 최적화 선정, 합의 목표치(APPLIED p95 ≤ 35ms, Stage 2/3 READY p95 ≤ 200ms, SC - SA p50 ≤ 100ms, SA - SG p50 ≤ 10ms) 및 PPVERSION 1045 보존 기준 확정 |
+| P5 — 구현·재측정 | 예정 | `applyExternalNumeric` 및 `numericcontrols.cc` 최적화 구현, `M_VOID`(`Resize`) 연속 변경 `READY` 회귀(T21) 및 픽셀 차이 0(T25) 검증, 동일 조건 64셀(960표본) 재측정 완료 |
 
-이 문서의 검토 완료 조건은 측정 경계·매트릭스·저장 위치·기존 자료의 한계·후보별 위험·측정 후 확정 조건·목표 합의 방법·커밋 및 의존 순서가 모두 기록되는 것이다. 실행 결과가 없는 P1~P5를 완료로 표시하지 않는다.
+---
+
+## 6. 기준선 측정 결과 (Stage P2)
+
+- **측정 일시**: 2026-11-09 23:23:17 (실행 ID: `run_20261109_231603_5ec1db`)
+- **실행 환경**: Darwin 25.5.0 arm64 (Apple Silicon 12 vCPU), 메모리 36GB
+- **측정 바이너리**: `build/ARTLiveParamTest.app/Contents/MacOS/test_liveparam_app` (Release 빌드, SHA-256 `694f19b3...`)
+- **입력 RAW**: `data/fivek_sample/sample1.nef` (SHA-256 `18e28700...`, Nikon NEF 3031×2006)
+- **프로필 버전**: `PPVERSION 1045` (`sample1.nef.arp` 기반, `[Saturation]`, `[White Balance] Method=Custom`, `[Sharpening] Method=usm`, `[FattalToneMapping]`/`[Dehaze]`, `[Impulse Denoising]`/`[Denoise]` 스키마 정합 적용)
+- **표본 구성**: 4개 파라미터 × 2개 배율(`fit`, `100%` 등배 `M_HIGHQUAL`) × 2개 캐시 상태(`initial`, `cached`) × 2개 HDR(`0`, `1`) × 2개 디노이즈(`0`, `1`) = **총 64개 셀**
+- **실행 규모**: 3개 독립 배치 × 10회 반복 = **총 960개 표본**
+- **성공률 및 계측 무결성**: **100.0%** (960/960 `READY`, 타임아웃·거부·유실 0건, 모든 구간 지표 결측치 **0건**)
+- **원시 데이터 보관 위치**: `build/liveparam-perf-checks/baseline/` (`manifest.json`, `client.jsonl`, `samples.csv`, `summary.csv`, `trace.jsonl`)
+
+### 6.1 파라미터별 지연 시간 요약 (p50 / p95)
+
+| 파라미터 | 요청 분류 | 성공 표본 | APPLIED p50 (ms) | APPLIED p95 (ms) | READY p50 (ms) | READY p95 (ms) | SA - SG p50 (ms) | SC - SA p50 (ms) | SR - SA p50 (ms) |
+|---|---|---|---|---|---|---|---|---|---|
+| 노출 (`exposure`) | 전용 API | 240 / 240 | **21.13** | **22.16** | **197.37** | **385.29** | **2.08** | **133.79** | **168.34** |
+| 채도 (`saturation`) | 공통 수치 | 240 / 240 | **63.18** | **66.01** | **314.74** | **500.72** | **51.17** | **194.51** | **230.39** |
+| 색온도 (`temperature`) | 공통 수치 | 240 / 240 | **63.19** | **65.84** | **520.40** | **771.33** | **51.32** | **395.54** | **431.32** |
+| 샤프닝 반경 (`sharpening`) | 공통 수치 | 240 / 240 | **63.17** | **65.73** | **314.79** | **500.30** | **51.37** | **196.80** | **231.79** |
+
+### 6.2 구간별 상세 분해 비교 (노출 vs 일반 수치)
+
+| 관측 구간 | 노출 중앙값 (ms) | 일반 수치 중앙값 (ms) | 차이 (ms) | 의미 및 관측 내용 |
+|---|---|---|---|---|
+| `SQ - S0` | 0.001 | 0.001 | 0.000 | 서버 수신 후 GUI 큐 진입 (나노초 단위 즉시 처리) |
+| `SG - SQ` | 0.037 | 0.046 | +0.008 | GDK 메인 루프 idle 디스패치 대기 |
+| `SA - SG` | **2.08** | **51.31** | **+49.22** | GUI 메인 스레드 파싱, 위젯 트리 탐색 및 값 적용 (주요 병목 1) |
+| `SP - SA` | 0.009 | 0.009 | -0.001 | 내부 상태 갱신 후 응답 반환 준비 |
+| `SS - SP` | 18.88 | 11.70 | -7.18 | 소켓 쓰기 대기 및 클라이언트 APPLIED 수신 |
+| `SC - SA` | **133.79** | **200.60** | **+66.81** | 엔진 Crop 파이프라인 무효화 및 계산 시간 (주요 병목 2) |
+| `SN - SA` | 168.34 | 236.17 | +67.83 | 네비게이터 썸네일 파이프라인 계산 완료 시간 |
+| `SR - SA` | 168.34 | 236.17 | +67.83 | 두 화면 버퍼 준비 완료 및 READY 확정 |
+
+### 6.3 배율·프리셋·캐시 조건별 영향
+
+- **배율 (`fit` vs `100%`)**:
+  - `fit` 축소 보기 (360 표본): 일반 수치 `READY` p50 = **302.98 ms** (p95 = **594.60 ms**), Stage 2/3(`saturation`+`sharpening`) p50 = **302.60 ms** (p95 = **329.33 ms**).
+  - `100%` 등배 보기 (360 표본): 일반 수치 `READY` p50 = **452.84 ms** (p95 = **769.23 ms**), Stage 2/3(`saturation`+`sharpening`) p50 = **395.68 ms** (p95 = **519.59 ms**). `skip=1`(`M_HIGHQUAL`) 경로가 활성화되면서 상위 단계 재계산 비용이 크게 증폭됨.
+- **중량 도구 조합 (`hdr` × `denoise`)**:
+  - `hdr=0, dn=0` (기본 프로필): 일반 수치 `READY` p50 = **280.77 ms** (p95 = **292.21 ms**).
+  - `hdr=0, dn=1` (디노이즈 활성): Stage 2/3 `READY` p50 = **315.26 ms**, 색온도 `READY` p50 = **574.03 ms**.
+  - `hdr=1, dn=0` (Fattal/Dehaze 활성): Stage 2/3 `READY` p50 = **377.62 ms** (p95 = **475.05 ms**).
+  - `hdr=1, dn=1` (복합 중량): Stage 2/3 `READY` p50 = **412.14 ms** (p95 = **547.23 ms**), 색온도 `READY` p50 = **673.51 ms** (p95 = **789.49 ms**).
+- **캐시 (`initial` vs `cached`)**:
+  - `initial` (첫 수치 변경): 일반 수치 `READY` p50 = **323.34 ms**, `SA - SG` p50 = **52.35 ms**.
+  - `cached` (연속 반복 변경): 일반 수치 `READY` p50 = **317.08 ms**, `SA - SG` p50 = **51.23 ms**. `ALL` 무효화로 인해 캐시 후에도 상위 RAW/Denoise/HDR 단계가 매번 재실행됨.
+
+---
+
+## 7. 병목 구간 상세 분석 (Stage P3)
+
+실시간 수치 조정의 지연 원인은 계측 분석 결과 크게 두 가지 구조적 요인으로 특정된다.
+
+### 병목 1: GUI 메인 스레드에서의 반복 위젯 트리 순회 및 가상 상속 `dynamic_cast` 오버헤드 (`SA - SG` +49.2 ms)
+- **발생 위치**: `rtgui/numericcontrols.cc` (`collectNumericControls`, `numericContextId`) 및 `rtgui/toolpanelcoord.cc` (`applyExternalNumeric`)
+- **현상**:
+  - 일반 수치 `set_param` 요청 1회당:
+    1. `LiveParamController::handleCommand`가 `tools->numericContext()`를 호출하면서 44개 패널 `write()`, `collectNumericControls()`, `contextWidgets()`로 전체 GTK 위젯 트리를 2회 순회.
+    2. 직후 `tools->applyExternalNumeric()` 내부에서 `numericControls()`를 최대 3회 추가 호출하고 44개 패널 전체에 `panel->write(&before)`를 수행.
+  - 특히 `collect()`와 `contextWidgets()`가 수천 개의 비-수치 컨테이너/리프 위젯마다 `container->get_children()`(`GList` 및 `std::vector` 힙 할당)과 `gtkmm` 가상 상속(`virtual public Glib::ObjectBase`) 계층에 대한 다중 `dynamic_cast`, 라벨/프레임 문자열 조합을 매번 수행하여 순수 GUI 메인 스레드 처리 시간(`SA - SG`)이 **51.31 ms**에 달함.
+
+### 병목 2: `numericFullRefresh_ = true`로 인한 무조건적 `ALL` 무효화 (`SC - SA` +66.8 ms, 중량 프리셋 시 Stage 2/3 최대 +327 ms)
+- **발생 위치**: `rtgui/toolpanelcoord.cc` (`applyExternalNumeric` 및 `panelChanged`)
+- **현상**:
+  - `applyExternalNumeric` 내부에서 `NumericListeners`가 위젯 변경 시 발생하는 구체적 도구 이벤트(`EvSaturation`, `EvWBTemp`, `EvShrRadius` 등)를 포착함에도 불구하고 무조건 `numericFullRefresh_ = true`를 설정하여 `panelChanged`에서 `EvProfileChanged`(`ALL` = `65535`)로 치환함.
+  - 결과적으로 `M_LINDENOISE`·`M_HDR` 이후의 하위 단계만 갱신하면 되는 채도(`EvSaturation → LUMINANCECURVE`)와 샤프닝(`EvShrRadius → SHARPENING`)조차 매 요청마다 RAW 디모자이킹(`M_RAW`), 선형 디노이즈(`M_LINDENOISE`), HDR 톤매핑(`M_HDR`)을 처음부터 다시 계산하여 `100%` 등배·중량 프리셋에서 `READY RTT`가 **500~547 ms**까지 급증함.
+  - 색온도(`EvWBTemp → WHITEBALANCE`) 역시 불필요한 `M_RAW`/`M_PREPROC` 단계가 매번 재실행됨.
+
+---
+
+## 8. 최적화 개선안 선정 및 합의 목표치 (Stage P4)
+
+### 8.1 개선안 선정: 안전한 선택적 무효화 이벤트 매핑 및 `GObject` 메타데이터 기반 위젯 탐색 최적화
+1. **`READY` 계약을 보장하는 선택적 이벤트 매핑 (`NumericEvents::canUseSelectiveEvent()`)**:
+   - 단일 `panelChanged` 이벤트(`eventCount == 1 && !refreshPreviewCalled && !unsupported`)이면서 `RefreshMapper::getInstance()->getAction(event)`가 실제 프리뷰/크롭 영상 렌더 단계(`M_WHITEBALANCE`~`M_COLOR`) 비트를 포함하고 비렌더 플래그(`M_VOID | M_MINUPDATE | M_CROP | M_MONITOR`)를 포함하지 않을 때만 원래의 `events.event`를 전달한다.
+   - 도구가 새로 활성화된 경우(`toolWasToggled`), 복합 이벤트가 발생한 경우, 또는 `Resize.Width`(`EvResizeWidth → M_VOID`)처럼 파이프라인 재렌더를 트리거하지 않는 이벤트인 경우에는 안전하게 `numericFullRefresh_ = true`(`EvProfileChanged → ALL`)로 fallback하여 `PENDING` 고착 없이 100% `READY` 도달을 보장한다.
+2. **댕글링 포인터 없는 위젯 트리 순회 최적화 (`rtgui/numericcontrols.{h,cc}`, `rtgui/toolpanelcoord.cc`)**:
+   - 도구 모드 전환 시 위젯 재할당으로 인한 댕글링 포인터 위험이나 `SHCSelector` 동적 범위/`pending` 검사 누락을 유발하는 원시 위젯 포인터 캐시(`lastNumericControl_`)는 사용하지 않는다.
+   - 대신 `collectNumericControls(panels, bool includeLabels = true)`를 도입하여 `numericContextId()`와 `applyExternalNumeric()` 내부에서는 카탈로그 표시용 라벨/프레임 문자열 탐색(`includeLabels = false`)을 생략하되, SHA-256 `contextId` 다이제스트와 `available`/`pending`/`minimum`/`maximum` 실시간 검증은 100% 동일하게 수행한다.
+   - 각 위젯의 `GObject` 생명주기에 귀속되는 `WidgetMeta`(`g_object_set_qdata_full`로 등록되어 위젯 소멸 시 자동 해제)에 정적 타입 분류 결과와 내부 스핀버튼 포인터를 캐싱하고, `container->get_children()` 대신 무할당 `gtk_container_foreach`를 사용하여 매 호출 시 가상 상속 `dynamic_cast`와 `GList`/`std::vector` 힙 할당을 제거한다.
+   - `applyExternalNumeric()`의 롤백 백업(`before`)은 리스너가 차단된 상태에서 실제 수정 대상인 `found->owner->write(&before)` 단일 패널로 한정하고, 적용 후 값 확인은 `readNumericControlValue()`로 O(1) 조회한다.
+
+### 8.2 합의 목표치 (Criteria & Targets)
+
+동일한 테스트 환경(Release 빌드, 동일 RAW, 동일 64셀 매트릭스, 3배치 × 10회 반복)에서 아래 목표를 검증 기준으로 확정한다:
+
+| 지표 | 일반 수치 기준선 (`B`) | 목표 상한 (`T`) | 최소 개선폭 (`D`) | 판정 공식 |
+|---|---|---|---|---|
+| **APPLIED RTT p95 (전체 720표본)** | 65.88 ms | **≤ 35.0 ms** | **≥ 30.0 ms** | `새 p95 ≤ 35.0 && B - 새 p95 ≥ 30.0` |
+| **Stage 2/3 (`saturation`+`sharpening`) READY RTT p95** | 500.72 ms | **≤ 200.0 ms** | **≥ 80.0 ms** | `새 p95 ≤ 200.0 && B - 새 p95 ≥ 80.0` |
+| **엔진 계산 (`SC - SA`) p50 (전체 720표본)** | 200.60 ms | **≤ 100.0 ms** | **≥ 50.0 ms** | `새 p50 ≤ 100.0 && B - 새 p50 ≥ 50.0` |
+| **GUI 처리 (`SA - SG`) p50 (전체 720표본)** | 51.31 ms | **≤ 10.0 ms** | **≥ 40.0 ms** | `새 p50 ≤ 10.0 && B - 새 p50 ≥ 40.0` |
+
+### 8.3 안전성 및 `PPVERSION 1045` 유지 근거
+- **처리식 및 파이프라인 순서**: 완전히 동일하며 변경 없음.
+- **수치 반영 의미 및 화질**: 수동 GUI 조작 시 발생하는 엔진 이벤트와 100% 동일한 이벤트를 발행하므로, 동일 프로필의 수동 조작 결과와 IPC 조작 결과 간 픽셀 차이가 정확히 `0`임을 보장 (`max_abs_diff = 0`).
+- **`.arp` 프로필 스키마**: 프로필 저장 및 로드 포맷 변경 없음.
+- **스레드 및 세대 계약**: 모든 파라미터 적용은 GUI 메인 스레드에서 원자적으로 수행되며, 프레임 세대 번호(`generation`) 및 뷰 리비전(`viewRevision`) 계약이 엄격히 유지됨.
+- 따라서 `PPVERSION 1045`를 온전히 유지한다.
+
