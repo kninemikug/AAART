@@ -1,0 +1,34 @@
+{
+  "prompt_version": "t19-profile-v3",
+  "request_sha256": "64950c02083a7932b17236fa84ee128cbb3734011e4ae7490e2f32648c217871",
+  "features_sha256": "e0468b1135d6029044b53cbc219516d4af37b89fa949ce732633164d2f759894",
+  "contract": {
+    "allowed_keys": {
+      "Exposure": [
+        "Compensation"
+      ]
+    },
+    "wb_reference": null,
+    "exact_values": {
+      "Exposure": {
+        "Compensation": -0.2
+      }
+    },
+    "directions": {}
+  },
+  "runtime": {
+    "provider": "codex-cli",
+    "model": "gpt-5.6-sol",
+    "call_count": 1,
+    "timeout_seconds": 120,
+    "tools_enabled": false,
+    "cli_version": "codex-cli 0.166.0",
+    "returncode": 1,
+    "stdout_jsonl": "{\"type\":\"thread.started\",\"thread_id\":\"01a1b47b-db87-7c53-806a-6f0aa154a969\"}\n{\"type\":\"turn.started\"}\n{\"type\":\"error\",\"message\":\"You’ve hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/settings/usage to purchase more credits or try again at 4:52 PM.\"}\n{\"type\":\"turn.failed\",\"error\":{\"message\":\"You’ve hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/settings/usage to purchase more credits or try again at 4:52 PM.\"}}\n",
+    "stderr": "",
+    "fatal_infrastructure": true
+  },
+  "raw_response": "",
+  "status": "runtime_error",
+  "error": "codex process failed: exit 1"
+}

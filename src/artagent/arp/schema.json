@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "T19 ART profile v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ppversion", "groups"],
+  "properties": {
+    "ppversion": {"type": "integer", "const": 1045},
+    "groups": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "Exposure": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["Enabled", "Compensation"],
+          "properties": {
+            "Enabled": {"type": "boolean", "const": true},
+            "Compensation": {"type": "number", "minimum": -12, "maximum": 12}
+          }
+        },
+        "White Balance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["Enabled", "Setting"],
+          "properties": {
+            "Enabled": {"type": "boolean", "const": true},
+            "Setting": {"type": "string", "enum": ["Camera", "CustomTemp"]},
+            "Temperature": {"type": "integer", "minimum": 1500, "maximum": 60000},
+            "Green": {"type": "number", "minimum": 0.02, "maximum": 10}
+          },
+          "if": {"properties": {"Setting": {"const": "CustomTemp"}}},
+          "then": {"required": ["Temperature", "Green"]},
+          "else": {"not": {"anyOf": [{"required": ["Temperature"]}, {"required": ["Green"]}]}}
+        },
+        "Saturation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["Enabled"],
+          "anyOf": [{"required": ["Saturation"]}, {"required": ["Vibrance"]}],
+          "properties": {
+            "Enabled": {"type": "boolean", "const": true},
+            "Saturation": {"type": "integer", "minimum": -100, "maximum": 100},
+            "Vibrance": {"type": "integer", "minimum": -100, "maximum": 100}
+          }
+        }
+      }
+    }
+  }
+}

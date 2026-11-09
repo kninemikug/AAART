@@ -1,0 +1,8 @@
+[Version]
+Version=1045
+
+[White Balance]
+Enabled=true
+Setting=CustomTemp
+Temperature=4200
+Green=0.9

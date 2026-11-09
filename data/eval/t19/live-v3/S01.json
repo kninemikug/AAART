@@ -1,0 +1,46 @@
+{
+  "prompt_version": "t19-profile-v2",
+  "request_sha256": "eeb601c4b1d2e60b93c560d9dd0bad79c11efa9e4ac07cd3c43fb063b2a2ce91",
+  "features_sha256": "e0468b1135d6029044b53cbc219516d4af37b89fa949ce732633164d2f759894",
+  "contract": {
+    "allowed_keys": {
+      "Saturation": [
+        "Saturation"
+      ]
+    },
+    "wb_reference": null
+  },
+  "runtime": {
+    "provider": "codex-cli",
+    "model": "gpt-5.6-sol",
+    "call_count": 1,
+    "timeout_seconds": 120,
+    "tools_enabled": false,
+    "cli_version": "codex-cli 0.166.0",
+    "returncode": 0,
+    "stdout_jsonl": "{\"type\":\"thread.started\",\"thread_id\":\"01a1b439-b484-7ba3-898f-aead3a8d3c23\"}\n{\"type\":\"turn.started\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"agent_message\",\"text\":\"{\\\"groups\\\":{\\\"Saturation\\\":{\\\"Saturation\\\":8}},\\\"reason\\\":\\\"요청한 대로 채도를 조금 높였습니다.\\\"}\"}}\n{\"type\":\"turn.completed\",\"usage\":{\"input_tokens\":15360,\"cached_input_tokens\":12416,\"cache_write_input_tokens\":0,\"output_tokens\":30,\"reasoning_output_tokens\":0}}\n",
+    "stderr": "",
+    "usage": {
+      "input_tokens": 15360,
+      "cached_input_tokens": 12416,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 30,
+      "reasoning_output_tokens": 0
+    },
+    "evidence_verified": true
+  },
+  "raw_response": "{\"groups\":{\"Saturation\":{\"Saturation\":8}},\"reason\":\"요청한 대로 채도를 조금 높였습니다.\"}",
+  "status": "ok",
+  "profile": {
+    "ppversion": 1045,
+    "groups": {
+      "Saturation": {
+        "Enabled": true,
+        "Saturation": 8
+      }
+    }
+  },
+  "arp": "[Version]\nVersion=1045\n\n[Saturation]\nEnabled=true\nSaturation=8\n",
+  "reason": "요청한 대로 채도를 조금 높였습니다.",
+  "warnings": []
+}

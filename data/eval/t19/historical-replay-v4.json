@@ -1,0 +1,226 @@
+{
+  "mode": "offline_historical_response_replay",
+  "historical_run": "live-v3",
+  "historical_code_commit": "5f09b9063",
+  "validator_commit": "eaee6ddd4",
+  "model_calls_in_this_replay": 0,
+  "total": 20,
+  "valid": 20,
+  "request_matches": 20,
+  "cases": [
+    {
+      "case_id": "E01",
+      "historical_record_sha256": "79fb3a57ff60844357600e83d389acd322d7d46aff7985afba27beca744423f7",
+      "status": "ok",
+      "exact_values": {},
+      "directions": {
+        "Exposure": {
+          "Compensation": 1
+        }
+      }
+    },
+    {
+      "case_id": "E02",
+      "historical_record_sha256": "3e876b837ed06033201baf27d8001528f702d36d241bb373b4d41cce75ebe5e0",
+      "status": "ok",
+      "exact_values": {},
+      "directions": {
+        "Exposure": {
+          "Compensation": -1
+        }
+      }
+    },
+    {
+      "case_id": "E03",
+      "historical_record_sha256": "80f8fb50c93f88ed0ac28c93741d0b241c1709507bf74f675cb3fa4bfcfb812d",
+      "status": "ok",
+      "exact_values": {
+        "Exposure": {
+          "Compensation": 0.75
+        }
+      },
+      "directions": {}
+    },
+    {
+      "case_id": "E04",
+      "historical_record_sha256": "2c109dbc8602c4d9c9e4b67d0325a49877334ad887355654186e836374283d65",
+      "status": "ok",
+      "exact_values": {
+        "Exposure": {
+          "Compensation": -0.4
+        }
+      },
+      "directions": {}
+    },
+    {
+      "case_id": "E05",
+      "historical_record_sha256": "381439b2604a4c61ddce0bb85db3b03a55e9d3c4d606578638cd79240b51a59f",
+      "status": "ok",
+      "exact_values": {},
+      "directions": {
+        "Exposure": {
+          "Compensation": 1
+        }
+      }
+    },
+    {
+      "case_id": "E06",
+      "historical_record_sha256": "88561daf50396b7be3ac31577e87d408487a9974abf89fa5363378c3ecfa7f87",
+      "status": "ok",
+      "exact_values": {
+        "Exposure": {
+          "Compensation": -0.2
+        }
+      },
+      "directions": {}
+    },
+    {
+      "case_id": "W01",
+      "historical_record_sha256": "df007d21823fe312e3f53f446cae1df20e8a21c61d1c371ceac59ebb3094bd80",
+      "status": "ok",
+      "exact_values": {},
+      "directions": {}
+    },
+    {
+      "case_id": "W02",
+      "historical_record_sha256": "aeaca7b8b1524c140486e48a71c855152ed8df7bc0d13de3c9e68d1d4ba38a52",
+      "status": "ok",
+      "exact_values": {},
+      "directions": {}
+    },
+    {
+      "case_id": "W03",
+      "historical_record_sha256": "c0cb13f78e620848170e9135171f50592731a57438b56c886d4b9dbd49d373a4",
+      "status": "ok",
+      "exact_values": {},
+      "directions": {}
+    },
+    {
+      "case_id": "W04",
+      "historical_record_sha256": "1d2853d0310e1e6fe2468015298f876c3f5061a9dc7811f7a5c3608e9323a3ec",
+      "status": "ok",
+      "exact_values": {},
+      "directions": {}
+    },
+    {
+      "case_id": "S01",
+      "historical_record_sha256": "fedf2426167778aba51b895c124f759862d89e66910bb291e6ad855bbb6e4ddc",
+      "status": "ok",
+      "exact_values": {},
+      "directions": {
+        "Saturation": {
+          "Saturation": 1
+        }
+      }
+    },
+    {
+      "case_id": "S02",
+      "historical_record_sha256": "7f981340f128cf08d4cc49c187fb609881818c59eb2ee7e307ebcad5f15151eb",
+      "status": "ok",
+      "exact_values": {},
+      "directions": {
+        "Saturation": {
+          "Saturation": -1
+        }
+      }
+    },
+    {
+      "case_id": "S03",
+      "historical_record_sha256": "83a97f87f02bc3e077226f28b663d4e55235f9e17ca665a96a935faec3a86a58",
+      "status": "ok",
+      "exact_values": {
+        "Saturation": {
+          "Saturation": 12
+        }
+      },
+      "directions": {}
+    },
+    {
+      "case_id": "S04",
+      "historical_record_sha256": "4bc9611d1ce69e74421fe4c6ba1525ca42dd1266858399583c71b34e3dba5f8b",
+      "status": "ok",
+      "exact_values": {
+        "Saturation": {
+          "Vibrance": 18
+        }
+      },
+      "directions": {}
+    },
+    {
+      "case_id": "C01",
+      "historical_record_sha256": "4428cc4144c75e692d28dbfd3d9e4c422f1520ec2dc17694f63c72f701ffc824",
+      "status": "ok",
+      "exact_values": {
+        "Exposure": {
+          "Compensation": 0.3
+        },
+        "Saturation": {
+          "Saturation": -8
+        }
+      },
+      "directions": {}
+    },
+    {
+      "case_id": "C02",
+      "historical_record_sha256": "da9fa2e1c3fc58fcdebfd64c2552680eb0e1554a98ef6bb9e0292f3ad008cf6d",
+      "status": "ok",
+      "exact_values": {},
+      "directions": {
+        "Exposure": {
+          "Compensation": 1
+        },
+        "Saturation": {
+          "Saturation": 1
+        }
+      }
+    },
+    {
+      "case_id": "C03",
+      "historical_record_sha256": "2d7f32e43726449f022baef6a65740fd9d348598645a1c11e205698497a5408e",
+      "status": "ok",
+      "exact_values": {
+        "Exposure": {
+          "Compensation": 0.25
+        }
+      },
+      "directions": {}
+    },
+    {
+      "case_id": "C04",
+      "historical_record_sha256": "147895e2ea35c6692549e78fff12a9d99f9643ac77e0cfd42d2e12c886cb54a8",
+      "status": "ok",
+      "exact_values": {
+        "Exposure": {
+          "Compensation": -0.25
+        }
+      },
+      "directions": {}
+    },
+    {
+      "case_id": "C05",
+      "historical_record_sha256": "e22101faf754aad90bd06be0c925a42e383c78f795b6f22939d812212704f00f",
+      "status": "ok",
+      "exact_values": {
+        "Saturation": {
+          "Saturation": -5
+        }
+      },
+      "directions": {}
+    },
+    {
+      "case_id": "C06",
+      "historical_record_sha256": "cddca67dd7f4192b227ce7988d16cda9ff0ab6d21cb4d61748fe312d9e309f61",
+      "status": "ok",
+      "exact_values": {
+        "Exposure": {
+          "Compensation": 0.5
+        },
+        "Saturation": {
+          "Saturation": 10,
+          "Vibrance": 5
+        }
+      },
+      "directions": {}
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+[Version]
+Version=1045
+
+[White Balance]
+Enabled=true
+Setting=CustomTemp
+Temperature=6000
+Green=1.0
+
+[Saturation]
+Enabled=true
+Saturation=-5
