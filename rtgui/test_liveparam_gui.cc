@@ -2509,6 +2509,7 @@ bool test_t21_numeric_protocol(RTWindow *win, const std::string &directory)
         return fixture.controller.handleCommand(bytes.get());
     };
     std::string saturationKey;
+    std::string resizeWidthKey;
     size_t count = 0;
     int offset = 0;
     do {
@@ -2528,12 +2529,16 @@ bool test_t21_numeric_protocol(RTWindow *win, const std::string &directory)
                 cJSON_IsString(label) && label->valuestring == M("TP_SATURATION_SATURATION")) {
                 saturationKey = cJSON_GetObjectItemCaseSensitive(item, "key")->valuestring;
             }
+            if (cJSON_IsString(tool) && std::string(tool->valuestring) == "resize" &&
+                cJSON_IsString(label) && label->valuestring == M("TP_RESIZE_W")) {
+                resizeWidthKey = cJSON_GetObjectItemCaseSensitive(item, "key")->valuestring;
+            }
         }
         count += cJSON_GetArraySize(items);
         auto *next = cJSON_GetObjectItemCaseSensitive(result, "nextOffset");
         offset = cJSON_IsNumber(next) ? next->valueint : -1;
     } while (offset >= 0);
-    GUI_ASSERT(count == tools->numericControls().size() && !saturationKey.empty(),
+    GUI_ASSERT(count == tools->numericControls().size() && !saturationKey.empty() && !resizeWidthKey.empty(),
                "all numeric controls are reachable through bounded pages");
     auto mutation = request("set_param", "t21-once");
     cJSON_AddBoolToObject(mutation.get(), "enableTool", true);
@@ -2554,6 +2559,16 @@ bool test_t21_numeric_protocol(RTWindow *win, const std::string &directory)
     cJSON_AddNumberToObject(cJSON_AddObjectToObject(stale.get(), "params"), saturationKey.c_str(), 21);
     GUI_ASSERT(send(stale).find("REVISION_CONFLICT") != std::string::npos &&
                fixture.field("revision") == revision + 1, "stale GUI context is rejected before mutation");
+    // Verify M_VOID control (Resize.Width) reaches READY both when enabling and when already enabled.
+    for (int step = 0; step < 2; ++step) {
+        auto rMut = request("set_param", step == 0 ? "t21-resize-1" : "t21-resize-2");
+        cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(rMut.get(), "baseRevision"), fixture.field("revision"));
+        cJSON_SetValuestring(cJSON_GetObjectItemCaseSensitive(rMut.get(), "contextId"), tools->numericContext().c_str());
+        cJSON_AddBoolToObject(rMut.get(), "enableTool", step == 0);
+        cJSON_AddNumberToObject(cJSON_AddObjectToObject(rMut.get(), "params"), resizeWidthKey.c_str(), 1000 - step * 100);
+        GUI_ASSERT(send(rMut).find("APPLIED") != std::string::npos && fixture.waitReady(),
+                   "M_VOID control mutation reaches matching-generation readiness");
+    }
     fixture.panel->close();
     std::cout << "  -> [T21] PASSED!" << std::endl;
     return true;

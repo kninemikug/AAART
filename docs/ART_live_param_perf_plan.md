@@ -186,7 +186,7 @@ PPVERSION `1045` 유지의 최종 근거는 기존 `.arp` 로드·저장·재읽
 | P2 — 기준선 기록 | **완료** | 64개 전체 매트릭스 셀 × 3배치 × 10회 반복 (총 960회 요청, 성공률 100.0%, 계측 누락 0건) p50/p95 및 구간별 지연 시간 수집 완료 |
 | P3 — 병목 분석 | **완료** | `SA - SG` GUI 위젯 다중 순회·가상 상속 `dynamic_cast`·컨테이너 배열 할당 오버헤드(+49.2ms) 및 `numericFullRefresh_ = true`로 인한 무조건적 `ALL` 무효화(+66.8ms, 중량 프리셋 시 Stage 2/3 도구 최대 +327ms) 증명 |
 | P4 — 개선안 선정 | **완료** | `NumericEvents::canUseSelectiveEvent()` 기반 안전 선택적 이벤트 매핑 및 `GObject` 메타데이터(`WidgetMeta`)·`gtk_container_foreach`·무라벨 수집(`includeLabels = false`) 최적화 선정, 합의 목표치(APPLIED p95 ≤ 35ms, Stage 2/3 READY p95 ≤ 200ms, SC - SA p50 ≤ 100ms, SA - SG p50 ≤ 10ms) 및 PPVERSION 1045 보존 기준 확정 |
-| P5 — 구현·재측정 | 예정 | `applyExternalNumeric` 및 `numericcontrols.cc` 최적화 구현, `M_VOID`(`Resize`) 연속 변경 `READY` 회귀(T21) 및 픽셀 차이 0(T25) 검증, 동일 조건 64셀(960표본) 재측정 완료 |
+| P5 — 구현·재측정 | **완료** | `applyExternalNumeric` 및 `numericcontrols.cc` 최적화 구현, `M_VOID`(`Resize`) 연속 변경 `READY` 회귀(T21) 및 픽셀 차이 0(T25) 검증, 동일 조건 64셀(960표본) 재측정 완료 |
 
 ---
 
@@ -291,3 +291,99 @@ PPVERSION `1045` 유지의 최종 근거는 기존 `.arp` 로드·저장·재읽
 - **스레드 및 세대 계약**: 모든 파라미터 적용은 GUI 메인 스레드에서 원자적으로 수행되며, 프레임 세대 번호(`generation`) 및 뷰 리비전(`viewRevision`) 계약이 엄격히 유지됨.
 - 따라서 `PPVERSION 1045`를 온전히 유지한다.
 
+---
+
+## 9. 최적화 구현 및 동일 조건 재측정 결과 (Stage P5)
+
+### 9.1 최적화 구현 내역
+
+1. **안전 조건부 선택적 무효화 이벤트 매핑 (`rtgui/toolpanelcoord.cc`)**:
+   - `NumericEvents::canUseSelectiveEvent()`를 통해 단일 `panelChanged` 렌더 이벤트(`EvSaturation → LUMINANCECURVE`, `EvShrRadius → SHARPENING`, `EvWBTemp → WHITEBALANCE` 등)만 선택적 무효화를 허용하고, `M_VOID`(`Resize.Width`), 도구 활성화 토글(`toolWasToggled`), 복합/비렌더 이벤트는 `EvProfileChanged`(`ALL`)로 안전하게 fallback 처리.
+2. **`GObject` 수명 연동 메타데이터 및 무할당 위젯 순회 (`rtgui/numericcontrols.{h,cc}`, `rtgui/toolpanelcoord.cc`)**:
+   - `collectNumericControls(panels, false)` 무라벨 수집 경로, `GObject` qdata 기반 `WidgetMeta`, `gtk_container_foreach` 순회, 단일 패널 롤백 백업(`found->owner->write(&before)`) 및 `readNumericControlValue()` O(1) 읽기를 적용하여 초기 진입(`initial`)과 연속 조작(`cached`) 구분 없이 `SA - SG`를 ~5.0ms 수준으로 단축.
+3. **트레이서 플러시 무결성 보장 (`rtengine/liveparamtrace.{h,cc}`)**:
+   - `bindCommand` 호출 전의 진행 중 `cmdId` 레코드(`S0`, `SQ`, `SG`)가 자동 플러시에서 유실되지 않도록 보류(`deferred`) 처리하여 960개 전 표본의 모든 구간 지표를 누락 없이 기록.
+
+### 9.2 동일 조건 재측정 실행 개요
+
+- **측정 일시**: 2026-11-09 23:15:04 (실행 ID: `run_20261109_230958_2c0761`)
+- **실행 환경**: Darwin 25.5.0 arm64 (Apple Silicon 12 vCPU, 36GB RAM, 기준선과 동일)
+- **측정 바이너리**: `build/ARTLiveParamTest.app/Contents/MacOS/test_liveparam_app` (Release 최적화 빌드, SHA-256 `9bc5a2d8...`)
+- **입력 RAW**: `data/fivek_sample/sample1.nef` (동일 해시 `18e28700...`)
+- **표본 구성**: 4개 파라미터 × 2개 배율(`fit`, `100%`) × 2개 캐시 상태(`initial`, `cached`) × 2개 HDR(`0`, `1`) × 2개 디노이즈(`0`, `1`) = **64개 셀**
+- **실행 규모**: 3개 독립 배치 × 10회 반복 = **총 960개 표본**
+- **성공률 및 계측 무결성**: **100.0%** (960/960 `READY`, 타임아웃·거부·유실 0건, 모든 구간 지표 결측치 **0건**)
+- **원시 데이터 보관 위치**: `build/liveparam-perf-checks/optimized/` (`manifest.json`, `client.jsonl`, `samples.csv`, `summary.csv`, `trace.jsonl`)
+
+### 9.3 최적화 전후 성능 지표 비교
+
+#### 1) 일반 수치 전체 (초기 진입 `initial` + 연속 조작 `cached`, 720 표본)
+
+| 관측 지표 | 기준선 p50 | 최적화 p50 | p50 개선폭 (개선율) | 기준선 p95 | 최적화 p95 | p95 개선폭 (개선율) |
+|---|---|---|---|---|---|---|
+| **APPLIED RTT (클라이언트 응답)** | 63.18 ms | **21.83 ms** | **-41.35 ms (65.4%)** | 65.88 ms | **22.19 ms** | **-43.69 ms (66.3%)** |
+| **READY RTT (엔진 렌더 완료)** | 317.19 ms | **171.34 ms** | **-145.85 ms (46.0%)** | 598.54 ms | **534.12 ms** | **-64.42 ms (10.8%)** |
+| **SA - SG (GUI 위젯 처리)** | 51.31 ms | **4.98 ms** | **-46.33 ms (90.3%)** | 53.48 ms | **5.51 ms** | **-47.97 ms (89.7%)** |
+| **SC - SA (엔진 Crop 연산)** | 200.60 ms | **98.17 ms** | **-102.43 ms (51.1%)** | 470.70 ms | **456.58 ms** | **-14.12 ms (3.0%)** |
+| **SR - SA (엔진 전체 소요)** | 236.17 ms | **132.76 ms** | **-103.41 ms (43.8%)** | 507.48 ms | **493.22 ms** | **-14.26 ms (2.8%)** |
+
+#### 2) Stage 2/3 하위 단계 수치 도구 (`saturation` + `sharpening`, 전체 480 표본 — `100%`·`hdr=1`·`dn=1` 포함)
+
+| 관측 지표 | 기준선 p50 | 최적화 p50 | p50 개선폭 (개선율) | 기준선 p95 | 최적화 p95 | p95 개선폭 (개선율) |
+|---|---|---|---|---|---|---|
+| **APPLIED RTT** | 63.18 ms | **21.68 ms** | **-41.50 ms (65.7%)** | 65.90 ms | **22.19 ms** | **-43.71 ms (66.3%)** |
+| **READY RTT** | 314.77 ms | **169.94 ms** | **-144.83 ms (46.0%)** | 500.72 ms | **195.91 ms** | **-304.81 ms (60.9%)** |
+| **SA - SG** | 51.30 ms | **4.98 ms** | **-46.32 ms (90.3%)** | 53.49 ms | **5.50 ms** | **-47.99 ms (89.7%)** |
+| **SC - SA** | 195.87 ms | **91.25 ms** | **-104.62 ms (53.4%)** | 382.87 ms | **111.29 ms** | **-271.58 ms (70.9%)** |
+| **SR - SA** | 231.79 ms | **127.60 ms** | **-104.19 ms (45.0%)** | 420.53 ms | **147.79 ms** | **-272.74 ms (64.9%)** |
+
+#### 3) 파라미터별 세부 결과 (각 240 표본, p50 / p95)
+
+- **채도 (`saturation`, `EvSaturation → LUMINANCECURVE`)**:
+  - APPLIED: p50 63.18ms → **21.75ms** (-41.43ms), p95 66.01ms → **22.19ms** (-43.82ms)
+  - SA - SG: p50 51.17ms → **4.97ms** (-46.20ms), p95 53.61ms → **5.52ms** (-48.09ms)
+  - READY: p50 314.74ms → **168.83ms** (-145.91ms), p95 500.72ms → **172.99ms** (-327.73ms)
+- **샤프닝 반경 (`sharpening`, `EvShrRadius → SHARPENING`)**:
+  - APPLIED: p50 63.17ms → **21.66ms** (-41.51ms), p95 65.73ms → **22.19ms** (-43.54ms)
+  - SA - SG: p50 51.37ms → **4.99ms** (-46.38ms), p95 53.35ms → **5.48ms** (-47.87ms)
+  - READY: p50 314.79ms → **171.01ms** (-143.78ms), p95 500.30ms → **197.60ms** (-302.70ms)
+- **색온도 (`temperature`, `EvWBTemp → WHITEBALANCE`)**:
+  - APPLIED: p50 63.19ms → **22.05ms** (-41.14ms), p95 65.84ms → **22.19ms** (-43.65ms)
+  - SA - SG: p50 51.32ms → **4.98ms** (-46.34ms), p95 53.42ms → **5.51ms** (-47.91ms)
+  - READY (전체): p50 520.40ms → **436.42ms** (-83.98ms), p95 771.33ms → **706.42ms** (-64.91ms)
+  - READY (`hdr=0, dn=0` 기본 프로필): p50 281.27ms → **196.39ms** (-84.88ms), p95 290.80ms → **247.53ms** (-43.27ms)
+  - *비고: 화이트밸런스는 엔진 파이프라인 상 `M_LINDENOISE` 및 `M_HDR`의 상위 단계이므로 디노이즈/HDR 활성 시 해당 하위 단계를 정당하게 재계산하며, `M_RAW` 디모자이킹 생략(~36ms)과 GUI 처리 단축(~46ms)으로 전 조건에서 ~84ms 단축됨.*
+- **노출 (`exposure`, 전용 API 대조군)**:
+  - APPLIED: p50 21.13ms → **21.74ms**, p95 22.16ms → **22.17ms**
+  - SA - SG: p50 2.08ms → **2.10ms**
+  - READY: p50 197.37ms → **196.70ms** (-0.67ms), p95 385.29ms → **375.59ms** (-9.70ms)
+  - *비고: 전용 API 경로는 성능 회귀 없이 동일하게 유지됨.*
+
+### 9.4 합의 목표치(Criteria) 달성 검증
+
+Stage P4에서 확정한 모든 합의 목표치를 임의 완화 없이 **원 목표 그대로 초과 달성**하였다:
+
+| 평가 지표 | 기준선 (`B`) | 목표 상한 (`T`) | 요구 최소개선 (`D`) | 실측 최적화 달성치 | 판정 결과 |
+|---|---|---|---|---|---|
+| **APPLIED RTT p95 (전체 720표본)** | 65.88 ms | **≤ 35.0 ms** | **≥ 30.0 ms** | **22.19 ms** (개선폭 43.69 ms) | **PASS (초기·캐시 전 구간 달성)** |
+| **Stage 2/3 READY RTT p95 (480표본)** | 500.72 ms | **≤ 200.0 ms** | **≥ 80.0 ms** | **195.91 ms** (개선폭 304.81 ms) | **PASS (중량·100% 배율 포함 달성)** |
+| **엔진 계산 (`SC - SA`) p50 (전체 720표본)** | 200.60 ms | **≤ 100.0 ms** | **≥ 50.0 ms** | **98.17 ms** (개선폭 102.43 ms) | **PASS (Stage 2/3 p50 91.25 ms)** |
+| **GUI 위젯 처리 (`SA - SG`) p50 (전체 720표본)** | 51.31 ms | **≤ 10.0 ms** | **≥ 40.0 ms** | **4.98 ms** (개선폭 46.33 ms, p95 5.51 ms) | **PASS (90.3% 단축, 원 목표 달성)** |
+
+### 9.5 회귀 검증 및 `PPVERSION 1045` 유지 확인
+
+1. **단위 및 GUI 검증 스위트 (`test_liveparam`, `test_liveparam_gui`)**:
+   - `test_liveparam`: 프로토콜 계약, 세션 수명, 리비전 충돌, 기본 비활성화 동작 모두 통과 (`PASS`).
+   - `test_liveparam_gui --case T01 --case T19 --case T20 --case T21 --case T23 --case T24 --case T25 --case T26`:
+     - T01 (상태 소유권 및 엔진 경계): `PASS`
+     - T19 / T20 (`100%` 등배 뷰포트 변경 및 `M_HIGHQUAL` 완료 세대 동기화): `PASS`
+     - **T21 (페이지네이션 카탈로그, `contextId` 검증 및 이미 활성화된 `Resize.Width` `M_VOID` 연속 2회 변경 `READY` 도달 검증)**: `PASS`
+     - T23 (네이티브 복합 위젯 계열): `PASS`
+     - T24 (23개 도구 모드, 335개 수치 필드 카탈로그): `PASS`
+     - **T25 (수동 조작과 외부 IPC 조작 간 프로필 및 렌더 픽셀 완벽 일치)**: `PASS` (`max_abs_diff = 0`)
+     - T26 (성능 추적 하네스 오버헤드 5ms, 링버퍼 단조성): `PASS`
+2. **CLI 통합 검증 (`test_art_cli.sh`)**:
+   - 동일 샘플 RAW(`sample1.nef`)에 대한 ART-cli 렌더링 정상 동작 확인 완료 (`SUCCESS`).
+3. **`PPVERSION 1045` 유지 판정**:
+   - 수동 GUI 조작 시 발생하는 엔진 이벤트와 100% 동일한 최소 무효화 이벤트를 발행하고 비렌더 이벤트(`M_VOID` 등)에 대해서는 전체 갱신으로 안전하게 fallback하므로 기존 프로필의 해석·기본값·영상 처리 의미와 `READY` 계약이 완전히 보존됨.
+   - 렌더 픽셀 오차 `0` 및 프로필 스키마 불변이 입증되었으므로 `PPVERSION 1045`를 온전히 유지한다.

@@ -36,9 +36,10 @@ struct NumericApplyResult {
 };
 
 std::vector<NumericControl> collectNumericControls(
-    const std::vector<ToolPanel *> &panels);
+    const std::vector<ToolPanel *> &panels, bool includeLabels = true);
 std::string numericContextId(const std::vector<ToolPanel *> &panels);
 void writeNumericControl(const NumericControl &control, double value);
+double readNumericControlValue(const NumericControl &control);
 
 } // namespace liveparam
 } // namespace art
