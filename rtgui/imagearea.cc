@@ -23,6 +23,8 @@
 #include "options.h"
 #include "shortcutmanager.h"
 #include <cmath>
+#include <cstdlib>
+#include <cstring>
 #include <ctime>
 
 ImageArea::ImageArea(ImageAreaPanel *p)
@@ -718,7 +720,10 @@ void ImageArea::initialImageArrived()
     if (mainCropWindow) {
         int w, h;
         mainCropWindow->cropHandler.getFullImageSize(w, h);
-        if (options.prevdemo != PD_Sidecar || !options.rememberZoomAndPan ||
+        const char *initialZoom = std::getenv("ART_LIVE_PARAM_INITIAL_ZOOM");
+        if (initialZoom && std::strcmp(initialZoom, "100") == 0) {
+            mainCropWindow->zoom11();
+        } else if (options.prevdemo != PD_Sidecar || !options.rememberZoomAndPan ||
             w != fullImageWidth || h != fullImageHeight) {
             mainCropWindow->zoomFit();
         } else if (mainCropWindow->cropHandler.cropParams.enabled) {

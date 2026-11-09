@@ -102,6 +102,7 @@ set(RTENGINESOURCEFILES
     imageio.cc
     improccoordinator.cc
     improcfun.cc
+    liveparamtrace.cc
     impulse_denoise.cc
     init.cc
     iprgb2out.cc

@@ -14,6 +14,7 @@
 #include "imageareapanel.h"
 #include "liveparamcontroller.h"
 #include "liveparamserver.h"
+#include "../rtengine/liveparamtrace.h"
 #include "options.h"
 #include "pathutils.h"
 #include "rtimage.h"
@@ -48,6 +49,9 @@
 #include <thread>
 #include <tiffio.h>
 #include <unistd.h>
+#include <poll.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 
 extern Options options;
 bool testNumericWidgets();
@@ -2745,6 +2749,186 @@ bool test_t25_numeric_output(RTWindow *win, const std::string &directory)
     return true;
 }
 
+bool test_t26_perf_trace_harness(RTWindow *win, const std::string &workDir)
+{
+    std::cout << "[T26] Real-time numeric performance tracing harness" << std::endl;
+
+    // 1. Verify tracer is disabled initially when ART_LIVE_PARAM_TRACE is unset
+    unsetenv("ART_LIVE_PARAM_TRACE");
+    auto &tracer = art::liveparam::LiveParamTrace::getInstance();
+    tracer.clear();
+    GUI_ASSERT(!tracer.isEnabled(), "Tracer must be disabled by default");
+    tracer.record("S0", 999);
+    GUI_ASSERT(tracer.getRecordedCount() == 0, "No records when disabled");
+
+    // 2. Measure overhead of disabled tracer (100,000 calls)
+    const auto tStart = std::chrono::steady_clock::now();
+    for (int i = 0; i < 100000; ++i) {
+        tracer.record("S0", i);
+    }
+    const auto tElapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - tStart).count();
+    std::cout << "  100k disabled trace calls took " << tElapsedMs << " ms" << std::endl;
+    GUI_ASSERT(tElapsedMs < 50, "Disabled trace call overhead must be near zero");
+
+    // 3. Enable tracer for this test
+    const std::string traceFile = workDir + "/t26_trace.jsonl";
+    setenv("ART_LIVE_PARAM_TRACE", traceFile.c_str(), 1);
+    tracer.clear();
+
+    // 4. Open fixture with LiveParamServer enabled
+    FrameFixture fixture{nullptr, art::liveparam::LiveParamController::getInstance()};
+    GUI_ASSERT(fixture.open(win, workDir, "t26"), "RAW fixture opened");
+    const auto sockPath = art::liveparam::LiveParamServer::getInstance().getSocketPath();
+    GUI_ASSERT(!sockPath.empty(), "LiveParamServer socket path valid");
+
+    // 5. Connect via Unix socket
+    int sockFd = socket(AF_UNIX, SOCK_STREAM, 0);
+    GUI_ASSERT(sockFd >= 0, "Socket created");
+    sockaddr_un addr{};
+    addr.sun_family = AF_UNIX;
+    std::strncpy(addr.sun_path, sockPath.c_str(), sizeof(addr.sun_path) - 1);
+    GUI_ASSERT(connect(sockFd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) == 0,
+               "Connected to LiveParamServer");
+
+    auto sendReq = [&](const std::string &jsonStr) {
+        const std::string wire = jsonStr + "\n";
+        return send(sockFd, wire.data(), wire.size(), 0) == static_cast<ssize_t>(wire.size());
+    };
+    auto recvReply = [&]() -> std::string {
+        std::string buf;
+        char c;
+        while (read(sockFd, &c, 1) == 1) {
+            if (c == '\n') break;
+            buf += c;
+        }
+        return buf;
+    };
+
+    // Query state
+    GUI_ASSERT(sendReq("{\"protocolVersion\":1,\"requestId\":\"t26-init\",\"op\":\"get_state\",\"editorId\":\"" +
+                       fixture.panel->getEditorId() + "\"}"), "Init state request sent");
+    std::string replyStr = "";
+    while (replyStr.empty()) {
+        pumpGuiEvents(10);
+        replyStr = recvReply();
+    }
+    std::unique_ptr<cJSON, decltype(&cJSON_Delete)> initJson(
+        cJSON_Parse(replyStr.c_str()), cJSON_Delete);
+    GUI_ASSERT(initJson && cJSON_GetObjectItemCaseSensitive(initJson.get(), "status"), "Init JSON parsed");
+    auto *initResult = cJSON_GetObjectItemCaseSensitive(initJson.get(), "result");
+    int64_t baseRev = cJSON_GetObjectItemCaseSensitive(initResult, "revision")->valueint;
+    const std::string sessId = fixture.controller.getSessionId();
+    const std::string edId = fixture.panel->getEditorId();
+
+    // 6. Valid Exposure request
+    GUI_ASSERT(sendReq("{\"protocolVersion\":1,\"requestId\":\"t26-exp-1\",\"op\":\"set_param\",\"sessionId\":\"" +
+                       sessId + "\",\"editorId\":\"" + edId + "\",\"baseRevision\":" +
+                       std::to_string(baseRev) + ",\"params\":{\"Exposure.Compensation\":0.35}}"),
+               "Valid Exposure request sent");
+    std::string expReplyStr = "";
+    while (expReplyStr.empty()) {
+        pumpGuiEvents(10);
+        expReplyStr = recvReply();
+    }
+    GUI_ASSERT(expReplyStr.find("\"status\":\"APPLIED\"") != std::string::npos, "Exposure APPLIED");
+    GUI_ASSERT(fixture.waitReady(), "Exposure READY");
+    baseRev++;
+
+    // 7. Duplicate request replay (same requestId & params)
+    GUI_ASSERT(sendReq("{\"protocolVersion\":1,\"requestId\":\"t26-exp-1\",\"op\":\"set_param\",\"sessionId\":\"" +
+                       sessId + "\",\"editorId\":\"" + edId + "\",\"baseRevision\":" +
+                       std::to_string(baseRev - 1) + ",\"params\":{\"Exposure.Compensation\":0.35}}"),
+               "Duplicate request sent");
+    std::string dupReplyStr = "";
+    while (dupReplyStr.empty()) {
+        pumpGuiEvents(10);
+        dupReplyStr = recvReply();
+    }
+    GUI_ASSERT(dupReplyStr.find("\"status\":\"APPLIED\"") != std::string::npos, "Duplicate APPLIED without re-execution");
+
+    // 8. Rejected request (invalid value)
+    GUI_ASSERT(sendReq("{\"protocolVersion\":1,\"requestId\":\"t26-invalid-1\",\"op\":\"set_param\",\"sessionId\":\"" +
+                       sessId + "\",\"editorId\":\"" + edId + "\",\"baseRevision\":" +
+                       std::to_string(baseRev) + ",\"params\":{\"Exposure.Compensation\":999.0}}"),
+               "Invalid value request sent");
+    std::string errReplyStr = "";
+    while (errReplyStr.empty()) {
+        pumpGuiEvents(10);
+        errReplyStr = recvReply();
+    }
+    GUI_ASSERT(errReplyStr.find("\"status\":\"ERROR\"") != std::string::npos &&
+               errReplyStr.find("\"INVALID_VALUE\"") != std::string::npos, "Rejected with INVALID_VALUE");
+
+    close(sockFd);
+
+    // 9. Close fixture & stop server
+    fixture.panel->close();
+    fixture.panel = nullptr;
+    art::liveparam::LiveParamServer::getInstance().stop();
+
+    // 10. Verify trace records
+    GUI_ASSERT(tracer.getDropCount() == 0, "No dropped trace events");
+    tracer.flush();
+    unsetenv("ART_LIVE_PARAM_TRACE");
+
+    // Parse the written trace file and verify event ordering & correlation
+    std::ifstream traceIn(traceFile);
+    GUI_ASSERT(traceIn.is_open(), "Trace output file opened");
+    std::string line;
+    std::map<std::string, std::map<std::string, uint64_t>> reqEvents;
+    bool hasEngineChange = false, hasEngineDone = false;
+    while (std::getline(traceIn, line)) {
+        if (line.empty()) continue;
+        std::unique_ptr<cJSON, decltype(&cJSON_Delete)> rJson(
+            cJSON_Parse(line.c_str()), cJSON_Delete);
+        if (!rJson) continue;
+        auto *evItem = cJSON_GetObjectItemCaseSensitive(rJson.get(), "event");
+        auto *tsItem = cJSON_GetObjectItemCaseSensitive(rJson.get(), "timestamp_ns");
+        auto *reqItem = cJSON_GetObjectItemCaseSensitive(rJson.get(), "requestId");
+        if (!evItem || !cJSON_IsString(evItem) || !tsItem || !cJSON_IsNumber(tsItem)) continue;
+        const std::string ev = evItem->valuestring;
+        const uint64_t ts = static_cast<uint64_t>(tsItem->valuedouble);
+        if (ev == "ENGINE_CHANGE") hasEngineChange = true;
+        if (ev == "ENGINE_DONE") hasEngineDone = true;
+        if (reqItem && cJSON_IsString(reqItem) && reqItem->valuestring) {
+            reqEvents[reqItem->valuestring].emplace(ev, ts);
+        }
+    }
+
+    GUI_ASSERT(hasEngineChange && hasEngineDone, "Engine events recorded");
+    const auto &expEvents = reqEvents["t26-exp-1"];
+    std::cout << "  Recorded events for t26-exp-1: ";
+    for (const auto &pair : expEvents) {
+        std::cout << pair.first << " ";
+    }
+    std::cout << std::endl;
+    GUI_ASSERT(expEvents.count("S0") && expEvents.count("SQ") && expEvents.count("SG") &&
+               expEvents.count("SA") && expEvents.count("SP") && expEvents.count("SS") &&
+               expEvents.count("SN") && expEvents.count("SC") && expEvents.count("SR"),
+               "All S0..SS, SN, SC, SR present for valid mutation");
+
+    GUI_ASSERT(expEvents.at("S0") <= expEvents.at("SQ"), "S0 <= SQ");
+    GUI_ASSERT(expEvents.at("SQ") <= expEvents.at("SG"), "SQ <= SG");
+    GUI_ASSERT(expEvents.at("SG") <= expEvents.at("SA"), "SG <= SA");
+    GUI_ASSERT(expEvents.at("SA") <= expEvents.at("SP"), "SA <= SP");
+    GUI_ASSERT(expEvents.at("SP") <= expEvents.at("SS"), "SP <= SS");
+    GUI_ASSERT(expEvents.at("SA") <= expEvents.at("SN"), "SA <= SN");
+    GUI_ASSERT(expEvents.at("SA") <= expEvents.at("SC"), "SA <= SC");
+    GUI_ASSERT(expEvents.at("SN") <= expEvents.at("SR"), "SN <= SR");
+    GUI_ASSERT(expEvents.at("SC") <= expEvents.at("SR"), "SC <= SR");
+
+    // Rejected request must have S0, SQ, SG, SP, SS but NOT SA, SN, SC, SR
+    const auto &invalidEvents = reqEvents["t26-invalid-1"];
+    GUI_ASSERT(invalidEvents.count("S0") && invalidEvents.count("SG") && invalidEvents.count("SS"),
+               "Rejected request went through socket/GUI");
+    GUI_ASSERT(invalidEvents.count("SA") == 0 && invalidEvents.count("SR") == 0,
+               "Rejected request has no SA or SR");
+
+    std::cout << "  -> [T26] PASSED! trace verified: " << traceFile << std::endl;
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -2778,6 +2962,7 @@ int main(int argc, char **argv)
         {"T23", test_t23_numeric_widgets},
         {"T24", test_t24_numeric_modes},
         {"T25", test_t25_numeric_output},
+        {"T26", test_t26_perf_trace_harness},
     };
     std::set<std::string> selected;
     for (int i = 1; i < argc; ++i) {

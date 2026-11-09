@@ -1,5 +1,6 @@
 #include "liveparamserver.h"
 #include "liveparamcontroller.h"
+#include "../rtengine/liveparamtrace.h"
 
 #include <algorithm>
 #include <cerrno>
@@ -44,6 +45,7 @@ struct LiveParamServer::Runtime: std::enable_shared_from_this<Runtime> {
         size_t sent = 0;
         bool closing = false;
         std::shared_ptr<Pending> pending;
+        uint64_t lastCmdId = 0;
     };
     struct Dispatch {
         std::weak_ptr<Runtime> runtime;
@@ -122,6 +124,7 @@ struct LiveParamServer::Runtime: std::enable_shared_from_this<Runtime> {
         command->id = ++nextCommand;
         command->request = std::move(request);
         pending.emplace(command->id, command);
+        LiveParamTrace::getInstance().record("SQ", command->id);
         auto *data = new Dispatch{shared_from_this(), command};
         // The mutex also covers source registration: a fast GUI dispatch cannot
         // finish before its cancellation handle has been published.
@@ -141,10 +144,11 @@ struct LiveParamServer::Runtime: std::enable_shared_from_this<Runtime> {
                     }
                     command->state = Pending::EXECUTING;
                 }
+                LiveParamTrace::getInstance().record("SG", command->id);
                 std::string response;
                 try {
                     response = LiveParamController::getInstance().handleCommand(
-                        command->request);
+                        command->request, command->id);
                 } catch (...) {
                     response = makeTransportError(runtime->sessionId,
                         "INTERNAL_ERROR", "Command result is unknown; query state", false);
@@ -156,6 +160,7 @@ struct LiveParamServer::Runtime: std::enable_shared_from_this<Runtime> {
                     command->source = 0;
                     runtime->pending.erase(command->id);
                 }
+                LiveParamTrace::getInstance().record("SP", command->id);
                 return G_SOURCE_REMOVE;
             }, data, [](gpointer raw) { delete static_cast<Dispatch *>(raw); });
         return command;
@@ -207,6 +212,7 @@ struct LiveParamServer::Runtime: std::enable_shared_from_this<Runtime> {
                 } else {
                     client.output += '\n';
                 }
+                client.lastCmdId = client.pending->id;
                 client.pending.reset();
             }
         }
@@ -218,8 +224,12 @@ struct LiveParamServer::Runtime: std::enable_shared_from_this<Runtime> {
                 } else {
                     auto line = client.input.substr(0, newline);
                     client.input.erase(0, newline + 1);
+                    const uint64_t nextId = nextCommand + 1;
+                    LiveParamTrace::getInstance().record("S0", nextId);
                     client.pending = enqueue(std::move(line));
-                    if (!client.pending) {
+                    if (client.pending) {
+                        client.lastCmdId = client.pending->id;
+                    } else {
                         client.output = error("BUSY", "GUI command queue is full", true);
                     }
                 }
@@ -315,6 +325,10 @@ struct LiveParamServer::Runtime: std::enable_shared_from_this<Runtime> {
                             client.output.clear();
                             client.sent = 0;
                             keep = !client.closing;
+                            if (client.lastCmdId) {
+                                LiveParamTrace::getInstance().record("SS", client.lastCmdId);
+                                client.lastCmdId = 0;
+                            }
                         }
                     } else if (count < 0 && errno != EAGAIN && errno != EINTR) {
                         keep = false;
@@ -324,6 +338,7 @@ struct LiveParamServer::Runtime: std::enable_shared_from_this<Runtime> {
                     cancel(client.pending);
                     close(fd);
                     clients.erase(it);
+                    LiveParamTrace::getInstance().flush();
                 }
             }
         }
@@ -415,6 +430,7 @@ void LiveParamServer::stop()
 {
 #ifdef __APPLE__
     running_.store(false);
+    LiveParamTrace::getInstance().flush();
     if (!runtime_ && !serverThread_.joinable()) {
         socketPath_.clear();
         return;

@@ -17,6 +17,7 @@
  *  along with RawTherapee.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "improccoordinator.h"
+#include "liveparamtrace.h"
 #include "../rtgui/ppversion.h"
 #include "color.h"
 #include "colortemp.h"
@@ -1640,6 +1641,12 @@ void ImProcCoordinator::process()
         if (change & (M_VOID - 1)) {
             updatePreviewImage(change, panningRelatedChange);
             changed = true;
+            if (art::liveparam::LiveParamTrace::isEnabled()) {
+                art::liveparam::LiveParamTrace::getInstance().record(
+                    "ENGINE_DONE", 0, nullptr, currentGeneration_,
+                    currentEditRev.load(std::memory_order_relaxed),
+                    currentViewRev.load(std::memory_order_relaxed));
+            }
         }
 
         if (tweakOp) {
@@ -1691,6 +1698,11 @@ void ImProcCoordinator::endUpdateParams(int changeFlags)
     }
     changeSinceLast |= update_change_flags(nextParams, changeFlags);
     ++nextGeneration_;
+    if (art::liveparam::LiveParamTrace::isEnabled()) {
+        art::liveparam::LiveParamTrace::getInstance().record(
+            "ENGINE_CHANGE", 0, nullptr, nextGeneration_, nextEditRev, nextViewRev,
+            changeFlags);
+    }
     if (parameterUpdateListener_ && (changeSinceLast & (M_VOID - 1))) {
         parameterUpdateListener_->previewScheduled(nextGeneration_);
     }

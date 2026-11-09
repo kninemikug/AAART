@@ -1,4 +1,5 @@
 #include "liveparamcontroller.h"
+#include "../rtengine/liveparamtrace.h"
 #include "editorpanel.h"
 #include "toolpanelcoord.h"
 #include "ppversion.h"
@@ -571,6 +572,8 @@ void LiveParamController::updateReady(EditorState &state)
         record.isCompleted = true;
         state.lastMutation = record;
         state.hasInFlightMutation = false;
+        LiveParamTrace::getInstance().record("SR", 0, record.requestId.c_str(),
+            state.requiredGeneration, record.appliedRevision, record.viewRevision);
     }
 }
 
@@ -583,6 +586,10 @@ void LiveParamController::onPreviewReady(
     recordGuiAccess();
     auto &state = editors_.at(panelToId_.at(panel));
     state.previewContext = ctx;
+    if (state.hasInFlightMutation && ctx.generation == state.requiredGeneration) {
+        LiveParamTrace::getInstance().record("SN", 0, state.inFlightRequestId.c_str(),
+            ctx.generation, ctx.editRevision, ctx.viewRevision);
+    }
     updateReady(state);
 }
 
@@ -598,6 +605,10 @@ void LiveParamController::onCropReady(
         return;
     }
     state.cropContext = ctx;
+    if (state.hasInFlightMutation && ctx.generation == state.requiredGeneration) {
+        LiveParamTrace::getInstance().record("SC", 0, state.inFlightRequestId.c_str(),
+            ctx.generation, ctx.editRevision, ctx.viewRevision);
+    }
     updateReady(state);
 }
 
@@ -681,7 +692,7 @@ void LiveParamController::pruneExpiredCache(EditorState &st)
     }
 }
 
-std::string LiveParamController::handleCommand(const std::string &jsonRequest)
+std::string LiveParamController::handleCommand(const std::string &jsonRequest, uint64_t cmdId)
 {
     recordGuiAccess();
     size_t cacheSize = 0;
@@ -744,6 +755,10 @@ std::string LiveParamController::handleCommand(const std::string &jsonRequest)
     }
     if (editor) {
         editorId = editor->valuestring;
+    }
+    if (cmdId) {
+        LiveParamTrace::getInstance().bindCommand(
+            cmdId, requestId.c_str(), sessionId_.c_str(), editorId.c_str());
     }
     auto *protocol = field("protocolVersion");
     if (!integer(protocol)) {
@@ -999,6 +1014,9 @@ std::string LiveParamController::handleCommand(const std::string &jsonRequest)
     state.inFlightRequestId = requestId;
     state.inFlightAppliedRev = record.appliedRevision;
     state.inFlightAppliedViewRev = record.viewRevision;
+    LiveParamTrace::getInstance().record("SA", cmdId, requestId.c_str(),
+        state.requiredGeneration, record.appliedRevision, record.viewRevision,
+        0, paramKey.c_str());
     return appliedResponse(sessionId_, state, record);
 }
 

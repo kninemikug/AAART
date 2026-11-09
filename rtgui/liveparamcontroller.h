@@ -102,7 +102,7 @@ public:
                         const std::string &editorId, EditorPanel *panel,
                         const std::string &err);
 
-    std::string handleCommand(const std::string &jsonRequest);
+    std::string handleCommand(const std::string &jsonRequest, uint64_t cmdId = 0);
 
 private:
     friend struct LiveParamControllerTestAccess;
