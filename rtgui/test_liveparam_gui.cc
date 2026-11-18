@@ -25,6 +25,8 @@
 #include "test_liveparam_socket.h"
 #include "wbprovider.h"
 #include "../rtengine/cJSON.h"
+#include "../rtengine/image8.h"
+#include "../rtengine/imagefloat.h"
 #include "../rtengine/improccoordinator.h"
 #include "../rtengine/procparams.h"
 #include "../rtengine/processingjob.h"
@@ -3139,6 +3141,91 @@ bool test_t25_numeric_output(RTWindow *win, const std::string &directory)
     return true;
 }
 
+bool test_t27_preview_color_conversion(RTWindow *, const std::string &)
+{
+    using namespace rtengine;
+    constexpr int width = 257;
+    constexpr int height = 33;
+    const auto savedColorMode = Settings::color_mgmt_mode;
+    const auto savedHistogramWorking = options.rtSettings.HistogramWorking;
+    struct RestoreSettings {
+        Settings::ColorManagementMode colorMode;
+        bool histogramWorking;
+        Glib::ustring printerProfile;
+        ~RestoreSettings()
+        {
+            Settings::color_mgmt_mode = colorMode;
+            options.rtSettings.HistogramWorking = histogramWorking;
+            options.rtSettings.printerProfile = printerProfile;
+        }
+    } restore{savedColorMode, savedHistogramWorking, options.rtSettings.printerProfile};
+    Settings::color_mgmt_mode = Settings::ColorManagementMode::APPLICATION;
+    options.rtSettings.printerProfile = "RTv4_Medium";
+
+    // Exercise clipped values as well as intervals close to 8-bit rounding.
+    Imagefloat source(width, height);
+    source.assignColorSpace("ProPhoto");
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            const int i = y * width + x;
+            source.r(y, x) = (i * 359 % 73000) - 3000.25f;
+            source.g(y, x) = (i * 673 % 73000) - 3000.5f;
+            source.b(y, x) = (i * 257 % 73000) - 3000.75f;
+        }
+    }
+
+    const struct {
+        const char *profile;
+        bool histogramWorking;
+        bool softProof;
+        GamutCheck gamut;
+        bool reuse;
+    } cases[] = {
+        {"RTv2_sRGB", false, false, GAMUT_CHECK_OFF, true},
+        {"RTv2_sRGB", false, true, GAMUT_CHECK_OFF, true},
+        {"RTv4_sRGB", false, false, GAMUT_CHECK_OFF, false},
+        {"RTv2_sRGB", true, false, GAMUT_CHECK_OFF, false},
+        {"RTv2_sRGB", false, false, GAMUT_CHECK_MONITOR, false},
+    };
+    for (const auto &scenario : cases) {
+        options.rtSettings.HistogramWorking = scenario.histogramWorking;
+        procparams::ProcParams params;
+        params.icm.workingProfile = "ProPhoto";
+        params.icm.outputProfile = scenario.profile;
+        params.icm.outputBPC = std::strcmp(scenario.profile, "RTv4_sRGB") != 0;
+        ImProcFunctions ipf(&params, true);
+        ipf.setPipeline(ImProcFunctions::Pipeline::PREVIEW);
+        ipf.setScale(1);
+        ipf.updateColorProfiles("RTv4_sRGB", RI_RELATIVE, scenario.softProof,
+                                scenario.gamut);
+
+        Imagefloat separate(width, height, &source);
+        Imagefloat combined(width, height, &source);
+        source.copyTo(&separate);
+        source.copyTo(&combined);
+        Image8 referenceDisplay, display;
+        ipf.rgb2monitor(&separate, &referenceDisplay);
+        std::unique_ptr<Image8> referenceAnalysis(
+            ipf.rgb2out(&separate, 0, 0, width, height, params.icm));
+        Image8 *reusedAnalysis = nullptr;
+        ipf.rgb2monitor(&combined, &display, &reusedAnalysis);
+        std::unique_ptr<Image8> analysis(reusedAnalysis);
+        GUI_ASSERT(bool(analysis) == scenario.reuse,
+                   (std::string("analysis reuse eligibility: ") + scenario.profile).c_str());
+        if (!analysis) {
+            analysis.reset(ipf.rgb2out(&combined, 0, 0, width, height,
+                                      params.icm));
+        }
+        constexpr size_t bytes = size_t(width) * height * 3;
+        GUI_ASSERT(std::memcmp(display.data, referenceDisplay.data, bytes) == 0,
+                   "Preview monitor pixels match the separate conversion");
+        GUI_ASSERT(std::memcmp(analysis->data, referenceAnalysis->data, bytes) == 0,
+                   "Preview analysis pixels match the separate conversion");
+    }
+    std::cout << "  -> [T27] PASSED! monitor and analysis pixels match\n";
+    return true;
+}
+
 bool test_t26_perf_trace_harness(RTWindow *win, const std::string &workDir)
 {
     std::cout << "[T26] Real-time numeric performance tracing harness" << std::endl;
@@ -3664,6 +3751,7 @@ int main(int argc, char **argv)
         {"T24", test_t24_numeric_modes},
         {"T25", test_t25_numeric_output},
         {"T26", test_t26_perf_trace_harness},
+        {"T27", test_t27_preview_color_conversion},
     };
     std::set<std::string> selected;
     for (int i = 1; i < argc; ++i) {

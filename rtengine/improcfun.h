@@ -172,6 +172,9 @@ public:
     // Lab/RGB conversion
     //----------------------------------------------------------------------
     void rgb2monitor(Imagefloat *img, Image8 *image, bool bypass_out = false);
+    // Supplies the analysis image when it can share the monitor conversion.
+    void rgb2monitor(Imagefloat *img, Image8 *image, Image8 **analysis,
+                     bool bypass_out = false);
 
     Image8 *rgb2out(Imagefloat *img, int cx, int cy, int cw, int ch,
                     const procparams::ColorManagementParams &icm,
@@ -310,6 +313,9 @@ private:
 
     template <class Ret, class Method>
     Ret apply(const char *name, Method op, Imagefloat *img, bool can_skip_sync);
+    Imagefloat *convertRgbToOutput(
+        Imagefloat *img, const procparams::ColorManagementParams &icm,
+        bool *usedFloatCms);
 };
 
 } // namespace rtengine

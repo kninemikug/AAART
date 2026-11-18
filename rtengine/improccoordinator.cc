@@ -209,7 +209,12 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
 
     ipf.setPipetteBuffer(nullptr);
     bool stop = false;
+    const int reqTodo = todo;
     bool traceStages = art::liveparam::LiveParamTrace::isEnabled();
+    using Clock = std::chrono::steady_clock;
+    const auto workerStart = traceStages ? Clock::now() : Clock::time_point{};
+    auto cropLoopStart = workerStart;
+    auto cropLoopEnd = workerStart;
     bool trPreproc = false;
     bool trRaw = false;
     bool trInit = false;
@@ -615,14 +620,7 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
     }
 
     if (traceStages) {
-        char buf[160];
-        std::snprintf(
-            buf, sizeof(buf),
-            "nav:preproc=%d,raw=%d,init=%d,hdr=%d,tf=%d,s1=%d,s2=%d,s3=%d,todo=%d",
-            trPreproc ? 1 : 0, trRaw ? 1 : 0, trInit ? 1 : 0,
-            trHdr ? 1 : 0, trTf ? 1 : 0, trS1 ? 1 : 0, trS2 ? 1 : 0,
-            trS3 ? 1 : 0, todo);
-        lastPreviewStages_ = buf;
+        cropLoopStart = Clock::now();
     }
 
     // process crop, if needed
@@ -642,6 +640,10 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
             }
     }
 
+    if (traceStages) {
+        cropLoopEnd = Clock::now();
+    }
+
     if (panningRelatedChange || (todo & M_MONITOR)) {
         progress("Conversion to RGB...", 100 * readyphase / numofphases);
 
@@ -649,16 +651,13 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
             MyMutex::MyLock prevImgLock(previmg->getMutex());
 
             try {
-                // Computing the preview image, i.e. converting from
-                // WCS->Monitor color space (soft-proofing disabled) or
-                // WCS->Printer profile->Monitor color space (soft-proofing
-                // enabled)
-                ipf.rgb2monitor(bufs_[2], previmg);
-
-                // Computing the internal image for analysis, i.e. conversion
-                // from WCS->Output profile
+                Image8 *analysis = nullptr;
+                ipf.rgb2monitor(bufs_[2], previmg, &analysis);
+                if (!analysis) {
+                    analysis = ipf.rgb2out(bufs_[2], 0, 0, pW, pH, params.icm);
+                }
                 delete workimg;
-                workimg = ipf.rgb2out(bufs_[2], 0, 0, pW, pH, params.icm);
+                workimg = analysis;
 
                 /* Worker -> GUI handoff barrier.  bufs_[2] is read after this
                  * point by the scope panels (updateLRGBHistograms below, and
@@ -718,6 +717,29 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
     if (orig_prev != oprevi && oprevi != spotprev) {
         delete oprevi;
         oprevi = nullptr;
+    }
+    if (traceStages) {
+        const auto workerEnd = Clock::now();
+        const long long navPreUs = std::chrono::duration_cast<std::chrono::microseconds>(
+            cropLoopStart - workerStart).count();
+        const long long navPostUs = std::chrono::duration_cast<std::chrono::microseconds>(
+            workerEnd - cropLoopEnd).count();
+        const int hrMode = params.exposure.enabled
+            ? static_cast<int>(params.exposure.hrmode) : 0;
+        const long long workerStartNs =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(
+                workerStart.time_since_epoch()).count();
+        char buf[320];
+        std::snprintf(
+            buf, sizeof(buf),
+            "nav:preproc=%d,raw=%d,init=%d,hdr=%d,tf=%d,s1=%d,s2=%d,s3=%d,"
+            "req_todo=%d,todo=%d,wb_mode=%d,hr_mode=%d,"
+            "nav_pre_us=%lld,nav_post_us=%lld,worker_start_ns=%lld",
+            trPreproc ? 1 : 0, trRaw ? 1 : 0, trInit ? 1 : 0,
+            trHdr ? 1 : 0, trTf ? 1 : 0, trS1 ? 1 : 0, trS2 ? 1 : 0,
+            trS3 ? 1 : 0, reqTodo, todo, static_cast<int>(options.wb_preview_mode),
+            hrMode, navPreUs, navPostUs, workerStartNs);
+        lastPreviewStages_ = buf;
     }
 }
 

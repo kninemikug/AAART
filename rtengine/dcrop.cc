@@ -166,6 +166,11 @@ void Crop::update(int todo)
 {
     MyMutex::MyLock cropLock(cropMutex);
 
+    const int reqTodo = todo;
+    const bool traceStages = art::liveparam::LiveParamTrace::isEnabled();
+    using Clock = std::chrono::steady_clock;
+    const auto cropEnter = traceStages ? Clock::now() : Clock::time_point{};
+
     processingContext_ = parent->getProcessingContext();
     processingContext_.cropId = cropId_;
     ProcParams &params = parent->params;
@@ -487,13 +492,24 @@ void Crop::update(int todo)
     // all pipette buffer processing should be finished now
     PipetteBuffer::setReady();
 
-    parent->ipf.rgb2monitor(bufs_[2], cropImg);
+    const auto convStart = traceStages ? Clock::now() : Clock::time_point{};
+    auto convDone = convStart;
+    auto copyDone = convStart;
+
+    Image8 *cropImgtrue = nullptr;
+    parent->ipf.rgb2monitor(bufs_[2], cropImg,
+                            cropImageListener ? &cropImgtrue : nullptr);
 
     if (cropImageListener) {
         // internal image in output color space for analysis
-        Image8 *cropImgtrue =
-            parent->ipf.rgb2out(bufs_[2], 0, 0, cropImg->getWidth(),
-                                cropImg->getHeight(), params.icm);
+        if (!cropImgtrue) {
+            cropImgtrue =
+                parent->ipf.rgb2out(bufs_[2], 0, 0, cropImg->getWidth(),
+                                    cropImg->getHeight(), params.icm);
+        }
+        if (traceStages) {
+            convDone = Clock::now();
+        }
 
         int finalW = rqcropw;
 
@@ -522,14 +538,20 @@ void Crop::update(int todo)
                    3 * finalW);
         }
 
+        if (traceStages) {
+            copyDone = Clock::now();
+        }
         cropImageListener->setDetailedCrop(
             final, finaltrue, params.icm, params.crop, rqcropx, rqcropy,
             rqcropw, rqcroph, skip, processingContext_);
         delete final;
         delete finaltrue;
         delete cropImgtrue;
+    } else if (traceStages) {
+        convDone = Clock::now();
+        copyDone = convDone;
     }
-    if (art::liveparam::LiveParamTrace::isEnabled()) {
+    if (traceStages) {
         const bool trInit = (todo & M_INIT) != 0;
         const bool trDn = (todo & M_LINDENOISE) && show_denoise;
         const bool trHdr =
@@ -537,13 +559,25 @@ void Crop::update(int todo)
         const bool trS1 = (todo & M_RGBCURVE) != 0;
         const bool trS2 = (todo & M_LUMACURVE) != 0;
         const bool trS3 = (todo & (M_LUMINANCE | M_COLOR)) != 0;
-        char buf[160];
+        const long long stageUs = std::chrono::duration_cast<std::chrono::microseconds>(
+            convStart - cropEnter).count();
+        const long long convUs = std::chrono::duration_cast<std::chrono::microseconds>(
+            convDone - convStart).count();
+        const long long copyUs = std::chrono::duration_cast<std::chrono::microseconds>(
+            copyDone - convDone).count();
+        const long long publishNs =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(
+                copyDone.time_since_epoch()).count();
+        char buf[320];
         std::snprintf(
             buf, sizeof(buf),
-            "crop:main=%d,skip=%d,realloc=%d,init=%d,dn=%d,hdr=%d,tf=%d,s1=%d,s2=%d,s3=%d",
-            isDetailWindow ? 0 : 1, skip, needsinitupdate ? 1 : 0,
-            trInit ? 1 : 0, trDn ? 1 : 0, trHdr ? 1 : 0,
-            needstransform ? 1 : 0, trS1 ? 1 : 0, trS2 ? 1 : 0, trS3 ? 1 : 0);
+            "crop:main=%d,skip=%d,x=%d,y=%d,w=%d,h=%d,realloc=%d,init=%d,dn=%d,hdr=%d,tf=%d,s1=%d,s2=%d,s3=%d,"
+            "req_todo=%d,todo=%d,stage_us=%lld,conv_us=%lld,copy_us=%lld,"
+            "publish_ns=%lld",
+            isDetailWindow ? 0 : 1, skip, rqcropx, rqcropy, rqcropw, rqcroph,
+            needsinitupdate ? 1 : 0, trInit ? 1 : 0, trDn ? 1 : 0, trHdr ? 1 : 0,
+            needstransform ? 1 : 0, trS1 ? 1 : 0, trS2 ? 1 : 0, trS3 ? 1 : 0,
+            reqTodo, todo, stageUs, convUs, copyUs, publishNs);
         art::liveparam::LiveParamTrace::getInstance().record(
             "CROP_DONE", 0, nullptr, processingContext_.generation,
             processingContext_.editRevision, processingContext_.viewRevision,

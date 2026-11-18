@@ -650,6 +650,7 @@ def validate_and_index_trace(trace_file, client_samples):
     replay_cmds = set()
     engine_stages = {}
     crop_stages = {}
+    engine_change_ts = {}
     current_session_id = ""
     non_empty_lines = 0
 
@@ -700,6 +701,10 @@ def validate_and_index_trace(trace_file, client_samples):
                         crop_stages[key_sg] = detail
                 continue
             if ev_name == "ENGINE_CHANGE":
+                gen = ev.get("generation")
+                if gen:
+                    key_sg = (current_session_id, gen)
+                    engine_change_ts.setdefault(key_sg, ts_ns)
                 continue
 
             cmd_id = ev.get("cmdId")
@@ -841,6 +846,10 @@ def validate_and_index_trace(trace_file, client_samples):
                     f"requestId={req_id!r}: non-monotonic timestamp {earlier}({t1}) > {later}({t2})"
                 )
 
+        key_sg = (sample.get("sessionId") or "", sr_gen)
+        merged["_stage_timings"] = {
+            "engine_change_ns": engine_change_ts.get(key_sg),
+        }
         indexed_by_req[req_id] = merged
 
     return errors, indexed_by_req, engine_stages, crop_stages
@@ -1229,6 +1238,23 @@ def run_single_launch(app_bin, raw_path, options_file, arp_text, trace_file, wor
     return collected
 
 
+def parse_stage_kv(detail):
+    """Parse 'nav:k=v,...' or 'crop:k=v,...' detail strings into an int-valued dict."""
+    if not detail:
+        return {}
+    body = detail.split(":", 1)[1] if ":" in detail else detail
+    out = {}
+    for part in body.split(","):
+        if "=" not in part:
+            continue
+        k, v = part.split("=", 1)
+        try:
+            out[k] = int(v)
+        except ValueError:
+            out[k] = v
+    return out
+
+
 def build_csv_rows(all_client_samples, server_events, engine_stages, crop_stages):
     csv_rows = []
     for s in all_client_samples:
@@ -1244,6 +1270,40 @@ def build_csv_rows(all_client_samples, server_events, engine_stages, crop_stages
         sc = sev.get("SC", {}).get("timestamp_ns")
         sr = sev.get("SR", {}).get("timestamp_ns")
         sr_gen = sev.get("SR", {}).get("generation")
+        eng_str = engine_stages.get((s.get("sessionId") or "", sr_gen), "")
+        crop_str = crop_stages.get((s.get("sessionId") or "", sr_gen), "")
+        nav_kv = parse_stage_kv(eng_str)
+        crop_kv = parse_stage_kv(crop_str)
+        st_tim = sev.get("_stage_timings", {})
+        ec_ns = st_tim.get("engine_change_ns")
+        publish_ns = crop_kv.get("publish_ns")
+        worker_start_ns = nav_kv.get("worker_start_ns")
+
+        wait_ms = None
+        nav_pre_ms = (nav_kv["nav_pre_us"] / 1000.0) if "nav_pre_us" in nav_kv else None
+        nav_post_ms = (nav_kv["nav_post_us"] / 1000.0) if "nav_post_us" in nav_kv else None
+        crop_stage_ms = (crop_kv["stage_us"] / 1000.0) if "stage_us" in crop_kv else None
+        crop_conv_ms = (crop_kv["conv_us"] / 1000.0) if "conv_us" in crop_kv else None
+        crop_calc_ms = (
+            (crop_kv["stage_us"] + crop_kv["conv_us"]) / 1000.0
+            if ("stage_us" in crop_kv and "conv_us" in crop_kv) else None
+        )
+        crop_copy_ms = (crop_kv["copy_us"] / 1000.0) if "copy_us" in crop_kv else None
+        gui_pixbuf_ms = (
+            (sc - publish_ns) / 1e6 if sc and publish_ns and sc >= publish_ns
+            else None
+        )
+        gui_deliver_ms = (
+            (crop_copy_ms + gui_pixbuf_ms)
+            if (crop_copy_ms is not None and gui_pixbuf_ms is not None) else None
+        )
+        # The worker can start before the GUI finishes assembling APPLIED.
+        if worker_start_ns and sa:
+            wait_ms = max(0.0, (worker_start_ns - sa) / 1e6)
+        change_to_worker_ms = (
+            (worker_start_ns - ec_ns) / 1e6
+            if worker_start_ns and ec_ns and worker_start_ns >= ec_ns else None
+        )
 
         def delta_ms(t_end, t_start):
             return (t_end - t_start) / 1e6 if (t_end and t_start and t_end >= t_start) else None
@@ -1277,9 +1337,26 @@ def build_csv_rows(all_client_samples, server_events, engine_stages, crop_stages
             "sn_minus_sa_ms": delta_ms(sn, sa),
             "sc_minus_sa_ms": delta_ms(sc, sa),
             "sr_minus_sa_ms": delta_ms(sr, sa),
+            "wait_ms": wait_ms,
+            "nav_pre_ms": nav_pre_ms,
+            "nav_post_ms": nav_post_ms,
+            "crop_stage_ms": crop_stage_ms,
+            "crop_conv_ms": crop_conv_ms,
+            "crop_calc_ms": crop_calc_ms,
+            "crop_copy_ms": crop_copy_ms,
+            "gui_pixbuf_ms": gui_pixbuf_ms,
+            "gui_deliver_ms": gui_deliver_ms,
+            "change_to_worker_ms": change_to_worker_ms,
+            "req_todo": nav_kv.get("req_todo"),
+            "exec_todo": nav_kv.get("todo"),
+            "wb_mode": nav_kv.get("wb_mode"),
+            "hr_mode": nav_kv.get("hr_mode"),
+            "crop_skip": crop_kv.get("skip"),
+            "crop_w": crop_kv.get("w"),
+            "crop_h": crop_kv.get("h"),
             "polls": s["polls"],
-            "engine_stages": engine_stages.get((s.get("sessionId") or "", sr_gen), ""),
-            "crop_stages": crop_stages.get((s.get("sessionId") or "", sr_gen), ""),
+            "engine_stages": eng_str,
+            "crop_stages": crop_str,
         })
     return csv_rows
 
@@ -1311,6 +1388,12 @@ def summarize_rows(csv_rows):
         sn_sa = metric_list("sn_minus_sa_ms")
         sc_sa = metric_list("sc_minus_sa_ms")
         sr_sa = metric_list("sr_minus_sa_ms")
+        wait_l = metric_list("wait_ms")
+        nav_pre_l = metric_list("nav_pre_ms")
+        crop_stage_l = metric_list("crop_stage_ms")
+        crop_conv_l = metric_list("crop_conv_ms")
+        crop_calc_l = metric_list("crop_calc_ms")
+        gui_deliv_l = metric_list("gui_deliver_ms")
 
         first = items[0]
         summary_rows.append({
@@ -1339,6 +1422,12 @@ def summarize_rows(csv_rows):
             "sc_sa_p50_ms": round(percentile(sc_sa, 0.5), 2) if sc_sa else None,
             "sc_sa_p95_ms": round(percentile(sc_sa, 0.95), 2) if sc_sa else None,
             "sr_sa_p50_ms": round(percentile(sr_sa, 0.5), 2) if sr_sa else None,
+            "wait_p50_ms": round(percentile(wait_l, 0.5), 2) if wait_l else None,
+            "nav_pre_p50_ms": round(percentile(nav_pre_l, 0.5), 2) if nav_pre_l else None,
+            "crop_stage_p50_ms": round(percentile(crop_stage_l, 0.5), 2) if crop_stage_l else None,
+            "crop_conv_p50_ms": round(percentile(crop_conv_l, 0.5), 2) if crop_conv_l else None,
+            "crop_calc_p50_ms": round(percentile(crop_calc_l, 0.5), 2) if crop_calc_l else None,
+            "gui_deliver_p50_ms": round(percentile(gui_deliv_l, 0.5), 2) if gui_deliv_l else None,
         })
     return summary_rows, len(cells)
 
