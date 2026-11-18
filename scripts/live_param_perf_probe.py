@@ -43,16 +43,16 @@ def percentile(values, p):
     return s[idx]
 
 
-def stage_bundle(root_dir):
-    root = Path(root_dir).resolve()
-    bundle = root / "build/ARTLiveParamTest.app"
+def stage_bundle(repo_dir, src_bin_override=None, bundle_dir=None):
+    root = Path(repo_dir).resolve()
+    bundle = Path(bundle_dir).resolve() if bundle_dir else (root / "build/ARTLiveParamTest.app")
     macos = bundle / "Contents/MacOS"
     res = bundle / "Contents/Resources"
     macos.mkdir(parents=True, exist_ok=True)
     res.mkdir(parents=True, exist_ok=True)
 
     app_bin = macos / "test_liveparam_app"
-    src_bin = root / "build/rtgui/test_liveparam_app"
+    src_bin = Path(src_bin_override).resolve() if src_bin_override else (root / "build/rtgui/test_liveparam_app")
     if not src_bin.exists():
         src_bin = root / "build/rtgui/ART"
     if app_bin.exists() or app_bin.is_symlink():
@@ -166,7 +166,8 @@ class LiveParamClient:
 
 
 def run_scenario(client, target, param_name, param_key, val_seq, is_initial,
-                 poll_interval_s=0.003, is_builtin=False, enable_tool=True):
+                 poll_interval_s=0.003, is_builtin=False, enable_tool=False,
+                 phase="core_matrix"):
     samples = []
     session_id = target["sessionId"]
     editor_id = target["editorId"]
@@ -312,6 +313,7 @@ def run_scenario(client, target, param_name, param_key, val_seq, is_initial,
             "c0": c0,
             "ca": ca,
             "cr": cr if ready_found else None,
+            "phase": phase,
         })
 
     target["baseRevision"] = base_rev
@@ -339,6 +341,7 @@ def validate_and_index_trace(trace_file, client_samples):
     replay_cmds = set()
     engine_stages = {}
     crop_stages = {}
+    current_session_id = ""
 
     with open(trace_file, "r", encoding="utf-8") as f:
         for lineno, raw_line in enumerate(f, start=1):
@@ -368,16 +371,22 @@ def validate_and_index_trace(trace_file, client_samples):
             if isinstance(write_errs, (int, float)) and write_errs > 0:
                 errors.append(f"trace line {lineno}: recorded write errors writeErrors={write_errs}")
 
+            if ev.get("sessionId"):
+                current_session_id = ev.get("sessionId") or current_session_id
+
             if ev_name == "ENGINE_DONE":
                 gen = ev.get("generation")
                 if gen:
-                    engine_stages[gen] = ev.get("detail", "")
+                    key_sg = (current_session_id, gen)
+                    engine_stages[key_sg] = ev.get("detail", "")
                 continue
             if ev_name == "CROP_DONE":
                 gen = ev.get("generation")
                 detail = ev.get("detail", "")
-                if gen and ("crop:main=1" in detail or gen not in crop_stages):
-                    crop_stages[gen] = detail
+                if gen:
+                    key_sg = (current_session_id, gen)
+                    if "crop:main=1" in detail or key_sg not in crop_stages:
+                        crop_stages[key_sg] = detail
                 continue
             if ev_name == "ENGINE_CHANGE":
                 continue
@@ -574,328 +583,291 @@ def validate_directory(dir_path):
     return True
 
 
-def main():
-    parser = argparse.ArgumentParser(description="LiveParam real-time numeric performance probe")
-    parser.add_argument("--app", default=None, help="Path to test_liveparam_app or bundle")
-    parser.add_argument("--raw", default="data/fivek_sample/sample1.nef", help="RAW file")
-    parser.add_argument("--output-dir", default=None, help="Directory to save artifacts")
-    parser.add_argument("--validate-dir", default=None, help="Validate existing artifacts directory and exit")
-    parser.add_argument("--mode", choices=["persistent", "client"], default="persistent")
-    parser.add_argument("--repeats", type=int, default=10, help="Repeats per cell per batch")
-    parser.add_argument("--batches", type=int, default=3, help="Number of independent batches")
-    parser.add_argument("--params", default="exposure,saturation,temperature,sharpening",
-                        help="Comma-separated params")
-    parser.add_argument("--quick", action="store_true", help="Quick run with 1 batch and 5 repeats")
-    args = parser.parse_args()
+def build_arp_text(hdr, denoise):
+    lines = [
+        "[Version]",
+        "AppVersion=1045",
+        "Version=1045",
+        "[Exposure]",
+        "Enabled=true",
+        "Compensation=0.0",
+        "[Saturation]",
+        "Enabled=true",
+        "Saturation=0",
+        "[White Balance]",
+        "Enabled=true",
+        "Setting=Custom",
+        "Temperature=5500",
+        "Green=1.0",
+        "Equal=1.0",
+        "[Sharpening]",
+        "Enabled=true",
+        "Method=usm",
+        "Radius=0.5",
+        "Amount=200",
+        "[Dehaze]",
+        "Enabled=false",
+    ]
+    if hdr:
+        lines.extend(["[FattalToneMapping]", "Enabled=true", "Amount=30", "Threshold=40"])
+    else:
+        lines.extend(["[FattalToneMapping]", "Enabled=false"])
+    if denoise:
+        lines.extend(["[Impulse Denoising]", "Enabled=true", "[Denoise]", "Enabled=true"])
+    else:
+        lines.extend(["[Impulse Denoising]", "Enabled=false", "[Denoise]", "Enabled=false"])
+    return "\n".join(lines) + "\n"
 
-    if args.validate_dir:
-        sys.exit(0 if validate_directory(args.validate_dir) else 1)
 
-    root_dir = Path.cwd()
-    if args.quick:
-        args.repeats = 5
-        args.batches = 1
-
-    run_id = f"run_{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
-    out_dir = Path(args.output_dir).resolve() if args.output_dir else (root_dir / f"build/liveparam-perf-checks/{run_id}").resolve()
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    app_bin = Path(args.app) if args.app else stage_bundle(root_dir)
-    raw_path = (root_dir / args.raw).resolve()
-    assert raw_path.exists(), f"RAW file not found: {raw_path}"
-
-    target_params = [p.strip() for p in args.params.split(",") if p.strip()]
-
-    # Values sequences for the 4 params (oscillating to ensure real changes)
-    param_configs = {
-        "exposure": {
-            "key": "Exposure.Compensation",
-            "values": [round(-0.5 + (i % 5) * 0.25, 2) for i in range(args.repeats)],
-            "is_builtin": True
-        },
-        "saturation": {
-            "key": None, # Discovered from catalogue
-            "values": [round(10.0 + (i % 5) * 2.5, 1) for i in range(args.repeats)],
-            "is_builtin": False
-        },
-        "temperature": {
-            "key": None, # Discovered from catalogue
-            "values": [round(5000 + (i % 5) * 300, 0) for i in range(args.repeats)],
-            "is_builtin": False
-        },
-        "sharpening": {
-            "key": None, # Discovered from catalogue
-            "values": [round(0.6 + (i % 5) * 0.05, 2) for i in range(args.repeats)],
-            "is_builtin": False
+def discover_param_keys(client, session_id, editor_id, base_revision, needed_param=None):
+    offset = 0
+    context_id = None
+    discovered = {}
+    while True:
+        cat_req = {
+            "protocolVersion": 1,
+            "requestId": f"cat-{offset}-{uuid.uuid4().hex[:4]}",
+            "op": "list_params",
+            "sessionId": session_id,
+            "editorId": editor_id,
+            "baseRevision": base_revision,
+            "offset": offset,
+            "limit": 32,
         }
+        if context_id:
+            cat_req["contextId"] = context_id
+        cat = client.rpc(cat_req)
+        context_id = cat.get("result", {}).get("contextId", context_id)
+        items = cat.get("result", {}).get("items", [])
+        for item in items:
+            tool = item.get("tool", "").lower()
+            label = item.get("label", "").lower()
+            key = item.get("key", "")
+            if tool == "exposure" and label == "exposure compensation":
+                discovered["exposure"] = key
+            elif tool == "saturation" and label == "saturation":
+                discovered["saturation"] = key
+            elif tool == "whitebalance" and label == "temperature":
+                discovered["temperature"] = key
+            elif tool == "sharpening" and label == "radius":
+                discovered["sharpening"] = key
+        if needed_param and needed_param in discovered:
+            break
+        next_off = cat.get("result", {}).get("nextOffset")
+        if not next_off:
+            break
+        offset = next_off
+
+    return discovered
+
+
+def wait_for_initial_ready(client, zoom, quiet_window_s=0.05):
+    deadline = time.monotonic() + 30.0
+    stable_sig = None
+    stable_since = None
+    while time.monotonic() < deadline:
+        try:
+            s = client.rpc({
+                "protocolVersion": 1,
+                "requestId": f"init-{uuid.uuid4().hex[:4]}",
+                "op": "get_state",
+            })
+            editors = s.get("result", {}).get("editors", [])
+            if editors:
+                editor_id = editors[0]["editorId"]
+                sess_id = s["sessionId"]
+                st = client.rpc({
+                    "protocolVersion": 1,
+                    "requestId": f"init-st-{uuid.uuid4().hex[:4]}",
+                    "op": "get_state",
+                    "editorId": editor_id,
+                })
+                res = st.get("result", {})
+                rev = res.get("revision")
+                r_rev = res.get("renderedRevision")
+                v_rev = res.get("viewRevision")
+                rv_rev = res.get("renderedViewRevision")
+                ready_now = (
+                    rev is not None and r_rev is not None and r_rev == rev and
+                    v_rev is not None and rv_rev is not None and rv_rev == v_rev and
+                    (zoom != "100" or v_rev >= 1)
+                )
+                sig = (rev, v_rev, r_rev, rv_rev)
+                if ready_now:
+                    now = time.monotonic()
+                    if sig != stable_sig:
+                        stable_sig = sig
+                        stable_since = now
+                    elif now - stable_since >= quiet_window_s:
+                        return sess_id, editor_id, st
+                    time.sleep(0.05)
+                    continue
+                stable_sig = None
+                stable_since = None
+        except Exception:
+            stable_sig = None
+            stable_since = None
+        time.sleep(0.01)
+    raise RuntimeError(f"GUI did not complete initial render/settle for zoom={zoom}")
+
+
+def generate_distinct_values(pool, count, avoid_value=None):
+    out = []
+    prev = avoid_value
+    idx = 0
+    while len(out) < count:
+        candidate = pool[idx % len(pool)]
+        idx += 1
+        if candidate == prev and len(pool) > 1:
+            candidate = pool[idx % len(pool)]
+            idx += 1
+        out.append(candidate)
+        prev = candidate
+    return out
+
+
+def run_single_launch(app_bin, raw_path, options_file, arp_text, trace_file, work_dir,
+                          mode, zoom, hdr, denoise, batch_idx, param_name, init_val,
+                          warm_vals, core_boost_vals, poll_interval_s, is_builtin,
+                          trace_enabled=True):
+    if work_dir.exists():
+        shutil.rmtree(work_dir)
+    work_dir.mkdir(parents=True)
+    settings = work_dir / "settings"
+    cache = work_dir / "cache"
+    settings.mkdir()
+    cache.mkdir()
+    shutil.copy2(options_file, settings / "options")
+
+    raw_copy = work_dir / "sample.nef"
+    cp_res = subprocess.run(["cp", "-c", str(raw_path), str(raw_copy)], capture_output=True)
+    if cp_res.returncode != 0:
+        shutil.copy2(raw_path, raw_copy)
+    (work_dir / "sample.nef.arp").write_text(arp_text, encoding="utf-8")
+
+    env = {
+        **os.environ,
+        "ART_LIVE_PARAM": "1",
+        "ART_SETTINGS": str(settings),
+        "ART_CACHE": str(cache),
+        "ART_LIVE_PARAM_INITIAL_ZOOM": "100" if zoom == "100" else "fit",
     }
+    if trace_enabled and trace_file is not None:
+        env["ART_LIVE_PARAM_TRACE"] = str(trace_file)
+    else:
+        env.pop("ART_LIVE_PARAM_TRACE", None)
 
-    all_client_samples = []
-    matrix_cells = []
+    sock_dir = f"/tmp/art-liveparam-{os.geteuid()}"
+    pre_socks = set(glob.glob(f"{sock_dir}/art-*.sock"))
+    proc = subprocess.Popen([str(app_bin), "-s", str(raw_copy)], env=env)
+    collected = []
+    sock_path = None
+    try:
+        deadline = time.monotonic() + 15.0
+        while time.monotonic() < deadline:
+            socks = [s for s in glob.glob(f"{sock_dir}/art-{proc.pid}-*.sock") if s not in pre_socks]
+            if socks:
+                sock_path = socks[0]
+                break
+            time.sleep(0.005)
+        if not sock_path:
+            raise RuntimeError(f"Process {proc.pid} did not open socket")
 
-    # Matrix axes:
-    # 4 params × 2 zoom (fit, 100) × 2 cache (initial, cached) × 2 HDR (0, 1) × 2 denoise (0, 1)
-    # For initial vs cached:
-    # An independent batch starts a fresh GUI process, measures the 1st mutation (initial),
-    # then subsequent mutations (cached).
-    zoom_levels = ["fit", "100"]
-    hdr_states = [0, 1]
-    denoise_states = [0, 1]
+        client = None
+        connect_deadline = time.monotonic() + 2.0
+        while True:
+            try:
+                client = LiveParamClient(sock_path, persistent=(mode == "persistent"), timeout=15.0)
+                break
+            except (ConnectionRefusedError, FileNotFoundError):
+                if proc.poll() is not None or time.monotonic() >= connect_deadline:
+                    raise
+                time.sleep(0.01)
+        try:
+            sess_id, editor_id, init_state = wait_for_initial_ready(client, zoom)
+            target = {
+                "sessionId": sess_id,
+                "editorId": editor_id,
+                "baseRevision": init_state["result"]["renderedRevision"],
+            }
+            if is_builtin:
+                pkey = "Exposure.Compensation"
+            else:
+                discovered = discover_param_keys(
+                    client, sess_id, editor_id, target["baseRevision"], needed_param=param_name
+                )
+                if param_name not in discovered:
+                    raise RuntimeError(f"Param {param_name!r} not found in catalogue: {sorted(discovered)}")
+                pkey = discovered[param_name]
 
-    trace_file = out_dir / "trace.jsonl"
-    if trace_file.exists():
-        trace_file.unlink()
+            init_samples = run_scenario(
+                client, target, param_name, pkey, [init_val],
+                is_initial=True, poll_interval_s=poll_interval_s,
+                is_builtin=is_builtin, enable_tool=False, phase="core_matrix"
+            )
+            cell_id_init = f"{param_name}_{zoom}_init_hdr{hdr}_dn{denoise}"
+            for s in init_samples:
+                s.update({
+                    "batch": batch_idx, "cell_id": cell_id_init,
+                    "param": param_name, "zoom": zoom, "cache": "initial",
+                    "hdr": hdr, "denoise": denoise,
+                })
+            collected.extend(init_samples)
 
-    print(f"=== ART LiveParam Performance Benchmark: {run_id} ===")
-    print(f"  App: {app_bin}")
-    print(f"  RAW: {raw_path}")
-    print(f"  Mode: {args.mode}")
-    print(f"  Batches: {args.batches}, Repeats: {args.repeats}")
-    print(f"  Params: {target_params}")
-    print(f"  Output: {out_dir}")
+            cell_id_cache = f"{param_name}_{zoom}_cache_hdr{hdr}_dn{denoise}"
+            if warm_vals:
+                warm_samples = run_scenario(
+                    client, target, param_name, pkey, warm_vals,
+                    is_initial=False, poll_interval_s=poll_interval_s,
+                    is_builtin=is_builtin, enable_tool=False, phase="core_matrix"
+                )
+                for s in warm_samples:
+                    s.update({
+                        "batch": batch_idx, "cell_id": cell_id_cache,
+                        "param": param_name, "zoom": zoom, "cache": "cached",
+                        "hdr": hdr, "denoise": denoise,
+                    })
+                collected.extend(warm_samples)
 
-    total_cells = len(target_params) * len(zoom_levels) * 2 * len(hdr_states) * len(denoise_states)
-    print(f"  Matrix size: {total_cells} cells ({args.batches} batches = {total_cells * args.batches} evaluations)")
+            if core_boost_vals:
+                boost_samples = run_scenario(
+                    client, target, param_name, pkey, core_boost_vals,
+                    is_initial=False, poll_interval_s=poll_interval_s,
+                    is_builtin=is_builtin, enable_tool=False, phase="core_boost"
+                )
+                for s in boost_samples:
+                    s.update({
+                        "batch": batch_idx, "cell_id": cell_id_cache,
+                        "param": param_name, "zoom": zoom, "cache": "cached",
+                        "hdr": hdr, "denoise": denoise,
+                    })
+                collected.extend(boost_samples)
+        finally:
+            client.close()
+            if trace_enabled:
+                time.sleep(0.08)
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+        if work_dir.exists():
+            shutil.rmtree(work_dir, ignore_errors=True)
+        if sock_path and os.path.exists(sock_path):
+            try:
+                os.unlink(sock_path)
+            except OSError:
+                pass
+    return collected
 
-    batch_idx = 0
-    for batch in range(args.batches):
-        batch_idx += 1
-        print(f"\n--- Batch {batch_idx}/{args.batches} ---")
-        for hdr in hdr_states:
-            for denoise in denoise_states:
-                for zoom in zoom_levels:
-                    # Setup custom options/profile for this combination
-                    work = out_dir / f"work_b{batch_idx}_hdr{hdr}_dn{denoise}_{zoom}"
-                    if work.exists():
-                        shutil.rmtree(work)
-                    work.mkdir(parents=True)
-                    settings = work / "settings"
-                    settings.mkdir()
-                    cache = work / "cache"
-                    cache.mkdir()
 
-                    # Copy base options
-                    shutil.copy2(root_dir / "rtdata/options/options.osx", settings / "options")
-
-                    # Copy sample RAW
-                    raw_copy = work / "sample.nef"
-                    shutil.copy2(raw_path, raw_copy)
-
-                    # Prepare initial ARP profile with specified HDR & denoise settings
-                    profile_arp = work / "sample.nef.arp"
-                    arp_lines = [
-                        "[Version]",
-                        "AppVersion=1045",
-                        "Version=1045",
-                        "[Exposure]",
-                        "Enabled=true",
-                        "Compensation=0.0",
-                        "[Saturation]",
-                        "Enabled=true",
-                        "Saturation=0",
-                        "[White Balance]",
-                        "Enabled=true",
-                        "Setting=Custom",
-                        "Temperature=5500",
-                        "Green=1.0",
-                        "Equal=1.0",
-                        "[Sharpening]",
-                        "Enabled=true",
-                        "Method=usm",
-                        "Radius=0.5",
-                        "Amount=200",
-                        "[Dehaze]",
-                        "Enabled=false",
-                    ]
-                    if hdr:
-                        arp_lines.extend(["[FattalToneMapping]", "Enabled=true", "Amount=30", "Threshold=40"])
-                    else:
-                        arp_lines.extend(["[FattalToneMapping]", "Enabled=false"])
-                    if denoise:
-                        arp_lines.extend(["[Impulse Denoising]", "Enabled=true", "[Denoise]", "Enabled=true"])
-                    else:
-                        arp_lines.extend(["[Impulse Denoising]", "Enabled=false", "[Denoise]", "Enabled=false"])
-                    profile_arp.write_text("\n".join(arp_lines) + "\n")
-
-                    env = {
-                        **os.environ,
-                        "ART_LIVE_PARAM": "1",
-                        "ART_LIVE_PARAM_TRACE": str(trace_file),
-                        "ART_SETTINGS": str(settings),
-                        "ART_CACHE": str(cache),
-                        "ART_LIVE_PARAM_INITIAL_ZOOM": "100" if zoom == "100" else "fit",
-                    }
-
-                    # Launch GUI
-                    proc = subprocess.Popen([str(app_bin), "-s", str(raw_copy)], env=env)
-                    proc_alive = True
-                    try:
-                        # Wait for socket
-                        deadline = time.monotonic() + 15.0
-                        sock_path = None
-                        while time.monotonic() < deadline:
-                            socks = glob.glob(f"/tmp/art-liveparam-{os.geteuid()}/art-{proc.pid}-*.sock")
-                            if socks:
-                                sock_path = socks[0]
-                                break
-                            time.sleep(0.05)
-                        assert sock_path, f"Process {proc.pid} did not open socket"
-
-                        client = LiveParamClient(sock_path, persistent=(args.mode == "persistent"), timeout=15.0)
-
-                        # Wait for initial get_state and initial render (including 100% zoom M_HIGHQUAL settle)
-                        init_state = None
-                        deadline = time.monotonic() + 30.0
-                        while time.monotonic() < deadline:
-                            try:
-                                s = client.rpc({"protocolVersion": 1, "requestId": f"init-{uuid.uuid4().hex[:4]}", "op": "get_state"})
-                                editors = s.get("result", {}).get("editors", [])
-                                if editors:
-                                    editor_id = editors[0]["editorId"]
-                                    sess_id = s["sessionId"]
-                                    st = client.rpc({"protocolVersion": 1, "requestId": f"init-st-{uuid.uuid4().hex[:4]}", "op": "get_state", "editorId": editor_id})
-                                    res = st.get("result", {})
-                                    rev = res.get("revision")
-                                    r_rev = res.get("renderedRevision")
-                                    v_rev = res.get("viewRevision")
-                                    rv_rev = res.get("renderedViewRevision")
-                                    if (r_rev is not None and r_rev == rev and
-                                            rv_rev is not None and rv_rev == v_rev and
-                                            (zoom != "100" or v_rev >= 1)):
-                                        init_state = st
-                                        break
-                            except Exception:
-                                pass
-                            time.sleep(0.1)
-                        assert init_state, "GUI did not complete initial render"
-
-                        target = {
-                            "sessionId": sess_id,
-                            "editorId": editor_id,
-                            "baseRevision": init_state["result"]["renderedRevision"]
-                        }
-
-                        # Catalog discovery for numeric controls
-                        offset = 0
-                        context_id = None
-                        all_items = []
-                        while True:
-                            cat_req = {
-                                "protocolVersion": 1,
-                                "requestId": f"cat-{offset}-{uuid.uuid4().hex[:4]}",
-                                "op": "list_params",
-                                "sessionId": sess_id,
-                                "editorId": editor_id,
-                                "baseRevision": target["baseRevision"],
-                                "offset": offset,
-                                "limit": 32
-                            }
-                            if context_id:
-                                cat_req["contextId"] = context_id
-                            cat = client.rpc(cat_req)
-                            context_id = cat.get("result", {}).get("contextId", context_id)
-                            items = cat.get("result", {}).get("items", [])
-                            all_items.extend(items)
-                            next_off = cat.get("result", {}).get("nextOffset")
-                            if not next_off:
-                                break
-                            offset = next_off
-
-                        # Find IDs for saturation, temperature, sharpening
-                        for item in all_items:
-                            tool = item.get("tool", "").lower()
-                            label = item.get("label", "").lower()
-                            key = item.get("key", "")
-                            if tool == "saturation" and label == "saturation":
-                                param_configs["saturation"]["key"] = key
-                            elif tool == "whitebalance" and label == "temperature":
-                                param_configs["temperature"]["key"] = key
-                            elif tool == "sharpening" and label == "radius":
-                                param_configs["sharpening"]["key"] = key
-
-                        # Fallback keys if not found by name
-                        if not param_configs["saturation"]["key"]:
-                            param_configs["saturation"]["key"] = "saturation.amount"
-                        if not param_configs["temperature"]["key"]:
-                            param_configs["temperature"]["key"] = "whitebalance.temperature"
-                        if not param_configs["sharpening"]["key"]:
-                            param_configs["sharpening"]["key"] = "sharpening.radius"
-
-                        # Run each parameter
-                        for param_name in target_params:
-                            cfg = param_configs[param_name]
-                            pkey = cfg["key"]
-                            values = cfg["values"]
-
-                            # First mutation is "initial"
-                            initial_val = [values[0]]
-                            cached_vals = values[1:] if len(values) > 1 else [values[0]]
-
-                            # Cell 1: initial
-                            cell_id_init = f"{param_name}_{zoom}_init_hdr{hdr}_dn{denoise}"
-                            init_samples = run_scenario(
-                                client, target, param_name, pkey, initial_val,
-                                is_initial=True,
-                                poll_interval_s=(0.003 if args.mode == "persistent" else 0.05),
-                                is_builtin=cfg["is_builtin"]
-                            )
-                            for s in init_samples:
-                                s.update({
-                                    "batch": batch_idx, "cell_id": cell_id_init,
-                                    "param": param_name, "zoom": zoom, "cache": "initial",
-                                    "hdr": hdr, "denoise": denoise
-                                })
-                            all_client_samples.extend(init_samples)
-
-                            # Cell 2: cached
-                            cell_id_cache = f"{param_name}_{zoom}_cache_hdr{hdr}_dn{denoise}"
-                            cached_samples = run_scenario(
-                                client, target, param_name, pkey, cached_vals,
-                                is_initial=False,
-                                poll_interval_s=(0.003 if args.mode == "persistent" else 0.05),
-                                is_builtin=cfg["is_builtin"]
-                            )
-                            for s in cached_samples:
-                                s.update({
-                                    "batch": batch_idx, "cell_id": cell_id_cache,
-                                    "param": param_name, "zoom": zoom, "cache": "cached",
-                                    "hdr": hdr, "denoise": denoise
-                                })
-                            all_client_samples.extend(cached_samples)
-
-                            sys.stdout.write(f".")
-                            sys.stdout.flush()
-
-                        client.close()
-                        time.sleep(0.2)
-                    finally:
-                        proc.terminate()
-                        try:
-                            proc.wait(timeout=3)
-                        except subprocess.TimeoutExpired:
-                            proc.kill()
-                            proc.wait()
-
-    print("\nBenchmark runs completed. Processing trace and generating reports...")
-
-    # Write client.jsonl (preserve raw data before validation)
-    client_jsonl = out_dir / "client.jsonl"
-    with open(client_jsonl, "w", encoding="utf-8") as f:
-        for s in all_client_samples:
-            f.write(json.dumps(s, ensure_ascii=False) + "\n")
-
-    # Validate trace.jsonl strictly against client_samples
-    trace_errors, server_events, engine_stages, crop_stages = validate_and_index_trace(
-        trace_file, all_client_samples
-    )
-
-    # Merge into samples.csv
-    samples_csv = out_dir / "samples.csv"
+def build_csv_rows(all_client_samples, server_events, engine_stages, crop_stages):
     csv_rows = []
     for s in all_client_samples:
         req_id = s["requestId"]
         sev = server_events.get(req_id, {})
-
         s0 = sev.get("S0", {}).get("timestamp_ns")
         sq = sev.get("SQ", {}).get("timestamp_ns")
         sg = sev.get("SG", {}).get("timestamp_ns")
@@ -910,11 +882,12 @@ def main():
         def delta_ms(t_end, t_start):
             return (t_end - t_start) / 1e6 if (t_end and t_start and t_end >= t_start) else None
 
-        row = {
+        csv_rows.append({
             "requestId": req_id,
             "sessionId": s.get("sessionId"),
             "editorId": s.get("editorId"),
             "batch": s["batch"],
+            "phase": s.get("phase", "core_matrix"),
             "cell_id": s["cell_id"],
             "param": s["param"],
             "paramKey": s.get("paramKey"),
@@ -939,46 +912,42 @@ def main():
             "sc_minus_sa_ms": delta_ms(sc, sa),
             "sr_minus_sa_ms": delta_ms(sr, sa),
             "polls": s["polls"],
-            "engine_stages": engine_stages.get(sr_gen, ""),
-            "crop_stages": crop_stages.get(sr_gen, ""),
-        }
-        csv_rows.append(row)
+            "engine_stages": engine_stages.get((s.get("sessionId") or "", sr_gen), ""),
+            "crop_stages": crop_stages.get((s.get("sessionId") or "", sr_gen), ""),
+        })
+    return csv_rows
 
-    if csv_rows:
-        fieldnames = list(csv_rows[0].keys())
-        with open(samples_csv, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(csv_rows)
 
-    # Aggregate into summary.csv
+def summarize_rows(csv_rows):
     cells = {}
     for r in csv_rows:
-        cid = r["cell_id"]
-        if cid not in cells:
-            cells[cid] = []
-        cells[cid].append(r)
+        cells.setdefault(r["cell_id"], []).append(r)
 
     summary_rows = []
     for cid, items in sorted(cells.items()):
         total = len(items)
         successes = [it for it in items if it["status"] == "READY"]
+        rejected = [it for it in items if it["status"] == "ERROR"]
+        incomplete = total - len(successes) - len(rejected)
         success_rate = len(successes) / total if total else 0.0
 
-        applied_times = [it["applied_rtt_ms"] for it in items if it["applied_rtt_ms"] is not None]
-        ready_times = [it["ready_rtt_ms"] for it in successes if it["ready_rtt_ms"] is not None]
+        applied_times = [float(it["applied_rtt_ms"]) for it in items if it["applied_rtt_ms"] not in (None, "")]
+        ready_times = [float(it["ready_rtt_ms"]) for it in successes if it["ready_rtt_ms"] not in (None, "")]
 
-        sq_s0 = [it["sq_minus_s0_ms"] for it in items if it["sq_minus_s0_ms"] is not None]
-        sg_sq = [it["sg_minus_sq_ms"] for it in items if it["sg_minus_sq_ms"] is not None]
-        sa_sg = [it["sa_minus_sg_ms"] for it in items if it["sa_minus_sg_ms"] is not None]
-        sp_sa = [it["sp_minus_sa_ms"] for it in items if it["sp_minus_sa_ms"] is not None]
-        ss_sp = [it["ss_minus_sp_ms"] for it in items if it["ss_minus_sp_ms"] is not None]
-        sn_sa = [it["sn_minus_sa_ms"] for it in items if it["sn_minus_sa_ms"] is not None]
-        sc_sa = [it["sc_minus_sa_ms"] for it in items if it["sc_minus_sa_ms"] is not None]
-        sr_sa = [it["sr_minus_sa_ms"] for it in items if it["sr_minus_sa_ms"] is not None]
+        def metric_list(col):
+            return [float(it[col]) for it in items if it.get(col) not in (None, "")]
+
+        sq_s0 = metric_list("sq_minus_s0_ms")
+        sg_sq = metric_list("sg_minus_sq_ms")
+        sa_sg = metric_list("sa_minus_sg_ms")
+        sp_sa = metric_list("sp_minus_sa_ms")
+        ss_sp = metric_list("ss_minus_sp_ms")
+        sn_sa = metric_list("sn_minus_sa_ms")
+        sc_sa = metric_list("sc_minus_sa_ms")
+        sr_sa = metric_list("sr_minus_sa_ms")
 
         first = items[0]
-        s_row = {
+        summary_rows.append({
             "cell_id": cid,
             "param": first["param"],
             "zoom": first["zoom"],
@@ -986,6 +955,9 @@ def main():
             "hdr": first["hdr"],
             "denoise": first["denoise"],
             "samples_total": total,
+            "samples_ready": len(successes),
+            "samples_rejected": len(rejected),
+            "samples_incomplete": incomplete,
             "success_rate": round(success_rate * 100, 1),
             "applied_p50_ms": round(percentile(applied_times, 0.5), 2),
             "applied_p95_ms": round(percentile(applied_times, 0.95), 2),
@@ -994,14 +966,32 @@ def main():
             "sq_s0_p50_ms": round(percentile(sq_s0, 0.5), 2) if sq_s0 else None,
             "sg_sq_p50_ms": round(percentile(sg_sq, 0.5), 2) if sg_sq else None,
             "sa_sg_p50_ms": round(percentile(sa_sg, 0.5), 2) if sa_sg else None,
+            "sa_sg_p95_ms": round(percentile(sa_sg, 0.95), 2) if sa_sg else None,
             "sp_sa_p50_ms": round(percentile(sp_sa, 0.5), 2) if sp_sa else None,
             "ss_sp_p50_ms": round(percentile(ss_sp, 0.5), 2) if ss_sp else None,
             "sn_sa_p50_ms": round(percentile(sn_sa, 0.5), 2) if sn_sa else None,
             "sc_sa_p50_ms": round(percentile(sc_sa, 0.5), 2) if sc_sa else None,
+            "sc_sa_p95_ms": round(percentile(sc_sa, 0.95), 2) if sc_sa else None,
             "sr_sa_p50_ms": round(percentile(sr_sa, 0.5), 2) if sr_sa else None,
-        }
-        summary_rows.append(s_row)
+        })
+    return summary_rows, len(cells)
 
+
+def write_perf_reports(out_dir, csv_rows, client_samples, manifest):
+    out_dir.mkdir(parents=True, exist_ok=True)
+    client_jsonl = out_dir / "client.jsonl"
+    with open(client_jsonl, "w", encoding="utf-8") as f:
+        for s in client_samples:
+            f.write(json.dumps(s, ensure_ascii=False) + "\n")
+
+    samples_csv = out_dir / "samples.csv"
+    if csv_rows:
+        with open(samples_csv, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=list(csv_rows[0].keys()))
+            writer.writeheader()
+            writer.writerows(csv_rows)
+
+    summary_rows, total_cells = summarize_rows(csv_rows)
     summary_csv = out_dir / "summary.csv"
     if summary_rows:
         with open(summary_csv, "w", newline="", encoding="utf-8") as f:
@@ -1009,40 +999,238 @@ def main():
             writer.writeheader()
             writer.writerows(summary_rows)
 
-    # Manifest metadata
-    git_commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
-    git_dirty = bool(subprocess.check_output(["git", "status", "--porcelain"], text=True).strip())
+    manifest["total_samples"] = len(csv_rows)
+    manifest["total_cells"] = total_cells
+    manifest_file = out_dir / "manifest.json"
+    manifest_file.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 
+
+def merge_batch_dirs(merge_dirs_csv, out_dir):
+    dirs = [Path(d.strip()).resolve() for d in merge_dirs_csv.split(",") if d.strip()]
+    assert dirs, "No directories passed to --merge-dirs"
+    merged_rows = []
+    merged_client = []
+    source_manifests = []
+    trace_errors_all = []
+    for d in dirs:
+        mf = json.loads((d / "manifest.json").read_text(encoding="utf-8"))
+        source_manifests.append(mf)
+        if mf.get("trace_enabled", True):
+            if not validate_directory(d):
+                trace_errors_all.append(f"Batch validation failed: {d}")
+        with open(d / "samples.csv", "r", encoding="utf-8") as f:
+            merged_rows.extend(list(csv.DictReader(f)))
+        with open(d / "client.jsonl", "r", encoding="utf-8") as f:
+            for line in f:
+                s = line.strip()
+                if s:
+                    merged_client.append(json.loads(s))
+
+    base0 = dict(source_manifests[0])
+    base0["run_id"] = out_dir.name
+    base0["date"] = time.strftime("%Y-%m-%d %H:%M:%S")
+    base0["merged_from"] = [str(d) for d in dirs]
+    base0["batch_commits"] = [m.get("git_commit") for m in source_manifests]
+    base0["batch_binary_sha256s"] = [m.get("app_binary_sha256") for m in source_manifests]
+    base0["status"] = "FAILED" if trace_errors_all else "PASSED"
+    base0["validation_error_count"] = len(trace_errors_all)
+    base0["validation_errors"] = trace_errors_all[:50]
+    write_perf_reports(out_dir, merged_rows, merged_client, base0)
+    print(f"Merged {len(dirs)} batch dirs -> {out_dir} ({len(merged_rows)} samples)")
+    if trace_errors_all:
+        sys.exit(1)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="LiveParam real-time numeric performance probe")
+    parser.add_argument("--repo-dir", default=".", help="Git repo root for git metadata, rtdata, default binary")
+    parser.add_argument("--app", default=None, help="Path to test_liveparam_app or bundle")
+    parser.add_argument("--raw", default="data/fivek_sample/sample1.nef", help="RAW file")
+    parser.add_argument("--output-dir", default=None, help="Directory to save artifacts")
+    parser.add_argument("--validate-dir", default=None, help="Validate existing artifacts directory and exit")
+    parser.add_argument("--merge-dirs", default=None, help="Comma-separated batch dirs to validate and merge")
+    parser.add_argument("--mode", choices=["persistent", "client"], default="persistent")
+    parser.add_argument("--repeats", type=int, default=10, help="Initial launches & warm repeats per cell per batch")
+    parser.add_argument("--warm-repeats", type=int, default=None, help="Warm repeats per batch (defaults to --repeats)")
+    parser.add_argument("--core-boost", type=int, default=0, help="Extra warm samples per batch on Stage 2/3 100%% core cells")
+    parser.add_argument("--batches", type=int, default=3, help="Number of independent batches")
+    parser.add_argument("--batch-ids", default=None, help="Explicit comma-separated batch numbers, e.g. '1' or '2,3'")
+    parser.add_argument("--params", default="exposure,saturation,temperature,sharpening",
+                        help="Comma-separated params (exposure,saturation,temperature,sharpening,exposure_builtin)")
+    parser.add_argument("--no-trace", action="store_true", help="Disable ART_LIVE_PARAM_TRACE for trace OFF comparison")
+    parser.add_argument("--trace-patch-sha256", default=None, help="SHA-256 of common instrumentation patch")
+    parser.add_argument("--variant", default="candidate", help="Variant tag recorded in manifest.json")
+    parser.add_argument("--quick", action="store_true", help="Quick run with 1 batch and 5 repeats")
+    args = parser.parse_args()
+
+    if args.validate_dir:
+        sys.exit(0 if validate_directory(args.validate_dir) else 1)
+
+    if args.merge_dirs:
+        out_dir = Path(args.output_dir or "build/liveparam-perf-checks/merged").resolve()
+        merge_batch_dirs(args.merge_dirs, out_dir)
+        return
+
+    repo_dir = Path(args.repo_dir).resolve()
+    cwd_dir = Path.cwd().resolve()
+    if args.quick:
+        args.repeats = 5
+        args.batches = 1
+
+    batch_id_list = (
+        [int(x.strip()) for x in args.batch_ids.split(",") if x.strip()]
+        if args.batch_ids else list(range(1, args.batches + 1))
+    )
+    warm_repeats = args.warm_repeats if args.warm_repeats is not None else args.repeats
+    trace_enabled = not args.no_trace
+
+    run_id = f"run_{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
+    out_dir = Path(args.output_dir).resolve() if args.output_dir else (cwd_dir / f"build/liveparam-perf-checks/{run_id}").resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    app_bin = stage_bundle(repo_dir, src_bin_override=args.app)
+    raw_path = Path(args.raw)
+    if not raw_path.is_absolute():
+        raw_path = (repo_dir / raw_path).resolve()
+    assert raw_path.exists(), f"RAW file not found: {raw_path}"
+
+    target_params = [p.strip() for p in args.params.split(",") if p.strip()]
+    param_pools = {
+        "exposure": {"values": [-0.5, -0.25, 0.25, 0.5, -0.35, 0.35, -0.15, 0.15, 0.45, -0.45], "is_builtin": False},
+        "exposure_builtin": {"values": [-0.5, -0.25, 0.25, 0.5, -0.35, 0.35, -0.15, 0.15, 0.45, -0.45], "is_builtin": True},
+        "saturation": {"values": [10.0, 15.0, 20.0, 25.0, 12.0, 18.0, 22.0, 28.0, 14.0, 24.0], "is_builtin": False},
+        "temperature": {"values": [5000.0, 5600.0, 6200.0, 6800.0, 5300.0, 5900.0, 6500.0, 7100.0, 5200.0, 6100.0], "is_builtin": False},
+        "sharpening": {"values": [0.6, 0.75, 0.9, 1.05, 1.2, 0.65, 0.8, 0.95, 1.1, 1.25], "is_builtin": False},
+    }
+    for p in target_params:
+        assert p in param_pools, f"Unknown param {p!r}"
+
+    zoom_levels = ["fit", "100"]
+    hdr_states = [0, 1]
+    denoise_states = [0, 1]
+    core_boost_set = {
+        ("saturation", "100", 0, 0),
+        ("saturation", "100", 1, 1),
+        ("sharpening", "100", 0, 0),
+        ("sharpening", "100", 1, 1),
+    }
+
+    trace_file = out_dir / "trace.jsonl"
+    if trace_file.exists():
+        trace_file.unlink()
+
+    poll_interval_s = 0.003 if args.mode == "persistent" else 0.05
+    options_file = repo_dir / "rtdata/options/options.osx"
+
+    print(f"=== ART LiveParam Performance Benchmark: {run_id} ({args.variant}) ===")
+    print(f"  Repo: {repo_dir}")
+    print(f"  App: {app_bin}")
+    print(f"  RAW: {raw_path}")
+    print(f"  Mode: {args.mode} (poll={poll_interval_s}s, trace={'ON' if trace_enabled else 'OFF'})")
+    print(f"  Batches: {batch_id_list}, Initials/cell/batch: {args.repeats}, Warm/cell/batch: {warm_repeats}, Core boost: {args.core_boost}")
+    print(f"  Params: {target_params}")
+    print(f"  Output: {out_dir}")
+
+    all_client_samples = []
+    profile_hashes = {}
+
+    for batch_idx in batch_id_list:
+        print(f"\n--- Batch {batch_idx} ---")
+        for hdr in hdr_states:
+            for denoise in denoise_states:
+                arp_text = build_arp_text(hdr, denoise)
+                profile_hashes[f"hdr{hdr}_dn{denoise}"] = hashlib.sha256(arp_text.encode("utf-8")).hexdigest()
+                for zoom in zoom_levels:
+                    for param_name in target_params:
+                        pool = param_pools[param_name]["values"]
+                        is_builtin = param_pools[param_name]["is_builtin"]
+                        for rep in range(args.repeats):
+                            init_val = pool[rep % len(pool)]
+                            collect_warm = (rep == args.repeats - 1)
+                            warm_vals = generate_distinct_values(pool, warm_repeats, avoid_value=init_val) if collect_warm else []
+                            extra_n = args.core_boost if (collect_warm and args.core_boost > 0 and (param_name, zoom, hdr, denoise) in core_boost_set) else 0
+                            last_warm = warm_vals[-1] if warm_vals else init_val
+                            boost_vals = generate_distinct_values(pool, extra_n, avoid_value=last_warm) if extra_n else []
+
+                            work = out_dir / f"work_b{batch_idx}_hdr{hdr}_dn{denoise}_{zoom}_{param_name}_r{rep}"
+                            samples = run_single_launch(
+                                app_bin=app_bin, raw_path=raw_path, options_file=options_file,
+                                arp_text=arp_text, trace_file=trace_file, work_dir=work,
+                                mode=args.mode, zoom=zoom, hdr=hdr, denoise=denoise,
+                                batch_idx=batch_idx, param_name=param_name, init_val=init_val,
+                                warm_vals=warm_vals, core_boost_vals=boost_vals,
+                                poll_interval_s=poll_interval_s, is_builtin=is_builtin,
+                                trace_enabled=trace_enabled,
+                            )
+                            all_client_samples.extend(samples)
+                        sys.stdout.write(".")
+                        sys.stdout.flush()
+
+    print("\nBenchmark runs completed. Processing trace and generating reports...")
+
+    if trace_enabled:
+        trace_errors, server_events, engine_stages, crop_stages = validate_and_index_trace(
+            trace_file, all_client_samples
+        )
+    else:
+        trace_errors, server_events, engine_stages, crop_stages = [], {}, {}, {}
+
+    csv_rows = build_csv_rows(all_client_samples, server_events, engine_stages, crop_stages)
+
+    git_commit = subprocess.check_output(["git", "-C", str(repo_dir), "rev-parse", "HEAD"], text=True).strip()
+    dirty_lines = [
+        ln for ln in subprocess.check_output(["git", "-C", str(repo_dir), "status", "--porcelain"], text=True).splitlines()
+        if ln.strip()
+    ]
+    git_dirty = bool(dirty_lines)
+
+    real_bin = app_bin.resolve() if app_bin.is_symlink() else app_bin
     manifest = {
         "run_id": run_id,
+        "variant": args.variant,
         "date": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "repo_dir": str(repo_dir),
         "git_commit": git_commit,
         "git_dirty": git_dirty,
+        "dirty_files": dirty_lines,
+        "common_trace_patch_sha256": args.trace_patch_sha256,
+        "probe_script_sha256": file_sha256(Path(__file__).resolve()),
         "os": f"{platform.system()} {platform.release()} {platform.machine()}",
         "cpu_count": os.cpu_count(),
-        "app_binary": str(app_bin),
-        "app_binary_sha256": file_sha256(app_bin),
+        "command": sys.argv,
+        "app_binary": str(real_bin),
+        "app_binary_sha256": file_sha256(real_bin),
         "raw_file": str(raw_path),
         "raw_file_sha256": file_sha256(raw_path),
+        "profile_sha256": profile_hashes,
         "parameters": target_params,
-        "batches": args.batches,
+        "batches": batch_id_list,
         "repeats_per_batch": args.repeats,
+        "warm_repeats_per_batch": warm_repeats,
+        "core_boost_per_batch": args.core_boost,
         "mode": args.mode,
-        "total_samples": len(all_client_samples),
-        "total_cells": len(cells),
+        "poll_interval_s": poll_interval_s,
+        "startup_quiet_window_s": 0.05,
+        "trace_enabled": trace_enabled,
+        "env_policy": {
+            "ART_LIVE_PARAM": "1",
+            "ART_LIVE_PARAM_INITIAL_ZOOM": "100|fit",
+            "ART_LIVE_PARAM_TRACE": str(trace_file) if trace_enabled else None,
+        },
         "pp_version": 1045,
+        "exit_code": 1 if trace_errors else 0,
         "status": "FAILED" if trace_errors else "PASSED",
         "validation_error_count": len(trace_errors),
         "validation_errors": trace_errors[:50],
     }
-    manifest_file = out_dir / "manifest.json"
-    manifest_file.write_text(json.dumps(manifest, ensure_ascii=False, indent=2))
+
+    write_perf_reports(out_dir, csv_rows, all_client_samples, manifest)
 
     print(f"\nReport generated at: {out_dir}")
-    print(f"  - Manifest: {manifest_file.name}")
-    print(f"  - Client events: {client_jsonl.name}")
-    print(f"  - Samples CSV: {samples_csv.name}")
-    print(f"  - Summary CSV: {summary_csv.name}")
+    print(f"  - Manifest: manifest.json (git_dirty={git_dirty})")
+    print(f"  - Client events: client.jsonl")
+    print(f"  - Samples CSV: samples.csv ({len(csv_rows)} samples)")
+    print(f"  - Summary CSV: summary.csv")
     if trace_errors:
         print(f"FAILED: trace validation detected {len(trace_errors)} error(s):", file=sys.stderr)
         for e in trace_errors[:20]:
