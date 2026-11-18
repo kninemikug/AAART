@@ -30,6 +30,7 @@
 #include "pipelineprofile.h"
 #include "refreshmap.h"
 #include "threadpool.h"
+#include <cstdio>
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -208,6 +209,18 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
 
     ipf.setPipetteBuffer(nullptr);
     bool stop = false;
+    bool traceStages = art::liveparam::LiveParamTrace::isEnabled();
+    bool trPreproc = false;
+    bool trRaw = false;
+    bool trInit = false;
+    bool trHdr = false;
+    bool trTf = false;
+    bool trS1 = false;
+    bool trS2 = false;
+    bool trS3 = false;
+    if (traceStages) {
+        lastPreviewStages_.clear();
+    }
 
     if (((todo & ALL) == ALL) || (todo & M_MONITOR) || panningRelatedChange ||
         (highDetailNeeded && options.prevdemo != PD_Sidecar)) {
@@ -286,6 +299,7 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
         // compute it when high detail is needed
         if ((todo & M_PREPROC) ||
             (!highDetailPreprocessComputed && highDetailNeeded)) {
+            trPreproc = true;
             imgsrc->preprocess(rp, params.lensProf, params.coarse, true,
                                preproc_wb);
             if (flatFieldAutoClipListener && rp.ff_AutoClipControl) {
@@ -305,6 +319,7 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
         }
 
         if ((todo & M_RAW) || (!highDetailRawComputed && highDetailNeeded)) {
+            trRaw = true;
             if (settings->verbose) {
                 if (imgsrc->getSensorType() == ST_BAYER) {
                     std::cout << "Demosaic Bayer image n."
@@ -366,6 +381,7 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
         ipf.setScale(scale);
 
         if (todo & (M_INIT | M_LINDENOISE | M_HDR)) {
+            trInit = true;
             MyMutex::MyLock initLock(minit); // Also used in crop window
 
             if (params.wb.method == WBParams::AUTO) {
@@ -463,6 +479,7 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
 
         if ((todo & M_HDR) &&
             (params.fattal.enabled || params.dehaze.enabled)) {
+            trHdr = true;
             if (drcomp_11_dcrop_cache) {
                 delete drcomp_11_dcrop_cache;
                 drcomp_11_dcrop_cache = nullptr;
@@ -476,6 +493,7 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
         progress("Rotate / Distortion...", 100 * readyphase / numofphases);
         // Remove transformation if unneeded
         if (ipf.needsTransform()) {
+            trTf = true;
             assert(oprevi);
             Imagefloat *op = oprevi;
             oprevi = new Imagefloat(pW, pH, op);
@@ -540,6 +558,7 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
         if ((todo & M_RGBCURVE) || (todo & M_CROP)) {
             // if it's just crop we just need the histogram, no image updates
             if (todo & M_RGBCURVE) {
+                trS1 = true;
                 // initialize rrm bbm ggm different from zero to avoid black
                 // screen in some cases
                 oprevi->copyTo(bufs_[0]);
@@ -557,6 +576,7 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
         readyphase++;
 
         if (todo & M_LUMACURVE) {
+            trS2 = true;
             bufs_[0]->copyTo(bufs_[1]);
             pipeline_stop_[2] =
                 stop || ipf.process(ImProcFunctions::Stage::STAGE_2, bufs_[1]);
@@ -564,6 +584,7 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
         stop = stop || pipeline_stop_[2];
 
         if (todo & (M_LUMINANCE | M_COLOR)) {
+            trS3 = true;
             bufs_[1]->copyTo(bufs_[2]);
             pipeline_stop_[3] =
                 stop || ipf.process(ImProcFunctions::Stage::STAGE_3, bufs_[2]);
@@ -591,6 +612,17 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
             }
             ipf.updateColorProfiles(monProf, monIntent, sp, gc);
         }
+    }
+
+    if (traceStages) {
+        char buf[160];
+        std::snprintf(
+            buf, sizeof(buf),
+            "nav:preproc=%d,raw=%d,init=%d,hdr=%d,tf=%d,s1=%d,s2=%d,s3=%d,todo=%d",
+            trPreproc ? 1 : 0, trRaw ? 1 : 0, trInit ? 1 : 0,
+            trHdr ? 1 : 0, trTf ? 1 : 0, trS1 ? 1 : 0, trS2 ? 1 : 0,
+            trS3 ? 1 : 0, todo);
+        lastPreviewStages_ = buf;
     }
 
     // process crop, if needed
@@ -1645,7 +1677,9 @@ void ImProcCoordinator::process()
                 art::liveparam::LiveParamTrace::getInstance().record(
                     "ENGINE_DONE", 0, nullptr, currentGeneration_,
                     currentEditRev.load(std::memory_order_relaxed),
-                    currentViewRev.load(std::memory_order_relaxed));
+                    currentViewRev.load(std::memory_order_relaxed), change,
+                    lastPreviewStages_.empty() ? nullptr
+                                               : lastPreviewStages_.c_str());
             }
         }
 

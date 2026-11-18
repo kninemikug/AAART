@@ -33,6 +33,7 @@ struct NumericApplyResult {
     std::string error = "INTERNAL_ERROR";
     double value = 0;
     std::vector<std::string> enabledTools;
+    int changeFlags = 0;
 };
 
 std::vector<NumericControl> collectNumericControls(

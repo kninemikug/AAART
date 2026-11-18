@@ -56,6 +56,7 @@ struct EditorState {
     rtengine::ProcessingContext cropContext;
 
     bool hasInFlightMutation = false;
+    uint64_t inFlightCmdId = 0;
     std::string inFlightRequestId;
     int64_t inFlightAppliedRev = 0;
     int64_t inFlightAppliedViewRev = 0;

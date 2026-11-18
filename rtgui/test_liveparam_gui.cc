@@ -2788,158 +2788,454 @@ bool test_t26_perf_trace_harness(RTWindow *win, const std::string &workDir)
 
     // 3. Enable tracer for this test
     const std::string traceFile = workDir + "/t26_trace.jsonl";
+    unlink(traceFile.c_str());
     setenv("ART_LIVE_PARAM_TRACE", traceFile.c_str(), 1);
     tracer.clear();
 
-    // 4. Open fixture with LiveParamServer enabled
-    FrameFixture fixture{nullptr, art::liveparam::LiveParamController::getInstance()};
-    GUI_ASSERT(fixture.open(win, workDir, "t26"), "RAW fixture opened");
-    const auto sockPath = art::liveparam::LiveParamServer::getInstance().getSocketPath();
-    GUI_ASSERT(!sockPath.empty(), "LiveParamServer socket path valid");
-
-    // 5. Connect via Unix socket
-    int sockFd = socket(AF_UNIX, SOCK_STREAM, 0);
-    GUI_ASSERT(sockFd >= 0, "Socket created");
-    sockaddr_un addr{};
-    addr.sun_family = AF_UNIX;
-    std::strncpy(addr.sun_path, sockPath.c_str(), sizeof(addr.sun_path) - 1);
-    GUI_ASSERT(connect(sockFd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) == 0,
-               "Connected to LiveParamServer");
-
-    auto sendReq = [&](const std::string &jsonStr) {
-        const std::string wire = jsonStr + "\n";
-        return send(sockFd, wire.data(), wire.size(), 0) == static_cast<ssize_t>(wire.size());
-    };
-    auto recvReply = [&]() -> std::string {
-        std::string buf;
-        char c;
-        while (read(sockFd, &c, 1) == 1) {
-            if (c == '\n') break;
-            buf += c;
+    auto connectSock = [&](const std::string &path) -> int {
+        int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+        if (fd < 0) return -1;
+        sockaddr_un addr{};
+        addr.sun_family = AF_UNIX;
+        std::strncpy(addr.sun_path, path.c_str(), sizeof(addr.sun_path) - 1);
+        if (connect(fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) != 0) {
+            close(fd);
+            return -1;
         }
-        return buf;
+        return fd;
+    };
+    auto sendRaw = [&](int fd, const std::string &jsonStr) -> bool {
+        const std::string wire = jsonStr + "\n";
+        return send(fd, wire.data(), wire.size(), 0) == static_cast<ssize_t>(wire.size());
+    };
+    auto recvLineWithPump = [&](int fd, int timeoutMs = 10000) -> std::string {
+        std::string buf;
+        const auto dl = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
+        while (std::chrono::steady_clock::now() < dl) {
+            pumpGuiEvents(5);
+            struct pollfd pfd{fd, POLLIN, 0};
+            if (poll(&pfd, 1, 0) > 0 && (pfd.revents & POLLIN)) {
+                char ch;
+                ssize_t n = recv(fd, &ch, 1, 0);
+                while (n == 1) {
+                    if (ch == '\n') return buf;
+                    buf += ch;
+                    n = recv(fd, &ch, 1, MSG_DONTWAIT);
+                }
+            }
+        }
+        return "";
+    };
+    auto recvLineNoPump = [&](int fd, int timeoutMs = 3000) -> std::string {
+        std::string buf;
+        const auto dl = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
+        while (std::chrono::steady_clock::now() < dl) {
+            struct pollfd pfd{fd, POLLIN, 0};
+            if (poll(&pfd, 1, 10) > 0 && (pfd.revents & POLLIN)) {
+                char ch;
+                ssize_t n = recv(fd, &ch, 1, 0);
+                while (n == 1) {
+                    if (ch == '\n') return buf;
+                    buf += ch;
+                    n = recv(fd, &ch, 1, MSG_DONTWAIT);
+                }
+            }
+        }
+        return "";
+    };
+    auto makeSetJson = [&](const std::string &reqId, const std::string &sessId,
+                           const std::string &edId, int64_t baseRev, double val) {
+        std::unique_ptr<cJSON, decltype(&cJSON_Delete)> root(
+            cJSON_CreateObject(), cJSON_Delete);
+        cJSON_AddNumberToObject(root.get(), "protocolVersion", 1);
+        cJSON_AddStringToObject(root.get(), "requestId", reqId.c_str());
+        cJSON_AddStringToObject(root.get(), "op", "set_param");
+        cJSON_AddStringToObject(root.get(), "sessionId", sessId.c_str());
+        cJSON_AddStringToObject(root.get(), "editorId", edId.c_str());
+        cJSON_AddNumberToObject(root.get(), "baseRevision", static_cast<double>(baseRev));
+        auto *params = cJSON_AddObjectToObject(root.get(), "params");
+        cJSON_AddNumberToObject(params, "Exposure.Compensation", val);
+        char *printed = cJSON_PrintUnformatted(root.get());
+        std::string out(printed);
+        cJSON_free(printed);
+        return out;
     };
 
-    // Query state
-    GUI_ASSERT(sendReq("{\"protocolVersion\":1,\"requestId\":\"t26-init\",\"op\":\"get_state\",\"editorId\":\"" +
-                       fixture.panel->getEditorId() + "\"}"), "Init state request sent");
-    std::string replyStr = "";
-    while (replyStr.empty()) {
-        pumpGuiEvents(10);
-        replyStr = recvReply();
+    // 4. First session: special characters requestId, replay, pan/zoom, queue saturation & cancel
+    std::string sessId1;
+    std::string edId1;
+    int64_t revSpecial = 0, viewRevSpecial = 0;
+    int64_t revPanZoom = 0, viewRevPanZoom = 0;
+    int64_t revAfterQFull = 0, viewRevAfterQFull = 0;
+    const std::string specialReqId = "t26-\"quote\"-\\slash\\-\t-nl\n-한글-α";
+    const std::string panReqId = "t26-panzoom-1";
+    const std::string qFullReqId = "t26-qfull-busy";
+    const std::string afterQReqId = "t26-after-qfull";
+
+    {
+        FrameFixture fixture{nullptr, art::liveparam::LiveParamController::getInstance()};
+        GUI_ASSERT(fixture.open(win, workDir, "t26a"), "First RAW fixture opened");
+        const auto sockPath = art::liveparam::LiveParamServer::getInstance().getSocketPath();
+        GUI_ASSERT(!sockPath.empty(), "LiveParamServer socket path valid");
+
+        int sockFd = connectSock(sockPath);
+        GUI_ASSERT(sockFd >= 0, "Connected to LiveParamServer");
+
+        sessId1 = fixture.controller.getSessionId();
+        edId1 = fixture.panel->getEditorId();
+
+        // Initial state
+        GUI_ASSERT(sendRaw(sockFd, "{\"protocolVersion\":1,\"requestId\":\"t26-init\",\"op\":\"get_state\",\"editorId\":\"" + edId1 + "\"}"),
+                   "Init state request sent");
+        std::string replyStr = recvLineWithPump(sockFd);
+        std::unique_ptr<cJSON, decltype(&cJSON_Delete)> initJson(cJSON_Parse(replyStr.c_str()), cJSON_Delete);
+        GUI_ASSERT(initJson && cJSON_GetObjectItemCaseSensitive(initJson.get(), "status"), "Init JSON parsed");
+        int64_t baseRev = cJSON_GetObjectItemCaseSensitive(
+            cJSON_GetObjectItemCaseSensitive(initJson.get(), "result"), "revision")->valueint;
+
+        // 4a. Special characters requestId (quotes, backslash, tab, newline, UTF-8 Korean/Greek)
+        const std::string specialReqJson = makeSetJson(specialReqId, sessId1, edId1, baseRev, 0.35);
+        GUI_ASSERT(sendRaw(sockFd, specialReqJson), "Special-char request sent");
+        std::string expReplyStr = recvLineWithPump(sockFd);
+        std::unique_ptr<cJSON, decltype(&cJSON_Delete)> expReply(cJSON_Parse(expReplyStr.c_str()), cJSON_Delete);
+        GUI_ASSERT(expReply && cJSON_IsString(cJSON_GetObjectItemCaseSensitive(expReply.get(), "requestId")) &&
+                   std::string(cJSON_GetObjectItemCaseSensitive(expReply.get(), "requestId")->valuestring) == specialReqId &&
+                   expReplyStr.find("\"status\":\"APPLIED\"") != std::string::npos,
+                   "Special-char Exposure APPLIED with exact requestId");
+        auto *expRes = cJSON_GetObjectItemCaseSensitive(expReply.get(), "result");
+        revSpecial = static_cast<int64_t>(cJSON_GetObjectItemCaseSensitive(expRes, "appliedRevision")->valuedouble);
+        viewRevSpecial = static_cast<int64_t>(cJSON_GetObjectItemCaseSensitive(expRes, "viewRevision")->valuedouble);
+        GUI_ASSERT(fixture.waitReady(), "Special-char Exposure READY");
+
+        // 4b. Duplicate request replay (same specialReqId & params)
+        GUI_ASSERT(sendRaw(sockFd, specialReqJson), "Duplicate special-char request sent");
+        std::string dupReplyStr = recvLineWithPump(sockFd);
+        GUI_ASSERT(dupReplyStr.find("\"status\":\"APPLIED\"") != std::string::npos,
+                   "Duplicate APPLIED without re-execution");
+
+        // 4c. Rejected request (invalid value)
+        GUI_ASSERT(sendRaw(sockFd, makeSetJson("t26-invalid-1", sessId1, edId1, revSpecial, 999.0)),
+                   "Invalid value request sent");
+        std::string errReplyStr = recvLineWithPump(sockFd);
+        GUI_ASSERT(errReplyStr.find("\"status\":\"ERROR\"") != std::string::npos &&
+                   errReplyStr.find("\"INVALID_VALUE\"") != std::string::npos, "Rejected with INVALID_VALUE");
+
+        // 4d. Pan & zoom before mutation
+        auto *cropHandler = &fixture.area()->mainCropWindow->cropHandler;
+        cropHandler->setZoom(100);
+        pumpGuiEvents(options.adjusterMaxDelay + 80);
+        cropHandler->moveAnchor(40, 30, true);
+        GUI_ASSERT(waitUntilIdle(fixture.panel), "Pan/zoom settled before mutation");
+        GUI_ASSERT(sendRaw(sockFd, makeSetJson(panReqId, sessId1, edId1, revSpecial, 0.65)),
+                   "Pan/zoom mutation sent");
+        std::string pzReplyStr = recvLineWithPump(sockFd);
+        GUI_ASSERT(pzReplyStr.find("\"status\":\"APPLIED\"") != std::string::npos, "Pan/zoom Exposure APPLIED");
+        {
+            std::unique_ptr<cJSON, decltype(&cJSON_Delete)> pzJson(cJSON_Parse(pzReplyStr.c_str()), cJSON_Delete);
+            auto *res = cJSON_GetObjectItemCaseSensitive(pzJson.get(), "result");
+            revPanZoom = static_cast<int64_t>(cJSON_GetObjectItemCaseSensitive(res, "appliedRevision")->valuedouble);
+            viewRevPanZoom = static_cast<int64_t>(cJSON_GetObjectItemCaseSensitive(res, "viewRevision")->valuedouble);
+        }
+        GUI_ASSERT(fixture.waitReady(), "Pan/zoom Exposure READY");
+
+        // 4e. Queue saturation (32 pending without pumping GUI) + 33rd BUSY + client-disconnect CANCELLED
+        std::vector<int> qSocks;
+        for (int i = 0; i < 32; ++i) {
+            int qfd = connectSock(sockPath);
+            GUI_ASSERT(qfd >= 0, "Connected queue filler socket");
+            const std::string qreq = "{\"protocolVersion\":1,\"requestId\":\"t26-qfill-" +
+                std::to_string(i) + "\",\"op\":\"get_state\",\"editorId\":\"" + edId1 + "\"}";
+            GUI_ASSERT(sendRaw(qfd, qreq), "Queue filler request sent");
+            qSocks.push_back(qfd);
+        }
+        // Wait briefly without pumping GUI so I/O thread enqueues all 32 items
+        int qFullFd = -1;
+        std::string busyReply;
+        const auto qDl = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+        while (std::chrono::steady_clock::now() < qDl) {
+            int probeFd = connectSock(sockPath);
+            if (probeFd >= 0) {
+                const std::string qreq = "{\"protocolVersion\":1,\"requestId\":\"" + qFullReqId +
+                    "\",\"op\":\"get_state\",\"editorId\":\"" + edId1 + "\"}";
+                sendRaw(probeFd, qreq);
+                std::string r = recvLineNoPump(probeFd, 300);
+                close(probeFd);
+                if (r.find("QUEUE") != std::string::npos || r.find("BUSY") != std::string::npos) {
+                    busyReply = r;
+                    qFullFd = 1;
+                    break;
+                }
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(15));
+        }
+        GUI_ASSERT(qFullFd == 1 && busyReply.find("\"BUSY\"") != std::string::npos,
+                   "33rd request hit queue saturation and received BUSY");
+
+        // Close all 32 waiting sockets before GUI runs idle callbacks -> I/O thread cancels them
+        for (int qfd : qSocks) {
+            close(qfd);
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        pumpGuiEvents(80);
+        GUI_ASSERT(waitUntilIdle(fixture.panel), "Queue cancel drained");
+
+        // 4f. Normal request right after queue saturation and cancel must get a clean cmdId
+        GUI_ASSERT(sendRaw(sockFd, makeSetJson(afterQReqId, sessId1, edId1, revPanZoom, 0.90)),
+                   "Post-cancel normal request sent");
+        std::string aqReplyStr = recvLineWithPump(sockFd);
+        GUI_ASSERT(aqReplyStr.find("\"status\":\"APPLIED\"") != std::string::npos, "Post-cancel Exposure APPLIED");
+        {
+            std::unique_ptr<cJSON, decltype(&cJSON_Delete)> aqJson(cJSON_Parse(aqReplyStr.c_str()), cJSON_Delete);
+            auto *res = cJSON_GetObjectItemCaseSensitive(aqJson.get(), "result");
+            revAfterQFull = static_cast<int64_t>(cJSON_GetObjectItemCaseSensitive(res, "appliedRevision")->valuedouble);
+            viewRevAfterQFull = static_cast<int64_t>(cJSON_GetObjectItemCaseSensitive(res, "viewRevision")->valuedouble);
+        }
+        GUI_ASSERT(fixture.waitReady(), "Post-cancel Exposure READY");
+
+        close(sockFd);
     }
-    std::unique_ptr<cJSON, decltype(&cJSON_Delete)> initJson(
-        cJSON_Parse(replyStr.c_str()), cJSON_Delete);
-    GUI_ASSERT(initJson && cJSON_GetObjectItemCaseSensitive(initJson.get(), "status"), "Init JSON parsed");
-    auto *initResult = cJSON_GetObjectItemCaseSensitive(initJson.get(), "result");
-    int64_t baseRev = cJSON_GetObjectItemCaseSensitive(initResult, "revision")->valueint;
-    const std::string sessId = fixture.controller.getSessionId();
-    const std::string edId = fixture.panel->getEditorId();
 
-    // 6. Valid Exposure request
-    GUI_ASSERT(sendReq("{\"protocolVersion\":1,\"requestId\":\"t26-exp-1\",\"op\":\"set_param\",\"sessionId\":\"" +
-                       sessId + "\",\"editorId\":\"" + edId + "\",\"baseRevision\":" +
-                       std::to_string(baseRev) + ",\"params\":{\"Exposure.Compensation\":0.35}}"),
-               "Valid Exposure request sent");
-    std::string expReplyStr = "";
-    while (expReplyStr.empty()) {
-        pumpGuiEvents(10);
-        expReplyStr = recvReply();
+    // 5. Same-process server restart (stop -> start) with a second session & new sessionId
+    std::string sessId2;
+    std::string edId2;
+    int64_t revRestart = 0, viewRevRestart = 0;
+    const std::string restartReqId = "t26-restart-1";
+    {
+        FrameFixture fixture2{nullptr, art::liveparam::LiveParamController::getInstance()};
+        GUI_ASSERT(fixture2.open(win, workDir, "t26b"), "Second RAW fixture opened after server restart");
+        sessId2 = fixture2.controller.getSessionId();
+        edId2 = fixture2.panel->getEditorId();
+        GUI_ASSERT(!sessId2.empty() && sessId2 != sessId1, "Server restart assigned new sessionId");
+        const auto sockPath2 = art::liveparam::LiveParamServer::getInstance().getSocketPath();
+        int sockFd2 = connectSock(sockPath2);
+        GUI_ASSERT(sockFd2 >= 0, "Connected to restarted LiveParamServer");
+        const int64_t baseRev2 = fixture2.field("revision");
+        GUI_ASSERT(sendRaw(sockFd2, makeSetJson(restartReqId, sessId2, edId2, baseRev2, -0.25)),
+                   "Restarted-session mutation sent");
+        std::string rReply = recvLineWithPump(sockFd2);
+        GUI_ASSERT(rReply.find("\"status\":\"APPLIED\"") != std::string::npos, "Restarted-session APPLIED");
+        {
+            std::unique_ptr<cJSON, decltype(&cJSON_Delete)> rJson(cJSON_Parse(rReply.c_str()), cJSON_Delete);
+            auto *res = cJSON_GetObjectItemCaseSensitive(rJson.get(), "result");
+            revRestart = static_cast<int64_t>(cJSON_GetObjectItemCaseSensitive(res, "appliedRevision")->valuedouble);
+            viewRevRestart = static_cast<int64_t>(cJSON_GetObjectItemCaseSensitive(res, "viewRevision")->valuedouble);
+        }
+        GUI_ASSERT(fixture2.waitReady(), "Restarted-session READY");
+        close(sockFd2);
     }
-    GUI_ASSERT(expReplyStr.find("\"status\":\"APPLIED\"") != std::string::npos, "Exposure APPLIED");
-    GUI_ASSERT(fixture.waitReady(), "Exposure READY");
-    baseRev++;
 
-    // 7. Duplicate request replay (same requestId & params)
-    GUI_ASSERT(sendReq("{\"protocolVersion\":1,\"requestId\":\"t26-exp-1\",\"op\":\"set_param\",\"sessionId\":\"" +
-                       sessId + "\",\"editorId\":\"" + edId + "\",\"baseRevision\":" +
-                       std::to_string(baseRev - 1) + ",\"params\":{\"Exposure.Compensation\":0.35}}"),
-               "Duplicate request sent");
-    std::string dupReplyStr = "";
-    while (dupReplyStr.empty()) {
-        pumpGuiEvents(10);
-        dupReplyStr = recvReply();
-    }
-    GUI_ASSERT(dupReplyStr.find("\"status\":\"APPLIED\"") != std::string::npos, "Duplicate APPLIED without re-execution");
-
-    // 8. Rejected request (invalid value)
-    GUI_ASSERT(sendReq("{\"protocolVersion\":1,\"requestId\":\"t26-invalid-1\",\"op\":\"set_param\",\"sessionId\":\"" +
-                       sessId + "\",\"editorId\":\"" + edId + "\",\"baseRevision\":" +
-                       std::to_string(baseRev) + ",\"params\":{\"Exposure.Compensation\":999.0}}"),
-               "Invalid value request sent");
-    std::string errReplyStr = "";
-    while (errReplyStr.empty()) {
-        pumpGuiEvents(10);
-        errReplyStr = recvReply();
-    }
-    GUI_ASSERT(errReplyStr.find("\"status\":\"ERROR\"") != std::string::npos &&
-               errReplyStr.find("\"INVALID_VALUE\"") != std::string::npos, "Rejected with INVALID_VALUE");
-
-    close(sockFd);
-
-    // 9. Close fixture & stop server
-    fixture.panel->close();
-    fixture.panel = nullptr;
-    art::liveparam::LiveParamServer::getInstance().stop();
-
-    // 10. Verify trace records
+    // 6. Verify tracer integrity and flush
     GUI_ASSERT(tracer.getDropCount() == 0, "No dropped trace events");
-    tracer.flush();
-    unsetenv("ART_LIVE_PARAM_TRACE");
+    GUI_ASSERT(tracer.getWriteErrorCount() == 0, "No trace file write errors");
+    GUI_ASSERT(tracer.getCommandMetaSize() <= 4096, "Command metadata map stays bounded");
+    tracer.flush(true);
 
-    // Parse the written trace file and verify event ordering & correlation
+    // 7. Parse trace.jsonl and verify all events, escaping, session/cmdId uniqueness, replay, queue cancel
     std::ifstream traceIn(traceFile);
     GUI_ASSERT(traceIn.is_open(), "Trace output file opened");
     std::string line;
-    std::map<std::string, std::map<std::string, uint64_t>> reqEvents;
-    bool hasEngineChange = false, hasEngineDone = false;
+    struct RecInfo {
+        uint64_t ts = 0;
+        uint64_t cmdId = 0;
+        uint64_t gen = 0;
+        int64_t editRev = -1;
+        int64_t viewRev = -1;
+        std::string sess;
+        std::string ed;
+    };
+    std::map<std::string, std::map<std::string, RecInfo>> reqPrimaryEvents;
+    std::vector<std::pair<std::string, uint64_t>> replays;
+    std::map<uint64_t, std::set<std::string>> eventsByCmdId;
+    uint64_t cancelCount = 0;
+    uint64_t rejectCount = 0;
+    bool hasEngineDone = false, hasCropDone = false;
     while (std::getline(traceIn, line)) {
         if (line.empty()) continue;
-        std::unique_ptr<cJSON, decltype(&cJSON_Delete)> rJson(
-            cJSON_Parse(line.c_str()), cJSON_Delete);
-        if (!rJson) continue;
+        std::unique_ptr<cJSON, decltype(&cJSON_Delete)> rJson(cJSON_Parse(line.c_str()), cJSON_Delete);
+        GUI_ASSERT(rJson != nullptr, ("Valid JSONL trace line: " + line).c_str());
         auto *evItem = cJSON_GetObjectItemCaseSensitive(rJson.get(), "event");
         auto *tsItem = cJSON_GetObjectItemCaseSensitive(rJson.get(), "timestamp_ns");
-        auto *reqItem = cJSON_GetObjectItemCaseSensitive(rJson.get(), "requestId");
-        if (!evItem || !cJSON_IsString(evItem) || !tsItem || !cJSON_IsNumber(tsItem)) continue;
+        GUI_ASSERT(evItem && cJSON_IsString(evItem) && tsItem && cJSON_IsNumber(tsItem), "Valid event/ts fields");
         const std::string ev = evItem->valuestring;
-        const uint64_t ts = static_cast<uint64_t>(tsItem->valuedouble);
-        if (ev == "ENGINE_CHANGE") hasEngineChange = true;
         if (ev == "ENGINE_DONE") hasEngineDone = true;
+        if (ev == "CROP_DONE") hasCropDone = true;
+        if (ev == "CANCEL") ++cancelCount;
+        if (ev == "REJECT") ++rejectCount;
+
+        auto *cmdItem = cJSON_GetObjectItemCaseSensitive(rJson.get(), "cmdId");
+        auto *reqItem = cJSON_GetObjectItemCaseSensitive(rJson.get(), "requestId");
+        auto *sessItem = cJSON_GetObjectItemCaseSensitive(rJson.get(), "sessionId");
+        auto *edItem = cJSON_GetObjectItemCaseSensitive(rJson.get(), "editorId");
+        auto *genItem = cJSON_GetObjectItemCaseSensitive(rJson.get(), "generation");
+        auto *erItem = cJSON_GetObjectItemCaseSensitive(rJson.get(), "editRev");
+        auto *vrItem = cJSON_GetObjectItemCaseSensitive(rJson.get(), "viewRev");
+
+        RecInfo info;
+        info.ts = static_cast<uint64_t>(tsItem->valuedouble);
+        info.cmdId = cmdItem && cJSON_IsNumber(cmdItem) ? static_cast<uint64_t>(cmdItem->valuedouble) : 0;
+        info.gen = genItem && cJSON_IsNumber(genItem) ? static_cast<uint64_t>(genItem->valuedouble) : 0;
+        info.editRev = erItem && cJSON_IsNumber(erItem) ? static_cast<int64_t>(erItem->valuedouble) : -1;
+        info.viewRev = vrItem && cJSON_IsNumber(vrItem) ? static_cast<int64_t>(vrItem->valuedouble) : -1;
+        if (sessItem && cJSON_IsString(sessItem)) info.sess = sessItem->valuestring;
+        if (edItem && cJSON_IsString(edItem)) info.ed = edItem->valuestring;
+
+        if (info.cmdId) {
+            eventsByCmdId[info.cmdId].insert(ev);
+        }
         if (reqItem && cJSON_IsString(reqItem) && reqItem->valuestring) {
-            reqEvents[reqItem->valuestring].emplace(ev, ts);
+            const std::string reqId = reqItem->valuestring;
+            if (ev == "REPLAY") {
+                replays.emplace_back(reqId, info.cmdId);
+            } else {
+                // Only store first per event or check no duplicate SA/SR
+                GUI_ASSERT(!(ev == "SA" && reqPrimaryEvents[reqId].count("SA")), "No duplicate SA for requestId");
+                GUI_ASSERT(!(ev == "SR" && reqPrimaryEvents[reqId].count("SR")), "No duplicate SR for requestId");
+                if (!reqPrimaryEvents[reqId].count(ev)) {
+                    reqPrimaryEvents[reqId][ev] = info;
+                }
+            }
         }
     }
 
-    GUI_ASSERT(hasEngineChange && hasEngineDone, "Engine events recorded");
-    const auto &expEvents = reqEvents["t26-exp-1"];
-    std::cout << "  Recorded events for t26-exp-1: ";
-    for (const auto &pair : expEvents) {
-        std::cout << pair.first << " ";
-    }
-    std::cout << std::endl;
-    GUI_ASSERT(expEvents.count("S0") && expEvents.count("SQ") && expEvents.count("SG") &&
-               expEvents.count("SA") && expEvents.count("SP") && expEvents.count("SS") &&
-               expEvents.count("SN") && expEvents.count("SC") && expEvents.count("SR"),
-               "All S0..SS, SN, SC, SR present for valid mutation");
+    GUI_ASSERT(hasEngineDone && hasCropDone, "Engine and Crop stage execution records emitted");
+    GUI_ASSERT(rejectCount >= 1 && cancelCount >= 1, "Queue saturation REJECT and disconnect CANCEL recorded");
+    GUI_ASSERT(replays.size() == 1 && replays[0].first == specialReqId,
+               "Replay recorded as separate REPLAY event preserving original specialReqId");
 
-    GUI_ASSERT(expEvents.at("S0") <= expEvents.at("SQ"), "S0 <= SQ");
-    GUI_ASSERT(expEvents.at("SQ") <= expEvents.at("SG"), "SQ <= SG");
-    GUI_ASSERT(expEvents.at("SG") <= expEvents.at("SA"), "SG <= SA");
-    GUI_ASSERT(expEvents.at("SA") <= expEvents.at("SP"), "SA <= SP");
-    GUI_ASSERT(expEvents.at("SP") <= expEvents.at("SS"), "SP <= SS");
-    GUI_ASSERT(expEvents.at("SA") <= expEvents.at("SN"), "SA <= SN");
-    GUI_ASSERT(expEvents.at("SA") <= expEvents.at("SC"), "SA <= SC");
-    GUI_ASSERT(expEvents.at("SN") <= expEvents.at("SR"), "SN <= SR");
-    GUI_ASSERT(expEvents.at("SC") <= expEvents.at("SR"), "SC <= SR");
+    // Helper to assert S0..SR completeness & monotonicity for a mutation
+    auto checkMutation = [&](const std::string &reqId, const std::string &sess,
+                             const std::string &ed, int64_t editRev, uint64_t &outCmdId) {
+        const auto &m = reqPrimaryEvents[reqId];
+        for (const char *k : {"S0", "SQ", "SG", "SA", "SP", "SS", "SN", "SC", "SR"}) {
+            GUI_ASSERT(m.count(k) == 1, ("Event " + std::string(k) + " present").c_str());
+        }
+        outCmdId = m.at("SA").cmdId;
+        GUI_ASSERT(outCmdId > 0, "cmdId nonzero");
+        for (const char *k : {"S0", "SQ", "SG", "SA", "SP", "SS", "SN", "SC", "SR"}) {
+            GUI_ASSERT(m.at(k).sess == sess && m.at(k).cmdId == outCmdId,
+                       "All events for mutation share same sessionId and cmdId");
+        }
+        for (const char *k : {"SA", "SN", "SC", "SR"}) {
+            GUI_ASSERT(m.at(k).ed == ed && m.at(k).editRev == editRev,
+                       "editorId and editRev match");
+        }
+        GUI_ASSERT(m.at("S0").ts <= m.at("SQ").ts && m.at("SQ").ts <= m.at("SG").ts &&
+                   m.at("SG").ts <= m.at("SA").ts && m.at("SA").ts <= m.at("SP").ts &&
+                   m.at("SP").ts <= m.at("SS").ts, "S0..SS monotonic");
+        GUI_ASSERT(m.at("SA").ts <= m.at("SN").ts && m.at("SN").ts <= m.at("SR").ts, "SA<=SN<=SR");
+        GUI_ASSERT(m.at("SA").ts <= m.at("SC").ts && m.at("SC").ts <= m.at("SR").ts, "SA<=SC<=SR");
+        GUI_ASSERT(m.at("SR").gen > 0 && m.at("SN").gen == m.at("SR").gen &&
+                   m.at("SC").gen == m.at("SR").gen, "Generation matches across SN/SC/SR");
+        return true;
+    };
+
+    uint64_t cmdSpecial = 0, cmdPan = 0, cmdAfterQ = 0, cmdRestart = 0;
+    GUI_ASSERT(checkMutation(specialReqId, sessId1, edId1, revSpecial, cmdSpecial), "specialReqId trace valid");
+    GUI_ASSERT(replays[0].second != cmdSpecial, "Replay used its own cmdId");
+    GUI_ASSERT(checkMutation(panReqId, sessId1, edId1, revPanZoom, cmdPan), "panReqId trace valid");
+    GUI_ASSERT(reqPrimaryEvents[panReqId].at("SR").viewRev == viewRevPanZoom, "panReqId viewRev matched");
+    GUI_ASSERT(checkMutation(afterQReqId, sessId1, edId1, revAfterQFull, cmdAfterQ), "afterQReqId trace valid");
+    GUI_ASSERT(checkMutation(restartReqId, sessId2, edId2, revRestart, cmdRestart), "restartReqId trace valid");
+    GUI_ASSERT(cmdRestart > cmdAfterQ && cmdAfterQ > cmdPan && cmdPan > cmdSpecial,
+               "cmdId monotonically advances across queue cancel and server restart");
 
     // Rejected request must have S0, SQ, SG, SP, SS but NOT SA, SN, SC, SR
-    const auto &invalidEvents = reqEvents["t26-invalid-1"];
+    const auto &invalidEvents = reqPrimaryEvents["t26-invalid-1"];
     GUI_ASSERT(invalidEvents.count("S0") && invalidEvents.count("SG") && invalidEvents.count("SS"),
                "Rejected request went through socket/GUI");
     GUI_ASSERT(invalidEvents.count("SA") == 0 && invalidEvents.count("SR") == 0,
                "Rejected request has no SA or SR");
 
+    // 8. Validate scripts/live_param_perf_probe.py --validate-dir (pass on valid subset, fail on corrupt/drops/missing SR)
+    auto writeClientJsonl = [&](const std::string &dirPath) {
+        g_mkdir_with_parents(dirPath.c_str(), 0700);
+        std::ofstream cf(dirPath + "/client.jsonl");
+        auto emitSample = [&](const std::string &reqId, const std::string &sess,
+                              const std::string &ed, int64_t rev, int64_t vrev, double val) {
+            std::unique_ptr<cJSON, decltype(&cJSON_Delete)> row(cJSON_CreateObject(), cJSON_Delete);
+            cJSON_AddStringToObject(row.get(), "requestId", reqId.c_str());
+            cJSON_AddStringToObject(row.get(), "sessionId", sess.c_str());
+            cJSON_AddStringToObject(row.get(), "editorId", ed.c_str());
+            cJSON_AddStringToObject(row.get(), "param", "exposure");
+            cJSON_AddStringToObject(row.get(), "paramKey", "Exposure.Compensation");
+            cJSON_AddNumberToObject(row.get(), "val", val);
+            cJSON_AddNumberToObject(row.get(), "effectiveValue", val);
+            cJSON_AddNumberToObject(row.get(), "baseRevision", static_cast<double>(rev - 1));
+            cJSON_AddNumberToObject(row.get(), "appliedRevision", static_cast<double>(rev));
+            cJSON_AddNumberToObject(row.get(), "viewRevision", static_cast<double>(vrev));
+            cJSON_AddNumberToObject(row.get(), "renderedRevision", static_cast<double>(rev));
+            cJSON_AddNumberToObject(row.get(), "renderedViewRevision", static_cast<double>(vrev));
+            cJSON_AddStringToObject(row.get(), "status", "READY");
+            char *p = cJSON_PrintUnformatted(row.get());
+            cf << p << "\n";
+            cJSON_free(p);
+        };
+        emitSample(specialReqId, sessId1, edId1, revSpecial, viewRevSpecial, 0.35);
+        emitSample(panReqId, sessId1, edId1, revPanZoom, viewRevPanZoom, 0.65);
+        emitSample(afterQReqId, sessId1, edId1, revAfterQFull, viewRevAfterQFull, 0.90);
+        emitSample(restartReqId, sessId2, edId2, revRestart, viewRevRestart, -0.25);
+    };
+    auto runProbeValidate = [&](const std::string &dirPath) -> bool {
+        const std::string probeScript = ART_TEST_SOURCE_DIR "/scripts/live_param_perf_probe.py";
+        gchar *argv[] = {
+            const_cast<gchar *>(ART_AGENT_PYTHON),
+            const_cast<gchar *>(probeScript.c_str()),
+            const_cast<gchar *>("--validate-dir"),
+            const_cast<gchar *>(dirPath.c_str()),
+            nullptr
+        };
+        gint status = 0;
+        GError *err = nullptr;
+        const bool ok = g_spawn_sync(nullptr, argv, nullptr, G_SPAWN_SEARCH_PATH,
+                                     nullptr, nullptr, nullptr, nullptr, &status, &err);
+        g_clear_error(&err);
+        return ok && g_spawn_check_wait_status(status, nullptr);
+    };
+
+    const std::string validDir = workDir + "/t26_probe_valid";
+    writeClientJsonl(validDir);
+    GUI_ASSERT(copyFile(traceFile, validDir + "/trace.jsonl"), "Copied trace to validDir");
+    GUI_ASSERT(runProbeValidate(validDir), "Probe validator passes on authentic trace");
+
+    // 8a. Corrupt JSONL line must FAIL
+    const std::string corruptDir = workDir + "/t26_probe_corrupt";
+    writeClientJsonl(corruptDir);
+    GUI_ASSERT(copyFile(traceFile, corruptDir + "/trace.jsonl"), "Copied trace to corruptDir");
+    {
+        std::ofstream out(corruptDir + "/trace.jsonl", std::ios::app);
+        out << "{broken-json-line\n";
+    }
+    GUI_ASSERT(!runProbeValidate(corruptDir), "Probe validator rejects corrupt JSONL line");
+
+    // 8b. Non-zero drops field must FAIL
+    const std::string dropsDir = workDir + "/t26_probe_drops";
+    writeClientJsonl(dropsDir);
+    GUI_ASSERT(copyFile(traceFile, dropsDir + "/trace.jsonl"), "Copied trace to dropsDir");
+    {
+        std::ofstream out(dropsDir + "/trace.jsonl", std::ios::app);
+        out << "{\"event\":\"ENGINE_CHANGE\",\"timestamp_ns\":12345,\"drops\":1}\n";
+    }
+    GUI_ASSERT(!runProbeValidate(dropsDir), "Probe validator rejects trace with drops > 0");
+
+    // 8c. Missing SR event must FAIL
+    const std::string missingDir = workDir + "/t26_probe_missing_sr";
+    writeClientJsonl(missingDir);
+    {
+        std::ifstream in(traceFile);
+        std::ofstream out(missingDir + "/trace.jsonl");
+        std::string l;
+        while (std::getline(in, l)) {
+            if (l.find("\"event\":\"SR\"") != std::string::npos &&
+                l.find(restartReqId) != std::string::npos) {
+                continue;
+            }
+            out << l << "\n";
+        }
+    }
+    GUI_ASSERT(!runProbeValidate(missingDir), "Probe validator rejects trace missing SR event");
+
+    unsetenv("ART_LIVE_PARAM_TRACE");
+    tracer.clear();
     std::cout << "  -> [T26] PASSED! trace verified: " << traceFile << std::endl;
     return true;
 }

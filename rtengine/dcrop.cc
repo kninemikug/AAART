@@ -19,9 +19,11 @@
  */
 #include "dcrop.h"
 #include "curves.h"
+#include "liveparamtrace.h"
 #include "mytime.h"
 #include "refreshmap.h"
 #include "rt_math.h"
+#include <cstdio>
 
 namespace {
 
@@ -526,6 +528,26 @@ void Crop::update(int todo)
         delete final;
         delete finaltrue;
         delete cropImgtrue;
+    }
+    if (art::liveparam::LiveParamTrace::isEnabled()) {
+        const bool trInit = (todo & M_INIT) != 0;
+        const bool trDn = (todo & M_LINDENOISE) && show_denoise;
+        const bool trHdr =
+            (todo & M_HDR) && (params.fattal.enabled || params.dehaze.enabled);
+        const bool trS1 = (todo & M_RGBCURVE) != 0;
+        const bool trS2 = (todo & M_LUMACURVE) != 0;
+        const bool trS3 = (todo & (M_LUMINANCE | M_COLOR)) != 0;
+        char buf[160];
+        std::snprintf(
+            buf, sizeof(buf),
+            "crop:main=%d,skip=%d,realloc=%d,init=%d,dn=%d,hdr=%d,tf=%d,s1=%d,s2=%d,s3=%d",
+            isDetailWindow ? 0 : 1, skip, needsinitupdate ? 1 : 0,
+            trInit ? 1 : 0, trDn ? 1 : 0, trHdr ? 1 : 0,
+            needstransform ? 1 : 0, trS1 ? 1 : 0, trS2 ? 1 : 0, trS3 ? 1 : 0);
+        art::liveparam::LiveParamTrace::getInstance().record(
+            "CROP_DONE", 0, nullptr, processingContext_.generation,
+            processingContext_.editRevision, processingContext_.viewRevision,
+            todo, buf);
     }
 }
 

@@ -206,6 +206,7 @@ protected:
 
     bool hasChanged;
     bool numericFullRefresh_ = false;
+    int lastNumericChangeFlags_ = 0;
 
     void addPanel(Gtk::Box *where, FoldableToolPanel *panel, int level = 1);
     void foldThemAll(GdkEventButton *event);

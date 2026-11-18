@@ -706,6 +706,7 @@ void ToolPanelCoordinator::panelChanged(const rtengine::ProcEvent &event,
         resize->write(params);
     }
 
+    lastNumericChangeFlags_ = changeFlags;
     ipc->endUpdateParams(changeFlags); // starts the IPC processing
 
     hasChanged = true;
@@ -1068,6 +1069,7 @@ art::liveparam::NumericApplyResult ToolPanelCoordinator::applyExternalNumeric(
     }
     listeners.restore();
     numericFullRefresh_ = toolWasToggled || !events.canUseSelectiveEvent();
+    lastNumericChangeFlags_ = 0;
     try {
         panelChanged(events.event, events.description.empty()
             ? Glib::ustring::format(result.value) : events.description);
@@ -1076,6 +1078,7 @@ art::liveparam::NumericApplyResult ToolPanelCoordinator::applyExternalNumeric(
         throw;
     }
     numericFullRefresh_ = false;
+    result.changeFlags = lastNumericChangeFlags_;
     result.error.clear();
     return result;
 }

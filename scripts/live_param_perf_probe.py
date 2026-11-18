@@ -148,12 +148,18 @@ class LiveParamClient:
     def rpc(self, request):
         if not self.persistent:
             self._connect()
+        req_id = request.get("requestId")
         data = json.dumps(request, ensure_ascii=False).encode("utf-8") + b"\n"
         self.sock.sendall(data)
         line = self.stream.readline()
         if not line:
             raise RuntimeError("Connection closed prematurely")
         reply = json.loads(line.decode("utf-8"))
+        if req_id is not None and reply.get("requestId") is not None:
+            if reply.get("requestId") != req_id:
+                raise RuntimeError(
+                    f"requestId mismatch: expected {req_id!r}, got {reply.get('requestId')!r}"
+                )
         if not self.persistent:
             self.close()
         return reply
@@ -201,8 +207,17 @@ def run_scenario(client, target, param_name, param_key, val_seq, is_initial,
             err_code = reply.get("error", {}).get("code")
             samples.append({
                 "requestId": req_id,
+                "sessionId": session_id,
+                "editorId": editor_id,
                 "param": param_name,
+                "paramKey": param_key,
                 "val": val,
+                "effectiveValue": None,
+                "baseRevision": base_rev,
+                "appliedRevision": None,
+                "viewRevision": None,
+                "renderedRevision": None,
+                "renderedViewRevision": None,
                 "status": reply.get("status"),
                 "error": err_code,
                 "applied_rtt_ms": (ca - c0) / 1e6,
@@ -222,10 +237,29 @@ def run_scenario(client, target, param_name, param_key, val_seq, is_initial,
                 base_rev = st.get("result", {}).get("renderedRevision", base_rev)
             continue
 
-        base_rev = reply["result"]["appliedRevision"]
+        res = reply.get("result", {})
+        if reply.get("sessionId") != session_id or reply.get("editorId") != editor_id:
+            raise RuntimeError(
+                f"APPLIED target mismatch for {req_id}: {reply.get('sessionId')}/{reply.get('editorId')}"
+            )
+        applied_rev = res.get("appliedRevision")
+        applied_view_rev = res.get("viewRevision")
+        eff_params = res.get("effectiveParams", {})
+        if applied_rev != base_rev + 1:
+            raise RuntimeError(
+                f"Unexpected appliedRevision for {req_id}: expected {base_rev + 1}, got {applied_rev}"
+            )
+        if param_key not in eff_params or not math.isfinite(float(eff_params[param_key])):
+            raise RuntimeError(f"Missing or non-finite effectiveParams[{param_key!r}] in {req_id}")
+        eff_val = float(eff_params[param_key])
+
+        base_rev = applied_rev
         polls = 0
         deadline = time.monotonic() + 30.0
         ready_found = False
+        final_view_rev = None
+        rendered_rev = None
+        rendered_view_rev = None
 
         while time.monotonic() < deadline:
             polls += 1
@@ -235,23 +269,46 @@ def run_scenario(client, target, param_name, param_key, val_seq, is_initial,
                 "op": "get_state",
                 "editorId": editor_id
             })
-            last = st.get("result", {}).get("lastMutation")
-            if last and last.get("previewStatus") == "READY" and last.get("appliedRevision") == base_rev:
+            if st.get("sessionId") != session_id:
+                raise RuntimeError(f"Session mismatch during poll for {req_id}: {st.get('sessionId')}")
+            st_res = st.get("result", {})
+            last = st_res.get("lastMutation")
+            cur_v = st_res.get("viewRevision")
+            r_rev = st_res.get("renderedRevision")
+            rv_rev = st_res.get("renderedViewRevision")
+            if (last and last.get("requestId") == req_id and
+                    last.get("previewStatus") == "READY" and
+                    last.get("appliedRevision") == applied_rev and
+                    r_rev == applied_rev and
+                    rv_rev is not None and rv_rev == cur_v and
+                    applied_view_rev is not None and rv_rev >= applied_view_rev):
                 ready_found = True
+                final_view_rev = cur_v
+                rendered_rev = r_rev
+                rendered_view_rev = rv_rev
                 break
             time.sleep(poll_interval_s)
 
         cr = time.perf_counter_ns()
         samples.append({
             "requestId": req_id,
+            "sessionId": session_id,
+            "editorId": editor_id,
             "param": param_name,
+            "paramKey": param_key,
             "val": val,
+            "effectiveValue": eff_val,
+            "baseRevision": applied_rev - 1,
+            "appliedRevision": applied_rev,
+            "viewRevision": applied_view_rev,
+            "finalViewRevision": final_view_rev,
+            "renderedRevision": rendered_rev,
+            "renderedViewRevision": rendered_view_rev,
             "status": "READY" if ready_found else "TIMEOUT",
             "error": None if ready_found else "TIMEOUT",
             "applied_rtt_ms": (ca - c0) / 1e6,
             "ready_rtt_ms": (cr - c0) / 1e6 if ready_found else None,
             "polls": polls,
-            "appliedRevision": base_rev,
             "c0": c0,
             "ca": ca,
             "cr": cr if ready_found else None,
@@ -261,11 +318,268 @@ def run_scenario(client, target, param_name, param_key, val_seq, is_initial,
     return samples
 
 
+REQUIRED_MUTATION_EVENTS = ("S0", "SQ", "SG", "SA", "SP", "SS", "SN", "SC", "SR")
+MONOTONIC_PAIRS = (
+    ("S0", "SQ"), ("SQ", "SG"), ("SG", "SA"), ("SA", "SP"), ("SP", "SS"),
+    ("SA", "SN"), ("SA", "SC"), ("SN", "SR"), ("SC", "SR"),
+)
+
+
+def validate_and_index_trace(trace_file, client_samples):
+    """Validate JSONL integrity, drops/writeErrors, identity/generation correlation and timing."""
+    errors = []
+    if not trace_file.exists():
+        if client_samples:
+            errors.append(f"Missing trace file: {trace_file}")
+        return errors, {}, {}, {}
+
+    events_by_cmd = {}
+    sa_by_req = {}
+    sr_by_req = {}
+    replay_cmds = set()
+    engine_stages = {}
+    crop_stages = {}
+
+    with open(trace_file, "r", encoding="utf-8") as f:
+        for lineno, raw_line in enumerate(f, start=1):
+            line = raw_line.strip()
+            if not line:
+                continue
+            try:
+                ev = json.loads(line)
+            except Exception as exc:
+                errors.append(f"trace line {lineno}: invalid JSON ({exc})")
+                continue
+            if not isinstance(ev, dict):
+                errors.append(f"trace line {lineno}: expected JSON object")
+                continue
+            ev_name = ev.get("event")
+            ts_ns = ev.get("timestamp_ns")
+            if not isinstance(ev_name, str) or not ev_name:
+                errors.append(f"trace line {lineno}: missing or invalid 'event'")
+                continue
+            if not isinstance(ts_ns, (int, float)) or isinstance(ts_ns, bool) or ts_ns <= 0:
+                errors.append(f"trace line {lineno}: invalid 'timestamp_ns' for {ev_name}")
+                continue
+            drops = ev.get("drops", 0)
+            write_errs = ev.get("writeErrors", 0)
+            if isinstance(drops, (int, float)) and drops > 0:
+                errors.append(f"trace line {lineno}: recorded dropped events drops={drops}")
+            if isinstance(write_errs, (int, float)) and write_errs > 0:
+                errors.append(f"trace line {lineno}: recorded write errors writeErrors={write_errs}")
+
+            if ev_name == "ENGINE_DONE":
+                gen = ev.get("generation")
+                if gen:
+                    engine_stages[gen] = ev.get("detail", "")
+                continue
+            if ev_name == "CROP_DONE":
+                gen = ev.get("generation")
+                detail = ev.get("detail", "")
+                if gen and ("crop:main=1" in detail or gen not in crop_stages):
+                    crop_stages[gen] = detail
+                continue
+            if ev_name == "ENGINE_CHANGE":
+                continue
+
+            cmd_id = ev.get("cmdId")
+            sess_id = ev.get("sessionId") or ""
+            req_id = ev.get("requestId")
+
+            if cmd_id:
+                cmd_key = (sess_id, int(cmd_id))
+                bucket = events_by_cmd.setdefault(cmd_key, {})
+                if ev_name == "REPLAY":
+                    replay_cmds.add(cmd_key)
+                if ev_name in bucket:
+                    errors.append(
+                        f"trace line {lineno}: duplicate event {ev_name} for cmd={cmd_key}"
+                    )
+                else:
+                    bucket[ev_name] = ev
+
+            if req_id:
+                if ev_name == "SA":
+                    lst = sa_by_req.setdefault(req_id, [])
+                    lst.append(ev)
+                    if len(lst) > 1:
+                        errors.append(f"trace line {lineno}: duplicate SA for requestId={req_id!r}")
+                elif ev_name == "SR":
+                    lst = sr_by_req.setdefault(req_id, [])
+                    lst.append(ev)
+                    if len(lst) > 1:
+                        errors.append(f"trace line {lineno}: duplicate SR for requestId={req_id!r}")
+
+    indexed_by_req = {}
+    for sample in client_samples:
+        req_id = sample.get("requestId")
+        if not req_id:
+            errors.append("client sample missing requestId")
+            continue
+        if sample.get("status") != "READY":
+            continue
+
+        sa_list = sa_by_req.get(req_id, [])
+        if len(sa_list) != 1:
+            errors.append(
+                f"requestId={req_id!r}: expected exactly 1 SA event, found {len(sa_list)}"
+            )
+            continue
+        sa_ev = sa_list[0]
+        cmd_id = sa_ev.get("cmdId")
+        sess_id = sa_ev.get("sessionId") or ""
+        if not cmd_id:
+            errors.append(f"requestId={req_id!r}: SA missing cmdId")
+            continue
+        cmd_key = (sess_id, int(cmd_id))
+        if cmd_key in replay_cmds:
+            errors.append(f"requestId={req_id!r}: REPLAY collided with primary cmd={cmd_key}")
+            continue
+        cmd_events = events_by_cmd.get(cmd_key, {})
+
+        # Collect SN/SC/SR: prefer same cmdId, fallback to matching requestId if needed
+        merged = dict(cmd_events)
+        for ev_name in ("SN", "SC", "SR"):
+            if ev_name not in merged and ev_name == "SR":
+                sr_list = sr_by_req.get(req_id, [])
+                if len(sr_list) == 1:
+                    merged["SR"] = sr_list[0]
+
+        missing = [e for e in REQUIRED_MUTATION_EVENTS if e not in merged]
+        if missing:
+            errors.append(
+                f"requestId={req_id!r} (cmd={cmd_key}): missing trace events {missing}"
+            )
+            continue
+
+        exp_sess = sample.get("sessionId")
+        exp_ed = sample.get("editorId")
+        exp_rev = sample.get("appliedRevision")
+        exp_sa_vrev = sample.get("viewRevision")
+        exp_fin_vrev = sample.get("renderedViewRevision")
+
+        for ev_name in REQUIRED_MUTATION_EVENTS:
+            ev = merged[ev_name]
+            ev_req = ev.get("requestId")
+            if ev_req != req_id:
+                errors.append(
+                    f"requestId={req_id!r}: {ev_name}.requestId mismatch ({ev_req!r})"
+                )
+            if exp_sess and ev.get("sessionId") != exp_sess:
+                errors.append(
+                    f"requestId={req_id!r}: {ev_name}.sessionId mismatch "
+                    f"({ev.get('sessionId')!r} != {exp_sess!r})"
+                )
+        for ev_name in ("SA", "SN", "SC", "SR"):
+            ev = merged[ev_name]
+            if exp_ed and ev.get("editorId") != exp_ed:
+                errors.append(
+                    f"requestId={req_id!r}: {ev_name}.editorId mismatch "
+                    f"({ev.get('editorId')!r} != {exp_ed!r})"
+                )
+            if exp_rev is not None and ev.get("editRev") != exp_rev:
+                errors.append(
+                    f"requestId={req_id!r}: {ev_name}.editRev mismatch "
+                    f"({ev.get('editRev')} != {exp_rev})"
+                )
+
+        if exp_sa_vrev is not None and merged["SA"].get("viewRev") != exp_sa_vrev:
+            errors.append(
+                f"requestId={req_id!r}: SA.viewRev mismatch "
+                f"({merged['SA'].get('viewRev')} != {exp_sa_vrev})"
+            )
+        if exp_fin_vrev is not None:
+            for ev_name in ("SC", "SR"):
+                if merged[ev_name].get("viewRev") != exp_fin_vrev:
+                    errors.append(
+                        f"requestId={req_id!r}: {ev_name}.viewRev mismatch "
+                        f"({merged[ev_name].get('viewRev')} != {exp_fin_vrev})"
+                    )
+
+        sa_gen = merged["SA"].get("generation") or 0
+        sn_gen = merged["SN"].get("generation") or 0
+        sc_gen = merged["SC"].get("generation") or 0
+        sr_gen = merged["SR"].get("generation") or 0
+        if not (sr_gen > 0 and sn_gen == sr_gen and sc_gen == sr_gen and sr_gen >= sa_gen):
+            errors.append(
+                f"requestId={req_id!r}: generation mismatch "
+                f"SA={sa_gen}, SN={sn_gen}, SC={sc_gen}, SR={sr_gen}"
+            )
+
+        if sample.get("effectiveValue") is None or not math.isfinite(float(sample["effectiveValue"])):
+            errors.append(f"requestId={req_id!r}: missing finite effectiveValue")
+
+        for earlier, later in MONOTONIC_PAIRS:
+            t1 = merged[earlier]["timestamp_ns"]
+            t2 = merged[later]["timestamp_ns"]
+            if t1 > t2:
+                errors.append(
+                    f"requestId={req_id!r}: non-monotonic timestamp {earlier}({t1}) > {later}({t2})"
+                )
+
+        indexed_by_req[req_id] = merged
+
+    return errors, indexed_by_req, engine_stages, crop_stages
+
+
+def validate_directory(dir_path):
+    """Validate an existing perf output directory and raise SystemExit(1) on any error."""
+    target = Path(dir_path).resolve()
+    client_file = target / "client.jsonl"
+    trace_file = target / "trace.jsonl"
+    manifest_file = target / "manifest.json"
+    errors = []
+    client_samples = []
+    if not client_file.exists():
+        errors.append(f"Missing client.jsonl: {client_file}")
+    else:
+        with open(client_file, "r", encoding="utf-8") as f:
+            for lineno, raw in enumerate(f, start=1):
+                s = raw.strip()
+                if not s:
+                    continue
+                try:
+                    obj = json.loads(s)
+                    if not isinstance(obj, dict):
+                        errors.append(f"client line {lineno}: expected JSON object")
+                    else:
+                        client_samples.append(obj)
+                except Exception as exc:
+                    errors.append(f"client line {lineno}: invalid JSON ({exc})")
+    trace_errors, indexed, engine_stages, crop_stages = validate_and_index_trace(
+        trace_file, client_samples
+    )
+    errors.extend(trace_errors)
+    if errors:
+        manifest = {}
+        if manifest_file.exists():
+            try:
+                manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
+            except Exception:
+                manifest = {"raw_manifest_corrupt": True}
+        manifest["status"] = "FAILED"
+        manifest["validation_error_count"] = len(errors)
+        manifest["validation_errors"] = errors[:50]
+        manifest_file.write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        print(f"VALIDATION FAILED ({len(errors)} error(s)):", file=sys.stderr)
+        for e in errors[:20]:
+            print(f"  - {e}", file=sys.stderr)
+        return False
+    print(
+        f"VALIDATION PASSED: {len(indexed)} READY samples, "
+        f"{len(engine_stages)} ENGINE_DONE, {len(crop_stages)} CROP_DONE"
+    )
+    return True
+
+
 def main():
     parser = argparse.ArgumentParser(description="LiveParam real-time numeric performance probe")
     parser.add_argument("--app", default=None, help="Path to test_liveparam_app or bundle")
     parser.add_argument("--raw", default="data/fivek_sample/sample1.nef", help="RAW file")
     parser.add_argument("--output-dir", default=None, help="Directory to save artifacts")
+    parser.add_argument("--validate-dir", default=None, help="Validate existing artifacts directory and exit")
     parser.add_argument("--mode", choices=["persistent", "client"], default="persistent")
     parser.add_argument("--repeats", type=int, default=10, help="Repeats per cell per batch")
     parser.add_argument("--batches", type=int, default=3, help="Number of independent batches")
@@ -273,6 +587,9 @@ def main():
                         help="Comma-separated params")
     parser.add_argument("--quick", action="store_true", help="Quick run with 1 batch and 5 repeats")
     args = parser.parse_args()
+
+    if args.validate_dir:
+        sys.exit(0 if validate_directory(args.validate_dir) else 1)
 
     root_dir = Path.cwd()
     if args.quick:
@@ -561,29 +878,16 @@ def main():
 
     print("\nBenchmark runs completed. Processing trace and generating reports...")
 
-    # Write client.jsonl
+    # Write client.jsonl (preserve raw data before validation)
     client_jsonl = out_dir / "client.jsonl"
     with open(client_jsonl, "w", encoding="utf-8") as f:
         for s in all_client_samples:
             f.write(json.dumps(s, ensure_ascii=False) + "\n")
 
-    # Read trace.jsonl and index events by requestId
-    server_events = {}
-    if trace_file.exists():
-        with open(trace_file, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    ev = json.loads(line)
-                    req_id = ev.get("requestId")
-                    if req_id:
-                        if req_id not in server_events:
-                            server_events[req_id] = {}
-                        server_events[req_id][ev.get("event")] = ev
-                except Exception:
-                    pass
+    # Validate trace.jsonl strictly against client_samples
+    trace_errors, server_events, engine_stages, crop_stages = validate_and_index_trace(
+        trace_file, all_client_samples
+    )
 
     # Merge into samples.csv
     samples_csv = out_dir / "samples.csv"
@@ -601,16 +905,24 @@ def main():
         sn = sev.get("SN", {}).get("timestamp_ns")
         sc = sev.get("SC", {}).get("timestamp_ns")
         sr = sev.get("SR", {}).get("timestamp_ns")
+        sr_gen = sev.get("SR", {}).get("generation")
 
         def delta_ms(t_end, t_start):
             return (t_end - t_start) / 1e6 if (t_end and t_start and t_end >= t_start) else None
 
         row = {
             "requestId": req_id,
+            "sessionId": s.get("sessionId"),
+            "editorId": s.get("editorId"),
             "batch": s["batch"],
             "cell_id": s["cell_id"],
             "param": s["param"],
+            "paramKey": s.get("paramKey"),
             "val": s["val"],
+            "effectiveValue": s.get("effectiveValue"),
+            "appliedRevision": s.get("appliedRevision"),
+            "viewRevision": s.get("renderedViewRevision"),
+            "generation": sr_gen,
             "zoom": s["zoom"],
             "cache": s["cache"],
             "hdr": s["hdr"],
@@ -627,6 +939,8 @@ def main():
             "sc_minus_sa_ms": delta_ms(sc, sa),
             "sr_minus_sa_ms": delta_ms(sr, sa),
             "polls": s["polls"],
+            "engine_stages": engine_stages.get(sr_gen, ""),
+            "crop_stages": crop_stages.get(sr_gen, ""),
         }
         csv_rows.append(row)
 
@@ -716,16 +1030,24 @@ def main():
         "mode": args.mode,
         "total_samples": len(all_client_samples),
         "total_cells": len(cells),
-        "pp_version": 1045
+        "pp_version": 1045,
+        "status": "FAILED" if trace_errors else "PASSED",
+        "validation_error_count": len(trace_errors),
+        "validation_errors": trace_errors[:50],
     }
     manifest_file = out_dir / "manifest.json"
     manifest_file.write_text(json.dumps(manifest, ensure_ascii=False, indent=2))
 
-    print(f"\nReport generated successfully at: {out_dir}")
+    print(f"\nReport generated at: {out_dir}")
     print(f"  - Manifest: {manifest_file.name}")
     print(f"  - Client events: {client_jsonl.name}")
     print(f"  - Samples CSV: {samples_csv.name}")
     print(f"  - Summary CSV: {summary_csv.name}")
+    if trace_errors:
+        print(f"FAILED: trace validation detected {len(trace_errors)} error(s):", file=sys.stderr)
+        for e in trace_errors[:20]:
+            print(f"  - {e}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
