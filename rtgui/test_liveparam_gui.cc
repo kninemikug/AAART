@@ -3524,6 +3524,21 @@ bool test_t26_perf_trace_harness(RTWindow *win, const std::string &workDir)
     // 8. Validate scripts/live_param_perf_probe.py --validate-dir (pass on valid subset, fail on corrupt/drops/missing SR)
     auto writeClientJsonl = [&](const std::string &dirPath) {
         g_mkdir_with_parents(dirPath.c_str(), 0700);
+        {
+            std::unique_ptr<cJSON, decltype(&cJSON_Delete)> mf(cJSON_CreateObject(), cJSON_Delete);
+            cJSON_AddStringToObject(mf.get(), "run_type", "contract_test");
+            cJSON_AddBoolToObject(mf.get(), "trace_enabled", true);
+            cJSON_AddNumberToObject(mf.get(), "expected_ready_count", 4);
+            auto *expReqs = cJSON_AddArrayToObject(mf.get(), "expected_request_ids");
+            cJSON_AddItemToArray(expReqs, cJSON_CreateString(specialReqId.c_str()));
+            cJSON_AddItemToArray(expReqs, cJSON_CreateString(panReqId.c_str()));
+            cJSON_AddItemToArray(expReqs, cJSON_CreateString(afterQReqId.c_str()));
+            cJSON_AddItemToArray(expReqs, cJSON_CreateString(restartReqId.c_str()));
+            char *mp = cJSON_Print(mf.get());
+            std::ofstream mff(dirPath + "/manifest.json");
+            mff << mp << "\n";
+            cJSON_free(mp);
+        }
         std::ofstream cf(dirPath + "/client.jsonl");
         auto emitSample = [&](const std::string &reqId, const std::string &sess,
                               const std::string &ed, int64_t rev, int64_t vrev, double val) {

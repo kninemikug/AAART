@@ -9,6 +9,7 @@ samples.csv, summary.csv를 생성한다.
 """
 
 import argparse
+from collections import Counter
 import csv
 import glob
 import hashlib
@@ -320,11 +321,319 @@ def run_scenario(client, target, param_name, param_key, val_seq, is_initial,
     return samples
 
 
+CORE_BOOST_SET = {
+    ("saturation", "100", 0, 0),
+    ("saturation", "100", 1, 1),
+    ("sharpening", "100", 0, 0),
+    ("sharpening", "100", 1, 1),
+}
+
 REQUIRED_MUTATION_EVENTS = ("S0", "SQ", "SG", "SA", "SP", "SS", "SN", "SC", "SR")
 MONOTONIC_PAIRS = (
     ("S0", "SQ"), ("SQ", "SG"), ("SG", "SA"), ("SA", "SP"), ("SP", "SS"),
     ("SA", "SN"), ("SA", "SC"), ("SN", "SR"), ("SC", "SR"),
 )
+
+
+def load_client_jsonl(client_file):
+    """Parse client.jsonl and validate per-sample schema and numeric finiteness."""
+    errors = []
+    client_samples = []
+    if not client_file.exists():
+        errors.append(f"Missing client.jsonl: {client_file}")
+        return client_samples, errors
+    with open(client_file, "r", encoding="utf-8") as f:
+        for lineno, raw in enumerate(f, start=1):
+            s = raw.strip()
+            if not s:
+                continue
+            try:
+                obj = json.loads(s)
+            except Exception as exc:
+                errors.append(f"client line {lineno}: invalid JSON ({exc})")
+                continue
+            if not isinstance(obj, dict):
+                errors.append(f"client line {lineno}: expected JSON object")
+                continue
+            req_id = obj.get("requestId")
+            status = obj.get("status")
+            if not isinstance(req_id, str) or not req_id:
+                errors.append(f"client line {lineno}: missing or invalid 'requestId'")
+                continue
+            if not isinstance(status, str) or not status:
+                errors.append(f"client line {lineno}: missing or invalid 'status' for {req_id!r}")
+                continue
+            if status == "READY":
+                for num_field in ("effectiveValue", "applied_rtt_ms", "ready_rtt_ms"):
+                    val = obj.get(num_field)
+                    if num_field in obj and val is not None:
+                        if not isinstance(val, (int, float)) or isinstance(val, bool) or not math.isfinite(float(val)):
+                            errors.append(
+                                f"client line {lineno} ({req_id}): non-finite {num_field}={val!r}"
+                            )
+            client_samples.append(obj)
+    return client_samples, errors
+
+
+def resolve_planned_batches(manifest):
+    """Resolve planned batch IDs from manifest, rejecting duplicate batch entries."""
+    errors = []
+    batches = manifest.get("batches")
+    merged_from = manifest.get("merged_from")
+    if isinstance(merged_from, list) and len(merged_from) > 1:
+        merged_batches = manifest.get("merged_batches")
+        if isinstance(merged_batches, list) and merged_batches:
+            batches = merged_batches
+        elif not (isinstance(batches, list) and len(batches) == len(merged_from)):
+            resolved = []
+            for d_str in merged_from:
+                src_mf_path = Path(d_str) / "manifest.json"
+                if not src_mf_path.exists():
+                    errors.append(f"Missing source batch manifest in merged_from: {src_mf_path}")
+                    continue
+                try:
+                    src_mf = json.loads(src_mf_path.read_text(encoding="utf-8"))
+                except Exception as exc:
+                    errors.append(f"Invalid source batch manifest {src_mf_path}: {exc}")
+                    continue
+                src_batches = src_mf.get("batches")
+                if not isinstance(src_batches, list) or not src_batches:
+                    errors.append(f"Source batch manifest missing batches list: {src_mf_path}")
+                    continue
+                resolved.extend(src_batches)
+            if not errors:
+                batches = resolved
+
+    if not isinstance(batches, list) or not batches:
+        errors.append("manifest missing non-empty 'batches' list")
+        return [], errors
+
+    clean_batches = []
+    seen = set()
+    for b in batches:
+        if not isinstance(b, int) or isinstance(b, bool):
+            errors.append(f"manifest contains non-integer batch id: {b!r}")
+            continue
+        if b in seen:
+            errors.append(f"duplicate planned batch id in manifest: {b}")
+            continue
+        seen.add(b)
+        clean_batches.append(b)
+    return clean_batches, errors
+
+
+def compute_expected_plan(manifest):
+    """Compute exact planned condition keys (batch, phase, cell_id) -> count from manifest."""
+    errors = []
+    expected = Counter()
+    if not isinstance(manifest, dict) or not manifest:
+        return expected, 0, ["Missing or empty manifest.json for perf_benchmark validation"]
+
+    params = manifest.get("parameters")
+    if not isinstance(params, list) or not params:
+        errors.append("manifest missing non-empty 'parameters' list")
+    elif len(params) != len(set(params)):
+        errors.append(f"manifest contains duplicate parameters: {params}")
+
+    batches, batch_errs = resolve_planned_batches(manifest)
+    errors.extend(batch_errs)
+
+    repeats = manifest.get("repeats_per_batch")
+    warm = manifest.get("warm_repeats_per_batch")
+    core_boost = manifest.get("core_boost_per_batch", 0)
+    if not isinstance(repeats, int) or isinstance(repeats, bool) or repeats <= 0:
+        errors.append(f"manifest invalid 'repeats_per_batch': {repeats!r}")
+    if not isinstance(warm, int) or isinstance(warm, bool) or warm < 0:
+        errors.append(f"manifest invalid 'warm_repeats_per_batch': {warm!r}")
+    if not isinstance(core_boost, int) or isinstance(core_boost, bool) or core_boost < 0:
+        errors.append(f"manifest invalid 'core_boost_per_batch': {core_boost!r}")
+
+    if errors:
+        return expected, 0, errors
+
+    for b in batches:
+        for hdr in (0, 1):
+            for denoise in (0, 1):
+                for zoom in ("fit", "100"):
+                    for p in params:
+                        cid_init = f"{p}_{zoom}_init_hdr{hdr}_dn{denoise}"
+                        expected[(b, "core_matrix", cid_init)] += repeats
+                        if warm > 0:
+                            cid_cache = f"{p}_{zoom}_cache_hdr{hdr}_dn{denoise}"
+                            expected[(b, "core_matrix", cid_cache)] += warm
+                        if core_boost > 0 and (p, zoom, hdr, denoise) in CORE_BOOST_SET:
+                            cid_cache = f"{p}_{zoom}_cache_hdr{hdr}_dn{denoise}"
+                            expected[(b, "core_boost", cid_cache)] += core_boost
+
+    return expected, sum(expected.values()), errors
+
+
+def validate_contract_test(manifest, client_samples):
+    """Validate explicit expectations for contract_test / stress runs separately from perf benchmarks."""
+    errors = []
+    has_ready_exp = "expected_ready_count" in manifest
+    has_req_exp = "expected_request_ids" in manifest
+    has_status_exp = "expected_statuses" in manifest
+    if not (has_ready_exp or has_req_exp or has_status_exp):
+        errors.append(
+            "contract_test manifest must declare at least one of "
+            "'expected_ready_count', 'expected_request_ids', or 'expected_statuses'"
+        )
+        return errors
+
+    seen_reqs = set()
+    actual_statuses = {}
+    ready_count = 0
+    for s in client_samples:
+        req_id = s.get("requestId")
+        if req_id in seen_reqs:
+            errors.append(f"duplicate requestId in client.jsonl: {req_id!r}")
+        else:
+            seen_reqs.add(req_id)
+            actual_statuses[req_id] = s.get("status")
+        if s.get("status") == "READY":
+            ready_count += 1
+
+    if has_ready_exp:
+        exp_ready = manifest["expected_ready_count"]
+        if ready_count != exp_ready:
+            errors.append(
+                f"contract_test expected_ready_count={exp_ready}, got {ready_count}"
+            )
+    if has_req_exp:
+        exp_reqs = manifest["expected_request_ids"]
+        if not isinstance(exp_reqs, list) or len(exp_reqs) != len(set(exp_reqs)):
+            errors.append("contract_test manifest has invalid or duplicate expected_request_ids")
+        elif set(exp_reqs) != seen_reqs:
+            missing = sorted(set(exp_reqs) - seen_reqs)
+            extra = sorted(seen_reqs - set(exp_reqs))
+            errors.append(
+                f"contract_test requestId mismatch (missing={missing}, extra={extra})"
+            )
+    if has_status_exp:
+        exp_statuses = manifest["expected_statuses"]
+        if not isinstance(exp_statuses, dict):
+            errors.append("contract_test expected_statuses must be a JSON object")
+        else:
+            for req_id, exp_st in exp_statuses.items():
+                got_st = actual_statuses.get(req_id)
+                if got_st != exp_st:
+                    errors.append(
+                        f"contract_test status mismatch for {req_id!r}: expected {exp_st!r}, got {got_st!r}"
+                    )
+    return errors
+
+
+def validate_perf_run(manifest, client_samples, samples_csv=None):
+    """Validate sample completeness, READY rate, no duplicates, and planned condition coverage."""
+    errors = []
+    if not isinstance(manifest, dict) or not manifest:
+        return ["Missing or invalid manifest.json"]
+
+    run_type = manifest.get("run_type") or "perf_benchmark"
+    if run_type not in ("perf_benchmark", "contract_test"):
+        return [f"Unknown manifest run_type={run_type!r}"]
+
+    for le in manifest.get("launch_errors") or []:
+        errors.append(f"launch error: {le}")
+
+    if run_type == "contract_test":
+        errors.extend(validate_contract_test(manifest, client_samples))
+        return errors
+
+    if not client_samples:
+        errors.append("empty client.jsonl (0 attempted samples)")
+        return errors
+
+    expected_counts, expected_total, plan_errors = compute_expected_plan(manifest)
+    errors.extend(plan_errors)
+
+    seen_reqs = set()
+    attempted_counts = Counter()
+    ready_counts = Counter()
+    ready_total = 0
+    non_ready_samples = []
+
+    for s in client_samples:
+        req_id = s.get("requestId")
+        if req_id in seen_reqs:
+            errors.append(f"duplicate requestId in client.jsonl: {req_id!r}")
+        else:
+            seen_reqs.add(req_id)
+
+        batch_val = s.get("batch")
+        phase_val = s.get("phase") or "core_matrix"
+        cell_val = s.get("cell_id")
+        if not isinstance(batch_val, int) or isinstance(batch_val, bool) or not cell_val:
+            errors.append(
+                f"sample {req_id!r} missing valid batch/cell_id metadata "
+                f"(batch={batch_val!r}, cell_id={cell_val!r})"
+            )
+            continue
+
+        key = (batch_val, phase_val, cell_val)
+        attempted_counts[key] += 1
+        if s.get("status") == "READY":
+            ready_total += 1
+            ready_counts[key] += 1
+        else:
+            non_ready_samples.append((req_id, key, s.get("status"), s.get("error")))
+
+    if ready_total == 0:
+        errors.append(f"0 READY samples out of {len(client_samples)} attempted samples")
+
+    for req_id, key, status, err in non_ready_samples[:20]:
+        errors.append(
+            f"non-READY sample {req_id!r} in {key}: status={status!r}, error={err!r}"
+        )
+    if len(non_ready_samples) > 20:
+        errors.append(f"... and {len(non_ready_samples) - 20} more non-READY sample(s)")
+
+    if not plan_errors:
+        if len(client_samples) != expected_total or ready_total != expected_total:
+            errors.append(
+                f"total sample count mismatch: planned={expected_total}, "
+                f"attempted={len(client_samples)}, ready={ready_total}"
+            )
+        missing_keys = sorted(set(expected_counts.keys()) - set(attempted_counts.keys()))
+        extra_keys = sorted(set(attempted_counts.keys()) - set(expected_counts.keys()))
+        if missing_keys:
+            errors.append(
+                f"missing {len(missing_keys)} planned condition(s), e.g. {missing_keys[:5]}"
+            )
+        if extra_keys:
+            errors.append(
+                f"found {len(extra_keys)} unexpected condition(s) beyond plan, e.g. {extra_keys[:5]}"
+            )
+        mismatched = []
+        for k in sorted(set(expected_counts.keys()) & set(attempted_counts.keys())):
+            exp_n = expected_counts[k]
+            att_n = attempted_counts[k]
+            rdy_n = ready_counts[k]
+            if att_n != exp_n or rdy_n != exp_n:
+                mismatched.append((k, exp_n, att_n, rdy_n))
+        for k, exp_n, att_n, rdy_n in mismatched[:15]:
+            errors.append(
+                f"condition count mismatch for {k}: planned={exp_n}, attempted={att_n}, ready={rdy_n}"
+            )
+        if len(mismatched) > 15:
+            errors.append(f"... and {len(mismatched) - 15} more condition count mismatch(es)")
+
+    if samples_csv is not None and samples_csv.exists():
+        try:
+            with open(samples_csv, "r", encoding="utf-8") as f:
+                csv_rows = list(csv.DictReader(f))
+            if len(csv_rows) != len(client_samples):
+                errors.append(
+                    f"samples.csv row count ({len(csv_rows)}) != client.jsonl count ({len(client_samples)})"
+                )
+            csv_reqs = [r.get("requestId") for r in csv_rows]
+            if len(csv_reqs) != len(set(csv_reqs)):
+                errors.append("duplicate requestId found in samples.csv")
+        except Exception as exc:
+            errors.append(f"failed reading samples.csv: {exc}")
+
+    return errors
 
 
 def validate_and_index_trace(trace_file, client_samples):
@@ -342,12 +651,14 @@ def validate_and_index_trace(trace_file, client_samples):
     engine_stages = {}
     crop_stages = {}
     current_session_id = ""
+    non_empty_lines = 0
 
     with open(trace_file, "r", encoding="utf-8") as f:
         for lineno, raw_line in enumerate(f, start=1):
             line = raw_line.strip()
             if not line:
                 continue
+            non_empty_lines += 1
             try:
                 ev = json.loads(line)
             except Exception as exc:
@@ -418,6 +729,10 @@ def validate_and_index_trace(trace_file, client_samples):
                     lst.append(ev)
                     if len(lst) > 1:
                         errors.append(f"trace line {lineno}: duplicate SR for requestId={req_id!r}")
+
+    if client_samples and non_empty_lines == 0:
+        errors.append(f"Empty trace file: {trace_file}")
+        return errors, {}, engine_stages, crop_stages
 
     indexed_by_req = {}
     for sample in client_samples:
@@ -531,53 +846,104 @@ def validate_and_index_trace(trace_file, client_samples):
     return errors, indexed_by_req, engine_stages, crop_stages
 
 
-def validate_directory(dir_path):
-    """Validate an existing perf output directory and raise SystemExit(1) on any error."""
+def evaluate_perf_artifacts(manifest, client_samples, client_parse_errors=None,
+                            trace_file=None, samples_csv=None, extra_perf_errors=None):
+    """Evaluate BOTH log integrity and performance run completeness under one shared rule set."""
+    log_errors = list(client_parse_errors or [])
+    trace_enabled = bool(manifest.get("trace_enabled", True)) if isinstance(manifest, dict) else True
+    indexed = {}
+    engine_stages = {}
+    crop_stages = {}
+
+    if trace_enabled and trace_file is not None:
+        t_errors, indexed, engine_stages, crop_stages = validate_and_index_trace(
+            trace_file, client_samples
+        )
+        log_errors.extend(t_errors)
+
+    perf_errors = list(extra_perf_errors or [])
+    perf_errors.extend(validate_perf_run(manifest, client_samples, samples_csv=samples_csv))
+
+    run_type = (manifest.get("run_type") or "perf_benchmark") if isinstance(manifest, dict) else "perf_benchmark"
+    log_ok = not log_errors
+    perf_ok = not perf_errors
+    all_errors = log_errors + perf_errors
+    ready_count = sum(1 for s in client_samples if s.get("status") == "READY")
+
+    result = {
+        "run_type": run_type,
+        "log_integrity_status": "PASSED" if log_ok else "FAILED",
+        "log_integrity_error_count": len(log_errors),
+        "log_integrity_errors": log_errors[:50],
+        "perf_run_status": "PASSED" if perf_ok else "FAILED",
+        "perf_run_error_count": len(perf_errors),
+        "perf_run_errors": perf_errors[:50],
+        "status": "PASSED" if (log_ok and perf_ok) else "FAILED",
+        "exit_code": 0 if (log_ok and perf_ok) else 1,
+        "validation_error_count": len(all_errors),
+        "validation_errors": all_errors[:50],
+        "attempted_samples": len(client_samples),
+        "ready_samples": ready_count,
+    }
+    return result, indexed, engine_stages, crop_stages
+
+
+def validate_directory(dir_path, update_manifest=False):
+    """Validate an existing perf output directory using identical integrity & completeness rules."""
     target = Path(dir_path).resolve()
     client_file = target / "client.jsonl"
     trace_file = target / "trace.jsonl"
+    samples_csv = target / "samples.csv"
     manifest_file = target / "manifest.json"
-    errors = []
-    client_samples = []
-    if not client_file.exists():
-        errors.append(f"Missing client.jsonl: {client_file}")
+
+    manifest = {}
+    manifest_errors = []
+    if not manifest_file.exists():
+        manifest_errors.append(f"Missing manifest.json: {manifest_file}")
     else:
-        with open(client_file, "r", encoding="utf-8") as f:
-            for lineno, raw in enumerate(f, start=1):
-                s = raw.strip()
-                if not s:
-                    continue
-                try:
-                    obj = json.loads(s)
-                    if not isinstance(obj, dict):
-                        errors.append(f"client line {lineno}: expected JSON object")
-                    else:
-                        client_samples.append(obj)
-                except Exception as exc:
-                    errors.append(f"client line {lineno}: invalid JSON ({exc})")
-    trace_errors, indexed, engine_stages, crop_stages = validate_and_index_trace(
-        trace_file, client_samples
+        try:
+            loaded = json.loads(manifest_file.read_text(encoding="utf-8"))
+            if not isinstance(loaded, dict):
+                manifest_errors.append(f"manifest.json must be a JSON object: {manifest_file}")
+            else:
+                manifest = loaded
+        except Exception as exc:
+            manifest_errors.append(f"Invalid JSON in manifest.json ({exc})")
+
+    client_samples, client_errors = load_client_jsonl(client_file)
+    trace_enabled = bool(manifest.get("trace_enabled", True))
+    eval_res, indexed, engine_stages, crop_stages = evaluate_perf_artifacts(
+        manifest=manifest,
+        client_samples=client_samples,
+        client_parse_errors=client_errors,
+        trace_file=trace_file if trace_enabled else None,
+        samples_csv=samples_csv if samples_csv.exists() else None,
+        extra_perf_errors=manifest_errors,
     )
-    errors.extend(trace_errors)
-    if errors:
-        manifest = {}
-        if manifest_file.exists():
-            try:
-                manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
-            except Exception:
-                manifest = {"raw_manifest_corrupt": True}
-        manifest["status"] = "FAILED"
-        manifest["validation_error_count"] = len(errors)
-        manifest["validation_errors"] = errors[:50]
+
+    if update_manifest:
+        out_manifest = dict(manifest)
+        out_manifest.update({k: v for k, v in eval_res.items() if k != "attempted_samples"})
         manifest_file.write_text(
-            json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+            json.dumps(out_manifest, ensure_ascii=False, indent=2), encoding="utf-8"
         )
-        print(f"VALIDATION FAILED ({len(errors)} error(s)):", file=sys.stderr)
-        for e in errors[:20]:
+
+    if eval_res["status"] != "PASSED":
+        print(
+            f"VALIDATION FAILED [{eval_res['run_type']}] "
+            f"(log_integrity={eval_res['log_integrity_status']}[{eval_res['log_integrity_error_count']}], "
+            f"perf_run={eval_res['perf_run_status']}[{eval_res['perf_run_error_count']}], "
+            f"attempted={eval_res['attempted_samples']}, ready={eval_res['ready_samples']}):",
+            file=sys.stderr,
+        )
+        for e in eval_res["validation_errors"][:25]:
             print(f"  - {e}", file=sys.stderr)
         return False
+
     print(
-        f"VALIDATION PASSED: {len(indexed)} READY samples, "
+        f"VALIDATION PASSED [{eval_res['run_type']}]: "
+        f"log_integrity={eval_res['log_integrity_status']}, perf_run={eval_res['perf_run_status']}, "
+        f"{eval_res['ready_samples']}/{eval_res['attempted_samples']} READY samples, "
         f"{len(engine_stages)} ENGINE_DONE, {len(crop_stages)} CROP_DONE"
     )
     return True
@@ -1010,34 +1376,107 @@ def merge_batch_dirs(merge_dirs_csv, out_dir):
     assert dirs, "No directories passed to --merge-dirs"
     merged_rows = []
     merged_client = []
+    client_parse_errors = []
     source_manifests = []
-    trace_errors_all = []
-    for d in dirs:
-        mf = json.loads((d / "manifest.json").read_text(encoding="utf-8"))
-        source_manifests.append(mf)
-        if mf.get("trace_enabled", True):
-            if not validate_directory(d):
-                trace_errors_all.append(f"Batch validation failed: {d}")
-        with open(d / "samples.csv", "r", encoding="utf-8") as f:
-            merged_rows.extend(list(csv.DictReader(f)))
-        with open(d / "client.jsonl", "r", encoding="utf-8") as f:
-            for line in f:
-                s = line.strip()
-                if s:
-                    merged_client.append(json.loads(s))
+    merge_errors = []
+    log_errors_from_batches = []
+    seen_batches = set()
+    merged_batches = []
+    ref_mf = None
 
-    base0 = dict(source_manifests[0])
+    compare_keys = (
+        "parameters",
+        "repeats_per_batch",
+        "warm_repeats_per_batch",
+        "core_boost_per_batch",
+        "app_binary_sha256",
+        "git_commit",
+        "git_dirty",
+        "common_trace_patch_sha256",
+        "raw_file_sha256",
+        "profile_sha256",
+        "mode",
+        "poll_interval_s",
+        "startup_quiet_window_s",
+        "trace_enabled",
+    )
+
+    for d in dirs:
+        mf_path = d / "manifest.json"
+        if not mf_path.exists():
+            merge_errors.append(f"Batch missing manifest.json: {d}")
+            continue
+        try:
+            mf = json.loads(mf_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            merge_errors.append(f"Batch invalid manifest.json in {d}: {exc}")
+            continue
+        source_manifests.append(mf)
+
+        run_type = mf.get("run_type") or "perf_benchmark"
+        if run_type != "perf_benchmark":
+            merge_errors.append(f"Batch {d} has run_type={run_type!r}; cannot merge into perf_benchmark")
+
+        if not validate_directory(d, update_manifest=False):
+            merge_errors.append(f"Batch validation failed: {d}")
+
+        b_list, b_errs = resolve_planned_batches(mf)
+        for be in b_errs:
+            merge_errors.append(f"Batch {d}: {be}")
+        for b in b_list:
+            if b in seen_batches:
+                merge_errors.append(f"Duplicate batch id {b} across merge directories (at {d})")
+            else:
+                seen_batches.add(b)
+                merged_batches.append(b)
+
+        if ref_mf is None:
+            ref_mf = mf
+        else:
+            for k in compare_keys:
+                if mf.get(k) != ref_mf.get(k):
+                    merge_errors.append(
+                        f"Cross-batch mismatch for '{k}' in {d}: {mf.get(k)!r} != {ref_mf.get(k)!r}"
+                    )
+
+        samples_path = d / "samples.csv"
+        if samples_path.exists():
+            with open(samples_path, "r", encoding="utf-8") as f:
+                merged_rows.extend(list(csv.DictReader(f)))
+        else:
+            merge_errors.append(f"Batch missing samples.csv: {samples_path}")
+
+        csamples, cerrors = load_client_jsonl(d / "client.jsonl")
+        merged_client.extend(csamples)
+        client_parse_errors.extend([f"{d.name}: {e}" for e in cerrors])
+
+    base0 = dict(source_manifests[0]) if source_manifests else {}
     base0["run_id"] = out_dir.name
+    base0["run_type"] = "perf_benchmark"
     base0["date"] = time.strftime("%Y-%m-%d %H:%M:%S")
     base0["merged_from"] = [str(d) for d in dirs]
+    base0["batches"] = merged_batches
+    base0["merged_batches"] = merged_batches
     base0["batch_commits"] = [m.get("git_commit") for m in source_manifests]
     base0["batch_binary_sha256s"] = [m.get("app_binary_sha256") for m in source_manifests]
-    base0["status"] = "FAILED" if trace_errors_all else "PASSED"
-    base0["validation_error_count"] = len(trace_errors_all)
-    base0["validation_errors"] = trace_errors_all[:50]
+
+    eval_res, _, _, _ = evaluate_perf_artifacts(
+        manifest=base0,
+        client_samples=merged_client,
+        client_parse_errors=client_parse_errors + log_errors_from_batches,
+        trace_file=None,
+        extra_perf_errors=merge_errors,
+    )
+    base0.update({k: v for k, v in eval_res.items() if k != "attempted_samples"})
     write_perf_reports(out_dir, merged_rows, merged_client, base0)
-    print(f"Merged {len(dirs)} batch dirs -> {out_dir} ({len(merged_rows)} samples)")
-    if trace_errors_all:
+    print(
+        f"Merged {len(dirs)} batch dirs -> {out_dir} ({len(merged_rows)} samples, "
+        f"log_integrity={base0['log_integrity_status']}, perf_run={base0['perf_run_status']})"
+    )
+    if base0["status"] != "PASSED":
+        print(f"MERGE VALIDATION FAILED ({base0['validation_error_count']} error(s)):", file=sys.stderr)
+        for e in base0["validation_errors"][:25]:
+            print(f"  - {e}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -1064,7 +1503,7 @@ def main():
     args = parser.parse_args()
 
     if args.validate_dir:
-        sys.exit(0 if validate_directory(args.validate_dir) else 1)
+        sys.exit(0 if validate_directory(args.validate_dir, update_manifest=False) else 1)
 
     if args.merge_dirs:
         out_dir = Path(args.output_dir or "build/liveparam-perf-checks/merged").resolve()
@@ -1081,6 +1520,8 @@ def main():
         [int(x.strip()) for x in args.batch_ids.split(",") if x.strip()]
         if args.batch_ids else list(range(1, args.batches + 1))
     )
+    assert batch_id_list, "batches cannot be empty"
+    assert len(batch_id_list) == len(set(batch_id_list)), f"Duplicate batch ids: {batch_id_list}"
     warm_repeats = args.warm_repeats if args.warm_repeats is not None else args.repeats
     trace_enabled = not args.no_trace
 
@@ -1108,12 +1549,6 @@ def main():
     zoom_levels = ["fit", "100"]
     hdr_states = [0, 1]
     denoise_states = [0, 1]
-    core_boost_set = {
-        ("saturation", "100", 0, 0),
-        ("saturation", "100", 1, 1),
-        ("sharpening", "100", 0, 0),
-        ("sharpening", "100", 1, 1),
-    }
 
     trace_file = out_dir / "trace.jsonl"
     if trace_file.exists():
@@ -1133,49 +1568,44 @@ def main():
 
     all_client_samples = []
     profile_hashes = {}
+    launch_errors = []
 
-    for batch_idx in batch_id_list:
-        print(f"\n--- Batch {batch_idx} ---")
-        for hdr in hdr_states:
-            for denoise in denoise_states:
-                arp_text = build_arp_text(hdr, denoise)
-                profile_hashes[f"hdr{hdr}_dn{denoise}"] = hashlib.sha256(arp_text.encode("utf-8")).hexdigest()
-                for zoom in zoom_levels:
-                    for param_name in target_params:
-                        pool = param_pools[param_name]["values"]
-                        is_builtin = param_pools[param_name]["is_builtin"]
-                        for rep in range(args.repeats):
-                            init_val = pool[rep % len(pool)]
-                            collect_warm = (rep == args.repeats - 1)
-                            warm_vals = generate_distinct_values(pool, warm_repeats, avoid_value=init_val) if collect_warm else []
-                            extra_n = args.core_boost if (collect_warm and args.core_boost > 0 and (param_name, zoom, hdr, denoise) in core_boost_set) else 0
-                            last_warm = warm_vals[-1] if warm_vals else init_val
-                            boost_vals = generate_distinct_values(pool, extra_n, avoid_value=last_warm) if extra_n else []
+    try:
+        for batch_idx in batch_id_list:
+            print(f"\n--- Batch {batch_idx} ---")
+            for hdr in hdr_states:
+                for denoise in denoise_states:
+                    arp_text = build_arp_text(hdr, denoise)
+                    profile_hashes[f"hdr{hdr}_dn{denoise}"] = hashlib.sha256(arp_text.encode("utf-8")).hexdigest()
+                    for zoom in zoom_levels:
+                        for param_name in target_params:
+                            pool = param_pools[param_name]["values"]
+                            is_builtin = param_pools[param_name]["is_builtin"]
+                            for rep in range(args.repeats):
+                                init_val = pool[rep % len(pool)]
+                                collect_warm = (rep == args.repeats - 1)
+                                warm_vals = generate_distinct_values(pool, warm_repeats, avoid_value=init_val) if collect_warm else []
+                                extra_n = args.core_boost if (collect_warm and args.core_boost > 0 and (param_name, zoom, hdr, denoise) in CORE_BOOST_SET) else 0
+                                last_warm = warm_vals[-1] if warm_vals else init_val
+                                boost_vals = generate_distinct_values(pool, extra_n, avoid_value=last_warm) if extra_n else []
 
-                            work = out_dir / f"work_b{batch_idx}_hdr{hdr}_dn{denoise}_{zoom}_{param_name}_r{rep}"
-                            samples = run_single_launch(
-                                app_bin=app_bin, raw_path=raw_path, options_file=options_file,
-                                arp_text=arp_text, trace_file=trace_file, work_dir=work,
-                                mode=args.mode, zoom=zoom, hdr=hdr, denoise=denoise,
-                                batch_idx=batch_idx, param_name=param_name, init_val=init_val,
-                                warm_vals=warm_vals, core_boost_vals=boost_vals,
-                                poll_interval_s=poll_interval_s, is_builtin=is_builtin,
-                                trace_enabled=trace_enabled,
-                            )
-                            all_client_samples.extend(samples)
-                        sys.stdout.write(".")
-                        sys.stdout.flush()
+                                work = out_dir / f"work_b{batch_idx}_hdr{hdr}_dn{denoise}_{zoom}_{param_name}_r{rep}"
+                                samples = run_single_launch(
+                                    app_bin=app_bin, raw_path=raw_path, options_file=options_file,
+                                    arp_text=arp_text, trace_file=trace_file, work_dir=work,
+                                    mode=args.mode, zoom=zoom, hdr=hdr, denoise=denoise,
+                                    batch_idx=batch_idx, param_name=param_name, init_val=init_val,
+                                    warm_vals=warm_vals, core_boost_vals=boost_vals,
+                                    poll_interval_s=poll_interval_s, is_builtin=is_builtin,
+                                    trace_enabled=trace_enabled,
+                                )
+                                all_client_samples.extend(samples)
+                            sys.stdout.write(".")
+                            sys.stdout.flush()
+    except Exception as exc:
+        launch_errors.append(f"Benchmark launch interrupted: {exc}")
 
     print("\nBenchmark runs completed. Processing trace and generating reports...")
-
-    if trace_enabled:
-        trace_errors, server_events, engine_stages, crop_stages = validate_and_index_trace(
-            trace_file, all_client_samples
-        )
-    else:
-        trace_errors, server_events, engine_stages, crop_stages = [], {}, {}, {}
-
-    csv_rows = build_csv_rows(all_client_samples, server_events, engine_stages, crop_stages)
 
     git_commit = subprocess.check_output(["git", "-C", str(repo_dir), "rev-parse", "HEAD"], text=True).strip()
     dirty_lines = [
@@ -1187,6 +1617,7 @@ def main():
     real_bin = app_bin.resolve() if app_bin.is_symlink() else app_bin
     manifest = {
         "run_id": run_id,
+        "run_type": "perf_benchmark",
         "variant": args.variant,
         "date": time.strftime("%Y-%m-%d %H:%M:%S"),
         "repo_dir": str(repo_dir),
@@ -1218,22 +1649,32 @@ def main():
             "ART_LIVE_PARAM_TRACE": str(trace_file) if trace_enabled else None,
         },
         "pp_version": 1045,
-        "exit_code": 1 if trace_errors else 0,
-        "status": "FAILED" if trace_errors else "PASSED",
-        "validation_error_count": len(trace_errors),
-        "validation_errors": trace_errors[:50],
+        "launch_errors": launch_errors,
     }
 
+    eval_res, server_events, engine_stages, crop_stages = evaluate_perf_artifacts(
+        manifest=manifest,
+        client_samples=all_client_samples,
+        client_parse_errors=[],
+        trace_file=trace_file if trace_enabled else None,
+        extra_perf_errors=launch_errors,
+    )
+    csv_rows = build_csv_rows(all_client_samples, server_events, engine_stages, crop_stages)
+    manifest.update({k: v for k, v in eval_res.items() if k != "attempted_samples"})
     write_perf_reports(out_dir, csv_rows, all_client_samples, manifest)
 
     print(f"\nReport generated at: {out_dir}")
     print(f"  - Manifest: manifest.json (git_dirty={git_dirty})")
-    print(f"  - Client events: client.jsonl")
+    print(f"  - Client events: client.jsonl ({len(all_client_samples)} attempted)")
     print(f"  - Samples CSV: samples.csv ({len(csv_rows)} samples)")
     print(f"  - Summary CSV: summary.csv")
-    if trace_errors:
-        print(f"FAILED: trace validation detected {len(trace_errors)} error(s):", file=sys.stderr)
-        for e in trace_errors[:20]:
+    print(
+        f"  - Verdict: status={manifest['status']} "
+        f"(log_integrity={manifest['log_integrity_status']}, perf_run={manifest['perf_run_status']})"
+    )
+    if manifest["status"] != "PASSED":
+        print(f"FAILED: validation detected {manifest['validation_error_count']} error(s):", file=sys.stderr)
+        for e in manifest["validation_errors"][:25]:
             print(f"  - {e}", file=sys.stderr)
         sys.exit(1)
 
