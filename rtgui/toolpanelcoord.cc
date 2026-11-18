@@ -950,14 +950,24 @@ public:
         }
         const int action = rtengine::RefreshMapper::getInstance()->getAction(event);
         constexpr int kRenderStages =
-            rtengine::M_WHITEBALANCE | rtengine::M_PREPROC | rtengine::M_RAW |
-            rtengine::M_INIT | rtengine::M_SPOT | rtengine::M_LINDENOISE |
-            rtengine::M_HDR | rtengine::M_TRANSFORM | rtengine::M_BLURMAP |
-            rtengine::M_AUTOEXP | rtengine::M_RGBCURVE | rtengine::M_LUMACURVE |
-            rtengine::M_LUMINANCE | rtengine::M_COLOR;
+            rtengine::M_SPOT | rtengine::M_LINDENOISE | rtengine::M_HDR |
+            rtengine::M_BLURMAP | rtengine::M_AUTOEXP | rtengine::M_RGBCURVE |
+            rtengine::M_LUMACURVE | rtengine::M_LUMINANCE | rtengine::M_COLOR;
         constexpr int kDisallowedFlags =
-            rtengine::M_VOID | rtengine::M_MINUPDATE | rtengine::M_CROP | rtengine::M_MONITOR;
-        return (action & kRenderStages) != 0 && (action & kDisallowedFlags) == 0;
+            rtengine::M_WHITEBALANCE | rtengine::M_PREPROC | rtengine::M_RAW |
+            rtengine::M_INIT | rtengine::M_VOID | rtengine::M_MINUPDATE |
+            rtengine::M_CROP | rtengine::M_MONITOR;
+        if ((action & kRenderStages) == 0 || (action & kDisallowedFlags) != 0) {
+            return false;
+        }
+        if ((action & rtengine::M_HDR) && !(action & rtengine::M_LINDENOISE)) {
+            return false;
+        }
+        if ((action & rtengine::M_TRANSFORM) &&
+            !((action & rtengine::M_HDR) && (action & rtengine::M_LINDENOISE))) {
+            return false;
+        }
+        return true;
     }
 };
 
@@ -1068,7 +1078,11 @@ art::liveparam::NumericApplyResult ToolPanelCoordinator::applyExternalNumeric(
         throw;
     }
     listeners.restore();
-    numericFullRefresh_ = toolWasToggled || !events.canUseSelectiveEvent();
+    const bool selective =
+        !forceNumericFullRefresh_ && !toolWasToggled && events.canUseSelectiveEvent();
+    numericFullRefresh_ = !selective;
+    lastNumericUsedSelective_ = selective;
+    lastNumericEvent_ = selective ? events.event : rtengine::EvProfileChanged;
     lastNumericChangeFlags_ = 0;
     try {
         panelChanged(events.event, events.description.empty()

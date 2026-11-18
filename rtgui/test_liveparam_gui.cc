@@ -79,6 +79,25 @@ struct EditorPanelTestAccess {
     }
 };
 
+struct ToolPanelCoordinatorTestAccess {
+    static void setForceFullRefresh(ToolPanelCoordinator *coord, bool force)
+    {
+        coord->forceNumericFullRefresh_ = force;
+    }
+    static bool lastUsedSelective(const ToolPanelCoordinator *coord)
+    {
+        return coord->lastNumericUsedSelective_;
+    }
+    static int lastChangeFlags(const ToolPanelCoordinator *coord)
+    {
+        return coord->lastNumericChangeFlags_;
+    }
+    static rtengine::ProcEvent lastEvent(const ToolPanelCoordinator *coord)
+    {
+        return coord->lastNumericEvent_;
+    }
+};
+
 namespace art {
 namespace liveparam {
 struct LiveParamControllerTestAccess {
@@ -1531,6 +1550,35 @@ uint64_t frameHash(const Glib::RefPtr<Gdk::Pixbuf> &image)
     return hash;
 }
 
+int maxAbsDiffPixbuf(const Glib::RefPtr<Gdk::Pixbuf> &a,
+                      const Glib::RefPtr<Gdk::Pixbuf> &b)
+{
+    if (!a || !b) {
+        return -1;
+    }
+    if (a->get_width() != b->get_width() ||
+        a->get_height() != b->get_height() ||
+        a->get_n_channels() != b->get_n_channels() ||
+        a->get_bits_per_sample() != b->get_bits_per_sample()) {
+        return -1;
+    }
+    const int width = a->get_width();
+    const int height = a->get_height();
+    const int channels = a->get_n_channels();
+    int maxDiff = 0;
+    for (int y = 0; y < height; ++y) {
+        const auto *rowA = a->get_pixels() + y * a->get_rowstride();
+        const auto *rowB = b->get_pixels() + y * b->get_rowstride();
+        for (int x = 0; x < width * channels; ++x) {
+            const int diff = std::abs(int(rowA[x]) - int(rowB[x]));
+            if (diff > maxDiff) {
+                maxDiff = diff;
+            }
+        }
+    }
+    return maxDiff;
+}
+
 bool test_t11_delayed_frames(RTWindow *win, const std::string &dir)
 {
     std::cout << "[T11] Delayed actual frames and calculation generations" << std::endl;
@@ -2681,6 +2729,7 @@ bool test_t25_numeric_output(RTWindow *win, const std::string &directory)
     auto *processor = fixture.panel->getImageProcessor();
     ProcParams initial;
     processor->getCommittedParams(&initial);
+    const ProcParams cleanStart = initial;
     initial.saturation.enabled = initial.resize.enabled = initial.colorcorrection.enabled = false;
     initial.sharpening.method = "usm";
     initial.sharpening.enabled = false;
@@ -2759,6 +2808,332 @@ bool test_t25_numeric_output(RTWindow *win, const std::string &directory)
     const auto manualImage = directory + "/t25-manual.tif";
     GUI_ASSERT(fixture.panel->saveImmediately(manualImage, format) && equalTiffPixels(externalImage, manualImage),
                "external and manual native edits export identical pixels (max_abs_diff=0)");
+
+    // Part 2 (§10.2): Compare selective refresh vs forced full-refresh pixel-for-pixel
+    // on Navigator & main Crop across fit/100% and HDR/denoise combinations.
+    const auto sendSetParam = [&](const std::string &reqId, const std::string &controlId,
+                                  double value, bool enableTool, bool useContext) {
+        std::unique_ptr<cJSON, decltype(&cJSON_Delete)> root(cJSON_CreateObject(), cJSON_Delete);
+        cJSON_AddNumberToObject(root.get(), "protocolVersion", 1);
+        cJSON_AddStringToObject(root.get(), "requestId", reqId.c_str());
+        cJSON_AddStringToObject(root.get(), "op", "set_param");
+        cJSON_AddStringToObject(root.get(), "sessionId",
+                                LiveParamController::getInstance().getSessionId().c_str());
+        cJSON_AddStringToObject(root.get(), "editorId", fixture.panel->getEditorId().c_str());
+        cJSON_AddNumberToObject(root.get(), "baseRevision",
+                                static_cast<double>(fixture.field("revision")));
+        if (useContext) {
+            cJSON_AddStringToObject(root.get(), "contextId", tools->numericContext().c_str());
+            cJSON_AddBoolToObject(root.get(), "enableTool", enableTool);
+        } else if (enableTool) {
+            cJSON_AddBoolToObject(root.get(), "enableTool", true);
+        }
+        auto *paramsObj = cJSON_AddObjectToObject(root.get(), "params");
+        cJSON_AddNumberToObject(paramsObj, controlId.c_str(), value);
+        char *raw = cJSON_PrintUnformatted(root.get());
+        const std::string payload = raw ? raw : "";
+        if (raw) {
+            cJSON_free(raw);
+        }
+        return LiveParamController::getInstance().handleCommand(payload);
+    };
+
+    struct FrameCapture {
+        Glib::RefPtr<Gdk::Pixbuf> nav;
+        Glib::RefPtr<Gdk::Pixbuf> crop;
+    };
+    const auto captureReady = [&](int64_t expectedRev, FrameCapture &out,
+                                  const std::string &label) -> bool {
+        GUI_ASSERT(fixture.waitReady() && waitUntilIdle(fixture.panel),
+                   (label + ": READY and idle").c_str());
+        const int64_t actualRev = fixture.field("revision");
+        const int64_t expectedViewRev = fixture.field("viewRevision");
+        const auto navCtx = fixture.area()->getPreviewHandler()->getDisplayedContext();
+        const auto cropCtx = fixture.area()->mainCropWindow->cropHandler.getDisplayedContext();
+        const auto engineCtx = processor->getProcessingContext();
+        GUI_ASSERT(actualRev == expectedRev &&
+                   navCtx.editRevision == actualRev &&
+                   cropCtx.editRevision == actualRev &&
+                   navCtx.viewRevision == expectedViewRev &&
+                   cropCtx.viewRevision == expectedViewRev &&
+                   navCtx.generation > 0 && cropCtx.generation > 0 &&
+                   navCtx.generation == engineCtx.generation &&
+                   cropCtx.generation == engineCtx.generation,
+                   (label + ": displayed nav/crop generations and revisions match").c_str());
+        auto nav = fixture.area()->getPreviewHandler()->getDisplayedImage();
+        auto crop = fixture.area()->mainCropWindow->cropHandler.cropPixbuf;
+        GUI_ASSERT(nav && crop, (label + ": displayed pixbufs non-null").c_str());
+        out.nav = nav->copy();
+        out.crop = crop->copy();
+        return out.nav && out.crop;
+    };
+
+    const auto applyComboBaseline = [&](bool zoom100, bool hdrOn, bool dnOn,
+                                        bool resizeEnabled, const std::string &tag) -> bool {
+        ProcParams base = cleanStart;
+        base.saturation.enabled = true;
+        base.saturation.saturation = 0;
+        base.sharpening.enabled = true;
+        base.sharpening.method = "usm";
+        base.sharpening.radius = 0.5;
+        base.sharpening.amount = 200;
+        base.wb.enabled = true;
+        base.wb.method = WBParams::CUSTOM_TEMP;
+        base.wb.temperature = 5500;
+        base.exposure.enabled = true;
+        base.exposure.expcomp = 0.0;
+        base.fattal.enabled = hdrOn;
+        base.denoise.enabled = dnOn;
+        base.resize.enabled = resizeEnabled;
+        base.colorcorrection.enabled = false;
+        FullPartialProfile profile(base);
+        tools->profileChange(&profile, rtengine::EvProfileChanged, tag.c_str());
+        GUI_ASSERT(waitUntilIdle(fixture.panel), (tag + ": baseline profile settled").c_str());
+        auto *cropWin = fixture.area()->mainCropWindow;
+        if (zoom100) {
+            cropWin->cropHandler.setZoom(1000);
+        } else {
+            cropWin->zoomFit();
+        }
+        pumpGuiEvents(options.adjusterMaxDelay + 80);
+        const auto hqDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        while (cropWin->cropHandler.hasPendingNavigatorUpdate() &&
+               std::chrono::steady_clock::now() < hqDeadline) {
+            pumpGuiEvents(20);
+        }
+        GUI_ASSERT(!cropWin->cropHandler.hasPendingNavigatorUpdate() &&
+                   waitUntilIdle(fixture.panel) &&
+                   fixture.field("renderedRevision") == fixture.field("revision") &&
+                   fixture.field("renderedViewRevision") == fixture.field("viewRevision"),
+                   (tag + ": zoom settled").c_str());
+        int cx = 0, cy = 0, cw = 0, ch = 0, cskip = 0;
+        cropWin->cropHandler.getWindow(cx, cy, cw, ch, cskip);
+        if (zoom100) {
+            GUI_ASSERT(cskip == 1, (tag + ": 100% zoom has skip==1").c_str());
+        } else {
+            GUI_ASSERT(cskip > 1, (tag + ": fit zoom has skip>1").c_str());
+        }
+        return true;
+    };
+
+    struct SelectiveCase {
+        std::string name;
+        std::string tool;
+        std::string label;
+        double value;
+        bool expectSelective;
+    };
+    const SelectiveCase selectiveCases[] = {
+        {"saturation", "saturation", M("TP_SATURATION_SATURATION"), 35.0, true},
+        {"sharpening", "sharpening", M("TP_SHARPENING_RADIUS"), 1.2, true},
+        {"exposure", "exposure", M("TP_EXPOSURE_EXPCOMP"), 0.6, true},
+        {"wb_temp", "whitebalance", M("TP_WBALANCE_TEMPERATURE"), 6500.0, false},
+    };
+
+    int caseSeq = 0;
+    for (int z = 0; z < 2; ++z) {
+        const bool zoom100 = (z == 1);
+        for (int h = 0; h < 2; ++h) {
+            const bool hdrOn = (h == 1);
+            for (int d = 0; d < 2; ++d) {
+                const bool dnOn = (d == 1);
+                const std::string comboName =
+                    std::string(zoom100 ? "100pct" : "fit") + "_hdr" +
+                    (hdrOn ? "1" : "0") + "_dn" + (dnOn ? "1" : "0");
+                for (const auto &sc : selectiveCases) {
+                    const std::string label = comboName + "_" + sc.name;
+                    GUI_ASSERT(applyComboBaseline(zoom100, hdrOn, dnOn, false, label + "_sel"),
+                               (label + ": selective baseline ready").c_str());
+                    const Edit queryEdit{sc.tool, sc.label, NumericControl::Kind::ADJUSTER, 0, sc.value};
+                    const auto ctrl = find(queryEdit);
+                    GUI_ASSERT(ctrl.widget && ctrl.available,
+                               (label + ": target numeric control available").c_str());
+                    const int64_t revSelBefore = fixture.field("revision");
+                    const auto replySel = sendSetParam(
+                        "t25-sel-" + std::to_string(++caseSeq), ctrl.id, sc.value, false, true);
+                    GUI_ASSERT(replySel.find("\"status\":\"APPLIED\"") != std::string::npos,
+                               (label + ": selective APPLIED").c_str());
+                    GUI_ASSERT(ToolPanelCoordinatorTestAccess::lastUsedSelective(tools) ==
+                                   sc.expectSelective,
+                               (label + ": selective classification matches expectation").c_str());
+                    if (sc.expectSelective) {
+                        GUI_ASSERT(ToolPanelCoordinatorTestAccess::lastChangeFlags(tools) !=
+                                       rtengine::ALL,
+                                   (label + ": selective changeFlags != ALL").c_str());
+                    } else {
+                        GUI_ASSERT(ToolPanelCoordinatorTestAccess::lastChangeFlags(tools) ==
+                                       rtengine::ALL,
+                                   (label + ": fallback changeFlags == ALL").c_str());
+                    }
+                    FrameCapture selFrame;
+                    GUI_ASSERT(captureReady(revSelBefore + 1, selFrame, label + "_sel"),
+                               (label + ": selective frame captured").c_str());
+
+                    GUI_ASSERT(applyComboBaseline(zoom100, hdrOn, dnOn, false, label + "_full"),
+                               (label + ": full-refresh baseline ready").c_str());
+                    const int64_t revFullBefore = fixture.field("revision");
+                    ToolPanelCoordinatorTestAccess::setForceFullRefresh(tools, true);
+                    const auto replyFull = sendSetParam(
+                        "t25-full-" + std::to_string(caseSeq), ctrl.id, sc.value, false, true);
+                    ToolPanelCoordinatorTestAccess::setForceFullRefresh(tools, false);
+                    GUI_ASSERT(replyFull.find("\"status\":\"APPLIED\"") != std::string::npos,
+                               (label + ": full-refresh APPLIED").c_str());
+                    GUI_ASSERT(!ToolPanelCoordinatorTestAccess::lastUsedSelective(tools) &&
+                               ToolPanelCoordinatorTestAccess::lastChangeFlags(tools) ==
+                                   rtengine::ALL,
+                               (label + ": full reference forced ALL").c_str());
+                    FrameCapture fullFrame;
+                    GUI_ASSERT(captureReady(revFullBefore + 1, fullFrame, label + "_full"),
+                               (label + ": full frame captured").c_str());
+
+                    const int navDiff = maxAbsDiffPixbuf(selFrame.nav, fullFrame.nav);
+                    const int cropDiff = maxAbsDiffPixbuf(selFrame.crop, fullFrame.crop);
+                    if (navDiff != 0 || cropDiff != 0) {
+                        std::cerr << "DIFF DETAIL [" << label << "] prevdemo=" << int(options.prevdemo)
+                            << " navDiff=" << navDiff << " (" << selFrame.nav->get_width() << "x" << selFrame.nav->get_height()
+                            << " vs " << fullFrame.nav->get_width() << "x" << fullFrame.nav->get_height() << ")"
+                            << " cropDiff=" << cropDiff << " (" << selFrame.crop->get_width() << "x" << selFrame.crop->get_height()
+                            << " vs " << fullFrame.crop->get_width() << "x" << fullFrame.crop->get_height() << ")"
+                            << std::endl;
+                    }
+                    GUI_ASSERT(navDiff == 0 && cropDiff == 0,
+                               (label + ": selective vs full Navigator and main Crop max_abs_diff==0").c_str());
+                }
+            }
+        }
+    }
+
+    // Also verify fit->100% transition explicitly under the opposite prevdemo mode
+    // (PD_Fast vs PD_Sidecar) so both paths are covered in standalone T25 runs.
+    {
+        const auto savedPrevDemo = options.prevdemo;
+        options.prevdemo = (savedPrevDemo == PD_Fast) ? PD_Sidecar : PD_Fast;
+        const std::string tag = (options.prevdemo == PD_Fast) ? "pdfast_100pct_sat" : "pdsidecar_100pct_sat";
+        GUI_ASSERT(applyComboBaseline(false, false, false, false, tag + "_fit_warmup"),
+                   (tag + ": fit warmup ready").c_str());
+        GUI_ASSERT(applyComboBaseline(true, false, false, false, tag + "_sel_base"),
+                   (tag + ": 100% sel baseline ready").c_str());
+        const auto satC = find({"saturation", M("TP_SATURATION_SATURATION"),
+                                NumericControl::Kind::ADJUSTER, 0, 35.0});
+        GUI_ASSERT(satC.widget && satC.available, (tag + ": sat control available").c_str());
+        const int64_t revSel = fixture.field("revision");
+        const auto repSel = sendSetParam("t25-pd-sel", satC.id, 35.0, false, true);
+        GUI_ASSERT(repSel.find("\"status\":\"APPLIED\"") != std::string::npos &&
+                   ToolPanelCoordinatorTestAccess::lastUsedSelective(tools),
+                   (tag + ": selective applied").c_str());
+        FrameCapture fSel;
+        GUI_ASSERT(captureReady(revSel + 1, fSel, tag + "_sel"), (tag + ": sel captured").c_str());
+        GUI_ASSERT(applyComboBaseline(false, false, false, false, tag + "_fit_reset2"),
+                   (tag + ": fit reset2 ready").c_str());
+        GUI_ASSERT(applyComboBaseline(true, false, false, false, tag + "_full_base"),
+                   (tag + ": 100% full baseline ready").c_str());
+        const int64_t revFull = fixture.field("revision");
+        ToolPanelCoordinatorTestAccess::setForceFullRefresh(tools, true);
+        const auto repFull = sendSetParam("t25-pd-full", satC.id, 35.0, false, true);
+        ToolPanelCoordinatorTestAccess::setForceFullRefresh(tools, false);
+        GUI_ASSERT(repFull.find("\"status\":\"APPLIED\"") != std::string::npos &&
+                   !ToolPanelCoordinatorTestAccess::lastUsedSelective(tools),
+                   (tag + ": full applied").c_str());
+        FrameCapture fFull;
+        GUI_ASSERT(captureReady(revFull + 1, fFull, tag + "_full"), (tag + ": full captured").c_str());
+        const int nd = maxAbsDiffPixbuf(fSel.nav, fFull.nav);
+        const int cd = maxAbsDiffPixbuf(fSel.crop, fFull.crop);
+        options.prevdemo = savedPrevDemo;
+        GUI_ASSERT(nd == 0 && cd == 0,
+                   (tag + ": Navigator and Crop max_abs_diff==0").c_str());
+    }
+
+    // Fallback paths (tool enable, compound callback, M_VOID) + follow-up acceptance
+    GUI_ASSERT(applyComboBaseline(false, false, false, true, "t25_fallback"),
+               "fallback baseline ready");
+    const auto satCtrl = find({"saturation", M("TP_SATURATION_SATURATION"),
+                               NumericControl::Kind::ADJUSTER, 0, 15.0});
+    const auto ccCtrl = find({"colorcorrection", "", NumericControl::Kind::WHEEL, 1, 20.0});
+    const auto resizeCtrl = find({"resize", M("TP_RESIZE_W"), NumericControl::Kind::SPIN, 0, 960.0});
+    GUI_ASSERT(satCtrl.widget && ccCtrl.widget && resizeCtrl.widget,
+               "fallback controls found");
+
+    // 1. Tool enable on previously disabled sharpening
+    {
+        ProcParams disSharp = cleanStart;
+        disSharp.saturation.enabled = true;
+        disSharp.sharpening.enabled = false;
+        disSharp.colorcorrection.enabled = false;
+        FullPartialProfile pDis(disSharp);
+        tools->profileChange(&pDis, rtengine::EvProfileChanged, "t25 disable sharp");
+        GUI_ASSERT(waitUntilIdle(fixture.panel) &&
+                   fixture.field("renderedRevision") == fixture.field("revision") &&
+                   fixture.field("renderedViewRevision") == fixture.field("viewRevision"),
+                   "disabled sharpening baseline settled");
+        const auto disRadius = find({"sharpening", M("TP_SHARPENING_RADIUS"),
+                                     NumericControl::Kind::ADJUSTER, 0, 1.1});
+        const int64_t revBefore = fixture.field("revision");
+        const auto rep = sendSetParam("t25-fb-enable", disRadius.id, 1.1, true, true);
+        GUI_ASSERT(rep.find("\"status\":\"APPLIED\"") != std::string::npos &&
+                   !ToolPanelCoordinatorTestAccess::lastUsedSelective(tools) &&
+                   ToolPanelCoordinatorTestAccess::lastChangeFlags(tools) == rtengine::ALL,
+                   "enabling disabled tool forces ALL full refresh");
+        FrameCapture dummy;
+        GUI_ASSERT(captureReady(revBefore + 1, dummy, "fb_enable"),
+                   "tool-enable fallback READY");
+        const int64_t revFollow = fixture.field("revision");
+        const auto followCtrl = find({"saturation", M("TP_SATURATION_SATURATION"),
+                                      NumericControl::Kind::ADJUSTER, 0, 12.0});
+        GUI_ASSERT(sendSetParam("t25-fb-enable-follow", followCtrl.id, 12.0, false, true)
+                       .find("\"status\":\"APPLIED\"") != std::string::npos,
+                   "follow-up after tool-enable fallback APPLIED");
+        GUI_ASSERT(captureReady(revFollow + 1, dummy, "fb_enable_follow"),
+                   "follow-up after tool-enable fallback READY");
+    }
+
+    // 2. Compound callback (colorcorrection wheel)
+    {
+        GUI_ASSERT(applyComboBaseline(false, false, false, true, "t25_fb_compound"),
+                   "compound fallback baseline ready");
+        const auto wheelCtrl = find({"colorcorrection", "", NumericControl::Kind::WHEEL, 1, 20.0});
+        const int64_t revBefore = fixture.field("revision");
+        const auto rep = sendSetParam("t25-fb-compound", wheelCtrl.id, 20.0, true, true);
+        GUI_ASSERT(rep.find("\"status\":\"APPLIED\"") != std::string::npos &&
+                   !ToolPanelCoordinatorTestAccess::lastUsedSelective(tools) &&
+                   ToolPanelCoordinatorTestAccess::lastChangeFlags(tools) == rtengine::ALL,
+                   "compound callback forces ALL full refresh");
+        FrameCapture dummy;
+        GUI_ASSERT(captureReady(revBefore + 1, dummy, "fb_compound"),
+                   "compound fallback READY");
+        const auto satAfter = find({"saturation", M("TP_SATURATION_SATURATION"),
+                                    NumericControl::Kind::ADJUSTER, 0, 14.0});
+        const int64_t revFollow = fixture.field("revision");
+        GUI_ASSERT(sendSetParam("t25-fb-compound-follow", satAfter.id, 14.0, false, true)
+                       .find("\"status\":\"APPLIED\"") != std::string::npos,
+                   "follow-up after compound fallback APPLIED");
+        GUI_ASSERT(captureReady(revFollow + 1, dummy, "fb_compound_follow"),
+                   "follow-up after compound fallback READY");
+    }
+
+    // 3. M_VOID control on already-enabled Resize tool
+    {
+        GUI_ASSERT(applyComboBaseline(false, false, false, true, "t25_fb_mvoid"),
+                   "M_VOID fallback baseline ready");
+        const auto rwCtrl = find({"resize", M("TP_RESIZE_W"), NumericControl::Kind::SPIN, 0, 960.0});
+        const int64_t revBefore = fixture.field("revision");
+        const auto rep = sendSetParam("t25-fb-mvoid", rwCtrl.id, 960.0, false, true);
+        GUI_ASSERT(rep.find("\"status\":\"APPLIED\"") != std::string::npos &&
+                   !ToolPanelCoordinatorTestAccess::lastUsedSelective(tools) &&
+                   ToolPanelCoordinatorTestAccess::lastChangeFlags(tools) == rtengine::ALL,
+                   "M_VOID control forces ALL full refresh");
+        FrameCapture dummy;
+        GUI_ASSERT(captureReady(revBefore + 1, dummy, "fb_mvoid"),
+                   "M_VOID fallback READY");
+        const auto satAfter = find({"saturation", M("TP_SATURATION_SATURATION"),
+                                    NumericControl::Kind::ADJUSTER, 0, 16.0});
+        const int64_t revFollow = fixture.field("revision");
+        GUI_ASSERT(sendSetParam("t25-fb-mvoid-follow", satAfter.id, 16.0, false, true)
+                       .find("\"status\":\"APPLIED\"") != std::string::npos,
+                   "follow-up after M_VOID fallback APPLIED");
+        GUI_ASSERT(captureReady(revFollow + 1, dummy, "fb_mvoid_follow"),
+                   "follow-up after M_VOID fallback READY");
+    }
+
     fixture.panel->close();
     std::cout << "  -> [T25] PASSED! artifacts: " << directory << std::endl;
     return true;

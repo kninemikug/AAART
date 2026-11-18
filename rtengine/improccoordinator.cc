@@ -368,9 +368,9 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
                     autoContrast ? contrastThreshold : -1.0);
             }
 
-            // if a demosaic happened we should also call getimage later, so we
-            // need to set the M_INIT flag
-            todo |= M_INIT;
+            // if a demosaic happened we should also call getimage and downstream
+            // stages so intermediate preview buffers stay consistent
+            todo |= ALLNORAW;
             highDetailRawComputed = highDetailNeeded;
         }
 
