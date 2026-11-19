@@ -1069,10 +1069,21 @@ def generate_llm_response(
 
 
 
+_CITATION_MARKER = re.compile(r"\[(C\d+S\d+)\]")
+_CITATION_LIKE_MARKER = re.compile(r"\[\s*C\d+S\d+[^\]\r\n]*(?:\]|$)", re.MULTILINE | re.IGNORECASE)
+
+
+def citation_marker_ids(raw_answer: str) -> list[str]:
+    """본문에 실제로 사용한 인용 표식의 ID를 순서대로 읽는다."""
+    return _CITATION_MARKER.findall(raw_answer)
+
+
 def validate_and_format_citations(
     raw_answer: str,
     parsed_citation_ids: list[str],
     context_citations: dict[str, dict[str, Any]],
+    *,
+    strict_markers: bool = False,
 ) -> Tuple[str, str, list[dict[str, Any]]]:
     """3.4 인용 검증 및 stdout 포맷팅.
 
@@ -1082,8 +1093,10 @@ def validate_and_format_citations(
     if not raw_answer or not raw_answer.strip():
         raise ValueError("답변 문자열이 비어 있습니다.")
 
-    marker_matches = re.findall(r"\[(C\d+S\d+)\]", raw_answer)
-    marker_set = set(marker_matches)
+    if strict_markers and any(not _CITATION_MARKER.fullmatch(marker)
+                              for marker in _CITATION_LIKE_MARKER.findall(raw_answer)):
+        raise ValueError("인용 표식은 각각 [C1S1] 형식으로 작성해야 합니다.")
+    marker_set = set(citation_marker_ids(raw_answer))
     citation_set = set(parsed_citation_ids)
 
     # 1. 집합 일치 검사

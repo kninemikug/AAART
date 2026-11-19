@@ -1,0 +1,71 @@
+[
+  {
+    "id": "F01", "source_type": "rawpedia", "group_id": "rawpedia:Crop", "expected_status": "SUPPORTED",
+    "question": "RawTherapee에서 5:4 사용자 정의 크롭을 만들고, 모서리를 드래그할 때 같은 비율을 유지하려면 어떤 설정과 키를 써야 하나요?",
+    "expected_behavior": "Lock ratio를 끄고 폭·높이를 5:4로 설정한 뒤 Shift를 누르며 크기를 변경하는 절차를 RawTherapee 범위에서 설명한다.",
+    "evidence": [
+      {"doc_id": "rawpedia:Crop", "path": "data/rawpedia/Crop.md", "section": "Custom crop ratio", "quote": "To resize the crop while maintaining the custom ratio, hold the"}
+    ]
+  },
+  {
+    "id": "F02", "source_type": "rawpedia", "group_id": "rawpedia:Metadata_Copy_Mode", "expected_status": "SUPPORTED",
+    "question": "RawTherapee에서 IPTC 설명을 편집했는데 그대로 복사 모드로 저장하면 설명이 반영되나요? 수정 사항을 반영하는 모드와 GPS를 포함해 메타데이터를 전부 제거하는 모드의 차이도 알려 주세요.",
+    "expected_behavior": "Copy Unchanged, Apply Modifications, Strip All Metadata 세 가지를 구분하고 수정 사항과 GPS 제거 여부를 원문 범위에서 설명한다.",
+    "evidence": [
+      {"doc_id": "rawpedia:Metadata_Copy_Mode", "path": "data/rawpedia/Metadata_Copy_Mode.md", "section": "Metadata Copy Mode", "quote": "None of the metadata changes"}
+    ]
+  },
+  {
+    "id": "F03", "source_type": "rawpedia", "group_id": "rawpedia:Film_Negative", "expected_status": "SUPPORTED",
+    "question": "RawTherapee에서 같은 필름 롤을 여럿 보정할 때 Film Negative의 중성 지점에는 어떤 밝기 조건이 필요하고, 스팟 선택과 화이트밸런스는 어떤 순서가 권장되나요?",
+    "expected_behavior": "밝기가 다르고 클리핑되지 않은 중성 스팟을 고르며 그 뒤 화이트밸런스를 조정한다는 점과 동일 롤 프로필 재사용을 설명한다.",
+    "evidence": [
+      {"doc_id": "rawpedia:Film_Negative", "path": "data/rawpedia/Film_Negative.md", "section": "Usage", "quote": "The spots should differ in brightness, and should not be"}
+    ]
+  },
+  {
+    "id": "F04", "source_type": "rawpedia", "group_id": "rawpedia:Framing", "expected_status": "INSUFFICIENT_EVIDENCE",
+    "question": "RawPedia의 Framing 제한 문구만 보고, ART에서 그 기능이 처음 탑재된 정확한 버전과 현재 ART에서의 최대 업스케일 배율을 공식 동작으로 확인할 수 있나요?",
+    "expected_behavior": "RawTherapee 참고 범위를 밝히고 ART 최초 버전과 현재 한도를 근거 부족으로 처리한다.",
+    "evidence": [
+      {"doc_id": "rawpedia:Framing", "path": "data/rawpedia/Framing.md", "section": "Limitations", "quote": "Upscaling limit is 16x crop size"}
+    ]
+  },
+  {
+    "id": "F05", "source_type": "github", "group_id": "github:artraweditor/ART:issue:445", "expected_status": "SUPPORTED",
+    "question": "GitHub Issue #445 기준으로 ART 1.26.1에서 파라미터 조정 시 어떤 OS·언어 조합에서 충돌이 보고됐고, 수정에 대해 제보자가 실제로 확인한 범위는 어디까지인가요?",
+    "expected_behavior": "Windows 11·일본어 환경 및 제보자의 로컬 수정 빌드 확인을 함께 언급한다. 원인과 모든 환경에서의 해결을 단정하지 않는다.",
+    "evidence": [
+      {"doc_id": "issue:445", "path": "data/issues/snapshots/issues/445.json", "section": "/body", "quote": "Language: Japanese (ja_JP locale)"},
+      {"doc_id": "issue-comment:3882260754", "path": "data/issues/snapshots/issue-comments/3882260754.json", "section": "/body", "quote": "I built it in my local environment and confirmed that there are no crashes"}
+    ]
+  },
+  {
+    "id": "F06", "source_type": "github", "group_id": "github:artraweditor/ART:issue:518", "expected_status": "SUPPORTED",
+    "question": "ART GitHub의 macOS 기록에서 RAW 파일을 Finder에서 열면 ART는 실행되지만 파일이 열리지 않고, 터미널에서 파일을 인자로 주면 열렸던 사례가 있나요? 공백이 있는 경로에서 제보자가 발견한 단서와 후속 확인도 알려 주세요.",
+    "expected_behavior": "Finder와 터미널의 차이, 공백이 %20으로 보였던 관측, 후속 빌드에서 제보자가 확인한 결과를 해당 보고 범위에서 설명한다.",
+    "evidence": [
+      {"doc_id": "issue:518", "path": "data/issues/snapshots/issues/518.json", "section": "/body", "quote": "pass the file as an argument"},
+      {"doc_id": "issue-comment:5269564179", "path": "data/issues/snapshots/issue-comments/5269564179.json", "section": "/body", "quote": "a `%20` in place of the space"},
+      {"doc_id": "issue-comment:5277075153", "path": "data/issues/snapshots/issue-comments/5277075153.json", "section": "/body", "quote": "It does. Thanks!"}
+    ]
+  },
+  {
+    "id": "F07", "source_type": "github", "group_id": "github:artraweditor/ART:issue:522", "expected_status": "INSUFFICIENT_EVIDENCE",
+    "question": "GitHub Issue #522 스냅샷의 Windows ART 1.26.8 Canon CR3 배치 처리 파일 핸들 오류가 수정된 커밋 해시와 첫 배포 버전을 확인할 수 있나요?",
+    "expected_behavior": "보고 및 접수 사실만 제시할 수 있고 특정 수정 커밋과 첫 배포 버전은 근거 부족으로 처리한다.",
+    "evidence": [
+      {"doc_id": "issue:522", "path": "data/issues/snapshots/issues/522.json", "section": "/body", "quote": "file handle leak when batch-developing Canon CR3 files on Windows"},
+      {"doc_id": "issue-comment:5461739634", "path": "data/issues/snapshots/issue-comments/5461739634.json", "section": "/body", "quote": "Thanks for the detailed report, noted!"}
+    ]
+  },
+  {
+    "id": "F08", "source_type": "github", "group_id": "github:artraweditor/ART:issue:317", "expected_status": "UNSUPPORTED",
+    "question": "GitHub Issue #317에 나온 ART에서 Resize의 PPI 입력만 사용해서 내보낸 파일의 EXIF XResolution과 YResolution을 바꾸는 절차가 무엇인가요?",
+    "expected_behavior": "Resize의 PPI만으로 EXIF 태그를 변경하는 전제를 반박하고 PPI의 픽셀 크기 계산 용도와 태그 편집 위치를 구분한다.",
+    "evidence": [
+      {"doc_id": "issue-comment:2507526862", "path": "data/issues/snapshots/issue-comments/2507526862.json", "section": "/body", "quote": "The PPI value was never meant to affect metadata."},
+      {"doc_id": "issue-comment:2507526869", "path": "data/issues/snapshots/issue-comments/2507526869.json", "section": "/body", "quote": "you can edit the tags in the metadata tab"}
+    ]
+  }
+]

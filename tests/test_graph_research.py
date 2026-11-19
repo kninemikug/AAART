@@ -63,6 +63,27 @@ def request(text="노출 보정 방법을 알려줘", **fields):
             "capabilities": RuntimeCapabilities(search_ready=True), **fields}
 
 
+@pytest.mark.parametrize("original, rewritten, expected_queries", [
+    ("RawTherapee에서 5:4 크롭 비율은?", "RawTherapee 5:4 크롭 비율",
+     ["RawTherapee 5:4 Crop 비율", "RawTherapee에서 5:4 Crop 비율은?"]),
+    ("RawTherapee 5:4 크롭 비율", "RawTherapee 5:4 크롭 비율", ["RawTherapee 5:4 Crop 비율"]),
+])
+def test_research_avoids_repeat_query_with_rawpedia_ui_terms(original, rewritten, expected_queries):
+    from artagent.graph.research import create_research_node
+
+    nodes, _, observations, store = services(["INSUFFICIENT_EVIDENCE"] * 2)
+    generator = MagicMock(return_value=rewritten)
+    nodes.update(create_search_nodes(store, MagicMock(), generate=generator, rewrite_enabled=True,
+                                     rawpedia_ui_terms=True, recover_rewrite=True, observe=observations.append))
+    nodes["RESEARCH"] = create_research_node(generate=generator)
+
+    state = create_router_graph(nodes).invoke(request(original))
+
+    assert [obs["search_input"]["search_query"] for obs in observations] == expected_queries
+    assert state["response"].status == "INSUFFICIENT_EVIDENCE"
+    assert state["research_count"] == 1
+
+
 @pytest.mark.parametrize("text", ["노출 보정 방법을 알려줘", "GitHub Issue #524 크래시 원인?"])
 @pytest.mark.parametrize("rewrite_enabled", [False, True])
 @pytest.mark.parametrize("outcomes,searches,final_status", [

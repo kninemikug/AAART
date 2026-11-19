@@ -535,6 +535,35 @@ def test_marker_mismatch_rejected(tmp_path: Path) -> None:
     assert err.code == "ANSWER_CITATION_INVALID"
 
 
+@pytest.mark.parametrize("body, reported, valid", [
+    ("확인된 내용 [C1S1].", ["C1S1", "C1S2"], True),
+    ("확인된 내용 [C1S1] [C1S1].", [], True),
+    ("확인된 내용 [C1S1]과 미지의 내용 [C9S9].", ["C1S1"], False),
+    ("확인된 내용 [C1S1]과 미지의 내용 [c9s9].", ["C1S1"], False),
+    ("확인된 내용 [C1S1]과 조합 표식 [C1S1, C9S9].", ["C1S1"], False),
+    ("표식이 없는 답변.", ["C1S1"], False),
+])
+def test_citation_ids_can_be_assembled_from_verified_body_markers(tmp_path, body, reported, valid):
+    path = "data/rawpedia/sample.md"
+    text = "Sample text."
+    _, file_sha = _setup_mock_source_file(tmp_path, path, text)
+    hit = _make_evidence(source_path=path, text=text, source_file_sha=file_sha)
+    bundle = RetrievalBundle(query="q", source_filter="RAWPEDIA", hits=[hit])
+
+    answer, error = answer_standalone(
+        query="test", bundle=bundle, source_root=tmp_path, assemble_citations=True,
+        generate=lambda *_: json.dumps({"status": "UNSUPPORTED", "answer": body, "citation_ids": reported}),
+    )
+
+    if valid:
+        assert error is None
+        assert len(answer.citations) == 1
+        assert "[C1S1]" not in answer.text
+    else:
+        assert answer is None
+        assert error.code == "ANSWER_CITATION_INVALID"
+
+
 def test_generation_timeout_or_error_handled(tmp_path: Path) -> None:
     rel_path = "data/rawpedia/sample.md"
     text = "Sample text."

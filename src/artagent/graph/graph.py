@@ -114,6 +114,12 @@ def route_after_answer(state: AgentState) -> str:
 def route_after_research(state: AgentState) -> str:
     if state.get("error"):
         return "FALLBACK"
+    # 중복 검색을 생략한 경우 첫 근거 부족 답변을 그대로 확정한다.
+    settings = state.get("search_settings") or {}
+    if (state.get("research_input") is None and state.get("answer") is not None
+            and state.get("research_count") == 1
+            and (settings.get("rawpedia_ui_terms") or settings.get("recover_rewrite"))):
+        return "FALLBACK"
     cursor = state.get("cursor", 0)
     step = state["decision"].plan[cursor]
     if step.path == Path.DOC_QA:

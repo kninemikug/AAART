@@ -16,7 +16,10 @@ from ..retrieval.store import RetrievalStore
 from ..retrieval.types import SearchHit
 from ..retrieval.provenance import canonical_json_str, sha256_str
 from ..retrieval.rerank import RerankResult, rerank_candidates, fusion_score
-from .rewrite import build_preservation_constraints, prepare_search_input
+from .rewrite import (
+    SearchInput, build_preservation_constraints, normalize_query, prepare_search_input,
+    validate_identifier_preservation,
+)
 from .state import AgentState, ErrorInfo, Evidence, RetrievalBundle
 
 # GitHub Issue / Discussion URL and keyword patterns
@@ -36,6 +39,43 @@ _RE_GH_DISC_KW = re.compile(
     r"(?:(?:GitHub\s*)?Discussion|디스커션)\s*#?(\d+)",
     re.IGNORECASE,
 )
+
+# RawPedia 영문 문서 제목과 한국어 UI·질문에서 사용하는 명칭을 대응시킨다.
+_RAWPEDIA_UI_TERMS = {
+    "크롭": "Crop",
+    "잘라내기": "Crop",
+    "다크 프레임": "Dark-Frame",
+    "다크프레임": "Dark-Frame",
+    "사이드카": "Sidecar",
+    "처리 프로필": "Processing Profiles",
+}
+_RE_RAWPEDIA_UI_TERM = re.compile(
+    r"(?<![\w./%+-])(?:" + "|".join(map(re.escape, _RAWPEDIA_UI_TERMS)) + r")(?![A-Za-z0-9_./%+-])"
+)
+
+
+def use_rawpedia_ui_terms(query: str) -> str:
+    """검색어의 확인된 도구명을 영문으로 맞추고 원문 식별값을 보존한다."""
+    matched = _RE_RAWPEDIA_UI_TERM.sub(lambda match: _RAWPEDIA_UI_TERMS[match.group()], query)
+    if matched != query and validate_identifier_preservation(query, matched)[0]:
+        return matched
+    return query
+
+
+def prepare_retrieval_input(
+    query: str, *, generate: Optional[Callable[[str], str]], rewrite_enabled: bool,
+    hyde_enabled: bool, constraints: tuple[str, ...], settings: dict[str, Any],
+) -> SearchInput:
+    """재작성의 실제 판정을 보존하며 그래프의 검색어를 준비한다."""
+    prepared = prepare_search_input(query, generate=generate, rewrite_enabled=rewrite_enabled,
+                                    hyde_enabled=hyde_enabled, constraints=constraints)
+    if (settings.get("recover_rewrite") and not hyde_enabled
+            and prepared.status == "error" and prepared.rewrite_result is not None):
+        prepared = replace(prepared, search_query=normalize_query(query), status="success",
+                           error_category=None, error_message=None)
+    if settings.get("rawpedia_ui_terms") and prepared.status == "success":
+        prepared = replace(prepared, search_query=use_rawpedia_ui_terms(prepared.search_query))
+    return prepared
 
 
 def resolve_github_targets(query: str, request_text: str = "") -> Optional[list[str]]:
@@ -157,6 +197,8 @@ def create_search_rawpedia_node(
     top_k: int = 5,
     min_score: Optional[float] = None,
     rerank_weight: float = 1.0,
+    rawpedia_ui_terms: bool = False,
+    recover_rewrite: bool = False,
     observe: Optional[Callable[[dict[str, Any]], None]] = None,
 ) -> Callable[[AgentState], dict[str, Any]]:
     """SEARCH_RAWPEDIA 노드 팩토리. 비저하 채택 전에는 재작성을 명시적으로 켠다."""
@@ -174,6 +216,8 @@ def create_search_rawpedia_node(
         top_k=top_k,
         min_score=min_score,
         rerank_weight=rerank_weight,
+        rawpedia_ui_terms=rawpedia_ui_terms,
+        recover_rewrite=recover_rewrite,
         observe=observe,
     )
 
@@ -191,6 +235,7 @@ def create_search_github_node(
     top_k: int = 5,
     min_score: Optional[float] = None,
     rerank_weight: float = 1.0,
+    recover_rewrite: bool = False,
     observe: Optional[Callable[[dict[str, Any]], None]] = None,
 ) -> Callable[[AgentState], dict[str, Any]]:
     """SEARCH_GITHUB 노드 팩토리."""
@@ -208,6 +253,7 @@ def create_search_github_node(
         top_k=top_k,
         min_score=min_score,
         rerank_weight=rerank_weight,
+        recover_rewrite=recover_rewrite,
         observe=observe,
     )
 
@@ -226,6 +272,8 @@ def _create_search_node(
     top_k: int = 5,
     min_score: Optional[float] = None,
     rerank_weight: float = 1.0,
+    rawpedia_ui_terms: bool = False,
+    recover_rewrite: bool = False,
     observe: Optional[Callable[[dict[str, Any]], None]],
 ) -> Callable[[AgentState], dict[str, Any]]:
     """검색 관측은 state 밖으로 전달하며 원본 SearchHit을 손실 없이 보존한다."""
@@ -246,6 +294,10 @@ def _create_search_node(
         "min_score": min_score, "rerank_weight": rerank_weight,
         "reranker_id": str(getattr(reranker, "model_id", "unknown")) if reranker is not None else None,
     }
+    if rawpedia_ui_terms and not hyde_enabled:
+        settings["rawpedia_ui_terms"] = True
+    if recover_rewrite and not hyde_enabled:
+        settings["recover_rewrite"] = True
 
     def search(state: AgentState) -> dict[str, Any]:
         node_name = "SEARCH_RAWPEDIA" if source_type == "rawpedia" else "SEARCH_GITHUB"
@@ -278,9 +330,9 @@ def _create_search_node(
                     and state.get("research_step_id") == decision.plan[cursor].step_id):
                 return {"error": ErrorInfo("CONTRACT_VIOLATION", "할당된 재검색의 준비 기록 누락", node_name),
                         "trace": trace}
-            search_input = prepare_search_input(
+            search_input = prepare_retrieval_input(
                 step_query, generate=generate, rewrite_enabled=rewrite_enabled,
-                hyde_enabled=hyde_enabled, constraints=constraints,
+                hyde_enabled=hyde_enabled, constraints=constraints, settings=settings,
             )
 
         hits: list[SearchHit] = []
@@ -407,6 +459,8 @@ def create_search_nodes(
     top_k: int = 5,
     min_score: Optional[float] = None,
     rerank_weight: float = 1.0,
+    rawpedia_ui_terms: bool = False,
+    recover_rewrite: bool = False,
     observe: Optional[Callable[[dict[str, Any]], None]] = None,
 ) -> dict[str, Callable[[AgentState], dict[str, Any]]]:
     """SEARCH_RAWPEDIA 및 SEARCH_GITHUB 노드 override 매핑 생성."""
@@ -423,6 +477,8 @@ def create_search_nodes(
             top_k=top_k,
             min_score=min_score,
             rerank_weight=rerank_weight,
+            rawpedia_ui_terms=rawpedia_ui_terms,
+            recover_rewrite=recover_rewrite,
             observe=observe,
         ),
         "SEARCH_GITHUB": create_search_github_node(
@@ -437,6 +493,7 @@ def create_search_nodes(
             top_k=top_k,
             min_score=min_score,
             rerank_weight=rerank_weight,
+            recover_rewrite=recover_rewrite,
             observe=observe,
         ),
     }
