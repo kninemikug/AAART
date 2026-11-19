@@ -94,7 +94,8 @@ def json_rewrite_prompt(prompt):
             'Do not include explanations, notes, markdown, or citations.' + second_rule + remaining)
 
 
-def evaluate(store, encoder, snapshot_sha, reranker, qid, case, *, live, live_rewrite=False, search_config=None):
+def evaluate(store, encoder, snapshot_sha, reranker, qid, case, *, live, live_rewrite=False,
+             search_config=None, assemble_citations=False):
     searches, answers, rewrite_prompts, rewrite_requests, rewrite_calls = [], [], [], [], []
 
     def rewrite(prompt):
@@ -125,9 +126,11 @@ def evaluate(store, encoder, snapshot_sha, reranker, qid, case, *, live, live_re
         store, encoder, generate=rewrite, snapshot_ref=snapshot_sha, rewrite_enabled=True,
         reranker=reranker, observe=searches.append, **search_config,
     )
-    graph = create_router_graph({**search_nodes,
-                                 "ANSWER": create_answer_node(source_root=ROOT, observe=answers.append),
-                                 "RESEARCH": create_research_node(generate=rewrite)})
+    graph = create_router_graph({
+        **search_nodes,
+        "ANSWER": create_answer_node(source_root=ROOT, observe=answers.append, assemble_citations=assemble_citations),
+        "RESEARCH": create_research_node(generate=rewrite),
+    })
     request = RequestInput(request_id=qid, text=case["question"])
     started = perf_counter()
     with generation_time_budget(120):

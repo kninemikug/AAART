@@ -1,11 +1,12 @@
 """근거 부족에 한정한 요청당 1회 추가 검색 입력 준비."""
 
-from dataclasses import asdict
+from dataclasses import asdict, replace
 import json
 from typing import Any, Callable, Optional
 
 from ..retrieval.provenance import canonical_json_str, sha256_str
-from .rewrite import SearchInput, prepare_search_input
+from .rewrite import SearchInput, normalize_query
+from .search import prepare_retrieval_input, use_rawpedia_ui_terms
 from .state import AgentState, ErrorInfo, Path, ResearchInput
 
 
@@ -119,11 +120,23 @@ def create_research_node(
         except (ValueError, TypeError, AttributeError) as exc:
             return {"error": ErrorInfo("CONTRACT_VIOLATION", str(exc), "RESEARCH"),
                     "trace": trace}
-        search_input = prepare_search_input(
+        search_input = prepare_retrieval_input(
             query, generate=checked_generate if generate is not None else None,
             rewrite_enabled=True, hyde_enabled=False,
-            constraints=constraints,
+            constraints=constraints, settings=settings,
         )
+        attempt = {"research_count": 1, "research_request_id": state["request"].request_id,
+                   "research_step_id": step.step_id, "trace": trace}
+        if search_input.status == "success" and (settings.get("rawpedia_ui_terms") or settings.get("recover_rewrite")):
+            original = normalize_query(query)
+            candidate = search_input.search_query
+            if settings.get("rawpedia_ui_terms"):
+                original = use_rawpedia_ui_terms(original)
+            if candidate == bundle.query:
+                candidate = original
+            if candidate == bundle.query:
+                return attempt
+            search_input = replace(search_input, search_query=candidate)
         prepared = ResearchInput(
             state["request"].request_id, step.step_id,
             "rawpedia" if step.path == Path.DOC_QA else "github",
@@ -137,9 +150,6 @@ def create_research_node(
                 f"{search_input.error_category}: {search_input.error_message}",
                 "RESEARCH",
             )
-        return {"research_count": 1, "research_request_id": prepared.request_id,
-                "research_step_id": prepared.step_id,
-                "research_input": prepared, "retrieval": None, "answer": None,
-                "error": error, "trace": trace}
+        return {**attempt, "research_input": prepared, "retrieval": None, "answer": None, "error": error}
 
     return research

@@ -46,6 +46,25 @@ F01–F08은 이 격자의 설정 선정에서 제외했다. 이전 평가에 �
 
 **적용 판정.** BM25 가중치 0.75를 MiniMax 경로의 검색 후보로 기록한다. 운영 기본값 전환과 정식 T23 인수는 보류한다. 검색 100문항의 개선을 실제 그래프에서 재현했지만, 답변 회귀 검증에서 기대 상태가 6/8에 그쳤고 유효 답변이 한 건 줄었다. 100문항에는 새 답변을 생성하지 않았으므로 답변 faithfulness는 미측정이다.
 
+## 모델을 고정한 검색어·인용 개선
+
+MiniMax M3.1 Flash, MiniLM + BM25 `20/5/0.5/0.75`, 158청크 색인을 고정했다. RawPedia 검색어에서 확인된 한글 UI 용어를 영어 문서의 표기에 맞췄다. 재작성 실패 때는 원질문을 사용하고 오류 분류와 기존 출처·이슈 범위를 보존한다. 재검색 질의가 최초 검색과 같으면 원질문으로 변형을 시도하고, 질의가 여전히 같으면 첫 근거 부족 답변을 반환한다. 인용 목록은 본문 표식 순서에 따라 조립하고 검색 문맥에 없는 ID와 잘못된 표식 형식은 계속 거부한다. 평가 옵션 `--improved`로 이 경로를 실행한다.
+
+| 지표 · 동일한 MiniMax 재작성 100건 | 변경 전 | 변경 후 |
+| --- | ---: | ---: |
+| 검색 도달 | 98/100 | **100/100** |
+| 원문 ID 재현율 | 94.00% | **98.00%** |
+| 원문 ID 정밀도 | 27.75% | **29.22%** |
+| RawPedia / GitHub 재현율 | 95.00% / 90.00% | **97.50% / 100.00%** |
+| 반증 원문 | 5/5 | 5/5 |
+| 첫 골드 MRR | 0.8833 | **0.9233** |
+
+`Dark-Frame`과 `Sidecar Processing Profiles` 표기로 Q046·Q071을, 원질문 복구로 Q086·Q094를 회복했다. 기준선에서 확보한 원문 재현율이 낮아진 문항은 없었다. Q038·Q077은 여전히 목표 원문을 놓쳤다. [100문항 실제 검색 그래프](../data/eval/stack-selection/minimax_quality_search_v1)
+
+F01–F08에서는 요구 원문을 7/8에서 8/8로 확보했다. F01의 `Crop` 문서가 1위에 오르고 사용자 정의 비율을 유지하는 절차가 답변 프롬프트에 포함됐다. NVIDIA 답변 실호출의 첫 시도는 HTTP 529 6건·429 2건, 간격을 둔 재시도는 HTTP 529 8건이었다. 이후 F01 단독 호출도 HTTP 529를 반환했다. 새로 생성한 답변 성능은 미측정이다. [첫 시도](../data/eval/stack-selection/minimax_quality_final_initial_v1) · [순차 재시도](../data/eval/stack-selection/minimax_quality_final_v1) · [F01 단독 호출](../data/eval/stack-selection/minimax_quality_final_followup_v1)
+
+색인과 시스템·사용자 프롬프트가 정확히 같은 이전 MiniMax 응답을 재생한 F02–F08은 기대 상태 7/7에 일치했다. F08의 기존 원본에서 본문에 쓰인 표식 `C1S2`, `C1S3`을 조립하니 실제 인용 검증을 통과해 `UNSUPPORTED` 응답을 반환했다. F01은 문맥이 개선되어 같은 프롬프트의 보존 답변이 없으므로 상태 집계에서 제외했다. 운영 기본값 전환 판정에는 새 MiniMax 답변과 새 질문 검증이 남아 있다. [답변 재생 및 원본 계보](../data/eval/stack-selection/minimax_quality_answer_replay_v1/replay.jsonl.gz)
+
 ## 재현
 
 프로젝트 Python 3.14 환경에서 보존 기록을 집계한다. 세 명령은 로컬 파일만 읽는다.
@@ -77,3 +96,5 @@ python3 -B scripts/optimize_minimax_search.py final \
   --grid /tmp/art-minimax-grid/grid.jsonl.gz \
   --output-dir /tmp/art-minimax-final
 ```
+
+모델 고정 후 개선은 `verify --improved`와 `final --improved`로 재현한다. 두 명령은 보존 격자에서 MiniLM + BM25 `20/5/0.5/0.75`를 찾는다. `final --improved`의 `--query F01`은 해당 문항만 호출한다. 새 API 시도는 새 출력 디렉터리에 보존한다.

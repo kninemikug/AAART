@@ -8,7 +8,7 @@ import json
 import os
 from pathlib import Path
 import sys
-from time import perf_counter
+from time import perf_counter, sleep
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / "src")]
@@ -45,6 +45,8 @@ class Configuration:
 
 
 BASELINE = Configuration("minilm", "bm25", 20, 0.25, 0.5)
+IMPROVEMENT_BASELINE = Configuration("minilm", "bm25", 20, 0.75, 0.5)
+IMPROVED_SEARCH = {"rawpedia_ui_terms": True, "recover_rewrite": True}
 
 
 def load_rewrites(directory, retry_dir=None):
@@ -174,25 +176,35 @@ def evaluate_grid(protocol, store_args, bm25, rewrites):
     return results
 
 
-def verify(entry, store, encoder, snapshot, reranker, rewrites):
+def verify(entry, store, encoder, snapshot, reranker, rewrites, *, improved=False):
     config = Configuration(**entry["settings"])
     if snapshot != entry["snapshot_sha256"]:
         raise ValueError("격자와 실제 그래프의 색인 불일치")
     expected = {row["query_id"]: row for row in entry["rows"]}
+    search_settings = config.search_settings()
+    if improved:
+        search_settings.update(IMPROVED_SEARCH)
     results = []
     for qid, row in rewrites.items():
-        if not row["search_ok"]:
+        if not improved and not row["search_ok"]:
             results.append({**measure(row, []), "rewrite_error": row["searches"][0]["error"]})
             continue
-        case = {**row["case"], "rewrite": row["searches"][0]["search_input"]["search_query"]}
+        if improved:
+            call, = row["rewrite_calls"]
+            query = call["output"]
+        else:
+            query = row["searches"][0]["search_input"]["search_query"]
+        case = {**row["case"], "rewrite": query}
         result = graph.evaluate(store, encoder, snapshot, reranker, qid, case, live=False,
-                                search_config=config.search_settings())
-        if (not result["route_matched"] or not result["search_ok"]
-                or result["searches"][0]["selected_chunk_ids"] != expected[qid]["selected_chunk_ids"]
-                or result["retrieval"] != expected[qid]["retrieval"]):
+                                search_config=search_settings)
+        if not result["route_matched"]:
+            raise ValueError(f"실제 그래프의 출처 불일치: {config.name}/{qid}")
+        if not improved and (not result["search_ok"]
+                             or result["searches"][0]["selected_chunk_ids"] != expected[qid]["selected_chunk_ids"]
+                             or result["retrieval"] != expected[qid]["retrieval"]):
             raise ValueError(f"격자와 실제 그래프의 선택·근거 불일치: {config.name}/{qid}")
         results.append(result)
-    print(graph.canonical({config.name: graph.search_summary(results)}), flush=True)
+    print(graph.canonical({label(config, improved): graph.search_summary(results)}), flush=True)
     return results
 
 
@@ -209,27 +221,41 @@ def final_cases():
     return cases
 
 
-def run_final(entry, store, encoder, snapshot, reranker, directory, selected):
+def label(config, improved):
+    return f"{config.name}-improved" if improved else config.name
+
+
+def run_final(entry, store, encoder, snapshot, reranker, directory, selected, *, improved=False):
     config = Configuration(**entry["settings"])
     if snapshot != entry["snapshot_sha256"]:
         raise ValueError("격자와 답변 그래프의 색인 불일치")
     cases = final_cases()
+    name = label(config, improved)
+    search_settings = config.search_settings()
+    if improved:
+        search_settings.update(IMPROVED_SEARCH)
     if selected and not set(selected) <= cases.keys():
         raise ValueError("검증 문항 범위 초과")
+    next_request = 0.0
     for qid, case in cases.items():
         if selected and qid not in selected:
             continue
-        path = directory / f"{config.name}-{qid}.jsonl.gz"
+        path = directory / f"{name}-{qid}.jsonl.gz"
         if path.exists():
             saved, = graph.read_rows(path)
-            if saved["case"] != case or saved["snapshot_sha256"] != snapshot or saved["candidate"] != config.name:
+            if saved["case"] != case or saved["snapshot_sha256"] != snapshot or saved["candidate"] != name:
                 raise ValueError(f"재개 기록 불일치: {path}")
             continue
+        if improved:
+            sleep(max(0.0, next_request - perf_counter()))
+            next_request = perf_counter() + 5
         row = graph.evaluate(store, encoder, snapshot, reranker, qid, case, live=True,
-                             search_config=config.search_settings())
-        row.update(candidate=config.name, model=MINIMAX, search_config=asdict(config))
+                             search_config=search_settings, assemble_citations=improved)
+        row.update(candidate=name, model=MINIMAX, search_config={**asdict(config), **search_settings})
+        if improved:
+            row["assemble_citations"] = True
         graph.write_rows(path, [row])
-        print(config.name, qid, row["trace"], flush=True)
+        print(name, qid, row["trace"], flush=True)
 
 
 def main():
@@ -240,8 +266,11 @@ def main():
     parser.add_argument("--rewrite-retries", type=Path)
     parser.add_argument("--grid", type=Path)
     parser.add_argument("--baseline", action="store_true")
+    parser.add_argument("--improved", action="store_true", help="상위 설정에서 검색어·인용 개선을 켠다")
     parser.add_argument("--query", action="append")
     args = parser.parse_args()
+    if args.improved and (args.baseline or args.phase not in ("verify", "final")):
+        parser.error("--improved는 상위 검색 설정의 verify 또는 final에 사용합니다.")
     if args.phase in ("grid", "verify") and not args.rewrites:
         parser.error("--rewrites 필요")
     needs_grid = args.phase in ("summary", "verify") or (args.phase == "final" and not args.baseline)
@@ -283,6 +312,8 @@ def main():
 
         if args.baseline and experiments is None:
             entry = {"settings": asdict(BASELINE), "snapshot_sha256": base_snapshot}
+        elif args.improved:
+            entry = next(e for e in experiments if e["name"] == IMPROVEMENT_BASELINE.name)
         else:
             entry = next(e for e in experiments if e["name"] == BASELINE.name) if args.baseline else choose(experiments)
         config = Configuration(**entry["settings"])
@@ -291,10 +322,10 @@ def main():
             if args.phase == "verify":
                 if graph.digest(rewrites) != entry["rewrites_sha256"]:
                     raise ValueError("검증용 재작성 지문 불일치")
-                rows = verify(entry, store, encoder, snapshot, ranker, rewrites)
-                graph.write_rows(directory / f"{config.name}.jsonl.gz", rows)
+                rows = verify(entry, store, encoder, snapshot, ranker, rewrites, improved=args.improved)
+                graph.write_rows(directory / f"{label(config, args.improved)}.jsonl.gz", rows)
             else:
-                run_final(entry, store, encoder, snapshot, ranker, directory, args.query)
+                run_final(entry, store, encoder, snapshot, ranker, directory, args.query, improved=args.improved)
 
 
 if __name__ == "__main__":

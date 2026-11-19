@@ -115,6 +115,39 @@ def test_search_defaults_to_off_while_adoption_is_pending(factory: Any) -> None:
     generate.assert_not_called()
 
 
+def test_rawpedia_search_uses_english_ui_terms_without_changing_ratio() -> None:
+    store = MagicMock()
+    store.search.return_value = []
+    question = "RawTherapee에서 5:4 크롭 비율은?"
+    node = create_search_rawpedia_node(
+        store, MagicMock(), generate=lambda _: question, rewrite_enabled=True, rawpedia_ui_terms=True,
+    )
+
+    result = node({"request": RequestInput("crop", question)})
+
+    assert result["error"] is None
+    assert result["retrieval"].query == "RawTherapee에서 5:4 Crop 비율은?"
+    assert store.search.call_args.args[0] == result["retrieval"].query
+
+
+def test_rewrite_recovery_keeps_the_original_query_and_github_scope() -> None:
+    store = MagicMock()
+    store.search.return_value = []
+    observed = []
+    question = "GitHub Issue #524의 1차 빌드 오류는?"
+    node = create_search_github_node(
+        store, MagicMock(), generate=lambda _: "GitHub Issue #525 build error", rewrite_enabled=True,
+        recover_rewrite=True, observe=observed.append,
+    )
+
+    result = node({"request": RequestInput("issue", question)})
+
+    assert result["error"] is None
+    assert result["retrieval"].query == question
+    assert store.search.call_args.kwargs["source_group_ids"] == ["github:artraweditor/ART:issue:524"]
+    assert observed[0]["search_input"]["rewrite_result"]["error_category"] == "MISSING_IDENTIFIER"
+
+
 # =========================================================================
 # 1. GitHub 대상 번호 추출 (resolve_github_targets)
 # =========================================================================

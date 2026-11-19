@@ -16,6 +16,7 @@ from typing import Any, Callable, Optional, Sequence, Tuple
 from ..answer import (
     SYSTEM_INSTRUCTION,
     build_prompt_and_citations,
+    citation_marker_ids,
     generate_llm_response,
     get_source_root,
     normalize_query,
@@ -321,6 +322,7 @@ def answer_standalone(
     generate: Optional[Callable[..., Any]] = None,
     source_root: Optional[Path] = None,
     observe: Optional[Callable[[dict[str, Any]], None]] = None,
+    assemble_citations: bool = False,
 ) -> Tuple[Optional[AnswerResult], Optional[ErrorInfo]]:
     """단독 답변 생성 및 인용 검증 실행.
 
@@ -519,6 +521,13 @@ def answer_standalone(
             })
         return None, error
 
+    if assemble_citations:
+        reported_ids = citation_ids
+        citation_ids = list(dict.fromkeys(citation_marker_ids(raw_answer)))
+        if reported_ids != citation_ids:
+            evidence["reported_citation_ids"] = reported_ids
+            evidence["assembled_citation_ids"] = citation_ids
+
     # 7. 의미 상태와 인용 계약 검증
     if status in ("SUPPORTED", "UNSUPPORTED"):
         if not citation_ids:
@@ -584,6 +593,7 @@ def answer_standalone(
             raw_answer=raw_answer,
             parsed_citation_ids=citation_ids,
             context_citations=context_citations,
+            strict_markers=assemble_citations,
         )
     except Exception as e:
         error = ErrorInfo(
@@ -671,6 +681,7 @@ def create_answer_node(
     *,
     source_root: Optional[Path] = None,
     observe: Optional[Callable[[dict[str, Any]], None]] = None,
+    assemble_citations: bool = False,
 ) -> Callable[[AgentState], dict[str, Any]]:
     """LangGraph ANSWER 노드 팩토리.
 
@@ -770,6 +781,7 @@ def create_answer_node(
             generate=generate,
             source_root=source_root,
             observe=observe,
+            assemble_citations=assemble_citations,
         )
 
         if err is not None:
