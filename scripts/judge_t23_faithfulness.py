@@ -13,9 +13,9 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 if __package__:
-    from .eval_ragas import ROOT, canonical, index_rows, read_rows, require, sha256
+    from .eval_ragas import ROOT, canonical, faithfulness_score, index_rows, read_rows, require, sha256
 else:
-    from eval_ragas import ROOT, canonical, index_rows, read_rows, require, sha256
+    from eval_ragas import ROOT, canonical, faithfulness_score, index_rows, read_rows, require, sha256
 
 
 MODEL = "minimaxai/minimax-m3.1-flash"
@@ -156,6 +156,7 @@ class Judge:
         request_json = canonical(payload)
         digest = sha256(request_json)
         cache = self.cache / f"{batch_name}-{digest[:12]}.json"
+        split = cache.with_suffix(".split")
 
         def decode(response):
             choice = response["choices"][0]
@@ -191,8 +192,15 @@ class Judge:
         def retry_short_quotes():
             return self.evaluate("entailment-repair", instruction + SHORT_QUOTES, batch, field, validate)
 
+        def retry_smaller_batches():
+            midpoint = len(batch) // 2
+            first = self.evaluate(phase, instruction, batch[:midpoint], field, validate)
+            return {**first, **self.evaluate(phase, instruction, batch[midpoint:], field, validate)}
+
         if cache.is_file():
             return read_response(json.loads(cache.read_text(encoding="utf-8")))
+        if len(batch) > 1 and split.is_file():
+            return retry_smaller_batches()
         valid = {}
         previous_attempts = sorted(cache.parent.glob(f"{cache.stem}.attempt-*.json"))
         for previous in previous_attempts:
@@ -230,6 +238,9 @@ class Judge:
                 if isinstance(error, HTTPError) and error.code not in {408, 429, 500, 502, 503, 504, 529}:
                     raise
                 print(f"{batch_name} rejected: {error}", flush=True)
+                if isinstance(error, TimeoutError) and len(batch) > 1:
+                    split.write_text("timeout\n", encoding="utf-8")
+                    return retry_smaller_batches()
                 if response is not None:
                     failure = cache.with_suffix(f".attempt-{attempt}.json")
                     write_json(failure, response)
@@ -272,6 +283,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--inputs", type=Path, default=EVAL_DIR / "inputs.jsonl.gz")
     parser.add_argument("--output", type=Path, default=EVAL_DIR / "faithfulness_verdicts_v1.jsonl")
+    parser.add_argument("--reuse-verdicts", type=Path, help="입력 지문이 일치하는 기존 판정 JSONL")
     parser.add_argument("--cache", type=Path, default=ROOT / "build/t23-faithfulness")
     parser.add_argument("--interval", type=float, default=6, help="최소 API 호출 간격(초)")
     parser.add_argument("--workers", type=int, default=4, help="동시 API 작업 수")
@@ -283,10 +295,16 @@ def main():
             fields = {k: v for k, v in row.items() if k != "input_sha256"}
             require(sha256(canonical(fields)) == row["input_sha256"], f"{row['query_id']} 입력 지문 불일치")
         answered = [row for _, row in sorted(rows.items()) if row["answer"] is not None]
-        require(len(answered) == 69 and all(row["context_origin"] == "t17_prompt" for row in answered),
-                "제출 문맥과 답변이 있는 고정 69문항 필요")
+        require(69 <= len(answered) <= 100 and all(row["context_origin"] == "t17_prompt" for row in answered),
+                "보존 답변과 일치하는 제출 문맥 필요")
+        reused = index_rows(read_rows(args.reuse_verdicts)) if args.reuse_verdicts else {}
+        require(reused.keys() <= {row["query_id"] for row in answered}, "답변 없는 문항의 재사용 판정")
+        for qid, review in reused.items():
+            require(review.get("evaluator") == EVALUATOR, f"기존 평가기 불일치: {qid}")
+            faithfulness_score(rows[qid], review)
+        pending = [row for row in answered if row["query_id"] not in reused]
         judge = Judge(os.environ.get("NVIDIA_API_KEY"), args.cache, args.interval)
-        examples = [{k: row[k] for k in ("query_id", "question", "answer")} for row in answered]
+        examples = [{k: row[k] for k in ("query_id", "question", "answer")} for row in pending]
         with ThreadPoolExecutor(max_workers=args.workers) as jobs:
             extraction_batches = (examples[start:start + 8] for start in range(0, len(examples), 8))
             extracted = judge.evaluate_batches(jobs, "extraction", EXTRACT, extraction_batches,
@@ -295,13 +313,16 @@ def main():
                 {"query_id": row["query_id"], "claims": extracted[row["query_id"]],
                  "contexts": [{"id": context["citation_id"], "product": context["product_scope"],
                                "text": context["text"]} for context in row["retrieved_contexts"]]}
-                for row in answered if extracted[row["query_id"]]
+                for row in pending if extracted[row["query_id"]]
             ]
             claims = {qid: [] for qid, statements in extracted.items() if not statements}
             claims.update(judge.evaluate_batches(jobs, "entailment", ENTAIL, context_batches(items),
                                                  "verdicts", check_entailment))
-        reviews = [{"query_id": row["query_id"], "input_sha256": row["input_sha256"],
-                    "evaluator": EVALUATOR, "claims": claims[row["query_id"]]} for row in answered]
+        for row in pending:
+            qid = row["query_id"]
+            reused[qid] = {"query_id": qid, "input_sha256": row["input_sha256"],
+                           "evaluator": EVALUATOR, "claims": claims[qid]}
+        reviews = [reused[row["query_id"]] for row in answered]
         staged = args.output.with_suffix(".tmp")
         staged.write_text("".join(canonical(review) + "\n" for review in reviews), encoding="utf-8")
         staged.replace(args.output)

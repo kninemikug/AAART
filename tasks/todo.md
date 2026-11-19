@@ -369,7 +369,7 @@
 **의존:** T8-1, T15, T17, RAG 답변 기준 스택 최종 선정 게이트 · **담당:** 팀장+B · **예상 파일:** `scripts/eval_ragas.py`, `data/eval/report_v1.md`
 **규모:** S
 
-**보존 실행 재평가:** T15·T17 기록으로 100문항의 정밀도·재현율과 공통 68문항의 faithfulness를 한 표에 기록했다. 답변 미보존 31건과 사실 주장 없음 1건은 faithfulness 집계에서 제외했다. [통합 리포트](../data/eval/report_v1.md)
+**T15·Sol 회귀 평가:** 기존 69건에 동일 검색 문맥·생성 모델·프롬프트의 추가 실답변 31건을 합쳤다. 100문항의 정밀도·재현율·faithfulness 판정 기록을 보존했다. 사실 주장이 없는 Q024는 faithfulness 평균에서 제외했다. [통합 리포트](../data/eval/report_v1.md)
 
 ## 별도 후속 · RAG 서비스 적용
 

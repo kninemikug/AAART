@@ -1,0 +1,203 @@
+{
+  "answer_sources": {
+    "archived": 69,
+    "archived_cli_versions": [
+      "codex-cli 0.162.1"
+    ],
+    "supplemental": 31,
+    "supplemental_cli_versions": [
+      "codex-cli 0.167.1"
+    ]
+  },
+  "answer_status_counts": {
+    "INSUFFICIENT_EVIDENCE": 3,
+    "SUPPORTED": 92,
+    "UNSUPPORTED": 5
+  },
+  "context_backend": "ragas_id_formula_stdlib",
+  "dataset_id": "t08-1-100-v1",
+  "evaluation_scope": "t15_t17_sol_completion",
+  "faithfulness_claims": {
+    "supported": 538,
+    "total": 545
+  },
+  "faithfulness_evaluators": [
+    "nvidia/minimaxai/minimax-m3.1-flash/t23-claims-v1"
+  ],
+  "faithfulness_verdicts_sha256": "6fcaa9f0fad50478c5f86223d8cac44480239044b854e3549f94506a32236b6e",
+  "generation": {
+    "model": "gpt-5.6-sol",
+    "prompt_version": "t17-answer-v1",
+    "provider": "codex-cli"
+  },
+  "groups": {
+    "all": {
+      "answers": 100,
+      "context_precision": {
+        "missing": {},
+        "scored": 100,
+        "value": 0.27666666666666667
+      },
+      "context_recall": {
+        "missing": {},
+        "scored": 100,
+        "value": 0.97
+      },
+      "faithfulness": {
+        "missing": {
+          "no_factual_claims": 1
+        },
+        "scored": 99,
+        "value": 0.9859307359307359
+      },
+      "questions": 100
+    },
+    "common": {
+      "answers": 99,
+      "context_precision": {
+        "missing": {},
+        "scored": 99,
+        "value": 0.27946127946127947
+      },
+      "context_recall": {
+        "missing": {},
+        "scored": 99,
+        "value": 0.9797979797979798
+      },
+      "faithfulness": {
+        "missing": {},
+        "scored": 99,
+        "value": 0.9859307359307359
+      },
+      "questions": 99
+    },
+    "negative": {
+      "answers": 5,
+      "context_precision": {
+        "missing": {},
+        "scored": 5,
+        "value": 0.43333333333333335
+      },
+      "context_recall": {
+        "missing": {},
+        "scored": 5,
+        "value": 1.0
+      },
+      "faithfulness": {
+        "missing": {},
+        "scored": 5,
+        "value": 1.0
+      },
+      "questions": 5
+    },
+    "positive": {
+      "answers": 95,
+      "context_precision": {
+        "missing": {},
+        "scored": 95,
+        "value": 0.26842105263157895
+      },
+      "context_recall": {
+        "missing": {},
+        "scored": 95,
+        "value": 0.968421052631579
+      },
+      "faithfulness": {
+        "missing": {
+          "no_factual_claims": 1
+        },
+        "scored": 94,
+        "value": 0.9851823708206687
+      },
+      "questions": 95
+    },
+    "supplemental": {
+      "answers": 31,
+      "context_precision": {
+        "missing": {},
+        "scored": 31,
+        "value": 0.3365591397849462
+      },
+      "context_recall": {
+        "missing": {},
+        "scored": 31,
+        "value": 1.0
+      },
+      "faithfulness": {
+        "missing": {},
+        "scored": 31,
+        "value": 0.9854838709677419
+      },
+      "questions": 31
+    },
+    "t11_slice1": {
+      "answers": 15,
+      "context_precision": {
+        "missing": {},
+        "scored": 15,
+        "value": 0.3322222222222222
+      },
+      "context_recall": {
+        "missing": {},
+        "scored": 15,
+        "value": 1.0
+      },
+      "faithfulness": {
+        "missing": {},
+        "scored": 15,
+        "value": 0.9815873015873016
+      },
+      "questions": 15
+    },
+    "t14_representative": {
+      "answers": 15,
+      "context_precision": {
+        "missing": {},
+        "scored": 15,
+        "value": 0.34
+      },
+      "context_recall": {
+        "missing": {},
+        "scored": 15,
+        "value": 1.0
+      },
+      "faithfulness": {
+        "missing": {},
+        "scored": 15,
+        "value": 0.9866666666666667
+      },
+      "questions": 15
+    }
+  },
+  "schema_version": 2,
+  "search": {
+    "candidate_k": 20,
+    "condition_id": "R3_c20_k5_min0.5_w0.25",
+    "hyde": false,
+    "min_score": 0.5,
+    "rerank_weight": 0.25,
+    "reranker": "BM25",
+    "rewrite": true,
+    "top_k": 5
+  },
+  "source_counts": {
+    "github": 20,
+    "rawpedia": 80
+  },
+  "source_sha256": {
+    "data/eval/t14-conn/conn_20261015_pr/store_snapshot.json": "c02b59540fb5ba02485ec7e0a2b7ba20df7008fb478dc82a0259c71ccd89f1a8",
+    "data/eval/t15-rerank/audit_v6/answers.json": "1658e4dad0ad91f90422e7bcee25b67e0de3d0baca335a5f691e3a9f1eb1f044",
+    "data/eval/t15-rerank/grid_v5/selected_condition.json": "ece0719ba81e7e2a46bbf75c4ee15b743cc97015ea1eb5959581de39ab0854d1",
+    "data/eval/t15-rerank/plan_v5/protocol.json": "d79eb3a838113f7e00988b0ad44d0ee79d97afb3fab88649a58382052977bcb0",
+    "data/eval/t15-rerank/regression_v5/manifest.json": "2d39a9c5f4693172c1a94b41157da20e8f2fa0f27bba6aa377e659591a626c52",
+    "data/eval/t15-rerank/regression_v5/records.jsonl.gz": "c709bff90f3e03e6640e36743eb217a9c88f19eb74b0034927933614a35f0078",
+    "data/eval/t15-rerank/regression_v5/search_records.jsonl.gz": "8ebea98b15086a299043dbd7ad9c89620b6e1cdf105f2bf8cb1494f26212c352",
+    "data/eval/t15-rerank/t17_v5_complete_20261020_r3/answer_records.jsonl": "1de9f658e6634c12ad889bf5e175d11ff47acfcc49e2a051c2876871c727bf79",
+    "data/eval/t15-rerank/t17_v5_complete_20261020_r3/manifest.json": "d6435fcbf0ed68baf3bed48f8d581f506db0cd36f1a35057f172ff9eea279897",
+    "docs/T11_execution_records.jsonl": "5d3d9a7df432cbfac741d479c554aae69a6dfbc8039ed166331d7f5a8d1b64b7",
+    "docs/T14_ab_eval_manifest.json": "53f678b251c4c469da6fe7160bb28abd1580d00455fd347aff01d1947e47fd96",
+    "docs/T14_ab_eval_records.jsonl": "a2ae8b265cecdfefabee92858861ad57d6e3bf7d458a13d84ad26f5e79850145",
+    "docs/search_eval_queries.json": "91b7fb50b23c0514d3e3d24579cad32a07dc6dcc3c8a40774b9e2e9da0fa14e8",
+    "t23_sol_completion": "b54eebe6820f1a645b783859c389d3a1489cb81515b9c97d44cf60b77a243f4c"
+  }
+}
