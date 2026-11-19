@@ -1,0 +1,46 @@
+{
+  "question": "F02",
+  "explicit_provider_environment": false,
+  "credential_source": "project .env.local",
+  "test_runs": [
+    {
+      "entry": "gui",
+      "status": "COMPLETED",
+      "expected_citation": true,
+      "exit": 0,
+      "requests": [
+        {
+          "model": "minimaxai/minimax-m3.1-flash",
+          "endpoint": "https://integrate.api.nvidia.com/v1/chat/completions",
+          "http": 200
+        }
+      ]
+    },
+    {
+      "entry": "cli",
+      "status": "COMPLETED",
+      "expected_citation": true,
+      "exit": 0,
+      "requests": [
+        {
+          "model": "minimaxai/minimax-m3.1-flash",
+          "endpoint": "https://integrate.api.nvidia.com/v1/chat/completions",
+          "http": 200
+        }
+      ]
+    }
+  ],
+  "native_saved_configuration_run": {
+    "entry": "gui",
+    "status": "COMPLETED",
+    "expected_citation": true,
+    "exit": 0,
+    "requests": [
+      {
+        "model": "minimaxai/minimax-m3.1-flash",
+        "endpoint": "https://integrate.api.nvidia.com/v1/chat/completions",
+        "http": 200
+      }
+    ]
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "checks": [
+    {
+      "entry": "gui",
+      "case": "F01",
+      "profile": "local",
+      "status": "COMPLETED",
+      "cold_seconds": 5.28809195800568
+    },
+    {
+      "entry": "cli",
+      "case": "F01",
+      "profile": "local",
+      "status": "COMPLETED",
+      "cold_seconds": 4.2433098329929635
+    },
+    {
+      "entry": "gui",
+      "case": "F08",
+      "profile": "local",
+      "status": "UNSUPPORTED",
+      "cold_seconds": 4.332841999974335
+    },
+    {
+      "entry": "cli",
+      "case": "F08",
+      "profile": "local",
+      "status": "UNSUPPORTED",
+      "cold_seconds": 4.523719333985355
+    },
+    {
+      "entry": "gui",
+      "case": "F08",
+      "profile": "legacy",
+      "status": "FAILED",
+      "cold_seconds": 4.114090417016996
+    }
+  ],
+  "responses": {
+    "F01 fixture": 2,
+    "F08 exact replay": 3
+  }
+}

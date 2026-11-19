@@ -1,0 +1,28 @@
+{
+  "initial_429_cases": [
+    "F03",
+    "S04",
+    "S05"
+  ],
+  "valid_answers_first_attempt": 11,
+  "initial_cases": 14,
+  "valid_answers_after_retry": 14,
+  "observed_answer_requests": 19,
+  "successful_answer_requests": 16,
+  "answer_usage": {
+    "prompt_tokens": 114287,
+    "completion_tokens": 3534
+  },
+  "status_checks": {
+    "F": {
+      "expected": 8,
+      "cases": 8,
+      "p50_seconds": 9.66
+    },
+    "S": {
+      "expected": 6,
+      "cases": 6,
+      "p50_seconds": 7.17
+    }
+  }
+}

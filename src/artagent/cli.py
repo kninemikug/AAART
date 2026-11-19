@@ -35,10 +35,10 @@ from .graph import (
     RuntimeCapabilities,
     create_answer_node,
     create_router_graph,
-    create_search_nodes,
 )
 from .graph.nodes import dispatch_node
 from .graph.research import create_research_node, generate_search_query
+from .rag_service import create_service_search_nodes, service_answer_generator, use_local_rag
 from .retrieval.embedding import EncoderSession, load_encoder
 from .retrieval.store import RetrievalStore
 
@@ -95,17 +95,13 @@ def build_repl_graph(
     research_generate: Optional[Callable[[str], str]] = None,
 ) -> CompiledStateGraph:
     """최소 REPL용 라우터 그래프 빌드 및 override 노드 연결."""
-    search_nodes = create_search_nodes(
-        store=store,
-        session=session,
-        generate=generate,
-        snapshot_ref="",
-        rewrite_enabled=False,
-        hyde_enabled=False,
-    )
+    local = use_local_rag()
+    search_nodes = create_service_search_nodes(store, session, local=local)
     ans_node = create_answer_node(
         generate=generate,
         source_root=source_root,
+        assemble_citations=local,
+        runtime_generate=service_answer_generator() if generate is None else None,
     )
     overrides = {
         **search_nodes,

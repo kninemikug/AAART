@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from contextlib import contextmanager
 from contextvars import ContextVar
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import json
 import math
@@ -58,14 +59,22 @@ def _generation_timeout(default: float) -> float:
 
 
 _API_RESPONSE_WORKER = """
-import json, sys, urllib.request
+import json, sys, urllib.error, urllib.request
 request = json.loads(sys.stdin.read())
 body = request["body"]
 req = urllib.request.Request(request["url"],
     data=body.encode("utf-8") if body is not None else None,
     headers=request["headers"])
-with urllib.request.urlopen(req, timeout=request["timeout"]) as response:
-    sys.stdout.buffer.write(response.read())
+try:
+    with urllib.request.urlopen(req, timeout=request["timeout"]) as response:
+        sys.stdout.buffer.write(response.read())
+except urllib.error.HTTPError as error:
+    print(error.code, file=sys.stderr)
+    sys.exit(2)
+except (TimeoutError, urllib.error.URLError) as error:
+    if isinstance(error, TimeoutError) or isinstance(error.reason, TimeoutError):
+        sys.exit(3)
+    raise
 """
 
 
@@ -85,6 +94,10 @@ def _read_api_response(request: urllib.request.Request, timeout: float) -> str:
         }).encode("utf-8"),
         capture_output=True, timeout=timeout,
     )
+    if result.returncode == 2 and re.fullmatch(rb"[1-5][0-9]{2}", result.stderr.strip()):
+        raise urllib.error.HTTPError(request.full_url, int(result.stderr), "원격 요청 실패", None, None)
+    if result.returncode == 3:
+        raise TimeoutError("원격 요청 시간이 초과됐습니다.")
     if result.returncode != 0:
         detail = result.stderr[-2000:].decode("utf-8", errors="replace")
         raise RuntimeError(f"API 응답 전송 실패: {detail}")
@@ -887,6 +900,15 @@ def validate_saved_trace(trace: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+@dataclass(frozen=True)
+class OpenAIEndpoint:
+    """요청 하나에 적용할 OpenAI 호환 제공처 설정."""
+
+    base_url: str
+    model_id: str
+    api_key: str = field(repr=False)
+
+
 def generate_llm_response(
     system_instruction: str,
     user_prompt: str,
@@ -896,6 +918,7 @@ def generate_llm_response(
     *,
     response_schema: Optional[str] = None,
     observe_request: Optional[Callable[[dict[str, Any]], None]] = None,
+    api_endpoint: Optional[OpenAIEndpoint] = None,
 ) -> Tuple[str, Optional[dict[str, Any]], dict[str, Any]]:
     """3.3 런타임 LLM 호출.
 
@@ -906,7 +929,7 @@ def generate_llm_response(
     import shutil
     import tempfile
 
-    provider = os.getenv("LLM_PROVIDER", "codex").lower().strip()
+    provider = "openai-compatible" if api_endpoint else os.getenv("LLM_PROVIDER", "codex").lower().strip()
     schema = response_schema or prompt_version
 
     if provider == "codex":
@@ -1009,9 +1032,12 @@ def generate_llm_response(
         return json.dumps(parsed, ensure_ascii=False), usage, runtime_meta
 
     elif provider in ("openai", "openai-compatible"):
-        api_key = os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
-        base_url = os.getenv("LLM_BASE_URL") or os.getenv("OPENAI_BASE_URL")
-        model_id = os.getenv("LLM_MODEL") or os.getenv("OPENAI_MODEL") or "gpt-5.6-sol"
+        if api_endpoint:
+            api_key, base_url, model_id = api_endpoint.api_key, api_endpoint.base_url, api_endpoint.model_id
+        else:
+            api_key = os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
+            base_url = os.getenv("LLM_BASE_URL") or os.getenv("OPENAI_BASE_URL")
+            model_id = os.getenv("LLM_MODEL") or os.getenv("OPENAI_MODEL") or "gpt-5.6-sol"
 
         if not api_key and not base_url:
             raise RuntimeError("LLM_PROVIDER='openai'이나 OPENAI_API_KEY 또는 LLM_BASE_URL이 설정되지 않았습니다.")
