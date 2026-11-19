@@ -323,11 +323,12 @@ def answer_standalone(
     source_root: Optional[Path] = None,
     observe: Optional[Callable[[dict[str, Any]], None]] = None,
     assemble_citations: bool = False,
+    runtime_generate: Optional[Callable[..., Any]] = None,
 ) -> Tuple[Optional[AnswerResult], Optional[ErrorInfo]]:
     """단독 답변 생성 및 인용 검증 실행.
 
     원질문, 확정 문맥, 제약(constraints), RetrievalBundle, 생성 콜백, source_root를 입력받아
-    검색 0회 / 재작성 0회 / 생성 1회(오류 시 0회)로 검증된 AnswerResult 또는 ErrorInfo를 반환한다.
+    검색과 재작성 없이 답변을 생성하고 검증된 AnswerResult 또는 ErrorInfo를 반환한다.
     """
     started = time.perf_counter()
     evidence = {"call_count": 0, "request": None, "custom_generation": False}
@@ -408,7 +409,7 @@ def answer_standalone(
             })
         return None, error
 
-    # 5. LLM 생성 정확히 1회 호출
+    # 5. LLM 답변 생성
     raw_response = ""
     usage = None
     runtime_meta: dict[str, Any] = {}
@@ -436,7 +437,8 @@ def answer_standalone(
                 raw_response = str(call_res)
                 runtime_meta = {"llm_provider": "custom"}
         else:
-            raw_response, usage, runtime_meta = generate_llm_response(
+            generator = runtime_generate or generate_llm_response
+            raw_response, usage, runtime_meta = generator(
                 system_instruction=SYSTEM_INSTRUCTION,
                 user_prompt=user_prompt,
                 context_citations=context_citations,
@@ -682,6 +684,7 @@ def create_answer_node(
     source_root: Optional[Path] = None,
     observe: Optional[Callable[[dict[str, Any]], None]] = None,
     assemble_citations: bool = False,
+    runtime_generate: Optional[Callable[..., Any]] = None,
 ) -> Callable[[AgentState], dict[str, Any]]:
     """LangGraph ANSWER 노드 팩토리.
 
@@ -782,6 +785,7 @@ def create_answer_node(
             source_root=source_root,
             observe=observe,
             assemble_citations=assemble_citations,
+            runtime_generate=runtime_generate,
         )
 
         if err is not None:

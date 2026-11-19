@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from pathlib import Path
 import threading
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any, Iterator, Mapping, Optional, Sequence
 from weakref import WeakValueDictionary
 
 import chromadb
@@ -192,6 +193,32 @@ class RetrievalStore:
 
     def _active_count(self) -> int:
         return len(self.collection.get(where={"excluded": False}, include=[])["ids"])
+
+    @contextmanager
+    def active_search_corpus(self) -> Iterator[tuple[str, list[str]]]:
+        """같은 활성 청크로 BM25를 적합하고 검색 중 색인 변경을 검출한다."""
+        def active(include: list[str]) -> dict:
+            if self._get_store_state() != "ready":
+                raise RuntimeError("검색 색인이 준비되지 않았습니다.")
+            return self.collection.get(where={"excluded": False}, include=include)
+
+        def fingerprint(rows: dict) -> str:
+            pairs = sorted(zip(rows["ids"], rows["metadatas"], strict=True))
+            return sha256_str(canonical_json_str(pairs))
+
+        with self._lock:
+            self._validate_collection_contract()
+            rows = active(["documents", "metadatas"])
+            snapshot = fingerprint(rows)
+            corpus = []
+            for _, text, metadata in sorted(zip(rows["ids"], rows["documents"], rows["metadatas"], strict=True)):
+                if sha256_str(text) != metadata["content_sha256"]:
+                    raise ValueError("활성 청크의 본문 지문이 일치하지 않습니다.")
+                title = metadata.get("section_title")
+                corpus.append(f"{title}\n\n{text}".strip() if title else text)
+            yield snapshot, corpus
+            if snapshot != fingerprint(active(["metadatas"])):
+                raise RuntimeError("검색 도중 활성 색인이 변경됐습니다.")
 
     def _validate_vectors(self, vectors: np.ndarray, count: int) -> None:
         if vectors.shape != (count, self.spec.dimension) or vectors.dtype != np.float32:

@@ -34,11 +34,13 @@ def create_gui_graph(
     """Connect Q&A nodes; keep execution disabled and retrieval lazy."""
     from artagent.graph import (
         ErrorInfo, Path as RoutePath, create_answer_node,
-        create_router_graph, create_search_nodes,
+        create_router_graph,
     )
     from artagent.graph.nodes import dispatch_node
     from artagent.graph.research import create_research_node, generate_search_query
+    from artagent.rag_service import create_service_search_nodes, service_answer_generator, use_local_rag
 
+    local = use_local_rag()
     services = search_nodes
 
     def search(state):
@@ -58,10 +60,9 @@ def create_gui_graph(
                 spec = load_spec(reference)
                 verify_store_ready(persist_dir, spec)
                 encoder = load_encoder(spec)
-                services = create_search_nodes(
+                services = create_service_search_nodes(
                     open_store(persist_dir, spec), encoder,
-                    snapshot_ref=spec.reference_sha256,
-                    rewrite_enabled=False, hyde_enabled=False,
+                    snapshot_ref=spec.reference_sha256, local=local,
                 )
             return services[node](state)
         except Exception as exc:
@@ -92,7 +93,8 @@ def create_gui_graph(
 
     return create_router_graph(node_overrides={
         "SEARCH_RAWPEDIA": search, "SEARCH_GITHUB": search,
-        "ANSWER": answer_node or create_answer_node(source_root=source_root),
+        "ANSWER": answer_node or create_answer_node(source_root=source_root, assemble_citations=local,
+                                                    runtime_generate=service_answer_generator()),
         "DISPATCH": dispatch,
         "RESEARCH": create_research_node(
             generate=research_generate if research_generate is not None else generate_search_query,

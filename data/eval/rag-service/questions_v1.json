@@ -1,0 +1,50 @@
+[
+  {
+    "id": "S01",
+    "source_type": "rawpedia",
+    "question": "RawTherapee에서 인쇄용 크롭 가이드의 Bleed를 Scale로 두는 것과 Long Edge로 두는 것은 여백을 어떻게 다르게 계산하나요?",
+    "allowed": ["rawpedia:Crop"],
+    "expected_status": "SUPPORTED",
+    "expected_behavior": "선택한 크롭 안쪽의 가이드 여백이며, Scale은 크롭 치수의 비율, Long Edge는 긴 변 길이에 기반한 균일 여백임을 답한다."
+  },
+  {
+    "id": "S02",
+    "source_type": "rawpedia",
+    "question": "RawTherapee 다크 프레임 자동 매칭에서 카메라·ISO·셔터 속도 조건이 같은 후보 사이의 우선순위와 정확히 일치하는 후보가 없을 때의 비교 기준은 무엇인가요?",
+    "allowed": ["rawpedia:Dark-Frame"],
+    "expected_status": "SUPPORTED",
+    "expected_behavior": "제조사·모델·ISO·셔터 키의 일치 후보는 시간 차이를 비교하고, 정확한 일치 후보가 없으면 ISO와 셔터 속도 차이를 비교한다고 답한다."
+  },
+  {
+    "id": "S03",
+    "source_type": "rawpedia",
+    "question": "RawTherapee의 Queue 탭에서 이미 처리 중인 사진이 있을 때 On/Off를 끄면 그 파일은 중간에 잘리나요, 완료되나요?",
+    "allowed": ["rawpedia:Queue"],
+    "expected_status": "SUPPORTED",
+    "expected_behavior": "처리 중인 사진은 완료하고 다음 항목부터 멈춘다고 답한다."
+  },
+  {
+    "id": "S04",
+    "source_type": "github",
+    "question": "GitHub Issue #477의 최초 제보에서 Sony Alpha A7 V 파일의 포맷과 ART에서 알려진 제약은 무엇이었나요?",
+    "allowed": ["issue:477"],
+    "expected_status": "SUPPORTED",
+    "expected_behavior": "최초 제보 기준 Lossless .ARW 인식 또는 처리가 지원되지 않았다고 답하며 현재 버전의 지원 여부는 단정하지 않는다."
+  },
+  {
+    "id": "S05",
+    "source_type": "github",
+    "question": "GitHub Issue #524의 최초 제보만으로 어떤 배포 버전에서 문제가 완전히 해결됐는지 확인할 수 있나요?",
+    "allowed": ["issue:524"],
+    "expected_status": "INSUFFICIENT_EVIDENCE",
+    "expected_behavior": "최초 제보는 ART 1.26.8에서 문제가 계속된다고 설명하며, 최초 제보만으로 수정이 들어간 배포 버전을 특정할 수 없다고 답한다."
+  },
+  {
+    "id": "S06",
+    "source_type": "github",
+    "question": "GitHub Issue #516의 최초 제보에서 흰색으로 보이는 문제가 보고된 Canon 카메라 모델과 제공된 RAW 파일 유형 두 가지는 무엇인가요?",
+    "allowed": ["issue:516"],
+    "expected_status": "SUPPORTED",
+    "expected_behavior": "Canon EOS R8이며 normal RAW와 cRAW 예시가 제공됐다고 답한다."
+  }
+]
