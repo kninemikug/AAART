@@ -11,9 +11,9 @@ from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
 
-from compare_rag_models import ROOT, canonical, digest, load_cases
-
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "src"))
 
 from artagent.answer import generation_time_budget
 from artagent.chunking import TokenizerBundle
@@ -22,6 +22,7 @@ from artagent.graph.state import RequestInput
 from artagent.issue_filter import filter_corpus, load_sources
 from artagent.issue_update import generate_candidate_chunks
 from artagent.retrieval.types import SourceKey
+from scripts.compare_rag_models import canonical, digest, load_cases
 from scripts.eval_t15_rerank import runtime_store, score_record, search_record, trial
 from scripts.run_t14_ab_eval import _runtime_generate
 from scripts.t15_evaluation import RecordVerifier, fit_bm25_from_snapshot, read_rows, sha256_file

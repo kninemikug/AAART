@@ -43,15 +43,24 @@ def digest(value):
     return hashlib.sha256(canonical(value).encode()).hexdigest()
 
 
-def load_cases():
+def load_cases(full=False):
     with INPUT.open("rb") as stream:
         if hashlib.file_digest(stream, "sha256").hexdigest() != INPUT_SHA:
             raise ValueError("고정 T23 입력 지문 불일치")
     with gzip.open(INPUT, "rt", encoding="utf-8") as stream:
-        rows = {row["query_id"]: row for row in map(json.loads, stream) if row["query_id"] in PILOT}
-    if rows.keys() != PILOT.keys():
+        rows = {row["query_id"]: row for row in map(json.loads, stream) if full or row["query_id"] in PILOT}
+    expected_ids = {f"Q{index:03d}" for index in range(1, 101)} if full else PILOT.keys()
+    if rows.keys() != expected_ids:
         raise ValueError("비교 질문 누락")
     return rows
+
+
+def regression_cases(full):
+    cases = {}
+    for qid, row in load_cases(full).items():
+        reference = (row["answer_run"] or {}).get("status") if full else PILOT[qid]
+        cases[qid] = ({**row, "expected_status": reference}, pilot_bundle(row))
+    return cases
 
 
 def pilot_bundle(row):
@@ -235,7 +244,9 @@ def main():
     parser.add_argument("--query", action="append")
     parser.add_argument("--model", choices=MODELS + NVIDIA_MODELS, action="append")
     parser.add_argument("--provider", choices=("codex", "nvidia"), default="codex")
-    parser.add_argument("--final-search", type=Path, help="독립 문항의 검증된 동일 검색 bundle JSONL(gzip)")
+    datasets = parser.add_mutually_exclusive_group()
+    datasets.add_argument("--final-search", type=Path, help="독립 문항의 검증된 동일 검색 bundle JSONL(gzip)")
+    datasets.add_argument("--full", action="store_true", help="고정 T23 회귀 질문 100문항 전부 사용")
     parser.add_argument("--summary", action="store_true", help="보존한 결과를 오프라인으로 재집계")
     args = parser.parse_args()
     if args.provider == "nvidia":
@@ -245,7 +256,7 @@ def main():
     if args.final_search:
         cases = final_cases(args.final_search)
     else:
-        cases = {qid: ({**row, "expected_status": PILOT[qid]}, pilot_bundle(row)) for qid, row in load_cases().items()}
+        cases = regression_cases(args.full)
     selected = set(args.query or cases)
     selected_models = set(args.model or models)
     if not selected <= cases.keys() or not selected_models <= set(models):
