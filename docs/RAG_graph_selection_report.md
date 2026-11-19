@@ -39,6 +39,8 @@ MiniLM + BM25의 두 모델은 각 10회 호출했다. 검색만 하는 중간 �
 
 MiniMax로 재작성과 답변을 모두 실호출하니 출처 분류 8/8, 요구 원문 확보 7/8, 유효 답변 7/8, 기대 상태 일치 6/8이었다. F01에서 생성한 한국어 검색 질의는 두 번 모두 RawPedia `Crop` 원문을 놓쳤고, 끝내 근거 부족으로 답했다. F08은 인용 목록과 본문 표식이 달라 검증에서 차단됐다. 보존 재작성 비교와 실시간 재작성 검증에서 각각 3문항이 HTTP 429를 받아 순차 재실행했으며, 최종 429는 0건이다. 첫 시도와 재시도를 함께 보존했다. [실시간 재작성 호출](../data/eval/stack-selection/graph_live_rewrite_v1) · [순차 재시도](../data/eval/stack-selection/graph_live_rewrite_retry_v1)
 
+Nemotron으로도 같은 8문항의 재작성과 답변을 실호출했다. 출처 분류 8/8, 검색 성공·요구 원문 확보·유효 답변·기대 상태 일치는 각각 1/8이었다. F02만 검색과 답변까지 완료했다. F01·F03·F04·F05·F08은 재작성 응답에 필수 JSON 키 `answer` 또는 `citation_ids`가 없어 중단했고, F06·F07은 재작성 요청이 60초 제한을 넘겼다. 일곱 문항 모두 검색과 답변 호출 전에 중단됐다. Nemotron의 429는 0건이었다. [Nemotron F01 실행 기록](../data/eval/stack-selection/graph_live_rewrite_v1/minilm-bm25-F01-nvidia--nemotron-3.5-lightning-30b-a3b.jsonl.gz) · [Nemotron F02 성공 기록](../data/eval/stack-selection/graph_live_rewrite_v1/minilm-bm25-F02-nvidia--nemotron-3.5-lightning-30b-a3b.jsonl.gz)
+
 MiniLM + BM25를 이 비교의 검색 기준으로, MiniMax를 답변 생성 후보로 유지한다. 실시간 재작성의 근거 확보와 인용 검증이 기준에 미달해 GUI·CLI 기본값 전환과 정식 T23 인수는 보류한다. 100문항은 검색 회귀에 사용했으며 빈칸을 채울 새 Sol 응답이나 원자 주장별 평가 호출은 수행하지 않았다. 두 MiniLM 설정을 새 색인에서 다시 검색한 200건의 질의·경로·선택 순서와 원문 ID 지표가 각각 일치했고, 기존 T23 오프라인 리포트도 동일하게 재생성됐다.
 
 ## 재현
