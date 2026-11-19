@@ -63,7 +63,7 @@ def sha256_file(path: Path) -> str:
 
 
 @lru_cache(maxsize=128)
-def _historical_code_matches(name: str, digest: str) -> bool:
+def _historical_code(name: str, digest: str) -> bytes | None:
     """T15 착수 전 Git 이력에 실제 보존된 소스 바이트와만 대조한다.
 
     T14 실행 중 수정한 파일은 code_commit보다 나중에 커밋된 경우가 있다.
@@ -77,8 +77,25 @@ def _historical_code_matches(name: str, digest: str) -> bool:
         source = subprocess.run(["git", "show", f"{commit}:{name}"],
                                 cwd=ROOT, capture_output=True)
         if source.returncode == 0 and hashlib.sha256(source.stdout).hexdigest() == digest:
-            return True
-    return False
+            return source.stdout
+    return None
+
+
+def _historical_code_matches(name: str, digest: str) -> bool:
+    return _historical_code(name, digest) is not None
+
+
+def _recorded_router(digest: str):
+    """과거 경로와 제약은 지문을 검증한 당시 라우터로 다시 계산한다."""
+    name = "src/artagent/graph/router.py"
+    source = (ROOT / name).read_bytes()
+    if hashlib.sha256(source).hexdigest() != digest:
+        source = _historical_code(name, digest)
+    if source is None:
+        raise ValueError("등록한 라우터의 Git 원본을 확인할 수 없습니다.")
+    namespace = {"__name__": "artagent.graph._recorded_router", "__package__": "artagent.graph"}
+    exec(compile(source, name, "exec"), namespace)
+    return namespace["route_request"], namespace["analyze_signals"]
 
 
 def _recorded_reference_path(value: str) -> Path:
@@ -499,13 +516,14 @@ def _validate_artifacts(out_dir: Path, query_path: Path, cache_path: Path) -> di
     _check_grid(routes, {c["id"] for c in BENCHMARK_CASES}, "case_id")
     _check_grid(slices, set(SLICE1_QIDS), "query_id")
     _check_grid(ab, {q["query_id"] for q in queries["queries"]}, "query_id")
+    recorded_route, recorded_signals = _recorded_router(protocol["code_sha256"]["src/artagent/graph/router.py"])
     validated: set[str] = set()
     for record in routes + slices + ab:
         if (record["rewrite_enabled"] != (record["condition"] == "B") or record["hyde_enabled"] is not False
                 or record["answer_test_double"] is not True or record["capabilities_test_double"] is not True):
             raise ValueError("조건·대역 표시 불일치")
         request = _request_from_record(record["request"])
-        decision, _ = route_request(request)
+        decision, _ = recorded_route(request)
         if _json_copy(asdict(decision)) != record["decision"]:
             raise ValueError("원요청에서 결정한 경로·계획 변경")
         if (record["actual_primary"] != str(decision.primary_path)
@@ -518,7 +536,7 @@ def _validate_artifacts(out_dir: Path, query_path: Path, cache_path: Path) -> di
                 raise ValueError("계획에 없는 검색 항목")
             index, step = steps[observation["step_id"]]
             query, constraints = _extract_query_and_constraints({"request": request, "decision": decision, "cursor": index,
-                                                                 "signals": analyze_signals(request.text, request.context)},
+                                                                 "signals": recorded_signals(request.text, request.context)},
                                                                 preserve_literals=policy == PRESERVATION_POLICY_VERSION)
             if prepared["query"] != query or prepared["constraints"] != list(constraints):
                 raise ValueError("검색 항목의 원입력·제약 변경")
