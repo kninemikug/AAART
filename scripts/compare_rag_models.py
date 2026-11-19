@@ -20,6 +20,10 @@ MODELS = ("gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna")
 FINAL_MODELS = MODELS[:2]
 FINAL_SEARCH_SHA = "38567146fd4a4d04c5f9a9dc0199c6a0a0485fb1490a4cb5b53810cd8c29955f"
 API_PRICES = dict(zip(MODELS, ((4, 0.4, 20), (2, 0.2, 12), (0.2, 0.02, 1.2)), strict=True))
+NVIDIA_MODELS = ("z-ai/glm-5.3-flash", "minimaxai/minimax-m3.1-flash")
+NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
+# 원 제공사의 정규 USD 단가(1M 토큰). NVIDIA 측 캐시 동작은 환산에서 제외한다.
+NVIDIA_API_PRICES = dict(zip(NVIDIA_MODELS, ((0.15, 0.50), (0.15, 0.60)), strict=True))
 PILOT = {"Q001": "SUPPORTED", "Q033": "SUPPORTED", "Q070": "INSUFFICIENT_EVIDENCE",
          "Q086": "SUPPORTED", "Q092": "SUPPORTED", "Q096": "UNSUPPORTED"}
 
@@ -92,7 +96,6 @@ def evaluate(case, bundle, model, timeout):
     from artagent.graph.state import Evidence, RetrievalBundle
 
     retrieval = RetrievalBundle(**{**bundle, "hits": [Evidence(**hit) for hit in bundle["hits"]]})
-    os.environ["LLM_PROVIDER"] = "codex"
     os.environ["LLM_MODEL"] = model
     observation = {}
     with generation_time_budget(timeout):
@@ -122,43 +125,83 @@ def read_attempt(path, case, model):
     return row
 
 
+def attempt_path(directory, qid, model):
+    return directory / f"{qid}-{model.replace('/', '--')}.json.gz"
+
+
+def request_matches(row, case, model):
+    observed = row["observation"]
+    system, user = observed["system_instruction"], observed["user_prompt"]
+    prompt = hashlib.sha256(f"{system}\n{user}".encode()).hexdigest()
+    request = observed["request"]
+    if request["model"] != model or prompt != observed["prompt_hash"]:
+        return False
+    if case["answer_run"] and case["answer_run"]["prompt_sha256"] != prompt:
+        return False
+    if model in NVIDIA_MODELS:
+        payload = request["payload"]
+        return (row["provider"] == "openai-compatible" and request["kind"] == "chat-completions"
+                and observed["runtime_meta"]["endpoint"] == f"{NVIDIA_BASE_URL}/chat/completions"
+                and payload["model"] == model and digest(payload) == request["sha256"]
+                and payload["messages"] == [{"role": "system", "content": system}, {"role": "user", "content": user}])
+    return (row["provider"] == "codex-cli"
+            and hashlib.sha256(request["full_prompt"].encode()).hexdigest() == request["sha256"])
+
+
+def estimate_usage(model, observation):
+    usage = observation.get("usage")
+    if model in NVIDIA_MODELS:
+        # JSON/인용 검증에서 실패한 응답도 API가 사용량을 반환했다면 집계한다.
+        if not usage:
+            response = (observation.get("runtime_meta") or {}).get("_response_body") or {}
+            usage = response.get("usage") if isinstance(response, dict) else None
+        keys = ("prompt_tokens", "completion_tokens")
+        if isinstance(usage, dict) and all(type(usage.get(k)) is int and usage[k] >= 0 for k in keys):
+            in_price, out_price = NVIDIA_API_PRICES[model]
+            return (usage[keys[0]] * in_price + usage[keys[1]] * out_price) / 1_000_000
+    elif isinstance(usage, dict) and all(type(usage.get(k)) is int for k in ("input_tokens", "cached_input_tokens", "output_tokens")):
+        input_price, cached_price, output_price = API_PRICES[model]
+        cached = usage["cached_input_tokens"]
+        return ((usage["input_tokens"] - cached) * input_price
+                + cached * cached_price + usage["output_tokens"] * output_price) / 1_000_000
+    return None
+
+
 def summary(output_dir, cases, models):
     result = {}
     prompts = {}
     for model in models:
-        input_price, cached_price, output_price = API_PRICES[model]
         runtimes, estimates = [], []
         attempted = matched = 0
         for qid, (case, _bundle) in cases.items():
-            path = output_dir / f"{qid}-{model}.json.gz"
+            path = attempt_path(output_dir, qid, model)
             if not path.exists():
                 continue
             row = read_attempt(path, case, model)
             attempted += 1
+            observed = row["observation"]
+            if row["error"] is None or model in NVIDIA_MODELS:
+                estimate = estimate_usage(model, observed)
+                if estimate is not None:
+                    estimates.append(estimate)
             if row["error"] is not None:
                 continue
-            observed = row["observation"]
             prompt = observed["prompt_hash"]
-            prompt_text = f"{observed['system_instruction']}\n{observed['user_prompt']}"
-            request = observed["request"]
-            if (hashlib.sha256(prompt_text.encode()).hexdigest() != prompt
-                    or hashlib.sha256(request["full_prompt"].encode()).hexdigest() != request["sha256"]
-                    or request["model"] != model or row["provider"] != "codex-cli"
-                    or (case["answer_run"] and case["answer_run"]["prompt_sha256"] != prompt)):
+            if not request_matches(row, case, model):
                 raise ValueError(f"실제 요청 또는 프롬프트 지문 불일치: {qid}/{model}")
             if prompts.setdefault(qid, prompt) != prompt:
                 raise ValueError(f"모델 간 프롬프트 불일치: {qid}")
             matched += row["actual_status"] == row["expected_status"]
             runtimes.append(observed["elapsed_ms"] / 1000)
-            usage = observed.get("usage")
-            if usage and all(type(usage.get(k)) is int for k in ("input_tokens", "cached_input_tokens", "output_tokens")):
-                cached = usage["cached_input_tokens"]
-                estimates.append(((usage["input_tokens"] - cached) * input_price
-                                  + cached * cached_price + usage["output_tokens"] * output_price) / 1_000_000)
         result[model] = {"planned": len(cases), "attempted": attempted, "succeeded": len(runtimes),
                          "matched_status": matched, "p50_answer_s": median(runtimes) if runtimes else None,
                          "estimated_api_standard_usd": sum(estimates) if estimates else None,
-                         "estimate_count": len(estimates), "actual_cli_cost_usd": None}
+                         "estimate_count": len(estimates)}
+        if model in NVIDIA_MODELS:
+            result[model].update(estimate_policy="original_provider_uncached", missing_usage_count=attempted - len(estimates),
+                                 actual_nvidia_cost_usd=None)
+        else:
+            result[model]["actual_cli_cost_usd"] = None
     return result
 
 
@@ -166,11 +209,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--query", action="append")
-    parser.add_argument("--model", choices=MODELS, action="append")
+    parser.add_argument("--model", choices=MODELS + NVIDIA_MODELS, action="append")
+    parser.add_argument("--provider", choices=("codex", "nvidia"), default="codex")
     parser.add_argument("--final-search", type=Path, help="독립 문항의 검증된 동일 검색 bundle JSONL(gzip)")
     parser.add_argument("--summary", action="store_true", help="보존한 결과를 오프라인으로 재집계")
     args = parser.parse_args()
-    models = FINAL_MODELS if args.final_search else MODELS
+    models = NVIDIA_MODELS if args.provider == "nvidia" else (FINAL_MODELS if args.final_search else MODELS)
     if args.final_search:
         cases = final_cases(args.final_search)
     else:
@@ -183,6 +227,13 @@ def main():
         print(json.dumps(summary(args.output_dir, {q: cases[q] for q in cases if q in selected},
                                  [m for m in models if m in selected_models]), ensure_ascii=False, indent=2))
         return
+    if args.provider == "nvidia":
+        key = os.environ.get("NVIDIA_API_KEY", "").strip()
+        if not key:
+            parser.error("실호출에는 NVIDIA_API_KEY 환경 변수가 필요합니다.")
+        os.environ.update(LLM_PROVIDER="openai-compatible", LLM_BASE_URL=NVIDIA_BASE_URL, LLM_API_KEY=key)
+    else:
+        os.environ["LLM_PROVIDER"] = "codex"
     args.output_dir.mkdir(parents=True, exist_ok=True)
     for index, (qid, (case, bundle)) in enumerate(cases.items()):
         if qid not in selected:
@@ -191,7 +242,7 @@ def main():
         for model in models[offset:] + models[:offset]:
             if model not in selected_models:
                 continue
-            path = args.output_dir / f"{qid}-{model}.json.gz"
+            path = attempt_path(args.output_dir, qid, model)
             if path.exists():
                 read_attempt(path, case, model)
                 continue

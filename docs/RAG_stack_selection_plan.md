@@ -19,3 +19,9 @@ T8-1의 골드 원문 집합, 조정용 질문의 골드 원문 집합과 다른
 독립 입력은 [RawPedia 4문서와 GitHub 4스레드의 8문항](../data/eval/stack-selection/final_questions_v1.json)이다. 입력 SHA-256은 `222813bc4ca316ab459c6ac252c8c220ae069a0c6be4e400e16a0f84498ccfae`다. 기존 T15 스냅샷을 먼저 복원하고 T10 정제와 T9의 고정 GitHub 청킹 규칙으로 Issue #317·#445·#518·#522를 실험 저장소에만 추가한다. 검색 출처는 질문에 함께 등록한 값을 사용한다. Issue 번호가 없는 F06은 해당 출처 내에서 대상 글 필터 없이 검색한다. 재작성은 고정 Sol과 T14 경로로 문항당 최대 1회 호출하며 HyDE는 사용하지 않는다. BM25는 확대된 실험 코퍼스에 적합하고 T15 후보 20·top 5·최소 점수 0.5·가중치 0.25를 유지한다.
 
 독립 최종 비교는 Sol과 Terra, 변경 전 `t17-answer-v1` 프롬프트로 고정한다. Terra는 초기 비교에서 중요한 무근거 주장이 확인되지 않았고 Sol과 지연 차가 작은 후보였다. Luna는 근거 부족 답변에서 다른 예시의 스팟 수와 도구에 잘못된 세그먼트를 인용해 이 단계 대상에서 제외했다. 8문항의 실제 검색 bundle을 양쪽에 똑같이 전달하고 각 모델에 8회까지 요청한다. 기술 성공과 예상 상태는 8/8, 중요한 무근거 주장 및 잘못된 인용은 0건, 답변 지연 중앙값은 Sol 이하, 공개 API 토큰 단가 환산은 Sol보다 작아야 한다. 비교 결과가 부족하거나 기준에 미달하면 선정 보류로 기록한다.
+
+## 저비용 API 후속 비교
+
+NVIDIA 개발용 무료 엔드포인트가 있는 `z-ai/glm-5.3-flash`와 `minimaxai/minimax-m3.1-flash`를 같은 회귀 질문 6개와 동결한 T17 문맥에서 비교한다. 6개에서 상태·중요 주장·인용·제품 범위·기술 성공 기준을 통과한 모델은 기존 독립 8문항에서도 확인한다. 독립 표본을 조정에 사용하지 않는다. 원문 기준을 충족한 모델의 원 제공사 환산 비용을 비교하고 지연과 실패를 함께 남긴다. 기존 Terra 결과는 품질 기준선이다. [GLM NVIDIA 엔드포인트](https://build.nvidia.com/z-ai/glm-5-3-flash) · [MiniMax NVIDIA 엔드포인트](https://build.nvidia.com/minimaxai/minimax-m3.1-flash)
+
+NVIDIA 응답의 `prompt_tokens`와 `completion_tokens`를 원 제공사의 정규 입력·출력 단가에 각각 곱한다. 다른 제공사의 캐시 적중률은 환산에 적용하지 않는다. 응답 검증에 실패했더라도 사용량이 제공되면 추정 비용에 포함한다. 사용량 누락은 건수를 기록하고 실제 과금은 `null`로 보존한다. 초기 12회, 독립 표본은 통과 모델당 최대 8회 호출한다. 모델과 문항당 한 번 실행하고 재현 집계는 보존 응답을 사용한다. [Z.ai 단가](https://docs.z.ai/guides/overview/pricing) · [MiniMax 단가](https://www.minimax.io/blog/minimax-m31f)
