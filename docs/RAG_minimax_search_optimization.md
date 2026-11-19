@@ -65,6 +65,10 @@ F01–F08에서는 요구 원문을 7/8에서 8/8로 확보했다. F01의 `Crop`
 
 색인과 시스템·사용자 프롬프트가 정확히 같은 이전 MiniMax 응답을 재생한 F02–F08은 기대 상태 7/7에 일치했다. F08의 기존 원본에서 본문에 쓰인 표식 `C1S2`, `C1S3`을 조립하니 실제 인용 검증을 통과해 `UNSUPPORTED` 응답을 반환했다. F01은 문맥이 개선되어 같은 프롬프트의 보존 답변이 없으므로 상태 집계에서 제외했다. 운영 기본값 전환 판정에는 새 MiniMax 답변과 새 질문 검증이 남아 있다. [답변 재생 및 원본 계보](../data/eval/stack-selection/minimax_quality_answer_replay_v1/replay.jsonl.gz)
 
+### 요청 후 재시도
+
+같은 모델·색인·검색 설정으로 F01–F08을 다시 순차 호출했다. 검색과 요구 원문 확보는 각각 8/8이었고, 답변 요청 8건은 모두 HTTP 529를 반환했다. 같은 엔드포인트에 평가 문맥을 뺀 `Reply with OK.`를 보내도 스트리밍과 비스트리밍 모두 HTTP 529였으며, 두 응답 본문에 `overload`가 있었다. 두 응답에 재시도 시점을 지정하는 `Retry-After` 헤더는 없었다. 신규 답변 품질은 계속 미측정이다. [8문항 재시도 기록](../data/eval/stack-selection/minimax_quality_final_retry_v2) · [NVIDIA 모델 API 명세](https://build.nvidia.com/minimaxai/minimax-m3.1-flash/apireference)
+
 ## 재현
 
 프로젝트 Python 3.14 환경에서 보존 기록을 집계한다. 세 명령은 로컬 파일만 읽는다.
