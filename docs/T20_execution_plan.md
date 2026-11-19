@@ -31,3 +31,72 @@ pytest에서는 존재하지 않는 키, 범위 밖 값, 미완성 INI를 주입
 실제 렌더는 먼저 `./scripts/build_art_cli.sh`로 Release 아웃오브소스 빌드를 시도한다. 새 빌드를 완료하기 어려우면 요청에 지정된 T19의 바이너리를 사용하고 바이너리 절대 경로와 빌드 커밋을 기록한다. 실제 렌더 전에 빌드 플래그에 `-ffast-math`가 없는지 확인한다. `data/fivek_sample/sample1.nef`에서 T18 특성을 추출하고 교체 런타임으로 유효한 T19 프로필을 생성한 뒤 `render_or_retry`로 실제 JPEG를 만든다. 최종 파일 경로·크기·종료 코드, `djpeg -strict` 디코딩 결과와 RAW 해시 보존을 기록한다.
 
 커밋은 `docs: ART-cli 피드백 루프 구현 플랜 추가`와 `feat: ART-cli 렌더 실패 감지와 재생성 루프 추가` 두 개로 구성한다. 첫 커밋은 계획 문서, 두 번째 커밋은 구현·테스트·실제 검증 기록을 담는다.
+
+## 검증 기록
+
+### 빌드와 실제 렌더
+
+`./scripts/build_art_cli.sh`로 이 워크트리에서 macOS arm64 Release 빌드에 성공했다. `build/AboutThisBuild.txt`에 기록된 빌드 기준은 `4000eb3eb`이다. `build/rtgui/ART-cli`의 SHA-256은 `f9d121456bdb6aaf28ac08500031c3ed21edcd258822dc0b88a9debd3ba332e8`이다. 엔진과 CLI의 CMake 컴파일 플래그에서 `-ffast-math` 미사용을 확인했다.
+
+| 항목 | 실제 결과 |
+| --- | --- |
+| 입력과 요청 | `data/fivek_sample/sample1.nef`의 T18 특성, `노출 +0.5 EV` |
+| 1차 시도 | 교체 런타임이 낸 미등록 키를 T19이 거부(`validation_error`). 오류 요약을 다음 프롬프트에서 확인 |
+| 2차 시도 | 유효한 `.arp`로 실제 ART-cli 실행, 종료 코드 0 |
+| JPEG | `build/t20-checks/sample1.jpg`, **1,548,386바이트**, 2006×3031, `djpeg -strict` 종료 코드 0 |
+| JPEG SHA-256 | `c2a9bcc7c206a7714be3e45e0005e6534978cae6c77a24f862d45a3e4d1ae4ff` |
+| 원본 보존 | 렌더 전후 RAW SHA-256 `18e287009b15b20fc73fd2223ed1551231f3853398a38a7b0a4308b630e1f805` 및 입력 디렉터리 파일 목록 일치 |
+| 실행 증거 | `build/t20-checks/render.json`에 시도별 결과와 해시, `build/t20-checks/sample1.arp`에 실제 적용 프로필 보관 |
+
+CLI는 사용자 처리 프로필 디렉터리 부재를 `stderr`로 보고했다. 시도 이력에서도 이 진단을 확인할 수 있다. 명시적으로 넘긴 프로필로 종료 코드 0과 새 JPEG 전체 디코딩을 확인했다. 기존 `scripts/test_art_cli.sh`에 같은 프로필을 넘긴 재실행도 성공했다. 외부 LLM을 사용하는 재생성과 macOS arm64 외 환경은 미검증이다.
+
+아래 명령은 별도의 JPEG를 생성해 1차 결함 거부와 2차 실제 렌더를 재현한다.
+
+```bash
+T20_PYTHON=/Users/user/Workspace/Programming/Projects/AAART/venv/bin/python
+mkdir -p build/t20-checks
+PYTHONPATH=src ART_SETTINGS="$PWD/build/t20-checks/settings" \
+  ART_CACHE="$PWD/build/t20-checks/cache" "$T20_PYTHON" - <<'PY'
+import json
+from pathlib import Path
+
+from artagent.features import extract_features
+from artagent.render.loop import render_or_retry
+
+
+def fixture_runtime(prompt):
+    exposure = {"Compensation": 0.5}
+    _, marker, diagnostic = prompt.rpartition("\n렌더 재시도 진단(JSON): ")
+    if marker:
+        assert json.loads(diagnostic)["status"] == "validation_error"
+    else:
+        exposure["NonexistentKey"] = 1
+    return {"raw_response": json.dumps({"groups": {"Exposure": exposure}, "reason": "요청 노출 반영"}),
+            "metadata": {"provider": "deterministic-fixture"}}
+
+
+raw = Path("data/fivek_sample/sample1.nef")
+result = render_or_retry(raw, "build/t20-checks/sample1-replay.jpg", "노출 +0.5 EV",
+                         extract_features(raw), cli_path="build/rtgui/ART-cli", runtime=fixture_runtime)
+assert [entry.status for entry in result.attempts] == ["validation_error", "success"]
+print(result.output_path, result.output_path.stat().st_size)
+PY
+djpeg -strict -outfile /dev/null build/t20-checks/sample1-replay.jpg
+```
+
+### pytest
+
+`/Users/user/Workspace/Programming/Projects/AAART/venv/bin/python -m pytest tests/test_render_loop.py -q`에서 **8개 통과**했다. 구현 전에는 새 렌더 모듈이 없어 수집에 실패했다. 실제 바이너리와 분리한 테스트에서 결함 프로필, 비정상 종료, 누락 및 빈 출력, 타임아웃, 진단 전달, 기존 파일 보존과 3회 상한을 확인했다.
+
+같은 Python으로 `-m pytest tests/test_render_loop.py tests/test_arp_generator.py tests/test_arp_runtime.py tests/test_art_cli_script.py tests/test_features.py -q`를 실행해 관련 테스트 **279개 통과**를 확인했다.
+
+기존 IPC 단일 테스트는 샌드박스에서 Unix 소켓 `bind` 권한 오류로 실패했다. 전체 검사는 로컬 소켓이 허용된 환경에서 실행했다. 첫 전체 검사는 T09 기준선의 프로토콜 지문 불일치로 **1,443개 통과, 51개 설정 오류, 경고 3개**였다. 저장된 프로토콜과 재현 결과를 비교해 `environment.python_executable`의 `venv/bin/python3`와 `venv/bin/python` 경로만 다른 것을 확인했다. 재실행은 기준선과 동일한 경로를 사용했다.
+
+```bash
+env -u T09_REPRO_DIR -u T09_SOURCE_ROOT -u T09_REFERENCE_PATH \
+  PYTHONDONTWRITEBYTECODE=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+  /Users/user/Workspace/Programming/Projects/AAART/venv/bin/python3 \
+  -m pytest -p no:cacheprovider tests -q --tb=short
+```
+
+재실행은 종료 코드 0으로 **1,494개 통과, 경고 3개(436.23초)**였다. 경고는 Chroma의 `asyncio.iscoroutinefunction`과 Torch의 `max_length` 폐기 예고다. 전체 로그는 `build/t20-checks/pytest-full-python3.log`에 보관했다.
