@@ -369,6 +369,8 @@
 **의존:** T8-1, T15, T17, RAG 답변 기준 스택 최종 선정 게이트 · **담당:** 팀장+B · **예상 파일:** `scripts/eval_ragas.py`, `data/eval/report_v1.md`
 **규모:** S
 
+**보존 실행 재평가:** T15·T17 기록으로 100문항의 정밀도·재현율과 공통 68문항의 faithfulness를 한 표에 기록했다. 답변 미보존 31건과 사실 주장 없음 1건은 faithfulness 집계에서 제외했다. [통합 리포트](../data/eval/report_v1.md)
+
 ## 별도 후속 · RAG 서비스 적용
 
 [구현 계획과 기본값 전환 기준](plan.md#후속-계획--rag-서비스-적용) · [실행 결과](../docs/RAG_service_rollout_report.md). A-23 평가 기록을 인수해 GUI·CLI에 적용하는 후속 작업이다.

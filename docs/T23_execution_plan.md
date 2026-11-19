@@ -22,9 +22,11 @@
 | ID-based context recall | 같은 교집합 크기 ÷ 참조 원문 ID 수. 빈 참조는 `null`. 반증형에는 참조로 미리 지정된 반증 문서를 사용한다. |
 | Faithfulness | 실제 제출 문맥으로 뒷받침된 원자적 사실 주장 수 ÷ 응답에서 분해한 전체 사실 주장 수. 입력 지문에 연결된 판정 JSONL이 있는 경우 이 비율을 계산한다. 평가기 판정·사실 주장 또는 답변이 없으면 `null`과 원인을 기록한다. |
 
-공식 정의는 [ID-based context precision](https://docs.ragas.io/en/v0.4.0/concepts/metrics/available_metrics/context_precision/), [ID-based context recall](https://docs.ragas.io/en/v0.4.0/concepts/metrics/available_metrics/context_recall/), [Faithfulness](https://docs.ragas.io/en/v0.4.0/concepts/metrics/available_metrics/faithfulness/)를 따른다. 입력별 점수를 매크로 평균하며 `null`은 평균에서 제외하고 실제 분모를 기록한다. 전체·근거형·반증형·T11/T14 대표 집합을 집계한다.
+공식 정의는 [ID-based context precision](https://docs.ragas.io/en/v0.4.0/concepts/metrics/available_metrics/context_precision/), [ID-based context recall](https://docs.ragas.io/en/v0.4.0/concepts/metrics/available_metrics/context_recall/), [Faithfulness](https://docs.ragas.io/en/v0.4.0/concepts/metrics/available_metrics/faithfulness/)를 따른다. 입력별 점수를 매크로 평균하며 `null`은 평균에서 제외하고 실제 분모를 기록한다. 전체·세 지표 공통 표본·근거형·반증형·T11/T14 대표 집합을 집계한다.
 
-2026-11-20 KST에 Python 3.14 작업 venv에서 RAGAS 0.4.0의 PyPI 설치 dry-run을 확인했다. 패키지와 모델은 설치하지 않는다. 이 보존 기록에서 확인 가능한 ID 기반 두 지표는 공식 정의를 표준 라이브러리로 계산한다. 저장소에 고정된 faithfulness 평가기와 원자 주장별 판정은 없다. T15 수동 검토는 복합 문장 또는 응답 전체를 한 검토 단위로 묶을 수 있으므로 그대로 원자 주장 점수로 환산할 수 없다. 평가기 증거가 없는 기본 실행에는 `null`을 기록한다. 기존 생성·검색 도구에 네트워크 호출을 추가하지 않는다.
+세 지표의 산식은 Python 표준 라이브러리로 실행한다. Faithfulness 판정에는 NVIDIA의 MiniMax M3.1 Flash를 사용한다. 먼저 원래 Sol 답변을 그대로 주고 주장을 분해한 뒤, 주장과 실제 제출된 원문 세그먼트를 제공해 지지 여부를 판정한다. 입력별 SHA-256, 근거 세그먼트와 원문 구절 및 판정 사유를 보존한다. 지지 판정의 구절이 해당 세그먼트에서 확인되는지 검사한다. 점수는 단일 모델 평가이며, 판정의 의미를 다른 모델이나 사람이 전수 재검증한 값과는 차이가 날 수 있다. [RAGAS 산식](https://docs.ragas.io/en/v0.4.0/concepts/metrics/available_metrics/faithfulness/) · [NVIDIA 평가기](https://build.nvidia.com/minimaxai/minimax-m3.1-flash/apireference)
+
+Q033의 원답변에 있는 “직접 개선한다고 설명되지는 않습니다”는 평가기에서 “직접 개선하지 않는다”로 분해됐다. 이처럼 주장 분해 단계에서 유보의 강도가 달라지면 지지 여부에 영향을 줄 수 있다. 리포트는 검증된 근거 구절과 평가기 판정을 집계한 값이다. [질문별 주장과 판정](../data/eval/ragas_v1/faithfulness_verdicts_v1.jsonl)
 
 ## 구현과 산출물
 
@@ -35,11 +37,19 @@
 | 파일 | 레코드 |
 | --- | --- |
 | `data/eval/ragas_v1/inputs.jsonl.gz` | 고정 질문별 원문 ID·근거 위치, 순서가 있는 검색 세그먼트 원문과 출처, 답변·상태·실행 식별자, 원본 연결 및 `input_sha256`. gzip으로 본문이 반복되는 JSONL을 압축한다. |
+| [Faithfulness 판정 JSONL](../data/eval/ragas_v1/faithfulness_verdicts_v1.jsonl) | 고정 응답별 주장과 지지 여부, 판정 사유, 실제 문맥의 근거 세그먼트와 구절. |
 | `data/eval/ragas_v1/scores.jsonl` | 질문 ID·입력 지문, 세 지표의 값·분자·분모·미산출 사유. |
 | `data/eval/ragas_v1/summary.json` | 입력·판정 증거 파일 지문, 채택 설정, 질문 및 답변 커버리지, 집합별 점수·분모·누락 사유. |
 | `data/eval/report_v1.md` | 실행 명령, 원본과 산출물 링크, 지표·표본 규모·누락 및 해석 범위. |
 
-옵션 `--faithfulness-verdicts FILE`의 JSONL에는 `query_id`, `input_sha256`, 고정 평가기 식별자인 `evaluator`, `claims`를 둔다. `claims`는 `statement`와 불리언 `supported`의 목록이다. 정확한 입력 지문을 가진 실제 답변에만 결합하고, 평가기 식별자·기록 지문을 남긴다. 주장 목록이 비어 있으면 분모 0으로 처리한다. 평가기 판정의 의미적 정확성은 이 집계 스크립트의 검증 범위 밖이다.
+기본 평가는 보존 판정을 읽으므로 네트워크 호출 없이 재집계할 수 있다. `--faithfulness-verdicts FILE`로 판정 파일을 명시할 수 있다. JSONL에는 `query_id`, `input_sha256`, 평가기 식별자인 `evaluator`, `claims`를 둔다. `claims`는 `statement`와 불리언 `supported`의 목록이다. 정확한 입력 지문을 가진 실제 답변에만 결합하고, 평가기 식별자와 기록 지문을 남긴다. 주장 목록이 비어 있으면 분모 0으로 처리한다.
+
+판정 자체를 새로 실행하려면 `NVIDIA_API_KEY`를 환경에 설정한 후 별도 출력 경로와 응답 캐시를 지정한다. 제공 모델의 출력은 새 호출마다 차이가 날 수 있다. 아래 명령은 기존 판정을 보존한 채 새 판정 파일을 만든다.
+
+```bash
+venv/bin/python -B scripts/judge_t23_faithfulness.py \
+  --cache build/t23-faithfulness-new --output build/t23-faithfulness-new/verdicts.jsonl
+```
 
 ## 실행과 완료 조건
 

@@ -4,20 +4,21 @@ T8-1 `t08-1-100-v1` 100문항(RawPedia 80·GitHub 20)의 T15 검색 기록과 69
 
 | 입력 | 질문 | 보존 답변 | ID-based context precision | ID-based context recall | Faithfulness |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| T8-1 전체 | 100 | 69 | 0.276667 (100/100) | 0.970000 (100/100) | `null` (0/100) |
-| 근거형 | 95 | 64 | 0.268421 (95/95) | 0.968421 (95/95) | `null` (0/95) |
-| 반증형 | 5 | 5 | 0.433333 (5/5) | 1.000000 (5/5) | `null` (0/5) |
-| T11 Slice 1 대표 | 15 | 15 | 0.332222 (15/15) | 1.000000 (15/15) | `null` (0/15) |
-| T14 대표 | 15 | 12 | 0.340000 (15/15) | 1.000000 (15/15) | `null` (0/15) |
+| T8-1 전체 | 100 | 69 | 0.276667 (100/100) | 0.970000 (100/100) | 0.986134 (68/100) |
+| 세 지표 공통 표본 | 68 | 68 | 0.253431 (68/68) | 0.970588 (68/68) | 0.986134 (68/68) |
+| 근거형 | 95 | 64 | 0.268421 (95/95) | 0.968421 (95/95) | 0.985034 (63/95) |
+| 반증형 | 5 | 5 | 0.433333 (5/5) | 1.000000 (5/5) | 1.000000 (5/5) |
+| T11 Slice 1 대표 | 15 | 15 | 0.332222 (15/15) | 1.000000 (15/15) | 0.981587 (15/15) |
+| T14 대표 | 15 | 12 | 0.340000 (15/15) | 1.000000 (15/15) | 1.000000 (12/15) |
 
-점수 옆 괄호는 실제 점수를 집계한 행 수와 대상 질문 수다. 질문별 점수를 매크로 평균했다. 근거형은 정본의 지원 원문 ID, 반증형은 사전 지정한 반증 원문 ID를 사용했다. 정밀도는 검색한 고유 원문 ID 중 허용된 ID의 비율이고, 재현율은 허용 원문 ID 중 검색된 ID의 비율이다. 평가 단위는 원문 문서이며 GitHub에서는 각 이슈·Discussion·댓글 세그먼트를 해당 원문 ID로 센다. [Precision 정의](https://docs.ragas.io/en/v0.4.0/concepts/metrics/available_metrics/context_precision/) · [Recall 정의](https://docs.ragas.io/en/v0.4.0/concepts/metrics/available_metrics/context_recall/)
+점수 옆 괄호는 실제 점수를 집계한 행 수와 대상 질문 수다. 질문별 점수를 매크로 평균했다. 세 지표 공통 표본은 세 점수가 모두 있는 동일 문항에서 각 평균을 계산한다. 근거형은 정본의 지원 원문 ID, 반증형은 사전 지정한 반증 원문 ID를 사용했다. 정밀도는 검색한 고유 원문 ID 중 허용된 ID의 비율이고, 재현율은 허용 원문 ID 중 검색된 ID의 비율이다. 평가 단위는 원문 문서이며 GitHub에서는 각 이슈·Discussion·댓글 세그먼트를 해당 원문 ID로 센다. [Precision 정의](https://docs.ragas.io/en/v0.4.0/concepts/metrics/available_metrics/context_precision/) · [Recall 정의](https://docs.ragas.io/en/v0.4.0/concepts/metrics/available_metrics/context_recall/)
 
 ## 실행 증거와 범위
 
 - 검색은 T15 v5의 B 첫 반복을 사용했다. 재작성 on, HyDE off, BM25 후보 20·top 5·최소 점수 0.5·가중치 0.25에서 선택한 청크를 보존 스냅샷으로 복원했다. [T15 결과와 실행 인계](../../docs/T15_results_v5.md)
 - 같은 검색 bundle이 확인된 T17 `T15` 트랙(`codex-cli / gpt-5.6-sol / t17-answer-v1`)의 응답 상태는 `INSUFFICIENT_EVIDENCE` 3건, `SUPPORTED` 61건, `UNSUPPORTED` 5건이다. 답변 기록이 없는 31문항은 검색 문맥과 `answer: null`을 기록했다. [T17 최종 감사](t15-rerank/audit_v6/answers.json)
 - T17 감사는 당시 코드 `08e484294`에서 138건 전부 재통과했다. 현재 브랜치에서는 계보 검증이 통과했고 뒤이은 감사가 T15 당시 코드 지문 목록과의 차이로 중단됐다. T23은 보존 manifest, 원문 세그먼트, 검색 bundle 지문과 실제 생성 요청 문맥을 대조했다.
-- Faithfulness는 제출 문맥에서 뒷받침된 원자 주장 수를 전체 사실 주장 수로 나눈다. 미산출 사유는 T15 설정의 T17 답변 미실행 31건, 동일 입력의 원자 주장 판정 미확보 69건이다. 기존 T15 수동 검토는 답변 전체를 묶은 판정도 포함하므로 원자 주장별 entailment 입력으로 사용할 수 없다. [Faithfulness 정의](https://docs.ragas.io/en/v0.4.0/concepts/metrics/available_metrics/faithfulness/)
+- Faithfulness는 제출 문맥에서 뒷받침된 원자 주장 수를 전체 사실 주장 수로 나눈다. 평가기 `nvidia/minimaxai/minimax-m3.1-flash/t23-claims-v1`의 원자 주장 판정을 사용했다. 전체 사실 주장 359개 중 354개가 지지됐다. 미산출 사유는 T15 설정의 T17 답변 미실행 31건, 판정 파일에 사실 주장 없음 1건이다. [Faithfulness 정의](https://docs.ragas.io/en/v0.4.0/concepts/metrics/available_metrics/faithfulness/) · [보존 판정과 방법](../../docs/T23_execution_plan.md#구현과-산출물)
 - 별도 최종 스택 선정 게이트와 독립 평가가 미완료다. 이 결과는 보존된 T15·T17 조건에 적용된다. [Task 23 및 선행 게이트](../../tasks/todo.md#task-23-ragas-평가-a-23)
 
 ## 재실행

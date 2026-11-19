@@ -7,7 +7,14 @@
   "context_backend": "ragas_id_formula_stdlib",
   "dataset_id": "t08-1-100-v1",
   "evaluation_scope": "archived_t15_t17_regression",
-  "faithfulness_verdicts_sha256": null,
+  "faithfulness_claims": {
+    "supported": 354,
+    "total": 359
+  },
+  "faithfulness_evaluators": [
+    "nvidia/minimaxai/minimax-m3.1-flash/t23-claims-v1"
+  ],
+  "faithfulness_verdicts_sha256": "69bc2d8c971fdbeb2072c72b83cef2e6cb5533312cba9c19927510a1266b89ea",
   "generation": {
     "model": "gpt-5.6-sol",
     "prompt_version": "t17-answer-v1",
@@ -29,12 +36,31 @@
       "faithfulness": {
         "missing": {
           "missing_answer": 31,
-          "missing_claim_verdicts": 69
+          "no_factual_claims": 1
         },
-        "scored": 0,
-        "value": null
+        "scored": 68,
+        "value": 0.9861344537815127
       },
       "questions": 100
+    },
+    "common": {
+      "answers": 68,
+      "context_precision": {
+        "missing": {},
+        "scored": 68,
+        "value": 0.2534313725490196
+      },
+      "context_recall": {
+        "missing": {},
+        "scored": 68,
+        "value": 0.9705882352941176
+      },
+      "faithfulness": {
+        "missing": {},
+        "scored": 68,
+        "value": 0.9861344537815127
+      },
+      "questions": 68
     },
     "negative": {
       "answers": 5,
@@ -49,11 +75,9 @@
         "value": 1.0
       },
       "faithfulness": {
-        "missing": {
-          "missing_claim_verdicts": 5
-        },
-        "scored": 0,
-        "value": null
+        "missing": {},
+        "scored": 5,
+        "value": 1.0
       },
       "questions": 5
     },
@@ -72,10 +96,10 @@
       "faithfulness": {
         "missing": {
           "missing_answer": 31,
-          "missing_claim_verdicts": 64
+          "no_factual_claims": 1
         },
-        "scored": 0,
-        "value": null
+        "scored": 63,
+        "value": 0.9850340136054422
       },
       "questions": 95
     },
@@ -92,11 +116,9 @@
         "value": 1.0
       },
       "faithfulness": {
-        "missing": {
-          "missing_claim_verdicts": 15
-        },
-        "scored": 0,
-        "value": null
+        "missing": {},
+        "scored": 15,
+        "value": 0.9815873015873016
       },
       "questions": 15
     },
@@ -114,11 +136,10 @@
       },
       "faithfulness": {
         "missing": {
-          "missing_answer": 3,
-          "missing_claim_verdicts": 12
+          "missing_answer": 3
         },
-        "scored": 0,
-        "value": null
+        "scored": 12,
+        "value": 1.0
       },
       "questions": 15
     }

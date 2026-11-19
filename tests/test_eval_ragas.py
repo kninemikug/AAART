@@ -9,6 +9,7 @@ import sys
 import pytest
 
 from scripts.eval_ragas import context_scores, faithfulness_score
+from scripts.judge_t23_faithfulness import check_entailment, response_rows
 
 
 def test_id_metrics_deduplicate_and_ignore_order():
@@ -43,6 +44,33 @@ def test_faithfulness_counts_entailment_for_the_exact_input():
         faithfulness_score(row, {**review, "claims": [{"statement": "주장", "supported": 1}]})
 
 
+def test_judge_requires_support_from_the_same_submitted_context():
+    item = {"query_id": "Q001", "claims": ["claim"], "contexts": [
+        {"id": "C1S1", "text": "The original\n  evidence."},
+    ]}
+    verdict = {"claim": 1, "supported": True, "reason": "Matches the statement.",
+               "evidence": [{"id": "C1S1", "quote": "The original evidence."}]}
+    assert check_entailment(item, [verdict])[0]["statement"] == "claim"
+    squeezed = {**verdict, "evidence": [{"id": "C1S1", "quote": "The originalevidence."}]}
+    assert check_entailment(item, [squeezed])[0]["evidence"][0]["quote"] == "The original\n  evidence."
+    with pytest.raises(ValueError, match="Q001"):
+        check_entailment(item, [{**verdict, "evidence": [{"id": "C2S1", "quote": "The original evidence."}]}])
+    with pytest.raises(ValueError, match="Q001"):
+        check_entailment(item, [{**verdict, "evidence": [{"id": "C1S1", "quote": "fabricated"}]}])
+    with pytest.raises(ValueError, match="Q001"):
+        check_entailment(item, [verdict, verdict])
+
+
+def test_judge_recovers_unambiguously_misnested_verdicts():
+    first = {"claim": 1, "supported": False, "evidence": []}
+    second = {**first, "claim": 2, "reason": "Evidence differs"}
+    raw = json.dumps({"rows": [{"query_id": "Q001", "verdicts": [first], "reason": "Missing evidence"},
+                              second]})
+    assert response_rows(raw, "verdicts")["Q001"]["verdicts"] == [
+        {**first, "reason": "Missing evidence"}, second,
+    ]
+
+
 def test_cli_replays_all_fixed_inputs_with_selected_track_only(tmp_path):
     script = Path(__file__).resolve().parents[1] / "scripts/eval_ragas.py"
     subprocess.run([sys.executable, str(script), "--output-dir", str(tmp_path)],
@@ -60,8 +88,16 @@ def test_cli_replays_all_fixed_inputs_with_selected_track_only(tmp_path):
     assert rows["Q001"]["answer_run"]["track"] == "T15"
     assert rows["Q096"]["allowed_source_doc_ids"] == ["issue-comment:4711197631"]
     assert "issue-comment:4711197631" in rows["Q096"]["retrieved_source_doc_ids"]
-    assert summary["groups"]["all"]["context_precision"]["scored"] == 100
+    assert summary["groups"]["all"]["context_precision"]["value"] == pytest.approx(0.27666666666666667)
+    assert summary["groups"]["all"]["context_recall"]["value"] == 0.97
     assert summary["groups"]["all"]["faithfulness"]["missing"] == {
-        "missing_answer": 31, "missing_claim_verdicts": 69,
+        "missing_answer": 31, "no_factual_claims": 1,
     }
+    assert next(score for score in scores if score["query_id"] == "Q024")["faithfulness"]["reason"] == "no_factual_claims"
+    common = summary["groups"]["common"]
+    assert common["questions"] == 68 == sum(all(
+        s[m]["value"] is not None for m in ("context_precision", "context_recall", "faithfulness")
+    ) for s in scores)
+    assert all(common[m]["scored"] == common["questions"]
+               for m in ("context_precision", "context_recall", "faithfulness"))
     assert (tmp_path / "report_v1.md").is_file()
