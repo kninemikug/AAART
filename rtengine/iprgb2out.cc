@@ -232,17 +232,40 @@ private:
 void ImProcFunctions::rgb2monitor(Imagefloat *img, Image8 *image,
                                   bool bypass_out)
 {
-    //    BENCHFUN
+    rgb2monitor(img, image, nullptr, bypass_out);
+}
+
+void ImProcFunctions::rgb2monitor(Imagefloat *img, Image8 *image,
+                                  Image8 **analysis, bool bypass_out)
+{
+    if (analysis) {
+        *analysis = nullptr;
+    }
     Imagefloat *inimg = img;
 
     image->allocate(img->getWidth(), img->getHeight());
 
     if (monitorTransform) {
         std::unique_ptr<Imagefloat> del_img;
+        std::unique_ptr<Image8> analysisImage;
         if (!bypass_out) {
-            img = rgb2out(img, params->icm);
+            bool usedFloatCms = false;
+            img = convertRgbToOutput(img, params->icm, &usedFloatCms);
             del_img.reset(img);
             img->setMode(Imagefloat::Mode::RGB, multiThread);
+
+            // The analysis conversion uses its own LUT for matrix profiles.
+            // Reuse only the identical float CMS path. Gamut warning also
+            // changes the input to Lab before the separate analysis conversion.
+            if (analysis && usedFloatCms && !gamutWarning &&
+                !settings->HistogramWorking &&
+                !params->icm.outputProfile.empty() &&
+                params->icm.outputProfile !=
+                    procparams::ColorManagementParams::NoICMString &&
+                params->icm.outputProfile !=
+                    procparams::ColorManagementParams::NoProfileString) {
+                analysisImage.reset(new Image8(img->getWidth(), img->getHeight()));
+            }
         } else {
             img->setMode(Imagefloat::Mode::LAB, multiThread);
         }
@@ -253,10 +276,12 @@ void ImProcFunctions::rgb2monitor(Imagefloat *img, Image8 *image,
         const int W = img->getWidth();
         const int H = img->getHeight();
         unsigned char *data = image->data;
+        unsigned char *outTrueData =
+            analysisImage ? analysisImage->data : nullptr;
 
         // cmsDoTransform is relatively expensive
 #ifdef _OPENMP
-#pragma omp parallel firstprivate(img, data, W, H) if (multiThread)
+#pragma omp parallel firstprivate(img, data, outTrueData, W, H) if (multiThread)
 #endif
         {
             AlignedBuffer<float> pBuf(3 * W);
@@ -304,9 +329,18 @@ void ImProcFunctions::rgb2monitor(Imagefloat *img, Image8 *image,
                     float *rb = img->b(i);
 
                     for (int j = 0; j < W; j++) {
-                        buffer[iy++] = rr[j] / 65535.f;
-                        buffer[iy++] = rg[j] / 65535.f;
-                        buffer[iy++] = rb[j] / 65535.f;
+                        const float r = rr[j];
+                        const float g = rg[j];
+                        const float b = rb[j];
+                        buffer[iy++] = r / 65535.f;
+                        buffer[iy++] = g / 65535.f;
+                        buffer[iy++] = b / 65535.f;
+                        if (outTrueData) {
+                            const int oj = ix + 3 * j;
+                            outTrueData[oj] = uint16ToUint8Rounded(CLIP(r));
+                            outTrueData[oj + 1] = uint16ToUint8Rounded(CLIP(g));
+                            outTrueData[oj + 2] = uint16ToUint8Rounded(CLIP(b));
+                        }
                     }
                 } else {
                     float *rL = inimg->g(i);
@@ -329,6 +363,9 @@ void ImProcFunctions::rgb2monitor(Imagefloat *img, Image8 *image,
                 }
             }
         } // End of parallelization
+        if (analysis) {
+            *analysis = analysisImage.release();
+        }
     } else {
         img->setMode(Imagefloat::Mode::LAB, multiThread);
         copyAndClamp(img, image->data, sRGB_xyz, multiThread);
@@ -454,6 +491,13 @@ Imagefloat *
 ImProcFunctions::rgb2out(Imagefloat *img,
                          const procparams::ColorManagementParams &icm)
 {
+    return convertRgbToOutput(img, icm, nullptr);
+}
+
+Imagefloat *ImProcFunctions::convertRgbToOutput(
+    Imagefloat *img, const procparams::ColorManagementParams &icm,
+    bool *usedFloatCms)
+{
     // BENCHFUN
 
     constexpr int cx = 0;
@@ -497,6 +541,9 @@ ImProcFunctions::rgb2out(Imagefloat *img,
 
             image->ExecCMSTransform(hTransform, img, multiThread);
             cmsDeleteTransform(hTransform);
+            if (usedFloatCms) {
+                *usedFloatCms = true;
+            }
         }
     } else if (icm.outputProfile !=
                procparams::ColorManagementParams::NoProfileString) {

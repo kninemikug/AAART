@@ -151,6 +151,8 @@ protected:
     void backupParams();
     void restoreParams();
 
+    std::string lastPreviewStages_;
+
     void progress(Glib::ustring str, int pr);
     void reallocAll();
     void allocCache(Imagefloat *&imgfloat);

@@ -14,6 +14,7 @@
 #include "imageareapanel.h"
 #include "liveparamcontroller.h"
 #include "liveparamserver.h"
+#include "../rtengine/liveparamtrace.h"
 #include "options.h"
 #include "pathutils.h"
 #include "rtimage.h"
@@ -24,6 +25,8 @@
 #include "test_liveparam_socket.h"
 #include "wbprovider.h"
 #include "../rtengine/cJSON.h"
+#include "../rtengine/image8.h"
+#include "../rtengine/imagefloat.h"
 #include "../rtengine/improccoordinator.h"
 #include "../rtengine/procparams.h"
 #include "../rtengine/processingjob.h"
@@ -48,6 +51,9 @@
 #include <thread>
 #include <tiffio.h>
 #include <unistd.h>
+#include <poll.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 
 extern Options options;
 bool testNumericWidgets();
@@ -72,6 +78,25 @@ struct EditorPanelTestAccess {
     static BatchQueueEntry *createQueuedExport(EditorPanel *panel)
     {
         return panel->createBatchQueueEntry(false, false, nullptr);
+    }
+};
+
+struct ToolPanelCoordinatorTestAccess {
+    static void setForceFullRefresh(ToolPanelCoordinator *coord, bool force)
+    {
+        coord->forceNumericFullRefresh_ = force;
+    }
+    static bool lastUsedSelective(const ToolPanelCoordinator *coord)
+    {
+        return coord->lastNumericUsedSelective_;
+    }
+    static int lastChangeFlags(const ToolPanelCoordinator *coord)
+    {
+        return coord->lastNumericChangeFlags_;
+    }
+    static rtengine::ProcEvent lastEvent(const ToolPanelCoordinator *coord)
+    {
+        return coord->lastNumericEvent_;
     }
 };
 
@@ -1527,6 +1552,35 @@ uint64_t frameHash(const Glib::RefPtr<Gdk::Pixbuf> &image)
     return hash;
 }
 
+int maxAbsDiffPixbuf(const Glib::RefPtr<Gdk::Pixbuf> &a,
+                      const Glib::RefPtr<Gdk::Pixbuf> &b)
+{
+    if (!a || !b) {
+        return -1;
+    }
+    if (a->get_width() != b->get_width() ||
+        a->get_height() != b->get_height() ||
+        a->get_n_channels() != b->get_n_channels() ||
+        a->get_bits_per_sample() != b->get_bits_per_sample()) {
+        return -1;
+    }
+    const int width = a->get_width();
+    const int height = a->get_height();
+    const int channels = a->get_n_channels();
+    int maxDiff = 0;
+    for (int y = 0; y < height; ++y) {
+        const auto *rowA = a->get_pixels() + y * a->get_rowstride();
+        const auto *rowB = b->get_pixels() + y * b->get_rowstride();
+        for (int x = 0; x < width * channels; ++x) {
+            const int diff = std::abs(int(rowA[x]) - int(rowB[x]));
+            if (diff > maxDiff) {
+                maxDiff = diff;
+            }
+        }
+    }
+    return maxDiff;
+}
+
 bool test_t11_delayed_frames(RTWindow *win, const std::string &dir)
 {
     std::cout << "[T11] Delayed actual frames and calculation generations" << std::endl;
@@ -2505,6 +2559,7 @@ bool test_t21_numeric_protocol(RTWindow *win, const std::string &directory)
         return fixture.controller.handleCommand(bytes.get());
     };
     std::string saturationKey;
+    std::string resizeWidthKey;
     size_t count = 0;
     int offset = 0;
     do {
@@ -2524,12 +2579,16 @@ bool test_t21_numeric_protocol(RTWindow *win, const std::string &directory)
                 cJSON_IsString(label) && label->valuestring == M("TP_SATURATION_SATURATION")) {
                 saturationKey = cJSON_GetObjectItemCaseSensitive(item, "key")->valuestring;
             }
+            if (cJSON_IsString(tool) && std::string(tool->valuestring) == "resize" &&
+                cJSON_IsString(label) && label->valuestring == M("TP_RESIZE_W")) {
+                resizeWidthKey = cJSON_GetObjectItemCaseSensitive(item, "key")->valuestring;
+            }
         }
         count += cJSON_GetArraySize(items);
         auto *next = cJSON_GetObjectItemCaseSensitive(result, "nextOffset");
         offset = cJSON_IsNumber(next) ? next->valueint : -1;
     } while (offset >= 0);
-    GUI_ASSERT(count == tools->numericControls().size() && !saturationKey.empty(),
+    GUI_ASSERT(count == tools->numericControls().size() && !saturationKey.empty() && !resizeWidthKey.empty(),
                "all numeric controls are reachable through bounded pages");
     auto mutation = request("set_param", "t21-once");
     cJSON_AddBoolToObject(mutation.get(), "enableTool", true);
@@ -2550,6 +2609,16 @@ bool test_t21_numeric_protocol(RTWindow *win, const std::string &directory)
     cJSON_AddNumberToObject(cJSON_AddObjectToObject(stale.get(), "params"), saturationKey.c_str(), 21);
     GUI_ASSERT(send(stale).find("REVISION_CONFLICT") != std::string::npos &&
                fixture.field("revision") == revision + 1, "stale GUI context is rejected before mutation");
+    // Verify M_VOID control (Resize.Width) reaches READY both when enabling and when already enabled.
+    for (int step = 0; step < 2; ++step) {
+        auto rMut = request("set_param", step == 0 ? "t21-resize-1" : "t21-resize-2");
+        cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(rMut.get(), "baseRevision"), fixture.field("revision"));
+        cJSON_SetValuestring(cJSON_GetObjectItemCaseSensitive(rMut.get(), "contextId"), tools->numericContext().c_str());
+        cJSON_AddBoolToObject(rMut.get(), "enableTool", step == 0);
+        cJSON_AddNumberToObject(cJSON_AddObjectToObject(rMut.get(), "params"), resizeWidthKey.c_str(), 1000 - step * 100);
+        GUI_ASSERT(send(rMut).find("APPLIED") != std::string::npos && fixture.waitReady(),
+                   "M_VOID control mutation reaches matching-generation readiness");
+    }
     fixture.panel->close();
     std::cout << "  -> [T21] PASSED!" << std::endl;
     return true;
@@ -2662,6 +2731,7 @@ bool test_t25_numeric_output(RTWindow *win, const std::string &directory)
     auto *processor = fixture.panel->getImageProcessor();
     ProcParams initial;
     processor->getCommittedParams(&initial);
+    const ProcParams cleanStart = initial;
     initial.saturation.enabled = initial.resize.enabled = initial.colorcorrection.enabled = false;
     initial.sharpening.method = "usm";
     initial.sharpening.enabled = false;
@@ -2740,8 +2810,910 @@ bool test_t25_numeric_output(RTWindow *win, const std::string &directory)
     const auto manualImage = directory + "/t25-manual.tif";
     GUI_ASSERT(fixture.panel->saveImmediately(manualImage, format) && equalTiffPixels(externalImage, manualImage),
                "external and manual native edits export identical pixels (max_abs_diff=0)");
+
+    // Part 2 (§10.2): Compare selective refresh vs forced full-refresh pixel-for-pixel
+    // on Navigator & main Crop across fit/100% and HDR/denoise combinations.
+    const auto sendSetParam = [&](const std::string &reqId, const std::string &controlId,
+                                  double value, bool enableTool, bool useContext) {
+        std::unique_ptr<cJSON, decltype(&cJSON_Delete)> root(cJSON_CreateObject(), cJSON_Delete);
+        cJSON_AddNumberToObject(root.get(), "protocolVersion", 1);
+        cJSON_AddStringToObject(root.get(), "requestId", reqId.c_str());
+        cJSON_AddStringToObject(root.get(), "op", "set_param");
+        cJSON_AddStringToObject(root.get(), "sessionId",
+                                LiveParamController::getInstance().getSessionId().c_str());
+        cJSON_AddStringToObject(root.get(), "editorId", fixture.panel->getEditorId().c_str());
+        cJSON_AddNumberToObject(root.get(), "baseRevision",
+                                static_cast<double>(fixture.field("revision")));
+        if (useContext) {
+            cJSON_AddStringToObject(root.get(), "contextId", tools->numericContext().c_str());
+            cJSON_AddBoolToObject(root.get(), "enableTool", enableTool);
+        } else if (enableTool) {
+            cJSON_AddBoolToObject(root.get(), "enableTool", true);
+        }
+        auto *paramsObj = cJSON_AddObjectToObject(root.get(), "params");
+        cJSON_AddNumberToObject(paramsObj, controlId.c_str(), value);
+        char *raw = cJSON_PrintUnformatted(root.get());
+        const std::string payload = raw ? raw : "";
+        if (raw) {
+            cJSON_free(raw);
+        }
+        return LiveParamController::getInstance().handleCommand(payload);
+    };
+
+    struct FrameCapture {
+        Glib::RefPtr<Gdk::Pixbuf> nav;
+        Glib::RefPtr<Gdk::Pixbuf> crop;
+    };
+    const auto captureReady = [&](int64_t expectedRev, FrameCapture &out,
+                                  const std::string &label) -> bool {
+        GUI_ASSERT(fixture.waitReady() && waitUntilIdle(fixture.panel),
+                   (label + ": READY and idle").c_str());
+        const int64_t actualRev = fixture.field("revision");
+        const int64_t expectedViewRev = fixture.field("viewRevision");
+        const auto navCtx = fixture.area()->getPreviewHandler()->getDisplayedContext();
+        const auto cropCtx = fixture.area()->mainCropWindow->cropHandler.getDisplayedContext();
+        const auto engineCtx = processor->getProcessingContext();
+        GUI_ASSERT(actualRev == expectedRev &&
+                   navCtx.editRevision == actualRev &&
+                   cropCtx.editRevision == actualRev &&
+                   navCtx.viewRevision == expectedViewRev &&
+                   cropCtx.viewRevision == expectedViewRev &&
+                   navCtx.generation > 0 && cropCtx.generation > 0 &&
+                   navCtx.generation == engineCtx.generation &&
+                   cropCtx.generation == engineCtx.generation,
+                   (label + ": displayed nav/crop generations and revisions match").c_str());
+        auto nav = fixture.area()->getPreviewHandler()->getDisplayedImage();
+        auto crop = fixture.area()->mainCropWindow->cropHandler.cropPixbuf;
+        GUI_ASSERT(nav && crop, (label + ": displayed pixbufs non-null").c_str());
+        out.nav = nav->copy();
+        out.crop = crop->copy();
+        return out.nav && out.crop;
+    };
+
+    const auto applyComboBaseline = [&](bool zoom100, bool hdrOn, bool dnOn,
+                                        bool resizeEnabled, const std::string &tag) -> bool {
+        ProcParams base = cleanStart;
+        base.saturation.enabled = true;
+        base.saturation.saturation = 0;
+        base.sharpening.enabled = true;
+        base.sharpening.method = "usm";
+        base.sharpening.radius = 0.5;
+        base.sharpening.amount = 200;
+        base.wb.enabled = true;
+        base.wb.method = WBParams::CUSTOM_TEMP;
+        base.wb.temperature = 5500;
+        base.exposure.enabled = true;
+        base.exposure.expcomp = 0.0;
+        base.fattal.enabled = hdrOn;
+        base.denoise.enabled = dnOn;
+        base.resize.enabled = resizeEnabled;
+        base.colorcorrection.enabled = false;
+        FullPartialProfile profile(base);
+        tools->profileChange(&profile, rtengine::EvProfileChanged, tag.c_str());
+        GUI_ASSERT(waitUntilIdle(fixture.panel), (tag + ": baseline profile settled").c_str());
+        auto *cropWin = fixture.area()->mainCropWindow;
+        if (zoom100) {
+            cropWin->cropHandler.setZoom(1000);
+        } else {
+            cropWin->zoomFit();
+        }
+        pumpGuiEvents(options.adjusterMaxDelay + 80);
+        const auto hqDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        while (cropWin->cropHandler.hasPendingNavigatorUpdate() &&
+               std::chrono::steady_clock::now() < hqDeadline) {
+            pumpGuiEvents(20);
+        }
+        GUI_ASSERT(!cropWin->cropHandler.hasPendingNavigatorUpdate() &&
+                   waitUntilIdle(fixture.panel) &&
+                   fixture.field("renderedRevision") == fixture.field("revision") &&
+                   fixture.field("renderedViewRevision") == fixture.field("viewRevision"),
+                   (tag + ": zoom settled").c_str());
+        int cx = 0, cy = 0, cw = 0, ch = 0, cskip = 0;
+        cropWin->cropHandler.getWindow(cx, cy, cw, ch, cskip);
+        if (zoom100) {
+            GUI_ASSERT(cskip == 1, (tag + ": 100% zoom has skip==1").c_str());
+        } else {
+            GUI_ASSERT(cskip > 1, (tag + ": fit zoom has skip>1").c_str());
+        }
+        return true;
+    };
+
+    struct SelectiveCase {
+        std::string name;
+        std::string tool;
+        std::string label;
+        double value;
+        bool expectSelective;
+    };
+    const SelectiveCase selectiveCases[] = {
+        {"saturation", "saturation", M("TP_SATURATION_SATURATION"), 35.0, true},
+        {"sharpening", "sharpening", M("TP_SHARPENING_RADIUS"), 1.2, true},
+        {"exposure", "exposure", M("TP_EXPOSURE_EXPCOMP"), 0.6, true},
+        {"wb_temp", "whitebalance", M("TP_WBALANCE_TEMPERATURE"), 6500.0, false},
+    };
+
+    int caseSeq = 0;
+    for (int z = 0; z < 2; ++z) {
+        const bool zoom100 = (z == 1);
+        for (int h = 0; h < 2; ++h) {
+            const bool hdrOn = (h == 1);
+            for (int d = 0; d < 2; ++d) {
+                const bool dnOn = (d == 1);
+                const std::string comboName =
+                    std::string(zoom100 ? "100pct" : "fit") + "_hdr" +
+                    (hdrOn ? "1" : "0") + "_dn" + (dnOn ? "1" : "0");
+                for (const auto &sc : selectiveCases) {
+                    const std::string label = comboName + "_" + sc.name;
+                    GUI_ASSERT(applyComboBaseline(zoom100, hdrOn, dnOn, false, label + "_sel"),
+                               (label + ": selective baseline ready").c_str());
+                    const Edit queryEdit{sc.tool, sc.label, NumericControl::Kind::ADJUSTER, 0, sc.value};
+                    const auto ctrl = find(queryEdit);
+                    GUI_ASSERT(ctrl.widget && ctrl.available,
+                               (label + ": target numeric control available").c_str());
+                    const int64_t revSelBefore = fixture.field("revision");
+                    const auto replySel = sendSetParam(
+                        "t25-sel-" + std::to_string(++caseSeq), ctrl.id, sc.value, false, true);
+                    GUI_ASSERT(replySel.find("\"status\":\"APPLIED\"") != std::string::npos,
+                               (label + ": selective APPLIED").c_str());
+                    GUI_ASSERT(ToolPanelCoordinatorTestAccess::lastUsedSelective(tools) ==
+                                   sc.expectSelective,
+                               (label + ": selective classification matches expectation").c_str());
+                    if (sc.expectSelective) {
+                        GUI_ASSERT(ToolPanelCoordinatorTestAccess::lastChangeFlags(tools) !=
+                                       rtengine::ALL,
+                                   (label + ": selective changeFlags != ALL").c_str());
+                    } else {
+                        GUI_ASSERT(ToolPanelCoordinatorTestAccess::lastChangeFlags(tools) ==
+                                       rtengine::ALL,
+                                   (label + ": fallback changeFlags == ALL").c_str());
+                    }
+                    FrameCapture selFrame;
+                    GUI_ASSERT(captureReady(revSelBefore + 1, selFrame, label + "_sel"),
+                               (label + ": selective frame captured").c_str());
+
+                    GUI_ASSERT(applyComboBaseline(zoom100, hdrOn, dnOn, false, label + "_full"),
+                               (label + ": full-refresh baseline ready").c_str());
+                    const int64_t revFullBefore = fixture.field("revision");
+                    ToolPanelCoordinatorTestAccess::setForceFullRefresh(tools, true);
+                    const auto replyFull = sendSetParam(
+                        "t25-full-" + std::to_string(caseSeq), ctrl.id, sc.value, false, true);
+                    ToolPanelCoordinatorTestAccess::setForceFullRefresh(tools, false);
+                    GUI_ASSERT(replyFull.find("\"status\":\"APPLIED\"") != std::string::npos,
+                               (label + ": full-refresh APPLIED").c_str());
+                    GUI_ASSERT(!ToolPanelCoordinatorTestAccess::lastUsedSelective(tools) &&
+                               ToolPanelCoordinatorTestAccess::lastChangeFlags(tools) ==
+                                   rtengine::ALL,
+                               (label + ": full reference forced ALL").c_str());
+                    FrameCapture fullFrame;
+                    GUI_ASSERT(captureReady(revFullBefore + 1, fullFrame, label + "_full"),
+                               (label + ": full frame captured").c_str());
+
+                    const int navDiff = maxAbsDiffPixbuf(selFrame.nav, fullFrame.nav);
+                    const int cropDiff = maxAbsDiffPixbuf(selFrame.crop, fullFrame.crop);
+                    if (navDiff != 0 || cropDiff != 0) {
+                        std::cerr << "DIFF DETAIL [" << label << "] prevdemo=" << int(options.prevdemo)
+                            << " navDiff=" << navDiff << " (" << selFrame.nav->get_width() << "x" << selFrame.nav->get_height()
+                            << " vs " << fullFrame.nav->get_width() << "x" << fullFrame.nav->get_height() << ")"
+                            << " cropDiff=" << cropDiff << " (" << selFrame.crop->get_width() << "x" << selFrame.crop->get_height()
+                            << " vs " << fullFrame.crop->get_width() << "x" << fullFrame.crop->get_height() << ")"
+                            << std::endl;
+                    }
+                    GUI_ASSERT(navDiff == 0 && cropDiff == 0,
+                               (label + ": selective vs full Navigator and main Crop max_abs_diff==0").c_str());
+                }
+            }
+        }
+    }
+
+    // Also verify fit->100% transition explicitly under the opposite prevdemo mode
+    // (PD_Fast vs PD_Sidecar) so both paths are covered in standalone T25 runs.
+    {
+        const auto savedPrevDemo = options.prevdemo;
+        options.prevdemo = (savedPrevDemo == PD_Fast) ? PD_Sidecar : PD_Fast;
+        const std::string tag = (options.prevdemo == PD_Fast) ? "pdfast_100pct_sat" : "pdsidecar_100pct_sat";
+        GUI_ASSERT(applyComboBaseline(false, false, false, false, tag + "_fit_warmup"),
+                   (tag + ": fit warmup ready").c_str());
+        GUI_ASSERT(applyComboBaseline(true, false, false, false, tag + "_sel_base"),
+                   (tag + ": 100% sel baseline ready").c_str());
+        const auto satC = find({"saturation", M("TP_SATURATION_SATURATION"),
+                                NumericControl::Kind::ADJUSTER, 0, 35.0});
+        GUI_ASSERT(satC.widget && satC.available, (tag + ": sat control available").c_str());
+        const int64_t revSel = fixture.field("revision");
+        const auto repSel = sendSetParam("t25-pd-sel", satC.id, 35.0, false, true);
+        GUI_ASSERT(repSel.find("\"status\":\"APPLIED\"") != std::string::npos &&
+                   ToolPanelCoordinatorTestAccess::lastUsedSelective(tools),
+                   (tag + ": selective applied").c_str());
+        FrameCapture fSel;
+        GUI_ASSERT(captureReady(revSel + 1, fSel, tag + "_sel"), (tag + ": sel captured").c_str());
+        GUI_ASSERT(applyComboBaseline(false, false, false, false, tag + "_fit_reset2"),
+                   (tag + ": fit reset2 ready").c_str());
+        GUI_ASSERT(applyComboBaseline(true, false, false, false, tag + "_full_base"),
+                   (tag + ": 100% full baseline ready").c_str());
+        const int64_t revFull = fixture.field("revision");
+        ToolPanelCoordinatorTestAccess::setForceFullRefresh(tools, true);
+        const auto repFull = sendSetParam("t25-pd-full", satC.id, 35.0, false, true);
+        ToolPanelCoordinatorTestAccess::setForceFullRefresh(tools, false);
+        GUI_ASSERT(repFull.find("\"status\":\"APPLIED\"") != std::string::npos &&
+                   !ToolPanelCoordinatorTestAccess::lastUsedSelective(tools),
+                   (tag + ": full applied").c_str());
+        FrameCapture fFull;
+        GUI_ASSERT(captureReady(revFull + 1, fFull, tag + "_full"), (tag + ": full captured").c_str());
+        const int nd = maxAbsDiffPixbuf(fSel.nav, fFull.nav);
+        const int cd = maxAbsDiffPixbuf(fSel.crop, fFull.crop);
+        options.prevdemo = savedPrevDemo;
+        GUI_ASSERT(nd == 0 && cd == 0,
+                   (tag + ": Navigator and Crop max_abs_diff==0").c_str());
+    }
+
+    // Fallback paths (tool enable, compound callback, M_VOID) + follow-up acceptance
+    GUI_ASSERT(applyComboBaseline(false, false, false, true, "t25_fallback"),
+               "fallback baseline ready");
+    const auto satCtrl = find({"saturation", M("TP_SATURATION_SATURATION"),
+                               NumericControl::Kind::ADJUSTER, 0, 15.0});
+    const auto ccCtrl = find({"colorcorrection", "", NumericControl::Kind::WHEEL, 1, 20.0});
+    const auto resizeCtrl = find({"resize", M("TP_RESIZE_W"), NumericControl::Kind::SPIN, 0, 960.0});
+    GUI_ASSERT(satCtrl.widget && ccCtrl.widget && resizeCtrl.widget,
+               "fallback controls found");
+
+    // 1. Tool enable on previously disabled sharpening
+    {
+        ProcParams disSharp = cleanStart;
+        disSharp.saturation.enabled = true;
+        disSharp.sharpening.enabled = false;
+        disSharp.colorcorrection.enabled = false;
+        FullPartialProfile pDis(disSharp);
+        tools->profileChange(&pDis, rtengine::EvProfileChanged, "t25 disable sharp");
+        GUI_ASSERT(waitUntilIdle(fixture.panel) &&
+                   fixture.field("renderedRevision") == fixture.field("revision") &&
+                   fixture.field("renderedViewRevision") == fixture.field("viewRevision"),
+                   "disabled sharpening baseline settled");
+        const auto disRadius = find({"sharpening", M("TP_SHARPENING_RADIUS"),
+                                     NumericControl::Kind::ADJUSTER, 0, 1.1});
+        const int64_t revBefore = fixture.field("revision");
+        const auto rep = sendSetParam("t25-fb-enable", disRadius.id, 1.1, true, true);
+        GUI_ASSERT(rep.find("\"status\":\"APPLIED\"") != std::string::npos &&
+                   !ToolPanelCoordinatorTestAccess::lastUsedSelective(tools) &&
+                   ToolPanelCoordinatorTestAccess::lastChangeFlags(tools) == rtengine::ALL,
+                   "enabling disabled tool forces ALL full refresh");
+        FrameCapture dummy;
+        GUI_ASSERT(captureReady(revBefore + 1, dummy, "fb_enable"),
+                   "tool-enable fallback READY");
+        const int64_t revFollow = fixture.field("revision");
+        const auto followCtrl = find({"saturation", M("TP_SATURATION_SATURATION"),
+                                      NumericControl::Kind::ADJUSTER, 0, 12.0});
+        GUI_ASSERT(sendSetParam("t25-fb-enable-follow", followCtrl.id, 12.0, false, true)
+                       .find("\"status\":\"APPLIED\"") != std::string::npos,
+                   "follow-up after tool-enable fallback APPLIED");
+        GUI_ASSERT(captureReady(revFollow + 1, dummy, "fb_enable_follow"),
+                   "follow-up after tool-enable fallback READY");
+    }
+
+    // 2. Compound callback (colorcorrection wheel)
+    {
+        GUI_ASSERT(applyComboBaseline(false, false, false, true, "t25_fb_compound"),
+                   "compound fallback baseline ready");
+        const auto wheelCtrl = find({"colorcorrection", "", NumericControl::Kind::WHEEL, 1, 20.0});
+        const int64_t revBefore = fixture.field("revision");
+        const auto rep = sendSetParam("t25-fb-compound", wheelCtrl.id, 20.0, true, true);
+        GUI_ASSERT(rep.find("\"status\":\"APPLIED\"") != std::string::npos &&
+                   !ToolPanelCoordinatorTestAccess::lastUsedSelective(tools) &&
+                   ToolPanelCoordinatorTestAccess::lastChangeFlags(tools) == rtengine::ALL,
+                   "compound callback forces ALL full refresh");
+        FrameCapture dummy;
+        GUI_ASSERT(captureReady(revBefore + 1, dummy, "fb_compound"),
+                   "compound fallback READY");
+        const auto satAfter = find({"saturation", M("TP_SATURATION_SATURATION"),
+                                    NumericControl::Kind::ADJUSTER, 0, 14.0});
+        const int64_t revFollow = fixture.field("revision");
+        GUI_ASSERT(sendSetParam("t25-fb-compound-follow", satAfter.id, 14.0, false, true)
+                       .find("\"status\":\"APPLIED\"") != std::string::npos,
+                   "follow-up after compound fallback APPLIED");
+        GUI_ASSERT(captureReady(revFollow + 1, dummy, "fb_compound_follow"),
+                   "follow-up after compound fallback READY");
+    }
+
+    // 3. M_VOID control on already-enabled Resize tool
+    {
+        GUI_ASSERT(applyComboBaseline(false, false, false, true, "t25_fb_mvoid"),
+                   "M_VOID fallback baseline ready");
+        const auto rwCtrl = find({"resize", M("TP_RESIZE_W"), NumericControl::Kind::SPIN, 0, 960.0});
+        const int64_t revBefore = fixture.field("revision");
+        const auto rep = sendSetParam("t25-fb-mvoid", rwCtrl.id, 960.0, false, true);
+        GUI_ASSERT(rep.find("\"status\":\"APPLIED\"") != std::string::npos &&
+                   !ToolPanelCoordinatorTestAccess::lastUsedSelective(tools) &&
+                   ToolPanelCoordinatorTestAccess::lastChangeFlags(tools) == rtengine::ALL,
+                   "M_VOID control forces ALL full refresh");
+        FrameCapture dummy;
+        GUI_ASSERT(captureReady(revBefore + 1, dummy, "fb_mvoid"),
+                   "M_VOID fallback READY");
+        const auto satAfter = find({"saturation", M("TP_SATURATION_SATURATION"),
+                                    NumericControl::Kind::ADJUSTER, 0, 16.0});
+        const int64_t revFollow = fixture.field("revision");
+        GUI_ASSERT(sendSetParam("t25-fb-mvoid-follow", satAfter.id, 16.0, false, true)
+                       .find("\"status\":\"APPLIED\"") != std::string::npos,
+                   "follow-up after M_VOID fallback APPLIED");
+        GUI_ASSERT(captureReady(revFollow + 1, dummy, "fb_mvoid_follow"),
+                   "follow-up after M_VOID fallback READY");
+    }
+
     fixture.panel->close();
     std::cout << "  -> [T25] PASSED! artifacts: " << directory << std::endl;
+    return true;
+}
+
+bool test_t27_preview_color_conversion(RTWindow *, const std::string &)
+{
+    using namespace rtengine;
+    constexpr int width = 257;
+    constexpr int height = 33;
+    const auto savedColorMode = Settings::color_mgmt_mode;
+    const auto savedHistogramWorking = options.rtSettings.HistogramWorking;
+    struct RestoreSettings {
+        Settings::ColorManagementMode colorMode;
+        bool histogramWorking;
+        Glib::ustring printerProfile;
+        ~RestoreSettings()
+        {
+            Settings::color_mgmt_mode = colorMode;
+            options.rtSettings.HistogramWorking = histogramWorking;
+            options.rtSettings.printerProfile = printerProfile;
+        }
+    } restore{savedColorMode, savedHistogramWorking, options.rtSettings.printerProfile};
+    Settings::color_mgmt_mode = Settings::ColorManagementMode::APPLICATION;
+    options.rtSettings.printerProfile = "RTv4_Medium";
+
+    // Exercise clipped values as well as intervals close to 8-bit rounding.
+    Imagefloat source(width, height);
+    source.assignColorSpace("ProPhoto");
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            const int i = y * width + x;
+            source.r(y, x) = (i * 359 % 73000) - 3000.25f;
+            source.g(y, x) = (i * 673 % 73000) - 3000.5f;
+            source.b(y, x) = (i * 257 % 73000) - 3000.75f;
+        }
+    }
+
+    const struct {
+        const char *profile;
+        bool histogramWorking;
+        bool softProof;
+        GamutCheck gamut;
+        bool reuse;
+    } cases[] = {
+        {"RTv2_sRGB", false, false, GAMUT_CHECK_OFF, true},
+        {"RTv2_sRGB", false, true, GAMUT_CHECK_OFF, true},
+        {"RTv4_sRGB", false, false, GAMUT_CHECK_OFF, false},
+        {"RTv2_sRGB", true, false, GAMUT_CHECK_OFF, false},
+        {"RTv2_sRGB", false, false, GAMUT_CHECK_MONITOR, false},
+    };
+    for (const auto &scenario : cases) {
+        options.rtSettings.HistogramWorking = scenario.histogramWorking;
+        procparams::ProcParams params;
+        params.icm.workingProfile = "ProPhoto";
+        params.icm.outputProfile = scenario.profile;
+        params.icm.outputBPC = std::strcmp(scenario.profile, "RTv4_sRGB") != 0;
+        ImProcFunctions ipf(&params, true);
+        ipf.setPipeline(ImProcFunctions::Pipeline::PREVIEW);
+        ipf.setScale(1);
+        ipf.updateColorProfiles("RTv4_sRGB", RI_RELATIVE, scenario.softProof,
+                                scenario.gamut);
+
+        Imagefloat separate(width, height, &source);
+        Imagefloat combined(width, height, &source);
+        source.copyTo(&separate);
+        source.copyTo(&combined);
+        Image8 referenceDisplay, display;
+        ipf.rgb2monitor(&separate, &referenceDisplay);
+        std::unique_ptr<Image8> referenceAnalysis(
+            ipf.rgb2out(&separate, 0, 0, width, height, params.icm));
+        Image8 *reusedAnalysis = nullptr;
+        ipf.rgb2monitor(&combined, &display, &reusedAnalysis);
+        std::unique_ptr<Image8> analysis(reusedAnalysis);
+        GUI_ASSERT(bool(analysis) == scenario.reuse,
+                   (std::string("analysis reuse eligibility: ") + scenario.profile).c_str());
+        if (!analysis) {
+            analysis.reset(ipf.rgb2out(&combined, 0, 0, width, height,
+                                      params.icm));
+        }
+        constexpr size_t bytes = size_t(width) * height * 3;
+        GUI_ASSERT(std::memcmp(display.data, referenceDisplay.data, bytes) == 0,
+                   "Preview monitor pixels match the separate conversion");
+        GUI_ASSERT(std::memcmp(analysis->data, referenceAnalysis->data, bytes) == 0,
+                   "Preview analysis pixels match the separate conversion");
+    }
+    std::cout << "  -> [T27] PASSED! monitor and analysis pixels match\n";
+    return true;
+}
+
+bool test_t26_perf_trace_harness(RTWindow *win, const std::string &workDir)
+{
+    std::cout << "[T26] Real-time numeric performance tracing harness" << std::endl;
+
+    // 1. Verify tracer is disabled initially when ART_LIVE_PARAM_TRACE is unset
+    unsetenv("ART_LIVE_PARAM_TRACE");
+    auto &tracer = art::liveparam::LiveParamTrace::getInstance();
+    tracer.clear();
+    GUI_ASSERT(!tracer.isEnabled(), "Tracer must be disabled by default");
+    tracer.record("S0", 999);
+    GUI_ASSERT(tracer.getRecordedCount() == 0, "No records when disabled");
+
+    // 2. Measure overhead of disabled tracer (100,000 calls)
+    const auto tStart = std::chrono::steady_clock::now();
+    for (int i = 0; i < 100000; ++i) {
+        tracer.record("S0", i);
+    }
+    const auto tElapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - tStart).count();
+    std::cout << "  100k disabled trace calls took " << tElapsedMs << " ms" << std::endl;
+    GUI_ASSERT(tElapsedMs < 50, "Disabled trace call overhead must be near zero");
+
+    // 3. Enable tracer for this test
+    const std::string traceFile = workDir + "/t26_trace.jsonl";
+    unlink(traceFile.c_str());
+    setenv("ART_LIVE_PARAM_TRACE", traceFile.c_str(), 1);
+    tracer.clear();
+
+    auto connectSock = [&](const std::string &path) -> int {
+        int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+        if (fd < 0) return -1;
+        sockaddr_un addr{};
+        addr.sun_family = AF_UNIX;
+        std::strncpy(addr.sun_path, path.c_str(), sizeof(addr.sun_path) - 1);
+        if (connect(fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) != 0) {
+            close(fd);
+            return -1;
+        }
+        return fd;
+    };
+    auto sendRaw = [&](int fd, const std::string &jsonStr) -> bool {
+        const std::string wire = jsonStr + "\n";
+        return send(fd, wire.data(), wire.size(), 0) == static_cast<ssize_t>(wire.size());
+    };
+    auto recvLineWithPump = [&](int fd, int timeoutMs = 10000) -> std::string {
+        std::string buf;
+        const auto dl = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
+        while (std::chrono::steady_clock::now() < dl) {
+            pumpGuiEvents(5);
+            struct pollfd pfd{fd, POLLIN, 0};
+            if (poll(&pfd, 1, 0) > 0 && (pfd.revents & POLLIN)) {
+                char ch;
+                ssize_t n = recv(fd, &ch, 1, 0);
+                while (n == 1) {
+                    if (ch == '\n') return buf;
+                    buf += ch;
+                    n = recv(fd, &ch, 1, MSG_DONTWAIT);
+                }
+            }
+        }
+        return "";
+    };
+    auto recvLineNoPump = [&](int fd, int timeoutMs = 3000) -> std::string {
+        std::string buf;
+        const auto dl = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
+        while (std::chrono::steady_clock::now() < dl) {
+            struct pollfd pfd{fd, POLLIN, 0};
+            if (poll(&pfd, 1, 10) > 0 && (pfd.revents & POLLIN)) {
+                char ch;
+                ssize_t n = recv(fd, &ch, 1, 0);
+                while (n == 1) {
+                    if (ch == '\n') return buf;
+                    buf += ch;
+                    n = recv(fd, &ch, 1, MSG_DONTWAIT);
+                }
+            }
+        }
+        return "";
+    };
+    auto makeSetJson = [&](const std::string &reqId, const std::string &sessId,
+                           const std::string &edId, int64_t baseRev, double val) {
+        std::unique_ptr<cJSON, decltype(&cJSON_Delete)> root(
+            cJSON_CreateObject(), cJSON_Delete);
+        cJSON_AddNumberToObject(root.get(), "protocolVersion", 1);
+        cJSON_AddStringToObject(root.get(), "requestId", reqId.c_str());
+        cJSON_AddStringToObject(root.get(), "op", "set_param");
+        cJSON_AddStringToObject(root.get(), "sessionId", sessId.c_str());
+        cJSON_AddStringToObject(root.get(), "editorId", edId.c_str());
+        cJSON_AddNumberToObject(root.get(), "baseRevision", static_cast<double>(baseRev));
+        auto *params = cJSON_AddObjectToObject(root.get(), "params");
+        cJSON_AddNumberToObject(params, "Exposure.Compensation", val);
+        char *printed = cJSON_PrintUnformatted(root.get());
+        std::string out(printed);
+        cJSON_free(printed);
+        return out;
+    };
+
+    // 4. First session: special characters requestId, replay, pan/zoom, queue saturation & cancel
+    std::string sessId1;
+    std::string edId1;
+    int64_t revSpecial = 0, viewRevSpecial = 0;
+    int64_t revPanZoom = 0, viewRevPanZoom = 0;
+    int64_t revAfterQFull = 0, viewRevAfterQFull = 0;
+    const std::string specialReqId = "t26-\"quote\"-\\slash\\-\t-nl\n-한글-α";
+    const std::string panReqId = "t26-panzoom-1";
+    const std::string qFullReqId = "t26-qfull-busy";
+    const std::string afterQReqId = "t26-after-qfull";
+
+    {
+        FrameFixture fixture{nullptr, art::liveparam::LiveParamController::getInstance()};
+        GUI_ASSERT(fixture.open(win, workDir, "t26a"), "First RAW fixture opened");
+        const auto sockPath = art::liveparam::LiveParamServer::getInstance().getSocketPath();
+        GUI_ASSERT(!sockPath.empty(), "LiveParamServer socket path valid");
+
+        int sockFd = connectSock(sockPath);
+        GUI_ASSERT(sockFd >= 0, "Connected to LiveParamServer");
+
+        sessId1 = fixture.controller.getSessionId();
+        edId1 = fixture.panel->getEditorId();
+
+        // Initial state
+        GUI_ASSERT(sendRaw(sockFd, "{\"protocolVersion\":1,\"requestId\":\"t26-init\",\"op\":\"get_state\",\"editorId\":\"" + edId1 + "\"}"),
+                   "Init state request sent");
+        std::string replyStr = recvLineWithPump(sockFd);
+        std::unique_ptr<cJSON, decltype(&cJSON_Delete)> initJson(cJSON_Parse(replyStr.c_str()), cJSON_Delete);
+        GUI_ASSERT(initJson && cJSON_GetObjectItemCaseSensitive(initJson.get(), "status"), "Init JSON parsed");
+        int64_t baseRev = cJSON_GetObjectItemCaseSensitive(
+            cJSON_GetObjectItemCaseSensitive(initJson.get(), "result"), "revision")->valueint;
+
+        // 4a. Special characters requestId (quotes, backslash, tab, newline, UTF-8 Korean/Greek)
+        const std::string specialReqJson = makeSetJson(specialReqId, sessId1, edId1, baseRev, 0.35);
+        GUI_ASSERT(sendRaw(sockFd, specialReqJson), "Special-char request sent");
+        std::string expReplyStr = recvLineWithPump(sockFd);
+        std::unique_ptr<cJSON, decltype(&cJSON_Delete)> expReply(cJSON_Parse(expReplyStr.c_str()), cJSON_Delete);
+        GUI_ASSERT(expReply && cJSON_IsString(cJSON_GetObjectItemCaseSensitive(expReply.get(), "requestId")) &&
+                   std::string(cJSON_GetObjectItemCaseSensitive(expReply.get(), "requestId")->valuestring) == specialReqId &&
+                   expReplyStr.find("\"status\":\"APPLIED\"") != std::string::npos,
+                   "Special-char Exposure APPLIED with exact requestId");
+        auto *expRes = cJSON_GetObjectItemCaseSensitive(expReply.get(), "result");
+        revSpecial = static_cast<int64_t>(cJSON_GetObjectItemCaseSensitive(expRes, "appliedRevision")->valuedouble);
+        viewRevSpecial = static_cast<int64_t>(cJSON_GetObjectItemCaseSensitive(expRes, "viewRevision")->valuedouble);
+        GUI_ASSERT(fixture.waitReady(), "Special-char Exposure READY");
+
+        // 4b. Duplicate request replay (same specialReqId & params)
+        GUI_ASSERT(sendRaw(sockFd, specialReqJson), "Duplicate special-char request sent");
+        std::string dupReplyStr = recvLineWithPump(sockFd);
+        GUI_ASSERT(dupReplyStr.find("\"status\":\"APPLIED\"") != std::string::npos,
+                   "Duplicate APPLIED without re-execution");
+
+        // 4c. Rejected request (invalid value)
+        GUI_ASSERT(sendRaw(sockFd, makeSetJson("t26-invalid-1", sessId1, edId1, revSpecial, 999.0)),
+                   "Invalid value request sent");
+        std::string errReplyStr = recvLineWithPump(sockFd);
+        GUI_ASSERT(errReplyStr.find("\"status\":\"ERROR\"") != std::string::npos &&
+                   errReplyStr.find("\"INVALID_VALUE\"") != std::string::npos, "Rejected with INVALID_VALUE");
+
+        // 4d. Pan & zoom before mutation
+        auto *cropHandler = &fixture.area()->mainCropWindow->cropHandler;
+        cropHandler->setZoom(100);
+        pumpGuiEvents(options.adjusterMaxDelay + 80);
+        cropHandler->moveAnchor(40, 30, true);
+        GUI_ASSERT(waitUntilIdle(fixture.panel), "Pan/zoom settled before mutation");
+        GUI_ASSERT(sendRaw(sockFd, makeSetJson(panReqId, sessId1, edId1, revSpecial, 0.65)),
+                   "Pan/zoom mutation sent");
+        std::string pzReplyStr = recvLineWithPump(sockFd);
+        GUI_ASSERT(pzReplyStr.find("\"status\":\"APPLIED\"") != std::string::npos, "Pan/zoom Exposure APPLIED");
+        {
+            std::unique_ptr<cJSON, decltype(&cJSON_Delete)> pzJson(cJSON_Parse(pzReplyStr.c_str()), cJSON_Delete);
+            auto *res = cJSON_GetObjectItemCaseSensitive(pzJson.get(), "result");
+            revPanZoom = static_cast<int64_t>(cJSON_GetObjectItemCaseSensitive(res, "appliedRevision")->valuedouble);
+            viewRevPanZoom = static_cast<int64_t>(cJSON_GetObjectItemCaseSensitive(res, "viewRevision")->valuedouble);
+        }
+        GUI_ASSERT(fixture.waitReady(), "Pan/zoom Exposure READY");
+
+        // 4e. Queue saturation (32 pending without pumping GUI) + 33rd BUSY + client-disconnect CANCELLED
+        std::vector<int> qSocks;
+        for (int i = 0; i < 32; ++i) {
+            int qfd = connectSock(sockPath);
+            GUI_ASSERT(qfd >= 0, "Connected queue filler socket");
+            const std::string qreq = "{\"protocolVersion\":1,\"requestId\":\"t26-qfill-" +
+                std::to_string(i) + "\",\"op\":\"get_state\",\"editorId\":\"" + edId1 + "\"}";
+            GUI_ASSERT(sendRaw(qfd, qreq), "Queue filler request sent");
+            qSocks.push_back(qfd);
+        }
+        // Wait briefly without pumping GUI so I/O thread enqueues all 32 items
+        int qFullFd = -1;
+        std::string busyReply;
+        const auto qDl = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+        while (std::chrono::steady_clock::now() < qDl) {
+            int probeFd = connectSock(sockPath);
+            if (probeFd >= 0) {
+                const std::string qreq = "{\"protocolVersion\":1,\"requestId\":\"" + qFullReqId +
+                    "\",\"op\":\"get_state\",\"editorId\":\"" + edId1 + "\"}";
+                sendRaw(probeFd, qreq);
+                std::string r = recvLineNoPump(probeFd, 300);
+                close(probeFd);
+                if (r.find("QUEUE") != std::string::npos || r.find("BUSY") != std::string::npos) {
+                    busyReply = r;
+                    qFullFd = 1;
+                    break;
+                }
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(15));
+        }
+        GUI_ASSERT(qFullFd == 1 && busyReply.find("\"BUSY\"") != std::string::npos,
+                   "33rd request hit queue saturation and received BUSY");
+
+        // Close all 32 waiting sockets before GUI runs idle callbacks -> I/O thread cancels them
+        for (int qfd : qSocks) {
+            close(qfd);
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        pumpGuiEvents(80);
+        GUI_ASSERT(waitUntilIdle(fixture.panel), "Queue cancel drained");
+
+        // 4f. Normal request right after queue saturation and cancel must get a clean cmdId
+        GUI_ASSERT(sendRaw(sockFd, makeSetJson(afterQReqId, sessId1, edId1, revPanZoom, 0.90)),
+                   "Post-cancel normal request sent");
+        std::string aqReplyStr = recvLineWithPump(sockFd);
+        GUI_ASSERT(aqReplyStr.find("\"status\":\"APPLIED\"") != std::string::npos, "Post-cancel Exposure APPLIED");
+        {
+            std::unique_ptr<cJSON, decltype(&cJSON_Delete)> aqJson(cJSON_Parse(aqReplyStr.c_str()), cJSON_Delete);
+            auto *res = cJSON_GetObjectItemCaseSensitive(aqJson.get(), "result");
+            revAfterQFull = static_cast<int64_t>(cJSON_GetObjectItemCaseSensitive(res, "appliedRevision")->valuedouble);
+            viewRevAfterQFull = static_cast<int64_t>(cJSON_GetObjectItemCaseSensitive(res, "viewRevision")->valuedouble);
+        }
+        GUI_ASSERT(fixture.waitReady(), "Post-cancel Exposure READY");
+
+        close(sockFd);
+    }
+
+    // 5. Same-process server restart (stop -> start) with a second session & new sessionId
+    std::string sessId2;
+    std::string edId2;
+    int64_t revRestart = 0, viewRevRestart = 0;
+    const std::string restartReqId = "t26-restart-1";
+    {
+        FrameFixture fixture2{nullptr, art::liveparam::LiveParamController::getInstance()};
+        GUI_ASSERT(fixture2.open(win, workDir, "t26b"), "Second RAW fixture opened after server restart");
+        sessId2 = fixture2.controller.getSessionId();
+        edId2 = fixture2.panel->getEditorId();
+        GUI_ASSERT(!sessId2.empty() && sessId2 != sessId1, "Server restart assigned new sessionId");
+        const auto sockPath2 = art::liveparam::LiveParamServer::getInstance().getSocketPath();
+        int sockFd2 = connectSock(sockPath2);
+        GUI_ASSERT(sockFd2 >= 0, "Connected to restarted LiveParamServer");
+        const int64_t baseRev2 = fixture2.field("revision");
+        GUI_ASSERT(sendRaw(sockFd2, makeSetJson(restartReqId, sessId2, edId2, baseRev2, -0.25)),
+                   "Restarted-session mutation sent");
+        std::string rReply = recvLineWithPump(sockFd2);
+        GUI_ASSERT(rReply.find("\"status\":\"APPLIED\"") != std::string::npos, "Restarted-session APPLIED");
+        {
+            std::unique_ptr<cJSON, decltype(&cJSON_Delete)> rJson(cJSON_Parse(rReply.c_str()), cJSON_Delete);
+            auto *res = cJSON_GetObjectItemCaseSensitive(rJson.get(), "result");
+            revRestart = static_cast<int64_t>(cJSON_GetObjectItemCaseSensitive(res, "appliedRevision")->valuedouble);
+            viewRevRestart = static_cast<int64_t>(cJSON_GetObjectItemCaseSensitive(res, "viewRevision")->valuedouble);
+        }
+        GUI_ASSERT(fixture2.waitReady(), "Restarted-session READY");
+        close(sockFd2);
+    }
+
+    // 6. Verify tracer integrity and flush
+    GUI_ASSERT(tracer.getDropCount() == 0, "No dropped trace events");
+    GUI_ASSERT(tracer.getWriteErrorCount() == 0, "No trace file write errors");
+    GUI_ASSERT(tracer.getCommandMetaSize() <= 4096, "Command metadata map stays bounded");
+    tracer.flush(true);
+
+    // 7. Parse trace.jsonl and verify all events, escaping, session/cmdId uniqueness, replay, queue cancel
+    std::ifstream traceIn(traceFile);
+    GUI_ASSERT(traceIn.is_open(), "Trace output file opened");
+    std::string line;
+    struct RecInfo {
+        uint64_t ts = 0;
+        uint64_t cmdId = 0;
+        uint64_t gen = 0;
+        int64_t editRev = -1;
+        int64_t viewRev = -1;
+        std::string sess;
+        std::string ed;
+    };
+    std::map<std::string, std::map<std::string, RecInfo>> reqPrimaryEvents;
+    std::vector<std::pair<std::string, uint64_t>> replays;
+    std::map<uint64_t, std::set<std::string>> eventsByCmdId;
+    uint64_t cancelCount = 0;
+    uint64_t rejectCount = 0;
+    bool hasEngineDone = false, hasCropDone = false;
+    while (std::getline(traceIn, line)) {
+        if (line.empty()) continue;
+        std::unique_ptr<cJSON, decltype(&cJSON_Delete)> rJson(cJSON_Parse(line.c_str()), cJSON_Delete);
+        GUI_ASSERT(rJson != nullptr, ("Valid JSONL trace line: " + line).c_str());
+        auto *evItem = cJSON_GetObjectItemCaseSensitive(rJson.get(), "event");
+        auto *tsItem = cJSON_GetObjectItemCaseSensitive(rJson.get(), "timestamp_ns");
+        GUI_ASSERT(evItem && cJSON_IsString(evItem) && tsItem && cJSON_IsNumber(tsItem), "Valid event/ts fields");
+        const std::string ev = evItem->valuestring;
+        if (ev == "ENGINE_DONE") hasEngineDone = true;
+        if (ev == "CROP_DONE") hasCropDone = true;
+        if (ev == "CANCEL") ++cancelCount;
+        if (ev == "REJECT") ++rejectCount;
+
+        auto *cmdItem = cJSON_GetObjectItemCaseSensitive(rJson.get(), "cmdId");
+        auto *reqItem = cJSON_GetObjectItemCaseSensitive(rJson.get(), "requestId");
+        auto *sessItem = cJSON_GetObjectItemCaseSensitive(rJson.get(), "sessionId");
+        auto *edItem = cJSON_GetObjectItemCaseSensitive(rJson.get(), "editorId");
+        auto *genItem = cJSON_GetObjectItemCaseSensitive(rJson.get(), "generation");
+        auto *erItem = cJSON_GetObjectItemCaseSensitive(rJson.get(), "editRev");
+        auto *vrItem = cJSON_GetObjectItemCaseSensitive(rJson.get(), "viewRev");
+
+        RecInfo info;
+        info.ts = static_cast<uint64_t>(tsItem->valuedouble);
+        info.cmdId = cmdItem && cJSON_IsNumber(cmdItem) ? static_cast<uint64_t>(cmdItem->valuedouble) : 0;
+        info.gen = genItem && cJSON_IsNumber(genItem) ? static_cast<uint64_t>(genItem->valuedouble) : 0;
+        info.editRev = erItem && cJSON_IsNumber(erItem) ? static_cast<int64_t>(erItem->valuedouble) : -1;
+        info.viewRev = vrItem && cJSON_IsNumber(vrItem) ? static_cast<int64_t>(vrItem->valuedouble) : -1;
+        if (sessItem && cJSON_IsString(sessItem)) info.sess = sessItem->valuestring;
+        if (edItem && cJSON_IsString(edItem)) info.ed = edItem->valuestring;
+
+        if (info.cmdId) {
+            eventsByCmdId[info.cmdId].insert(ev);
+        }
+        if (reqItem && cJSON_IsString(reqItem) && reqItem->valuestring) {
+            const std::string reqId = reqItem->valuestring;
+            if (ev == "REPLAY") {
+                replays.emplace_back(reqId, info.cmdId);
+            } else {
+                // Only store first per event or check no duplicate SA/SR
+                GUI_ASSERT(!(ev == "SA" && reqPrimaryEvents[reqId].count("SA")), "No duplicate SA for requestId");
+                GUI_ASSERT(!(ev == "SR" && reqPrimaryEvents[reqId].count("SR")), "No duplicate SR for requestId");
+                if (!reqPrimaryEvents[reqId].count(ev)) {
+                    reqPrimaryEvents[reqId][ev] = info;
+                }
+            }
+        }
+    }
+
+    GUI_ASSERT(hasEngineDone && hasCropDone, "Engine and Crop stage execution records emitted");
+    GUI_ASSERT(rejectCount >= 1 && cancelCount >= 1, "Queue saturation REJECT and disconnect CANCEL recorded");
+    GUI_ASSERT(replays.size() == 1 && replays[0].first == specialReqId,
+               "Replay recorded as separate REPLAY event preserving original specialReqId");
+
+    // Helper to assert S0..SR completeness & monotonicity for a mutation
+    auto checkMutation = [&](const std::string &reqId, const std::string &sess,
+                             const std::string &ed, int64_t editRev, uint64_t &outCmdId) {
+        const auto &m = reqPrimaryEvents[reqId];
+        for (const char *k : {"S0", "SQ", "SG", "SA", "SP", "SS", "SN", "SC", "SR"}) {
+            GUI_ASSERT(m.count(k) == 1, ("Event " + std::string(k) + " present").c_str());
+        }
+        outCmdId = m.at("SA").cmdId;
+        GUI_ASSERT(outCmdId > 0, "cmdId nonzero");
+        for (const char *k : {"S0", "SQ", "SG", "SA", "SP", "SS", "SN", "SC", "SR"}) {
+            GUI_ASSERT(m.at(k).sess == sess && m.at(k).cmdId == outCmdId,
+                       "All events for mutation share same sessionId and cmdId");
+        }
+        for (const char *k : {"SA", "SN", "SC", "SR"}) {
+            GUI_ASSERT(m.at(k).ed == ed && m.at(k).editRev == editRev,
+                       "editorId and editRev match");
+        }
+        GUI_ASSERT(m.at("S0").ts <= m.at("SQ").ts && m.at("SQ").ts <= m.at("SG").ts &&
+                   m.at("SG").ts <= m.at("SA").ts && m.at("SA").ts <= m.at("SP").ts &&
+                   m.at("SP").ts <= m.at("SS").ts, "S0..SS monotonic");
+        GUI_ASSERT(m.at("SA").ts <= m.at("SN").ts && m.at("SN").ts <= m.at("SR").ts, "SA<=SN<=SR");
+        GUI_ASSERT(m.at("SA").ts <= m.at("SC").ts && m.at("SC").ts <= m.at("SR").ts, "SA<=SC<=SR");
+        GUI_ASSERT(m.at("SR").gen > 0 && m.at("SN").gen == m.at("SR").gen &&
+                   m.at("SC").gen == m.at("SR").gen, "Generation matches across SN/SC/SR");
+        return true;
+    };
+
+    uint64_t cmdSpecial = 0, cmdPan = 0, cmdAfterQ = 0, cmdRestart = 0;
+    GUI_ASSERT(checkMutation(specialReqId, sessId1, edId1, revSpecial, cmdSpecial), "specialReqId trace valid");
+    GUI_ASSERT(replays[0].second != cmdSpecial, "Replay used its own cmdId");
+    GUI_ASSERT(checkMutation(panReqId, sessId1, edId1, revPanZoom, cmdPan), "panReqId trace valid");
+    GUI_ASSERT(reqPrimaryEvents[panReqId].at("SR").viewRev == viewRevPanZoom, "panReqId viewRev matched");
+    GUI_ASSERT(checkMutation(afterQReqId, sessId1, edId1, revAfterQFull, cmdAfterQ), "afterQReqId trace valid");
+    GUI_ASSERT(checkMutation(restartReqId, sessId2, edId2, revRestart, cmdRestart), "restartReqId trace valid");
+    GUI_ASSERT(cmdRestart > cmdAfterQ && cmdAfterQ > cmdPan && cmdPan > cmdSpecial,
+               "cmdId monotonically advances across queue cancel and server restart");
+
+    // Rejected request must have S0, SQ, SG, SP, SS but NOT SA, SN, SC, SR
+    const auto &invalidEvents = reqPrimaryEvents["t26-invalid-1"];
+    GUI_ASSERT(invalidEvents.count("S0") && invalidEvents.count("SG") && invalidEvents.count("SS"),
+               "Rejected request went through socket/GUI");
+    GUI_ASSERT(invalidEvents.count("SA") == 0 && invalidEvents.count("SR") == 0,
+               "Rejected request has no SA or SR");
+
+    // 8. Validate scripts/live_param_perf_probe.py --validate-dir (pass on valid subset, fail on corrupt/drops/missing SR)
+    auto writeClientJsonl = [&](const std::string &dirPath) {
+        g_mkdir_with_parents(dirPath.c_str(), 0700);
+        {
+            std::unique_ptr<cJSON, decltype(&cJSON_Delete)> mf(cJSON_CreateObject(), cJSON_Delete);
+            cJSON_AddStringToObject(mf.get(), "run_type", "contract_test");
+            cJSON_AddBoolToObject(mf.get(), "trace_enabled", true);
+            cJSON_AddNumberToObject(mf.get(), "expected_ready_count", 4);
+            auto *expReqs = cJSON_AddArrayToObject(mf.get(), "expected_request_ids");
+            cJSON_AddItemToArray(expReqs, cJSON_CreateString(specialReqId.c_str()));
+            cJSON_AddItemToArray(expReqs, cJSON_CreateString(panReqId.c_str()));
+            cJSON_AddItemToArray(expReqs, cJSON_CreateString(afterQReqId.c_str()));
+            cJSON_AddItemToArray(expReqs, cJSON_CreateString(restartReqId.c_str()));
+            char *mp = cJSON_Print(mf.get());
+            std::ofstream mff(dirPath + "/manifest.json");
+            mff << mp << "\n";
+            cJSON_free(mp);
+        }
+        std::ofstream cf(dirPath + "/client.jsonl");
+        auto emitSample = [&](const std::string &reqId, const std::string &sess,
+                              const std::string &ed, int64_t rev, int64_t vrev, double val) {
+            std::unique_ptr<cJSON, decltype(&cJSON_Delete)> row(cJSON_CreateObject(), cJSON_Delete);
+            cJSON_AddStringToObject(row.get(), "requestId", reqId.c_str());
+            cJSON_AddStringToObject(row.get(), "sessionId", sess.c_str());
+            cJSON_AddStringToObject(row.get(), "editorId", ed.c_str());
+            cJSON_AddStringToObject(row.get(), "param", "exposure");
+            cJSON_AddStringToObject(row.get(), "paramKey", "Exposure.Compensation");
+            cJSON_AddNumberToObject(row.get(), "val", val);
+            cJSON_AddNumberToObject(row.get(), "effectiveValue", val);
+            cJSON_AddNumberToObject(row.get(), "baseRevision", static_cast<double>(rev - 1));
+            cJSON_AddNumberToObject(row.get(), "appliedRevision", static_cast<double>(rev));
+            cJSON_AddNumberToObject(row.get(), "viewRevision", static_cast<double>(vrev));
+            cJSON_AddNumberToObject(row.get(), "renderedRevision", static_cast<double>(rev));
+            cJSON_AddNumberToObject(row.get(), "renderedViewRevision", static_cast<double>(vrev));
+            cJSON_AddStringToObject(row.get(), "status", "READY");
+            char *p = cJSON_PrintUnformatted(row.get());
+            cf << p << "\n";
+            cJSON_free(p);
+        };
+        emitSample(specialReqId, sessId1, edId1, revSpecial, viewRevSpecial, 0.35);
+        emitSample(panReqId, sessId1, edId1, revPanZoom, viewRevPanZoom, 0.65);
+        emitSample(afterQReqId, sessId1, edId1, revAfterQFull, viewRevAfterQFull, 0.90);
+        emitSample(restartReqId, sessId2, edId2, revRestart, viewRevRestart, -0.25);
+    };
+    auto runProbeValidate = [&](const std::string &dirPath) -> bool {
+        const std::string probeScript = ART_TEST_SOURCE_DIR "/scripts/live_param_perf_probe.py";
+        gchar *argv[] = {
+            const_cast<gchar *>(ART_AGENT_PYTHON),
+            const_cast<gchar *>(probeScript.c_str()),
+            const_cast<gchar *>("--validate-dir"),
+            const_cast<gchar *>(dirPath.c_str()),
+            nullptr
+        };
+        gint status = 0;
+        GError *err = nullptr;
+        const bool ok = g_spawn_sync(nullptr, argv, nullptr, G_SPAWN_SEARCH_PATH,
+                                     nullptr, nullptr, nullptr, nullptr, &status, &err);
+        g_clear_error(&err);
+        return ok && g_spawn_check_wait_status(status, nullptr);
+    };
+
+    const std::string validDir = workDir + "/t26_probe_valid";
+    writeClientJsonl(validDir);
+    GUI_ASSERT(copyFile(traceFile, validDir + "/trace.jsonl"), "Copied trace to validDir");
+    GUI_ASSERT(runProbeValidate(validDir), "Probe validator passes on authentic trace");
+
+    // 8a. Corrupt JSONL line must FAIL
+    const std::string corruptDir = workDir + "/t26_probe_corrupt";
+    writeClientJsonl(corruptDir);
+    GUI_ASSERT(copyFile(traceFile, corruptDir + "/trace.jsonl"), "Copied trace to corruptDir");
+    {
+        std::ofstream out(corruptDir + "/trace.jsonl", std::ios::app);
+        out << "{broken-json-line\n";
+    }
+    GUI_ASSERT(!runProbeValidate(corruptDir), "Probe validator rejects corrupt JSONL line");
+
+    // 8b. Non-zero drops field must FAIL
+    const std::string dropsDir = workDir + "/t26_probe_drops";
+    writeClientJsonl(dropsDir);
+    GUI_ASSERT(copyFile(traceFile, dropsDir + "/trace.jsonl"), "Copied trace to dropsDir");
+    {
+        std::ofstream out(dropsDir + "/trace.jsonl", std::ios::app);
+        out << "{\"event\":\"ENGINE_CHANGE\",\"timestamp_ns\":12345,\"drops\":1}\n";
+    }
+    GUI_ASSERT(!runProbeValidate(dropsDir), "Probe validator rejects trace with drops > 0");
+
+    // 8c. Missing SR event must FAIL
+    const std::string missingDir = workDir + "/t26_probe_missing_sr";
+    writeClientJsonl(missingDir);
+    {
+        std::ifstream in(traceFile);
+        std::ofstream out(missingDir + "/trace.jsonl");
+        std::string l;
+        while (std::getline(in, l)) {
+            if (l.find("\"event\":\"SR\"") != std::string::npos &&
+                l.find(restartReqId) != std::string::npos) {
+                continue;
+            }
+            out << l << "\n";
+        }
+    }
+    GUI_ASSERT(!runProbeValidate(missingDir), "Probe validator rejects trace missing SR event");
+
+    unsetenv("ART_LIVE_PARAM_TRACE");
+    tracer.clear();
+    std::cout << "  -> [T26] PASSED! trace verified: " << traceFile << std::endl;
     return true;
 }
 
@@ -2778,6 +3750,8 @@ int main(int argc, char **argv)
         {"T23", test_t23_numeric_widgets},
         {"T24", test_t24_numeric_modes},
         {"T25", test_t25_numeric_output},
+        {"T26", test_t26_perf_trace_harness},
+        {"T27", test_t27_preview_color_conversion},
     };
     std::set<std::string> selected;
     for (int i = 1; i < argc; ++i) {

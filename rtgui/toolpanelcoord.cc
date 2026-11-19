@@ -706,6 +706,7 @@ void ToolPanelCoordinator::panelChanged(const rtengine::ProcEvent &event,
         resize->write(params);
     }
 
+    lastNumericChangeFlags_ = changeFlags;
     ipc->endUpdateParams(changeFlags); // starts the IPC processing
 
     hasChanged = true;
@@ -919,15 +920,55 @@ public:
     rtengine::ProcEvent event = rtengine::EvProfileChanged;
     Glib::ustring description;
     bool unsupported = false;
+    size_t eventCount = 0;
+    bool refreshPreviewCalled = false;
+
     void panelChanged(const rtengine::ProcEvent &value,
                       const Glib::ustring &text) override
     {
         event = value;
         description = text;
+        ++eventCount;
     }
-    void refreshPreview(const rtengine::ProcEvent &value) override { event = value; }
+    void refreshPreview(const rtengine::ProcEvent &value) override
+    {
+        event = value;
+        refreshPreviewCalled = true;
+        ++eventCount;
+    }
     void setTweakOperator(rtengine::TweakOperator *) override { unsupported = true; }
     void unsetTweakOperator(rtengine::TweakOperator *) override { unsupported = true; }
+
+    bool canUseSelectiveEvent() const
+    {
+        if (unsupported || refreshPreviewCalled || eventCount != 1 ||
+            event == rtengine::EvProfileChanged || event == rtengine::EvPhotoLoaded ||
+            event == rtengine::EvHistoryBrowsed || event == rtengine::EvCTRotate ||
+            event == rtengine::EvCTHFlip || event == rtengine::EvCTVFlip ||
+            event == rtengine::EvCrop) {
+            return false;
+        }
+        const int action = rtengine::RefreshMapper::getInstance()->getAction(event);
+        constexpr int kRenderStages =
+            rtengine::M_SPOT | rtengine::M_LINDENOISE | rtengine::M_HDR |
+            rtengine::M_BLURMAP | rtengine::M_AUTOEXP | rtengine::M_RGBCURVE |
+            rtengine::M_LUMACURVE | rtengine::M_LUMINANCE | rtengine::M_COLOR;
+        constexpr int kDisallowedFlags =
+            rtengine::M_WHITEBALANCE | rtengine::M_PREPROC | rtengine::M_RAW |
+            rtengine::M_INIT | rtengine::M_VOID | rtengine::M_MINUPDATE |
+            rtengine::M_CROP | rtengine::M_MONITOR;
+        if ((action & kRenderStages) == 0 || (action & kDisallowedFlags) != 0) {
+            return false;
+        }
+        if ((action & rtengine::M_HDR) && !(action & rtengine::M_LINDENOISE)) {
+            return false;
+        }
+        if ((action & rtengine::M_TRANSFORM) &&
+            !((action & rtengine::M_HDR) && (action & rtengine::M_LINDENOISE))) {
+            return false;
+        }
+        return true;
+    }
 };
 
 class NumericListeners {
@@ -968,7 +1009,7 @@ art::liveparam::NumericApplyResult ToolPanelCoordinator::applyExternalNumeric(
 {
     using namespace art::liveparam;
     NumericApplyResult result;
-    const auto controls = numericControls();
+    const auto controls = collectNumericControls(toolPanels, false);
     const auto find = [&](const std::vector<NumericControl> &list) {
         return std::find_if(list.begin(), list.end(),
             [&](const NumericControl &item) { return item.id == id; });
@@ -992,49 +1033,57 @@ art::liveparam::NumericApplyResult ToolPanelCoordinator::applyExternalNumeric(
         return result;
     }
     ProcParams before;
-    for (auto *panel : toolPanels) {
-        panel->write(&before);
+    if (found->owner) {
+        found->owner->write(&before);
     }
     NumericEvents events;
     NumericListeners listeners(toolPanels, &events);
-    const auto rollback = [&](bool ownerOnly = false) {
-        for (auto *panel : toolPanels) {
-            if (!ownerOnly || panel == found->owner) {
-                panel->read(&before);
-            }
+    const auto rollback = [&]() {
+        if (found->owner) {
+            found->owner->read(&before);
         }
         result.enabledTools.clear();
     };
+    bool toolWasToggled = false;
     try {
         if (auto *tool = dynamic_cast<FoldableToolPanel *>(found->owner)) {
             if (tool->getUseEnabled() && !tool->getEnabled()) {
                 tool->setEnabled(true);
                 tool->enabledChanged();
                 result.enabledTools.push_back(tool->getToolName());
+                toolWasToggled = true;
             }
         }
-        // Enabling a tool may rebuild its controls. Never use a stale pointer.
-        auto current = numericControls();
-        auto target = find(current);
-        if (target == current.end() || !target->available) {
-            rollback(true);
-            result.error = "TOOL_DISABLED";
-            return result;
+        if (toolWasToggled) {
+            // Enabling a tool may rebuild its controls. Never use a stale pointer.
+            const auto current = collectNumericControls(toolPanels, false);
+            auto target = find(current);
+            if (target == current.end() || !target->available) {
+                rollback();
+                result.error = "TOOL_DISABLED";
+                return result;
+            }
+            writeNumericControl(*target, value);
+            result.value = readNumericControlValue(*target);
+        } else {
+            writeNumericControl(*found, value);
+            result.value = readNumericControlValue(*found);
         }
-        writeNumericControl(*target, value);
-        current = numericControls();
-        target = find(current);
-        if (target == current.end() || events.unsupported) {
+        if (events.unsupported) {
             rollback();
             return result;
         }
-        result.value = target->value;
     } catch (...) {
         rollback();
         throw;
     }
     listeners.restore();
-    numericFullRefresh_ = true;
+    const bool selective =
+        !forceNumericFullRefresh_ && !toolWasToggled && events.canUseSelectiveEvent();
+    numericFullRefresh_ = !selective;
+    lastNumericUsedSelective_ = selective;
+    lastNumericEvent_ = selective ? events.event : rtengine::EvProfileChanged;
+    lastNumericChangeFlags_ = 0;
     try {
         panelChanged(events.event, events.description.empty()
             ? Glib::ustring::format(result.value) : events.description);
@@ -1043,6 +1092,7 @@ art::liveparam::NumericApplyResult ToolPanelCoordinator::applyExternalNumeric(
         throw;
     }
     numericFullRefresh_ = false;
+    result.changeFlags = lastNumericChangeFlags_;
     result.error.clear();
     return result;
 }

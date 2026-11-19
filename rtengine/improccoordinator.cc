@@ -17,6 +17,7 @@
  *  along with RawTherapee.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "improccoordinator.h"
+#include "liveparamtrace.h"
 #include "../rtgui/ppversion.h"
 #include "color.h"
 #include "colortemp.h"
@@ -29,6 +30,7 @@
 #include "pipelineprofile.h"
 #include "refreshmap.h"
 #include "threadpool.h"
+#include <cstdio>
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -207,6 +209,23 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
 
     ipf.setPipetteBuffer(nullptr);
     bool stop = false;
+    const int reqTodo = todo;
+    bool traceStages = art::liveparam::LiveParamTrace::isEnabled();
+    using Clock = std::chrono::steady_clock;
+    const auto workerStart = traceStages ? Clock::now() : Clock::time_point{};
+    auto cropLoopStart = workerStart;
+    auto cropLoopEnd = workerStart;
+    bool trPreproc = false;
+    bool trRaw = false;
+    bool trInit = false;
+    bool trHdr = false;
+    bool trTf = false;
+    bool trS1 = false;
+    bool trS2 = false;
+    bool trS3 = false;
+    if (traceStages) {
+        lastPreviewStages_.clear();
+    }
 
     if (((todo & ALL) == ALL) || (todo & M_MONITOR) || panningRelatedChange ||
         (highDetailNeeded && options.prevdemo != PD_Sidecar)) {
@@ -285,6 +304,7 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
         // compute it when high detail is needed
         if ((todo & M_PREPROC) ||
             (!highDetailPreprocessComputed && highDetailNeeded)) {
+            trPreproc = true;
             imgsrc->preprocess(rp, params.lensProf, params.coarse, true,
                                preproc_wb);
             if (flatFieldAutoClipListener && rp.ff_AutoClipControl) {
@@ -304,6 +324,7 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
         }
 
         if ((todo & M_RAW) || (!highDetailRawComputed && highDetailNeeded)) {
+            trRaw = true;
             if (settings->verbose) {
                 if (imgsrc->getSensorType() == ST_BAYER) {
                     std::cout << "Demosaic Bayer image n."
@@ -352,9 +373,9 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
                     autoContrast ? contrastThreshold : -1.0);
             }
 
-            // if a demosaic happened we should also call getimage later, so we
-            // need to set the M_INIT flag
-            todo |= M_INIT;
+            // if a demosaic happened we should also call getimage and downstream
+            // stages so intermediate preview buffers stay consistent
+            todo |= ALLNORAW;
             highDetailRawComputed = highDetailNeeded;
         }
 
@@ -365,6 +386,7 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
         ipf.setScale(scale);
 
         if (todo & (M_INIT | M_LINDENOISE | M_HDR)) {
+            trInit = true;
             MyMutex::MyLock initLock(minit); // Also used in crop window
 
             if (params.wb.method == WBParams::AUTO) {
@@ -462,6 +484,7 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
 
         if ((todo & M_HDR) &&
             (params.fattal.enabled || params.dehaze.enabled)) {
+            trHdr = true;
             if (drcomp_11_dcrop_cache) {
                 delete drcomp_11_dcrop_cache;
                 drcomp_11_dcrop_cache = nullptr;
@@ -475,6 +498,7 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
         progress("Rotate / Distortion...", 100 * readyphase / numofphases);
         // Remove transformation if unneeded
         if (ipf.needsTransform()) {
+            trTf = true;
             assert(oprevi);
             Imagefloat *op = oprevi;
             oprevi = new Imagefloat(pW, pH, op);
@@ -539,6 +563,7 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
         if ((todo & M_RGBCURVE) || (todo & M_CROP)) {
             // if it's just crop we just need the histogram, no image updates
             if (todo & M_RGBCURVE) {
+                trS1 = true;
                 // initialize rrm bbm ggm different from zero to avoid black
                 // screen in some cases
                 oprevi->copyTo(bufs_[0]);
@@ -556,6 +581,7 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
         readyphase++;
 
         if (todo & M_LUMACURVE) {
+            trS2 = true;
             bufs_[0]->copyTo(bufs_[1]);
             pipeline_stop_[2] =
                 stop || ipf.process(ImProcFunctions::Stage::STAGE_2, bufs_[1]);
@@ -563,6 +589,7 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
         stop = stop || pipeline_stop_[2];
 
         if (todo & (M_LUMINANCE | M_COLOR)) {
+            trS3 = true;
             bufs_[1]->copyTo(bufs_[2]);
             pipeline_stop_[3] =
                 stop || ipf.process(ImProcFunctions::Stage::STAGE_3, bufs_[2]);
@@ -592,6 +619,10 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
         }
     }
 
+    if (traceStages) {
+        cropLoopStart = Clock::now();
+    }
+
     // process crop, if needed
     {
         std::vector<Crop *> cropsSnapshot;
@@ -609,6 +640,10 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
             }
     }
 
+    if (traceStages) {
+        cropLoopEnd = Clock::now();
+    }
+
     if (panningRelatedChange || (todo & M_MONITOR)) {
         progress("Conversion to RGB...", 100 * readyphase / numofphases);
 
@@ -616,16 +651,13 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
             MyMutex::MyLock prevImgLock(previmg->getMutex());
 
             try {
-                // Computing the preview image, i.e. converting from
-                // WCS->Monitor color space (soft-proofing disabled) or
-                // WCS->Printer profile->Monitor color space (soft-proofing
-                // enabled)
-                ipf.rgb2monitor(bufs_[2], previmg);
-
-                // Computing the internal image for analysis, i.e. conversion
-                // from WCS->Output profile
+                Image8 *analysis = nullptr;
+                ipf.rgb2monitor(bufs_[2], previmg, &analysis);
+                if (!analysis) {
+                    analysis = ipf.rgb2out(bufs_[2], 0, 0, pW, pH, params.icm);
+                }
                 delete workimg;
-                workimg = ipf.rgb2out(bufs_[2], 0, 0, pW, pH, params.icm);
+                workimg = analysis;
 
                 /* Worker -> GUI handoff barrier.  bufs_[2] is read after this
                  * point by the scope panels (updateLRGBHistograms below, and
@@ -685,6 +717,29 @@ void ImProcCoordinator::updatePreviewImage(int todo, bool panningRelatedChange)
     if (orig_prev != oprevi && oprevi != spotprev) {
         delete oprevi;
         oprevi = nullptr;
+    }
+    if (traceStages) {
+        const auto workerEnd = Clock::now();
+        const long long navPreUs = std::chrono::duration_cast<std::chrono::microseconds>(
+            cropLoopStart - workerStart).count();
+        const long long navPostUs = std::chrono::duration_cast<std::chrono::microseconds>(
+            workerEnd - cropLoopEnd).count();
+        const int hrMode = params.exposure.enabled
+            ? static_cast<int>(params.exposure.hrmode) : 0;
+        const long long workerStartNs =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(
+                workerStart.time_since_epoch()).count();
+        char buf[320];
+        std::snprintf(
+            buf, sizeof(buf),
+            "nav:preproc=%d,raw=%d,init=%d,hdr=%d,tf=%d,s1=%d,s2=%d,s3=%d,"
+            "req_todo=%d,todo=%d,wb_mode=%d,hr_mode=%d,"
+            "nav_pre_us=%lld,nav_post_us=%lld,worker_start_ns=%lld",
+            trPreproc ? 1 : 0, trRaw ? 1 : 0, trInit ? 1 : 0,
+            trHdr ? 1 : 0, trTf ? 1 : 0, trS1 ? 1 : 0, trS2 ? 1 : 0,
+            trS3 ? 1 : 0, reqTodo, todo, static_cast<int>(options.wb_preview_mode),
+            hrMode, navPreUs, navPostUs, workerStartNs);
+        lastPreviewStages_ = buf;
     }
 }
 
@@ -1640,6 +1695,14 @@ void ImProcCoordinator::process()
         if (change & (M_VOID - 1)) {
             updatePreviewImage(change, panningRelatedChange);
             changed = true;
+            if (art::liveparam::LiveParamTrace::isEnabled()) {
+                art::liveparam::LiveParamTrace::getInstance().record(
+                    "ENGINE_DONE", 0, nullptr, currentGeneration_,
+                    currentEditRev.load(std::memory_order_relaxed),
+                    currentViewRev.load(std::memory_order_relaxed), change,
+                    lastPreviewStages_.empty() ? nullptr
+                                               : lastPreviewStages_.c_str());
+            }
         }
 
         if (tweakOp) {
@@ -1691,6 +1754,11 @@ void ImProcCoordinator::endUpdateParams(int changeFlags)
     }
     changeSinceLast |= update_change_flags(nextParams, changeFlags);
     ++nextGeneration_;
+    if (art::liveparam::LiveParamTrace::isEnabled()) {
+        art::liveparam::LiveParamTrace::getInstance().record(
+            "ENGINE_CHANGE", 0, nullptr, nextGeneration_, nextEditRev, nextViewRev,
+            changeFlags);
+    }
     if (parameterUpdateListener_ && (changeSinceLast & (M_VOID - 1))) {
         parameterUpdateListener_->previewScheduled(nextGeneration_);
     }

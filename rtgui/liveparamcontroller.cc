@@ -1,8 +1,10 @@
 #include "liveparamcontroller.h"
+#include "../rtengine/liveparamtrace.h"
 #include "editorpanel.h"
 #include "toolpanelcoord.h"
 #include "ppversion.h"
 #include "../rtengine/cJSON.h"
+#include "../rtengine/refreshmap.h"
 #include "../rtengine/rtengine.h"
 
 #include <algorithm>
@@ -469,6 +471,7 @@ void LiveParamController::onEditorParamChanged(EditorPanel *panel,
             cit->second.isCompleted = true;
         }
         st.hasInFlightMutation = false;
+        st.inFlightCmdId = 0;
     }
 }
 
@@ -569,8 +572,14 @@ void LiveParamController::updateReady(EditorState &state)
         record.previewStatus = "READY";
         record.completedTime = clock_();
         record.isCompleted = true;
+        const uint64_t cmdId = state.inFlightCmdId;
         state.lastMutation = record;
         state.hasInFlightMutation = false;
+        state.inFlightCmdId = 0;
+        LiveParamTrace::getInstance().record(
+            "SR", cmdId, record.requestId.c_str(), state.requiredGeneration,
+            record.appliedRevision, record.viewRevision, 0, nullptr,
+            sessionId_.c_str(), state.editorId.c_str());
     }
 }
 
@@ -583,6 +592,12 @@ void LiveParamController::onPreviewReady(
     recordGuiAccess();
     auto &state = editors_.at(panelToId_.at(panel));
     state.previewContext = ctx;
+    if (state.hasInFlightMutation && ctx.generation == state.requiredGeneration) {
+        LiveParamTrace::getInstance().record(
+            "SN", state.inFlightCmdId, state.inFlightRequestId.c_str(),
+            ctx.generation, ctx.editRevision, ctx.viewRevision, 0, nullptr,
+            sessionId_.c_str(), state.editorId.c_str());
+    }
     updateReady(state);
 }
 
@@ -598,6 +613,12 @@ void LiveParamController::onCropReady(
         return;
     }
     state.cropContext = ctx;
+    if (state.hasInFlightMutation && ctx.generation == state.requiredGeneration) {
+        LiveParamTrace::getInstance().record(
+            "SC", state.inFlightCmdId, state.inFlightRequestId.c_str(),
+            ctx.generation, ctx.editRevision, ctx.viewRevision, 0, nullptr,
+            sessionId_.c_str(), state.editorId.c_str());
+    }
     updateReady(state);
 }
 
@@ -658,6 +679,7 @@ void LiveParamController::onRenderFailed(const std::string &sessionId,
             cit->second.isCompleted = true;
         }
         st.hasInFlightMutation = false;
+        st.inFlightCmdId = 0;
     }
 }
 
@@ -681,7 +703,7 @@ void LiveParamController::pruneExpiredCache(EditorState &st)
     }
 }
 
-std::string LiveParamController::handleCommand(const std::string &jsonRequest)
+std::string LiveParamController::handleCommand(const std::string &jsonRequest, uint64_t cmdId)
 {
     recordGuiAccess();
     size_t cacheSize = 0;
@@ -744,6 +766,10 @@ std::string LiveParamController::handleCommand(const std::string &jsonRequest)
     }
     if (editor) {
         editorId = editor->valuestring;
+    }
+    if (cmdId) {
+        LiveParamTrace::getInstance().bindCommand(
+            cmdId, requestId.c_str(), sessionId_.c_str(), editorId.c_str());
     }
     auto *protocol = field("protocolVersion");
     if (!integer(protocol)) {
@@ -927,6 +953,13 @@ std::string LiveParamController::handleCommand(const std::string &jsonRequest)
                 record.requestedValue != value->valuedouble) {
                 return error("REQUEST_ID_CONFLICT", "requestId reused with different content");
             }
+            if (cmdId) {
+                LiveParamTrace::getInstance().record(
+                    "REPLAY", cmdId, requestId.c_str(), 0,
+                    record.appliedRevision, record.viewRevision, 0,
+                    record.paramKey.c_str(), sessionId_.c_str(),
+                    target->second.editorId.c_str());
+            }
             return appliedResponse(sessionId_, target->second, record);
         }
     }
@@ -974,6 +1007,7 @@ std::string LiveParamController::handleCommand(const std::string &jsonRequest)
     record.requestedValue = value->valuedouble;
     record.baseRevision = baseRevision;
     auto reserved = state.mutationCache.emplace(requestId, record);
+    int appliedChangeFlags = 0;
     if (!contextId.empty()) {
         const auto applied = tools->applyExternalNumeric(paramKey, record.requestedValue, enableTool);
         if (!applied.error.empty()) {
@@ -982,12 +1016,15 @@ std::string LiveParamController::handleCommand(const std::string &jsonRequest)
         }
         record.effectiveValue = applied.value;
         record.enabledTools = applied.enabledTools;
+        appliedChangeFlags = applied.changeFlags;
     } else {
         if (!tools->applyExternalExposure(record.requestedValue)) {
             state.mutationCache.erase(reserved.first);
             return error("INTERNAL_ERROR", "Exposure parameter could not be applied");
         }
         record.effectiveValue = tools->getExposureCompensation();
+        appliedChangeFlags =
+            rtengine::RefreshMapper::getInstance()->getAction(rtengine::EvExpComp);
     }
     record.appliedRevision = state.currentRevision;
     record.viewRevision = state.currentViewRevision;
@@ -996,9 +1033,14 @@ std::string LiveParamController::handleCommand(const std::string &jsonRequest)
     state.lastMutation = record;
     state.hasLastMutation = true;
     state.hasInFlightMutation = true;
+    state.inFlightCmdId = cmdId;
     state.inFlightRequestId = requestId;
     state.inFlightAppliedRev = record.appliedRevision;
     state.inFlightAppliedViewRev = record.viewRevision;
+    LiveParamTrace::getInstance().record(
+        "SA", cmdId, requestId.c_str(), state.requiredGeneration,
+        record.appliedRevision, record.viewRevision, appliedChangeFlags,
+        paramKey.c_str(), sessionId_.c_str(), state.editorId.c_str());
     return appliedResponse(sessionId_, state, record);
 }
 

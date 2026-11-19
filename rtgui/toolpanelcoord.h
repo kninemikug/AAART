@@ -206,6 +206,10 @@ protected:
 
     bool hasChanged;
     bool numericFullRefresh_ = false;
+    bool forceNumericFullRefresh_ = false;
+    bool lastNumericUsedSelective_ = false;
+    int lastNumericChangeFlags_ = 0;
+    rtengine::ProcEvent lastNumericEvent_ = rtengine::EvProfileChanged;
 
     void addPanel(Gtk::Box *where, FoldableToolPanel *panel, int level = 1);
     void foldThemAll(GdkEventButton *event);
@@ -214,6 +218,7 @@ protected:
                           int level = 1);
 
 private:
+    friend struct ToolPanelCoordinatorTestAccess;
     class DerivedBridge;
     std::unique_ptr<DerivedBridge> derivedBridge_;
     EditDataProvider *editDataProvider;
