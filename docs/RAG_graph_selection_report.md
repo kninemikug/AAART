@@ -43,6 +43,17 @@ Nemotron으로도 같은 8문항의 재작성과 답변을 실호출했다. 출�
 
 MiniLM + BM25를 이 비교의 검색 기준으로, MiniMax를 답변 생성 후보로 유지한다. 실시간 재작성의 근거 확보와 인용 검증이 기준에 미달해 GUI·CLI 기본값 전환과 정식 T23 인수는 보류한다. 100문항은 검색 회귀에 사용했으며 빈칸을 채울 새 Sol 응답이나 원자 주장별 평가 호출은 수행하지 않았다. 두 MiniLM 설정을 새 색인에서 다시 검색한 200건의 질의·경로·선택 순서와 원문 ID 지표가 각각 일치했고, 기존 T23 오프라인 리포트도 동일하게 재생성됐다.
 
+### JSON 출력 지시문을 명시한 재시험
+
+재작성 프롬프트의 첫 출력 규칙을 `{"answer":"영문 검색어","citation_ids":[]}` 요청으로 바꿨다. 검색 원문, 라우팅, 답변 프롬프트, 시간 제한은 기존 시험 설정으로 고정했다. 두 모델에서 각 8문항을 다시 실행했으며 429는 발생하지 않았다. 출력 규칙을 진단할 때 이미 사용한 F01을 포함하므로 동일 표본의 회귀 결과다. [변경 후 16개 실행 기록](../data/eval/stack-selection/graph_live_rewrite_v2)
+
+| 모델 | 재작성 JSON 키 누락 전 → 후 | 재작성 60초 초과 전 → 후 | 변경 후 요구 원문 확보 | 최종 상태 일치 전 → 후 |
+| --- | ---: | ---: | ---: | ---: |
+| Nemotron 3.5 Lightning | 5 → 0 | 2 → 2 | 6/8 | 1/8 → 6/8 |
+| MiniMax M3.1 Flash | 0 → 0 | 0 → 0 | 7/8 | 6/8 → 6/8 |
+
+Nemotron은 F01에서 형식 검증을 통과하고 `Crop` 원문을 찾아 답변했다. F04·F06은 재작성 시간 제한을 초과했다. MiniMax는 F01에서 한국어로 생성한 검색어가 두 차례 모두 `Crop`을 놓쳤고, F08은 답변 인용 검증에서 차단됐다. 결과는 재작성 출력 형식의 개선을 확인하며, 실시간 경로의 운영 전환 판정은 보류한다.
+
 ## 재현
 
 각 명령은 파이프라인 의존성이 설치된 프로젝트 Python 3.14에서 실행한다. 집계는 저장된 파일만 읽는다. 실제 호출을 재실행할 때는 `.env.local`에서 `NVIDIA_API_KEY`를 불러오고 새 출력 디렉터리를 사용한다.
@@ -56,4 +67,6 @@ python3 -B scripts/eval_rag_graph.py --summary \
 python3 -B scripts/eval_rag_graph.py --summary \
   --output-dir data/eval/stack-selection/graph_live_rewrite_v1 \
   --retry-dir data/eval/stack-selection/graph_live_rewrite_retry_v1
+python3 -B scripts/eval_rag_graph.py --summary \
+  --output-dir data/eval/stack-selection/graph_live_rewrite_v2
 ```

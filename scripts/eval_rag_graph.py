@@ -38,6 +38,7 @@ RANKERS = ("dense", "bm25", "cross")
 MODELS = ("minimaxai/minimax-m3.1-flash", "nvidia/nemotron-3.5-lightning-30b-a3b")
 BASELINE = "minilm-bm25"
 FINAL_INPUT = BASE / "final_search_v1/search_inputs.jsonl.gz"
+LIVE_REWRITE_FORMAT = "search-query-json-v2"
 
 
 @contextmanager
@@ -77,8 +78,19 @@ def evaluation_cases(live):
             for row in read_rows(FINAL_INPUT)}
 
 
+def json_rewrite_prompt(prompt):
+    intro, first_rule, rules = prompt.partition("\n1. Output ONLY the single search query.")
+    _, second_rule, remaining = rules.partition("\n2. ")
+    if not first_rule or not second_rule:
+        raise ValueError("재작성 프롬프트 출력 규칙을 확인할 수 없습니다.")
+    return (intro + '\n1. Return exactly one JSON object in the form '
+            '{"answer":"the single English search query","citation_ids":[]}. '
+            'The answer field must contain only the search query. '
+            'Do not include explanations, notes, markdown, or citations.' + second_rule + remaining)
+
+
 def evaluate(store, encoder, snapshot_sha, reranker, qid, case, *, live, live_rewrite=False):
-    searches, answers, rewrite_prompts, rewrite_calls = [], [], [], []
+    searches, answers, rewrite_prompts, rewrite_requests, rewrite_calls = [], [], [], [], []
 
     def rewrite(prompt):
         rewrite_prompts.append(digest(prompt))
@@ -87,7 +99,9 @@ def evaluate(store, encoder, snapshot_sha, reranker, qid, case, *, live, live_re
 
         started = perf_counter()
         instruction = "검색 입력 변환만 수행하십시오. 출력은 answer에 넣고 citation_ids는 빈 목록으로 두십시오."
-        raw, usage, metadata = generate_llm_response(instruction, prompt, {}, prompt)
+        request_prompt = json_rewrite_prompt(prompt)
+        rewrite_requests.append(digest(request_prompt))
+        raw, usage, metadata = generate_llm_response(instruction, request_prompt, {}, request_prompt)
         result = json.loads(raw)
         rewrite_calls.append({"output": result["answer"], "usage": usage,
                               "model": metadata["model_id"], "endpoint": metadata["endpoint"],
@@ -130,7 +144,8 @@ def evaluate(store, encoder, snapshot_sha, reranker, qid, case, *, live, live_re
     steps = list(state.get("step_results", {}).values())
     return {"query_id": qid, "case": case, "snapshot_sha256": snapshot_sha,
             "trace": state.get("trace", []), "route_matched": first.get("source_type") == case["source_type"],
-            "rewrites": rewrite_prompts, "rewrite_calls": rewrite_calls,
+            "rewrites": rewrite_prompts, "rewrite_requests": rewrite_requests, "rewrite_calls": rewrite_calls,
+            "live_rewrite_format": LIVE_REWRITE_FORMAT if live_rewrite else None,
             "searches": reports, "retrieval": context_scores(expected, ranks),
             "first_gold_rank": best_rank, "all_gold_retrieved": expected <= ranks.keys(),
             "search_ok": bool(first) and first["error"] is None,
@@ -251,8 +266,9 @@ def summarize(directory, retry_dir=None):
     for (candidate, model), rows in groups.items():
         qids = {row["query_id"] for row in rows}
         snapshots = {row["snapshot_sha256"] for row in rows}
-        if len(qids) != len(rows) or len(snapshots) != 1:
-            raise ValueError(f"후보별 중복 문항 또는 색인 불일치: {candidate}/{model}")
+        rewrite_formats = {row.get("live_rewrite_format") for row in rows}
+        if len(qids) != len(rows) or len(snapshots) != 1 or len(rewrite_formats) != 1:
+            raise ValueError(f"후보별 중복 문항 또는 색인·재작성 형식 불일치: {candidate}/{model}")
         label = candidate if model is None else f"{candidate}/{model}"
         if model is None:
             results[label] = search_summary(rows)
@@ -263,7 +279,8 @@ def summarize(directory, retry_dir=None):
             if retry is not None and (not rate_limited(original)
                     or retry["case"] != original["case"]
                     or retry["snapshot_sha256"] != original["snapshot_sha256"]
-                    or retry.get("live_rewrite", False) != original.get("live_rewrite", False)):
+                    or retry.get("live_rewrite", False) != original.get("live_rewrite", False)
+                    or retry.get("live_rewrite_format") != original.get("live_rewrite_format")):
                 raise ValueError(f"429 재시도 입력 불일치: {candidate}/{original['query_id']}")
             final_rows.append(retry or original)
         results[label] = {**answer_summary(final_rows), "initial_429": sum(rate_limited(r) for r in rows),
@@ -325,8 +342,10 @@ def main():
                         path = directory / f"{label}-{qid}-{model}.jsonl.gz"
                         if path.exists():
                             saved, = read_rows(path)
+                            rewrite_format = LIVE_REWRITE_FORMAT if args.live_rewrite else None
                             if (saved["case"] != case or saved["snapshot_sha256"] != snapshot
-                                    or saved.get("live_rewrite", False) != args.live_rewrite):
+                                    or saved.get("live_rewrite", False) != args.live_rewrite
+                                    or saved.get("live_rewrite_format") != rewrite_format):
                                 raise ValueError(f"재개 입력 불일치: {path}")
                             continue
                     row = evaluate(store, encoder, snapshot, reranker, qid, case, live=live,
