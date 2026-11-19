@@ -44,6 +44,11 @@ def analyze_signals(text: str, context: Optional[RequestContext] = None) -> Inte
         re.IGNORECASE,
     )
     has_github_ref = len(source_refs) > 0
+    has_github_source = has_github_ref or bool(re.search(
+        r"\b(?:ART\s+GitHub|GitHub\s+(?:Issues?|Discussions?))(?![A-Za-z])",
+        active_text,
+        re.IGNORECASE,
+    ))
 
     # R2 vs R5: Software runtime malfunctions vs photographic correction artifacts
     # R2: Abnormal termination, freeze, white display, file access failure, preview not updating
@@ -52,9 +57,14 @@ def analyze_signals(text: str, context: Optional[RequestContext] = None) -> Inte
         r"흰\s*화면|흰색으로\s*표시|"
         r"접근하지\s*못할\s*때|접근\s*실패|디스크.*접근|"
         r"미리보기가\s*갱신되지\s*않|미리보기\s*미갱신|설정\s*미반영|반영되지\s*않|"
-        r"버그|우회\s*설정|동작\s*오류)"
+        r"우회\s*설정|동작\s*오류)"
     )
-    has_crash_or_bug = bool(re.search(malfunction_pattern, text))
+    asks_which_tool_to_avoid = bool(re.search(
+        r"(?:피해야\s*하는|피할)\s*(?:프로그램|도구|소프트웨어)", active_text
+    ))
+    has_crash_or_bug = bool(re.search(malfunction_pattern, text)) or (
+        "버그" in active_text and not asks_which_tool_to_avoid
+    )
 
     # R3: Explicit command to apply adjustments or save rendered image
     has_exec_cmd = False
@@ -79,7 +89,7 @@ def analyze_signals(text: str, context: Optional[RequestContext] = None) -> Inte
     # R7: Ambiguity detection
     is_ambiguous = False
     ambiguous_reasons: list[str] = []
-    if not has_exec_cmd and not is_info_question and not has_github_ref and not has_crash_or_bug:
+    if not has_exec_cmd and not is_info_question and not has_github_source and not has_crash_or_bug:
         if re.search(r"(?:노래요|어두워요|이상해요|밝아요)", text) and re.search(
             r"(?:봐주세요|봐줘|어때요)", text
         ):
@@ -100,7 +110,7 @@ def analyze_signals(text: str, context: Optional[RequestContext] = None) -> Inte
         )
     )
 
-    wants_troubleshoot = has_github_ref or has_crash_or_bug
+    wants_troubleshoot = has_github_source or has_crash_or_bug
     wants_execute = has_exec_cmd and not execution_negated
 
     wants_doc = False

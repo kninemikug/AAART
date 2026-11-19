@@ -45,6 +45,22 @@ from artagent.graph import (
 from artagent.graph.nodes import intake_node
 
 
+@pytest.mark.parametrize(
+    ("text", "path", "refs"),
+    [
+        ("ART GitHub에서 Windows 재시작 후 프로필을 불러온 사례를 찾아줘.", AgentPath.TROUBLESHOOT, []),
+        ("GitHub Discussion에서 노출 도구에 대해 설명한 글이 있나요?", AgentPath.TROUBLESHOOT, []),
+        ("LUT 제작 시 색상 버그가 있어 피해야 하는 프로그램은 무엇인가요?", AgentPath.DOC_QA, []),
+        ("GitHub Issue #516의 버그 원인이 무엇인가요?", AgentPath.TROUBLESHOOT, ["GitHub Issue #516"]),
+        ("ART에서 저장 중 실제로 버그가 나고 종료돼요.", AgentPath.TROUBLESHOOT, []),
+    ],
+)
+def test_routing_by_explicit_source_and_document_reference(text, path, refs):
+    decision, _ = route_request(RequestInput(request_id="source-intent", text=text))
+    assert decision.primary_path == path
+    assert analyze_signals(text).source_refs == refs
+
+
 # 20 benchmark test cases defined in docs/langgraph_router_design.md Sections 7.2 and 7.3
 BENCHMARK_CASES = [
     # 01
