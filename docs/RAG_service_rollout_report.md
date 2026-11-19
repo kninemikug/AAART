@@ -38,12 +38,12 @@ NVIDIA의 MiniMax M3.1 Flash로 답변을 새로 생성했다. F01–F08에는 �
 
 F01은 `Crop`을 인용해 Lock ratio 해제·5:4 설정·Shift 조작을 안내했다. F08은 Resize의 PPI만으로 EXIF 해상도 태그를 바꿀 수 없음을 설명하고 두 원문을 인용했다. 모든 최종 답변의 상태·인용 계약을 확인했다. 답변 생성 성공 16회의 입력 114,287토큰과 출력 3,534토큰을 MiniMax 정규 단가로 환산하면 **$0.01926**이다. 계측에는 답변 재생성의 토큰을 포함했다. 재검색 질의 재작성과 사용량이 없는 실패는 이 환산에서 제외했다. 실제 호출에는 NVIDIA 무료 API를 사용했다. [MiniMax 정규 단가](https://www.minimax.io/blog/minimax-m31f)
 
-검색과 답변을 GUI·CLI에서 선택해 쓸 수 있는 상태로 반영했다. 운영 기본값은 `legacy` 검색과 기존 답변 모델을 유지한다. 검색은 기존 운영 색인에 네 GitHub 원문 그룹이 빠져 있고 GUI 검색 그래프 p95가 약 23ms 늘었다. MiniMax는 재시도 후 전부 응답했으나 첫 시도에 429가 세 건 있었다. Python 회귀 1,528개가 통과했다. 기존 A-23 정식 인수와 원자 주장별 faithfulness 판정은 열린 상태다.
+첫 서비스 검증에서는 검색과 답변을 선택할 수 있게 연결했다. 기존 운영 색인에 네 GitHub 원문 그룹이 빠져 있고 GUI 검색 그래프 p95가 약 23ms 늘어 검색 기본값은 `legacy`로 유지했다. MiniMax 실답변의 첫 시도에는 429가 세 건 있었고 재시도에서 모두 응답했다. 이 단계의 Python 회귀는 1,528개가 통과했다. 후속 기본 연결에서는 키가 준비된 환경의 RAG 답변 모델을 MiniMax로 설정했다. 기존 A-23 정식 인수와 원자 주장별 faithfulness 판정은 열린 상태다.
 
 ## 검증용 설정
 
 - `ART_RAG_PROFILE=local`은 로컬 검색과 인용을 켠다. `legacy` 또는 설정 생략은 기존 경로를 사용한다.
-- `ART_RAG_ANSWER_PROVIDER=minimax`는 RAG 답변에만 NVIDIA MiniMax를 사용한다. 키는 실행 환경의 `NVIDIA_API_KEY`에서 읽는다. `existing` 또는 설정 생략은 기존 답변 모델을 쓴다.
+- GUI와 CLI는 `NVIDIA_API_KEY`가 준비돼 있으면 RAG 답변에 MiniMax M3.1 Flash를 기본 사용한다. 실행 환경의 값을 우선 읽고, 값이 없으면 실행 중인 Python 코드가 속한 프로젝트의 `.env.local`에서 이 키의 리터럴 할당만 읽는다. 셸 스크립트 실행이나 전역 환경 변경은 없다. 키가 없는 설치는 기존 답변 모델을 쓴다. `ART_RAG_ANSWER_PROVIDER=existing`을 지정하면 키가 있어도 기존 모델을 사용한다. `minimax`를 명시하면 키가 없을 때 답변 오류를 반환한다.
 - `ART_RAG_ANSWER_FALLBACK=existing`을 선택하면 `429`, `529`, 요청 타임아웃에서 남은 시간 안에 기존 답변 제공처를 한 번 호출한다. 생략하거나 `none`이면 오류를 반환한다. MiniMax 설정은 근거 부족 재검색의 기존 제공처 설정과 독립적이다.
 
 GUI는 위 설정을 ART 프로그램의 실행 환경에서 상속한다. CLI 예시와 로컬 색인 검증은 다음 명령을 사용한다. 경로 자리에는 기존 검증된 T09 저장소를 지정한다.
@@ -54,3 +54,7 @@ ART_RAG_PROFILE=local PYTHONPATH=src venv/bin/python -m artagent.cli \
 venv/bin/python -B scripts/eval_rag_service.py \
   --persist-dir /path/to/t09 --output-dir /tmp/art-rag-service-eval
 ```
+
+## MiniMax 기본 연결 실호출
+
+별도의 모델 환경변수와 키 환경변수 없이 프로젝트 `.env.local`로 GUI·CLI의 F02 요청을 실행했다. 두 진입점에서 `minimaxai/minimax-m3.1-flash` HTTP 200과 `Metadata Copy Mode` 인용을 확인했다. 저장된 ART 채팅 설정에서도 기존 Python·Chroma 위치를 보존하고 소스 경로만 현재 작업 공간으로 연결했다. 해당 설정의 인수로 Python 브리지를 다시 실행해 MiniMax HTTP 200과 같은 인용을 확인했다. ART는 시작할 때 저장된 채팅 설정을 읽는다. 관련 Python 테스트 108개가 통과했다. [실제 요청 결과](../data/eval/rag-service/default_minimax_v1.json)

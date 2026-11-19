@@ -125,3 +125,36 @@ def test_minimax_does_not_start_a_call_after_the_request_deadline(monkeypatch):
     monkeypatch.setattr("artagent.answer.generate_llm_response", lambda **_: pytest.fail("expired request"))
     with generation_time_budget(0), pytest.raises(TimeoutError):
         rag_service.service_answer_generator()(observe_request=None)
+
+
+@pytest.mark.parametrize("from_env", [False, True])
+def test_configured_nvidia_key_selects_minimax_by_default(monkeypatch, tmp_path, from_env):
+    monkeypatch.delenv("ART_RAG_ANSWER_PROVIDER", raising=False)
+    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+    (tmp_path / ".env.local").write_text("export NVIDIA_API_KEY='saved-test-key'\n", encoding="utf-8")
+    if from_env:
+        monkeypatch.setenv("NVIDIA_API_KEY", "environment-test-key")
+
+    def generate(**kwargs):
+        endpoint = kwargs["api_endpoint"]
+        assert endpoint.model_id == "minimaxai/minimax-m3.1-flash"
+        assert endpoint.base_url == "https://integrate.api.nvidia.com/v1"
+        assert endpoint.api_key == ("environment-test-key" if from_env else "saved-test-key")
+        return "response", None, {}
+
+    monkeypatch.setattr("artagent.answer.generate_llm_response", generate)
+    provider = rag_service.service_answer_generator(tmp_path)
+    assert provider(observe_request=None)[0] == "response"
+
+
+def test_explicit_default_provider_override_and_missing_key(monkeypatch, tmp_path):
+    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+    monkeypatch.delenv("ART_RAG_ANSWER_PROVIDER", raising=False)
+    assert rag_service.service_answer_generator(tmp_path) is None
+
+    # Only a literal assignment is treated as an API key.
+    (tmp_path / ".env.local").write_text("NVIDIA_API_KEY=$(other-command)\n", encoding="utf-8")
+    assert rag_service.service_answer_generator(tmp_path) is None
+    monkeypatch.setenv("NVIDIA_API_KEY", "unit-test-key")
+    monkeypatch.setenv("ART_RAG_ANSWER_PROVIDER", "existing")
+    assert rag_service.service_answer_generator(tmp_path) is None

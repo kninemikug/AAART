@@ -1,6 +1,8 @@
 """GUI와 CLI가 공유하는 서비스 검색 설정."""
 
 import os
+from pathlib import Path
+import re
 from subprocess import TimeoutExpired
 from urllib.error import HTTPError, URLError
 
@@ -16,13 +18,37 @@ def use_local_rag() -> bool:
     return profile == "local"
 
 
-def service_answer_generator():
-    """MiniMax를 명시한 답변만 변경하고 선택한 대체 제공처를 한 번 호출한다."""
-    provider = os.getenv("ART_RAG_ANSWER_PROVIDER", "existing").strip().lower()
+_NVIDIA_KEY_ASSIGNMENT = re.compile(
+    r"""^\s*(?:export\s+)?NVIDIA_API_KEY\s*=\s*(['"]?)([A-Za-z0-9_-]+)\1\s*(?:#.*)?$"""
+)
+
+
+def _nvidia_api_key(runtime_root: Path) -> str:
+    key = os.getenv("NVIDIA_API_KEY", "").strip()
+    if key:
+        return key
+    try:
+        lines = (runtime_root / ".env.local").read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeError):
+        return ""
+    for line in reversed(lines):
+        match = _NVIDIA_KEY_ASSIGNMENT.fullmatch(line)
+        if match:
+            return match[2]
+    return ""
+
+
+def service_answer_generator(runtime_root: Path | None = None):
+    """NVIDIA 키가 준비된 RAG 답변에 MiniMax를 기본 사용한다."""
+    configured = os.getenv("ART_RAG_ANSWER_PROVIDER")
+    provider = configured.strip().lower() if configured is not None else None
     if provider == "existing":
         return None
-    if provider != "minimax":
+    if provider not in (None, "minimax"):
         raise RuntimeError("ART_RAG_ANSWER_PROVIDER에는 existing 또는 minimax를 지정해야 합니다.")
+    key = _nvidia_api_key(runtime_root or Path(__file__).resolve().parents[2])
+    if provider is None and not key:
+        return None
     fallback = os.getenv("ART_RAG_ANSWER_FALLBACK", "none").strip().lower()
     if fallback not in ("none", "existing"):
         raise RuntimeError("ART_RAG_ANSWER_FALLBACK에는 none 또는 existing을 지정해야 합니다.")
@@ -30,7 +56,6 @@ def service_answer_generator():
     def generate(*, observe_request, **kwargs):
         from .answer import GenerationError, OpenAIEndpoint, _generation_timeout, generate_llm_response, generation_time_budget
 
-        key = os.getenv("NVIDIA_API_KEY", "").strip()
         if not key:
             raise RuntimeError("MiniMax 답변에 NVIDIA_API_KEY가 필요합니다.")
         endpoint = OpenAIEndpoint("https://integrate.api.nvidia.com/v1", "minimaxai/minimax-m3.1-flash", key)
