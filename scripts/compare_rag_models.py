@@ -20,10 +20,17 @@ MODELS = ("gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna")
 FINAL_MODELS = MODELS[:2]
 FINAL_SEARCH_SHA = "38567146fd4a4d04c5f9a9dc0199c6a0a0485fb1490a4cb5b53810cd8c29955f"
 API_PRICES = dict(zip(MODELS, ((4, 0.4, 20), (2, 0.2, 12), (0.2, 0.02, 1.2)), strict=True))
-NVIDIA_MODELS = ("z-ai/glm-5.3-flash", "minimaxai/minimax-m3.1-flash")
+NVIDIA_DEFAULT_MODELS = ("z-ai/glm-5.3-flash", "minimaxai/minimax-m3.1-flash")
 NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
 # 원 제공사의 정규 USD 단가(1M 토큰). NVIDIA 측 캐시 동작은 환산에서 제외한다.
-NVIDIA_API_PRICES = dict(zip(NVIDIA_MODELS, ((0.15, 0.50), (0.15, 0.60)), strict=True))
+NVIDIA_API_PRICES = {
+    "z-ai/glm-5.3-flash": (0.15, 0.50),
+    "minimaxai/minimax-m3.1-flash": (0.15, 0.60),
+    "mistralai/mistral-large-4-1t-a52b": (0.70, 2.10),
+    "google/gemma-4-31b-it": None,
+    "nvidia/nemotron-3.5-lightning-30b-a3b": None,
+}
+NVIDIA_MODELS = tuple(NVIDIA_API_PRICES)
 PILOT = {"Q001": "SUPPORTED", "Q033": "SUPPORTED", "Q070": "INSUFFICIENT_EVIDENCE",
          "Q086": "SUPPORTED", "Q092": "SUPPORTED", "Q096": "UNSUPPORTED"}
 
@@ -148,17 +155,25 @@ def request_matches(row, case, model):
             and hashlib.sha256(request["full_prompt"].encode()).hexdigest() == request["sha256"])
 
 
+def nvidia_tokens(observation):
+    usage = observation.get("usage")
+    if not usage:
+        response = (observation.get("runtime_meta") or {}).get("_response_body") or {}
+        usage = response.get("usage") if isinstance(response, dict) else None
+    keys = ("prompt_tokens", "completion_tokens")
+    if isinstance(usage, dict) and all(type(usage.get(k)) is int and usage[k] >= 0 for k in keys):
+        return usage[keys[0]], usage[keys[1]]
+    return None
+
+
 def estimate_usage(model, observation):
     usage = observation.get("usage")
     if model in NVIDIA_MODELS:
         # JSON/인용 검증에서 실패한 응답도 API가 사용량을 반환했다면 집계한다.
-        if not usage:
-            response = (observation.get("runtime_meta") or {}).get("_response_body") or {}
-            usage = response.get("usage") if isinstance(response, dict) else None
-        keys = ("prompt_tokens", "completion_tokens")
-        if isinstance(usage, dict) and all(type(usage.get(k)) is int and usage[k] >= 0 for k in keys):
-            in_price, out_price = NVIDIA_API_PRICES[model]
-            return (usage[keys[0]] * in_price + usage[keys[1]] * out_price) / 1_000_000
+        rates = NVIDIA_API_PRICES[model]
+        tokens = nvidia_tokens(observation)
+        if rates is not None and tokens is not None:
+            return sum(count * rate for count, rate in zip(tokens, rates, strict=True)) / 1_000_000
     elif isinstance(usage, dict) and all(type(usage.get(k)) is int for k in ("input_tokens", "cached_input_tokens", "output_tokens")):
         input_price, cached_price, output_price = API_PRICES[model]
         cached = usage["cached_input_tokens"]
@@ -172,6 +187,7 @@ def summary(output_dir, cases, models):
     prompts = {}
     for model in models:
         runtimes, estimates = [], []
+        token_counts = []
         attempted = matched = 0
         for qid, (case, _bundle) in cases.items():
             path = attempt_path(output_dir, qid, model)
@@ -180,6 +196,8 @@ def summary(output_dir, cases, models):
             row = read_attempt(path, case, model)
             attempted += 1
             observed = row["observation"]
+            if model in NVIDIA_MODELS and (tokens := nvidia_tokens(observed)) is not None:
+                token_counts.append(tokens)
             if row["error"] is None or model in NVIDIA_MODELS:
                 estimate = estimate_usage(model, observed)
                 if estimate is not None:
@@ -198,8 +216,14 @@ def summary(output_dir, cases, models):
                          "estimated_api_standard_usd": sum(estimates) if estimates else None,
                          "estimate_count": len(estimates)}
         if model in NVIDIA_MODELS:
-            result[model].update(estimate_policy="original_provider_uncached", missing_usage_count=attempted - len(estimates),
-                                 actual_nvidia_cost_usd=None)
+            result[model].update(
+                estimate_policy="original_provider_uncached" if NVIDIA_API_PRICES[model] is not None
+                else "original_provider_paid_rate_unavailable",
+                missing_usage_count=attempted - len(token_counts),
+                prompt_tokens=sum(count[0] for count in token_counts) if token_counts else None,
+                completion_tokens=sum(count[1] for count in token_counts) if token_counts else None,
+                actual_nvidia_cost_usd=None,
+            )
         else:
             result[model]["actual_cli_cost_usd"] = None
     return result
@@ -214,7 +238,10 @@ def main():
     parser.add_argument("--final-search", type=Path, help="독립 문항의 검증된 동일 검색 bundle JSONL(gzip)")
     parser.add_argument("--summary", action="store_true", help="보존한 결과를 오프라인으로 재집계")
     args = parser.parse_args()
-    models = NVIDIA_MODELS if args.provider == "nvidia" else (FINAL_MODELS if args.final_search else MODELS)
+    if args.provider == "nvidia":
+        models = NVIDIA_MODELS if args.model else NVIDIA_DEFAULT_MODELS
+    else:
+        models = FINAL_MODELS if args.final_search else MODELS
     if args.final_search:
         cases = final_cases(args.final_search)
     else:

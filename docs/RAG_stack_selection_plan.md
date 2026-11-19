@@ -25,3 +25,7 @@ T8-1의 골드 원문 집합, 조정용 질문의 골드 원문 집합과 다른
 NVIDIA 개발용 무료 엔드포인트가 있는 `z-ai/glm-5.3-flash`와 `minimaxai/minimax-m3.1-flash`를 같은 회귀 질문 6개와 동결한 T17 문맥에서 비교한다. 6개에서 상태·중요 주장·인용·제품 범위·기술 성공 기준을 통과한 모델은 기존 독립 8문항에서도 확인한다. 독립 표본을 조정에 사용하지 않는다. 원문 기준을 충족한 모델의 원 제공사 환산 비용을 비교하고 지연과 실패를 함께 남긴다. 기존 Terra 결과는 품질 기준선이다. [GLM NVIDIA 엔드포인트](https://build.nvidia.com/z-ai/glm-5-3-flash) · [MiniMax NVIDIA 엔드포인트](https://build.nvidia.com/minimaxai/minimax-m3.1-flash)
 
 NVIDIA 응답의 `prompt_tokens`와 `completion_tokens`를 원 제공사의 정규 입력·출력 단가에 각각 곱한다. 다른 제공사의 캐시 적중률은 환산에 적용하지 않는다. 응답 검증에 실패했더라도 사용량이 제공되면 추정 비용에 포함한다. 사용량 누락은 건수를 기록하고 실제 과금은 `null`로 보존한다. 초기 12회, 독립 표본은 통과 모델당 최대 8회 호출한다. 모델과 문항당 한 번 실행하고 재현 집계는 보존 응답을 사용한다. [Z.ai 단가](https://docs.z.ai/guides/overview/pricing) · [MiniMax 단가](https://www.minimax.io/blog/minimax-m31f)
+
+### NVIDIA 추가 후보
+
+인증된 모델 목록에서 확인한 Mistral Large 4, Gemma 4 31B IT, Nemotron 3.5 Lightning 30B를 위 회귀 6문항에서 같은 T17 입력으로 비교한다. 모델별 한 번씩 최대 18회 호출하며, 상태·핵심 답변·인용·제품 범위·기술 성공을 확인한다. 초기 품질 기준을 통과한 모델은 같은 독립 8문항에서 검증한다. 비용 비교는 Mistral의 원 제공사 정규 단가를 적용하며, Gemma와 Nemotron은 원 제공사 유료 토큰 단가를 확인할 수 있는 범위만 별도로 표기한다. [Mistral 모델·단가](https://docs.mistral.ai/models/mistral-large-4-0) · [Google Gemma 가격표](https://ai.google.dev/gemini-api/docs/pricing/) · [Nemotron NVIDIA 모델](https://build.nvidia.com/nvidia/nemotron-3.5-lightning-30b-a3b/build)

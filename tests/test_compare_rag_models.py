@@ -53,3 +53,22 @@ def test_nvidia_counts_usage_from_rejected_response_and_preserves_missing():
         "runtime_meta": {"_response_body": {"usage": {"prompt_tokens": 100, "completion_tokens": 20}}},
     }) == pytest.approx(0.000027)
     assert comparison.estimate_usage(model, {"usage": {"prompt_tokens": 100}}) is None
+
+
+def test_nvidia_preserves_usage_when_publisher_has_no_paid_rate(tmp_path):
+    model = "google/gemma-4-31b-it"
+    case = {"input_sha256": "input", "query_id": "Q001", "expected_status": "SUPPORTED",
+            "search_run": {"bundle_sha256": "bundle"}}
+    row = {"input_sha256": "input", "query_id": "Q001", "bundle_sha256": "bundle", "model": model,
+           "expected_status": "SUPPORTED", "error": {"code": "ANSWER_GENERATION_FAILED"},
+           "observation": {"usage": {"prompt_tokens": 100, "completion_tokens": 20}}}
+    path = comparison.attempt_path(tmp_path, "Q001", model)
+    path.write_bytes(gzip.compress(json.dumps(row).encode()))
+
+    result = comparison.summary(tmp_path, {"Q001": (case, None)}, [model])[model]
+
+    assert result["prompt_tokens"] == 100
+    assert result["completion_tokens"] == 20
+    assert result["missing_usage_count"] == 0
+    assert result["estimate_count"] == 0
+    assert result["estimated_api_standard_usd"] is None
