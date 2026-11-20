@@ -369,6 +369,10 @@
 **의존:** T8-1, T15, T17, RAG 답변 기준 스택 최종 선정 게이트 · **담당:** 팀장+B · **예상 파일:** `scripts/eval_ragas.py`, `data/eval/report_v1.md`
 **규모:** S
 
+**T15·Sol 회귀 평가:** 기존 69건에 동일 검색 문맥·생성 모델·프롬프트의 추가 실답변 31건을 합쳤다. 100문항의 정밀도·재현율·faithfulness 판정 기록을 보존했다. 사실 주장이 없는 Q024는 faithfulness 평균에서 제외했다. [통합 리포트](../data/eval/report_v1.md)
+
+**동일 문맥 MiniMax 비교:** 같은 100문항에서 MiniMax 실답변을 확보하고, 두 모델의 답변을 Nemotron으로 판정했다. 공통 97문항의 faithfulness를 통합 리포트에 기록했다. [비교 표](../data/eval/report_v1.md#동일-검색-입력의-solminimax-비교)
+
 ## 별도 후속 · RAG 서비스 적용
 
 [구현 계획과 기본값 전환 기준](plan.md#후속-계획--rag-서비스-적용) · [실행 결과](../docs/RAG_service_rollout_report.md). A-23 평가 기록을 인수해 GUI·CLI에 적용하는 후속 작업이다.

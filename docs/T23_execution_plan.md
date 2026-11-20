@@ -5,14 +5,15 @@
 - [Task 23 카드](../tasks/todo.md#task-23-ragas-평가-a-23)와 [WBS A-23 상세 항목](ART_agentic_wbs.md)에 따라 T8-1 정본 `docs/search_eval_queries.json`의 `t08-1-100-v1` 전수(`Q001`~`Q100`)를 사용한다. RawPedia 80개와 GitHub 20개이며, 근거형 95개와 반증형 5개다. 이 질문은 검색 후보 탐색과 튜닝에 쓰인 회귀 입력이다.
 - WBS §4의 15개 표기는 대표 실행의 규모와 같다. [T11 계획 §4.2](T11_execution_plan.md)와 `docs/T11_execution_records.jsonl`의 Slice 1 목록, [T14 계획](T14_execution_plan.md)과 `docs/T14_ab_eval_records.jsonl`의 대표 목록은 서로 다른 고정 부분집합이다. 두 목록은 보조 집계에 사용한다. T11·T14 및 `t17-answer/run_20261015_v3_resumed`의 기존 답변은 다른 실행 조건이므로 현재 설정의 누락을 보완하는 데 쓰지 않는다.
 - [T15 v5 최종 결과](T15_results_v5.md)의 B 경로를 고정한다. 재작성 on, HyDE off, BM25 후보 20·top 5·최소 점수 0.5·가중치 0.25다. `t15-rerank/regression_v5`의 B 첫 반복에서 선택 청크와 검색 질의를 가져오고, protocol이 고정한 T14-CONN 스냅샷의 원문 세그먼트에 연결한다. `t15-rerank/t17_v5_complete_20261020_r3`에서 같은 조건의 `T15` 트랙만 결합한다. 저장된 생성 조건은 `codex-cli / gpt-5.6-sol / t17-answer-v1`이며 답변은 69개다. `B0`는 T15 원래 비교의 기준선이다.
-- 이 리포트의 상태는 T15·T17 보존 기록 재평가다. 독립 질문과 경량 생성 모델을 사용하는 별도 최종 스택 선정 게이트는 저장소 카드에서 미완료다. 해당 게이트의 인수 기록이 생기면 그 조건에서 다시 평가해야 한다.
+- 누락됐던 31문항에는 같은 T15 검색 bundle과 `t17-answer-v1` 프롬프트로 Sol 실답변을 추가했다. 기존 CLI는 0.162.1, 추가 실행 CLI는 0.167.1이다. 검색 문맥, 모델 ID, 도구 비활성화 정책, 프롬프트 지문과 실제 요청을 대조했다. 독립 질문과 경량 모델을 사용하는 별도 최종 스택 선정 게이트는 저장소 카드에서 미완료다.
 
 ## 입력 조립
 
 1. 실행 manifest, protocol과 사용한 원본의 SHA-256을 확인한다. 질문 ID·질문 본문·선택 조건의 중복, 누락 또는 불일치는 오류로 처리한다. T11·T14 대표 목록의 질문을 정본과 대조한다.
 2. 정본의 `gold_support_doc_ids`와 `evidence`의 원문 ID·역할·위치를 보존한다. 근거형은 지원 ID를, 반증형은 명시적으로 허용된 `counterevidence` ID를 참조 집합으로 사용한다. 기대 답변 필드는 만들지 않는다.
 3. 검색된 청크 순서대로 스냅샷의 `source_segments`를 펼친다. 청크·세그먼트 본문 해시와 T15 bundle 지문을 검증한다. 검색 문서 ID는 GitHub 항목의 청크 대표 ID나 스레드 ID 대신 각 세그먼트의 실제 원문 ID를 사용한다. 원문 텍스트·청크 ID·문서 ID·URL과 좌표를 입력에 기록한다.
-4. T17 실제 기록의 질문·부모 검색·bundle·모델·프롬프트 버전을 대조한다. 구조화한 전체 세그먼트가 해당 프롬프트에 나타난 순서와 텍스트를 확인하고, 원응답의 답변 및 실제 상태·제공처·모델·실행 ID를 보존한다. 답변이 없는 31개는 `answer: null`과 사유를 기록하고 문맥은 재구성한 검색 증거로 표시한다.
+4. T17 실제 기록의 질문·부모 검색·bundle·모델·프롬프트 버전을 대조한다. 구조화한 전체 세그먼트가 해당 프롬프트에 나타난 순서와 텍스트를 확인하고, 원응답의 답변 및 실제 상태·제공처·모델·실행 ID를 보존한다.
+5. v1의 답변 미보존 31개에 검증된 추가 Sol 응답을 결합해 v2 입력을 만든다. 기존 69개는 입력 지문과 판정을 재사용한다. 추가 기록에는 부모 입력 지문, CLI 버전, 실제 요청과 응답 및 실행 추적을 남긴다.
 
 ## 지표
 
@@ -22,9 +23,19 @@
 | ID-based context recall | 같은 교집합 크기 ÷ 참조 원문 ID 수. 빈 참조는 `null`. 반증형에는 참조로 미리 지정된 반증 문서를 사용한다. |
 | Faithfulness | 실제 제출 문맥으로 뒷받침된 원자적 사실 주장 수 ÷ 응답에서 분해한 전체 사실 주장 수. 입력 지문에 연결된 판정 JSONL이 있는 경우 이 비율을 계산한다. 평가기 판정·사실 주장 또는 답변이 없으면 `null`과 원인을 기록한다. |
 
-공식 정의는 [ID-based context precision](https://docs.ragas.io/en/v0.4.0/concepts/metrics/available_metrics/context_precision/), [ID-based context recall](https://docs.ragas.io/en/v0.4.0/concepts/metrics/available_metrics/context_recall/), [Faithfulness](https://docs.ragas.io/en/v0.4.0/concepts/metrics/available_metrics/faithfulness/)를 따른다. 입력별 점수를 매크로 평균하며 `null`은 평균에서 제외하고 실제 분모를 기록한다. 전체·근거형·반증형·T11/T14 대표 집합을 집계한다.
+공식 정의는 [ID-based context precision](https://docs.ragas.io/en/v0.4.0/concepts/metrics/available_metrics/context_precision/), [ID-based context recall](https://docs.ragas.io/en/v0.4.0/concepts/metrics/available_metrics/context_recall/), [Faithfulness](https://docs.ragas.io/en/v0.4.0/concepts/metrics/available_metrics/faithfulness/)를 따른다. 입력별 점수를 매크로 평균하며 `null`은 평균에서 제외하고 실제 분모를 기록한다. 전체·세 지표 공통 표본·근거형·반증형·T11/T14 대표 집합을 집계한다.
 
-2026-11-20 KST에 Python 3.14 작업 venv에서 RAGAS 0.4.0의 PyPI 설치 dry-run을 확인했다. 패키지와 모델은 설치하지 않는다. 이 보존 기록에서 확인 가능한 ID 기반 두 지표는 공식 정의를 표준 라이브러리로 계산한다. 저장소에 고정된 faithfulness 평가기와 원자 주장별 판정은 없다. T15 수동 검토는 복합 문장 또는 응답 전체를 한 검토 단위로 묶을 수 있으므로 그대로 원자 주장 점수로 환산할 수 없다. 평가기 증거가 없는 기본 실행에는 `null`을 기록한다. 기존 생성·검색 도구에 네트워크 호출을 추가하지 않는다.
+세 지표의 산식은 Python 표준 라이브러리로 실행한다. Faithfulness 판정에는 NVIDIA의 MiniMax M3.1 Flash를 사용한다. 먼저 원래 Sol 답변을 그대로 주고 주장을 분해한 뒤, 주장과 실제 제출된 원문 세그먼트를 제공해 지지 여부를 판정한다. 입력별 SHA-256, 근거 세그먼트와 원문 구절 및 판정 사유를 보존한다. 지지 판정의 구절이 해당 세그먼트에서 확인되는지 검사한다. 점수는 단일 모델 평가이며, 판정의 의미를 다른 모델이나 사람이 전수 재검증한 값과는 차이가 날 수 있다. [RAGAS 산식](https://docs.ragas.io/en/v0.4.0/concepts/metrics/available_metrics/faithfulness/) · [NVIDIA 평가기](https://build.nvidia.com/minimaxai/minimax-m3.1-flash/apireference)
+
+Q033의 원답변에 있는 “직접 개선한다고 설명되지는 않습니다”는 평가기에서 “직접 개선하지 않는다”로 분해됐다. 이처럼 주장 분해 단계에서 유보의 강도가 달라지면 지지 여부에 영향을 줄 수 있다. 리포트는 검증된 근거 구절과 평가기 판정을 집계한 값이다. [질문별 주장과 판정](../data/eval/ragas_v1/faithfulness_verdicts_v1.jsonl)
+
+### MiniMax 실답변의 모델 간 비교
+
+Sol과 MiniMax의 답변에 같은 T15 검색 bundle과 실제 `t17-answer-v1` 프롬프트를 사용한다. MiniMax의 요청 지문을 Sol 실행의 프롬프트 지문과 대조한다. NVIDIA API에서 성공한 기존 MiniMax 응답은 같은 입력 지문과 프롬프트가 확인된 경우 재사용한다. 일부 복구 요청에는 출력 한도 4,096토큰을 명시했다. 유효한 응답의 모델 ID와 정상 종료 여부를 확인했다. [MiniMax 요청 옵션](https://build.nvidia.com/minimaxai/minimax-m3.1-flash/apireference)
+
+독립 채점기는 NVIDIA Nemotron 3.5 Lightning이다. RawPedia Q001과 ART GitHub Q096 문맥에서 지지 및 미지지 주장 한 개씩을 구분하는지 먼저 확인한다. 모델명이 없는 답변 A·B의 순서를 문항마다 번갈아 배치하고 주장을 각각 분해한다. 문항 안에서 문장이 정확히 같은 주장은 한 번 판정하고 각 답변에 같은 결과를 적용한다. 주장 추출은 직접 출력으로, 근거 판정은 추론 예산 1,200토큰으로 실행한다. 전체 문맥을 순서대로 구획하고, 채점기가 선택한 구절 번호를 해당 문항의 실제 원문과 대조해 근거를 복원한다. 각 모델별 평균과 원문 근거를 남기며 두 모델 모두에 수치가 있는 공통 표본도 집계한다. [NVIDIA 요청 옵션](https://build.nvidia.com/nvidia/nemotron-3.5-lightning-30b-a3b/apireference)
+
+2026-11-20 KST에 MiniMax의 동일 입력 실답변 6건을 재사용하고 94건을 추가했다. Q024·Q030·Q070의 두 답변에서는 채점기가 사실 주장을 추출하지 않아 공통 평균은 97문항이다. Q022 표본 점검에서 색역 Threshold 주장에 조명 설명 구절을 근거로 지정한 사례가 있었다. 점수는 채점기의 원래 판정을 집계했으며 구절 존재 검증과 구절의 의미 검토에는 차이가 있다. [독립 판정 원본](../data/eval/ragas_v2/paired/faithfulness_verdicts_v1.jsonl)
 
 ## 구현과 산출물
 
@@ -34,12 +45,24 @@
 
 | 파일 | 레코드 |
 | --- | --- |
-| `data/eval/ragas_v1/inputs.jsonl.gz` | 고정 질문별 원문 ID·근거 위치, 순서가 있는 검색 세그먼트 원문과 출처, 답변·상태·실행 식별자, 원본 연결 및 `input_sha256`. gzip으로 본문이 반복되는 JSONL을 압축한다. |
-| `data/eval/ragas_v1/scores.jsonl` | 질문 ID·입력 지문, 세 지표의 값·분자·분모·미산출 사유. |
-| `data/eval/ragas_v1/summary.json` | 입력·판정 증거 파일 지문, 채택 설정, 질문 및 답변 커버리지, 집합별 점수·분모·누락 사유. |
+| [추가 실호출 원본](../data/eval/ragas_v2/sol_answers_v1.jsonl.gz) | 누락됐던 31문항의 검증된 실답변과 실제 요청·응답·CLI 추적. |
+| `data/eval/ragas_v2/inputs.jsonl.gz` | 고정 질문별 원문 ID·근거 위치, 순서가 있는 검색 세그먼트 원문과 출처, 답변·상태·실행 식별자, 원본 연결 및 `input_sha256`. |
+| [Faithfulness 판정 JSONL](../data/eval/ragas_v2/faithfulness_verdicts_v1.jsonl) | 고정 응답별 주장과 지지 여부, 판정 사유, 실제 문맥의 근거 세그먼트와 구절. |
+| `data/eval/ragas_v2/scores.jsonl` | 질문 ID·입력 지문, 세 지표의 값·분자·분모·미산출 사유. |
+| `data/eval/ragas_v2/summary.json` | 입력·판정 증거 파일 지문, 채택 설정, 질문 및 답변 커버리지, 집합별 점수·분모·누락 사유. |
+| `data/eval/ragas_v2/paired/` | MiniMax 생성 원본, 두 모델의 동일 평가기 판정과 문항별 점수. |
 | `data/eval/report_v1.md` | 실행 명령, 원본과 산출물 링크, 지표·표본 규모·누락 및 해석 범위. |
 
-옵션 `--faithfulness-verdicts FILE`의 JSONL에는 `query_id`, `input_sha256`, 고정 평가기 식별자인 `evaluator`, `claims`를 둔다. `claims`는 `statement`와 불리언 `supported`의 목록이다. 정확한 입력 지문을 가진 실제 답변에만 결합하고, 평가기 식별자·기록 지문을 남긴다. 주장 목록이 비어 있으면 분모 0으로 처리한다. 평가기 판정의 의미적 정확성은 이 집계 스크립트의 검증 범위 밖이다.
+기본 평가는 보존 판정을 읽으므로 네트워크 호출 없이 재집계할 수 있다. `--archived-only`와 별도 `--output-dir`로 69건만 포함된 v1을 재생할 수 있다. `--faithfulness-verdicts FILE`로 판정 파일을 명시할 수 있다. JSONL에는 `query_id`, `input_sha256`, 평가기 식별자인 `evaluator`, `claims`를 둔다. `claims`는 `statement`와 불리언 `supported`의 목록이다. 정확한 입력 지문을 가진 실제 답변에만 결합하고, 평가기 식별자와 기록 지문을 남긴다. 주장 목록이 비어 있으면 분모 0으로 처리한다.
+
+판정 자체를 새로 실행하려면 `NVIDIA_API_KEY`를 환경에 설정한 후 별도 출력 경로와 응답 캐시를 지정한다. 제공 모델의 출력은 새 호출마다 차이가 날 수 있다. 아래 명령은 기존 판정을 보존한 채 새 판정 파일을 만든다.
+
+```bash
+venv/bin/python -B scripts/judge_t23_faithfulness.py \
+  --inputs data/eval/ragas_v2/inputs.jsonl.gz \
+  --reuse-verdicts data/eval/ragas_v1/faithfulness_verdicts_v1.jsonl \
+  --cache build/t23-faithfulness-new --output build/t23-faithfulness-new/verdicts.jsonl
+```
 
 ## 실행과 완료 조건
 
@@ -52,4 +75,4 @@ venv/bin/python scripts/eval_ragas.py --output-dir "$t23_run_b"
 diff -r "$t23_run_a" "$t23_run_b"
 ```
 
-재실행의 기대값은 차이 0건이다. 답변이 없는 질문, 평가기 판정이 없는 답변, 빈 분모는 행별 `null`과 사유로 추적한다. 원본 손상 또는 다른 설정의 답변이 검출되면 실행 실패로 처리한다. 리포트에는 실제 산출한 수치만 기록하며, 100문항의 전수 faithfulness와 최종 스택 성능은 관련 증거가 확보될 때까지 미검증으로 표시한다.
+재실행의 기대값은 차이 0건이다. 빈 분모와 답변·판정 누락은 행별 `null`과 사유로 추적한다. 원본 손상이나 다른 설정의 답변이 검출되면 실행 실패로 처리한다. 이 회귀 결과의 적용 범위는 T15 검색과 Sol 답변이다.
