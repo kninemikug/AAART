@@ -166,3 +166,42 @@ def test_cli_replays_completed_sol_evaluation(tmp_path):
     assert summary["groups"]["all"]["answers"] == 100
     assert summary["groups"]["supplemental"]["questions"] == 31
     assert set(summary["groups"]["all"]["faithfulness"]["missing"]) <= {"no_factual_claims"}
+
+
+def test_service_faithfulness_accepts_new_inputs_and_keeps_missing_answers(tmp_path):
+    script = Path(__file__).resolve().parents[1] / "scripts/eval_rag_service_faithfulness.py"
+    inputs = tmp_path / "inputs.jsonl"
+    verdicts = tmp_path / "verdicts.jsonl"
+    context = {"C1S1": "Moving to the left makes the image cooler."}
+    row = {
+        "query_id": "Q001", "question": "노란 기를 줄이려면?",
+        "answer": "왼쪽은 더 차갑게 하고 색이 완전히 교정됩니다.", "contexts": context,
+    }
+    missing = {**row, "query_id": "Q002", "answer": None}
+    with inputs.open("w", encoding="utf-8") as stream:
+        for item in (row, missing):
+            stream.write(canonical({**item, "input_sha256": sha256(canonical(item))}) + "\n")
+    review = {
+        "query_id": "Q001", "input_sha256": sha256(canonical(row)), "evaluator": "fixed",
+        "claims": [
+            {"statement": "왼쪽은 더 차갑게 한다.", "supported": True,
+             "evidence": [["C1S1", "makes the image cooler"]], "reason": "원문에 명시됨."},
+            {"statement": "색이 완전히 교정된다.", "supported": False,
+             "evidence": [], "reason": "제출 문맥에 근거가 없음."},
+        ],
+    }
+    verdicts.write_text(canonical(review) + "\n", encoding="utf-8")
+    command = [sys.executable, str(script), "--inputs", str(inputs), "--verdicts", str(verdicts)]
+    result = subprocess.run(command, check=True, capture_output=True, text=True)
+    report = json.loads(result.stdout)
+    assert report["overall"] == {
+        "questions": 2, "scored": 1, "macro": 0.5, "missing": {"missing_answer": 1},
+    }
+    assert report["answers"]["Q001"]["value"] == 0.5
+    assert report["answers"]["Q002"]["value"] is None
+
+    review["input_sha256"] = "different-input"
+    verdicts.write_text(canonical(review) + "\n", encoding="utf-8")
+    rejected = subprocess.run(command, capture_output=True, text=True)
+    assert rejected.returncode != 0
+    assert "판정 입력 불일치: Q001" in rejected.stderr

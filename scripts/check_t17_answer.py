@@ -210,6 +210,7 @@ def run_single_evaluation(
         generate=generate_fn,
         source_root=source_root,
         observe=_obs_cb,
+        temperature_consistency=False,
     )
 
     run_id = f"t17_{track}_{query_id}_{int(time.time())}"

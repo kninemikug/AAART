@@ -1,0 +1,313 @@
+{
+  "model": "minimaxai/minimax-m3.1-flash",
+  "temperature": 0.0,
+  "retrieval": {
+    "source_filter": "RAWPEDIA",
+    "snapshot_ref": "f355624b09aba51538de3167aa1fca2032401f6487b2d0c91d9a14deeca8593f",
+    "hits": [
+      {
+        "chunk_id": "t08c:v1:rawpedia:R-C-heading-window-t8192-o64:5f25d0fc734cb539ede6cdc54f4aeefaa1d2844ee741917c3812d870561dfc20",
+        "doc_id": "rawpedia:White_Balance",
+        "product_scope": "RawTherapee",
+        "source_group_id": "rawpedia:White_Balance",
+        "source_location": {
+          "section_title": "White Balance",
+          "source_segment": {
+            "byte_end": 33585,
+            "byte_start": 127,
+            "char_end": 33565,
+            "char_start": 127,
+            "content_char_end": 33438,
+            "content_char_start": 0,
+            "doc_id": "rawpedia:White_Balance",
+            "json_pointer": null,
+            "segment_sha256": "ff0a68a121edd52ba4ae289dba41bc2503a64de5962b0fd6e75f5adf10c60efd",
+            "source_file_sha256": "77bdda81f03ca1f0480ea48dd3b1a80d1297832988a3072fb95b8ce4d2af80a2",
+            "source_path": "data/rawpedia/White_Balance.md",
+            "target_url": "https://rawpedia.rawtherapee.com/white_balance/"
+          }
+        },
+        "source_path": "data/rawpedia/White_Balance.md",
+        "source_type": "rawpedia",
+        "target_url": "https://rawpedia.rawtherapee.com/white_balance/"
+      },
+      {
+        "chunk_id": "t08c:v1:rawpedia:R-C-heading-window-t8192-o64:ecfcc93638b74183bc5cc2b940be311c43027ee1f74bb0ec5241d12c39476f7f",
+        "doc_id": "rawpedia:White_Balance",
+        "product_scope": "RawTherapee",
+        "source_group_id": "rawpedia:White_Balance",
+        "source_location": {
+          "section_title": "User-Modifiable Settings",
+          "source_segment": {
+            "byte_end": 37818,
+            "byte_start": 33363,
+            "char_end": 37794,
+            "char_start": 33343,
+            "content_char_end": 4451,
+            "content_char_start": 0,
+            "doc_id": "rawpedia:White_Balance",
+            "json_pointer": null,
+            "segment_sha256": "2a1c24c8533b7b2789667de2e023adfc12f4cf680bee0057e2327857c2d32d0d",
+            "source_file_sha256": "77bdda81f03ca1f0480ea48dd3b1a80d1297832988a3072fb95b8ce4d2af80a2",
+            "source_path": "data/rawpedia/White_Balance.md",
+            "target_url": "https://rawpedia.rawtherapee.com/white_balance/"
+          }
+        },
+        "source_path": "data/rawpedia/White_Balance.md",
+        "source_type": "rawpedia",
+        "target_url": "https://rawpedia.rawtherapee.com/white_balance/"
+      },
+      {
+        "chunk_id": "t08c:v1:rawpedia:R-C-heading-window-t8192-o64:d1776376d0c3eef3e19d6a40f8e74e57dbb6cdfed27790185c867d41f7e3ce68",
+        "doc_id": "rawpedia:Channel_Mixer",
+        "product_scope": "RawTherapee",
+        "source_group_id": "rawpedia:Channel_Mixer",
+        "source_location": {
+          "section_title": "Channel Mixer",
+          "source_segment": {
+            "byte_end": 1116,
+            "byte_start": 120,
+            "char_end": 1116,
+            "char_start": 120,
+            "content_char_end": 996,
+            "content_char_start": 0,
+            "doc_id": "rawpedia:Channel_Mixer",
+            "json_pointer": null,
+            "segment_sha256": "de24efb7b443530de169b69064cd99bac2d003b6bcd83fa9aa7abc4832bfef04",
+            "source_file_sha256": "e881117fedfa34861ed9b55df2ed3f5e471364fc632618448fb9a051c8da1379",
+            "source_path": "data/rawpedia/Channel_Mixer.md",
+            "target_url": "https://rawpedia.rawtherapee.com/channel_mixer/"
+          }
+        },
+        "source_path": "data/rawpedia/Channel_Mixer.md",
+        "source_type": "rawpedia",
+        "target_url": "https://rawpedia.rawtherapee.com/channel_mixer/"
+      },
+      {
+        "chunk_id": "t08c:v1:rawpedia:R-C-heading-window-t8192-o64:8074cbdca669d12d8ac64114b27becaaa900e87cedb03abf54af7811aa63c51e",
+        "doc_id": "rawpedia:Black-and-White_addon",
+        "product_scope": "RawTherapee",
+        "source_group_id": "rawpedia:Black-and-White_addon",
+        "source_location": {
+          "section_title": "Black-and-White addon",
+          "source_segment": {
+            "byte_end": 8972,
+            "byte_start": 128,
+            "char_end": 8874,
+            "char_start": 128,
+            "content_char_end": 8746,
+            "content_char_start": 0,
+            "doc_id": "rawpedia:Black-and-White_addon",
+            "json_pointer": null,
+            "segment_sha256": "4cbeef90cbe234b15de7a14d99b11a9a03ca8b4044fdfde45f0784492a16423f",
+            "source_file_sha256": "c57b571ae2699489e2de03815f73ff6708029c3d40964044a3de41ce25762484",
+            "source_path": "data/rawpedia/Black-and-White_addon.md",
+            "target_url": "https://rawpedia.rawtherapee.com/black-and-white_addon/"
+          }
+        },
+        "source_path": "data/rawpedia/Black-and-White_addon.md",
+        "source_type": "rawpedia",
+        "target_url": "https://rawpedia.rawtherapee.com/black-and-white_addon/"
+      },
+      {
+        "chunk_id": "t08c:v1:rawpedia:R-C-heading-window-t8192-o64:3acde3a05b047efc1da572d37426da46f4403052f85f518d935d54b4523b9297",
+        "doc_id": "rawpedia:Black-and-White",
+        "product_scope": "RawTherapee",
+        "source_group_id": "rawpedia:Black-and-White",
+        "source_location": {
+          "section_title": "Black-and-White",
+          "source_segment": {
+            "byte_end": 500,
+            "byte_start": 121,
+            "char_end": 500,
+            "char_start": 121,
+            "content_char_end": 379,
+            "content_char_start": 0,
+            "doc_id": "rawpedia:Black-and-White",
+            "json_pointer": null,
+            "segment_sha256": "200f3eab380e363594b2eaeb198b7207309cf45c3f2d7474c940e7eb4d0686b7",
+            "source_file_sha256": "024fa08d4b4288fc14457ab43eeb393f7d993689bba3d0b2569fa456d2c0cbf2",
+            "source_path": "data/rawpedia/Black-and-White.md",
+            "target_url": "https://rawpedia.rawtherapee.com/black-and-white/"
+          }
+        },
+        "source_path": "data/rawpedia/Black-and-White.md",
+        "source_type": "rawpedia",
+        "target_url": "https://rawpedia.rawtherapee.com/black-and-white/"
+      }
+    ]
+  },
+  "questions": {
+    "blue": {
+      "text": "사진이 푸르게 나와요. White Balance에서 무엇부터 조정해야 하나요?",
+      "search_query": "사진이 푸르게 나와요. White Balance에서 무엇부터 조정해야 하나요?"
+    },
+    "yellow": {
+      "text": "사진이 노랗게 나와요. White Balance에서 무엇부터 조정해야 하나요?",
+      "search_query": "사진이 노랗게 나와요. White Balance에서 무엇부터 조정해야 하나요?"
+    }
+  },
+  "responses": [
+    {
+      "id": "yellow-baseline-1",
+      "question": "yellow",
+      "request_sha256": "061f02ec8c9277d89bead45e2d03836afb26ed6cdf64ac553693ab253a55c847",
+      "raw_response_sha256": "b4dd81531ea05fdb1843665fc70a4a79cb0b02ee838469785ebe1793bea71097",
+      "expected": "reverse",
+      "response": {
+        "status": "SUPPORTED",
+        "answer": "먼저 White Balance의 Temperature 슬라이더를 확인하세요. 슬라이더를 오른쪽으로 옮기면 이미지가 더 따뜻한 노란빛으로, 왼쪽으로 옮기면 더 차가운 푸른빛으로 바뀝니다. 따라서 사진이 노랗게 나온다면 Temperature를 오른쪽으로 조금 올려 보세요. [C1S1] 다만 이것만으로 충분하지 않을 수 있습니다. 먼저 Camera 또는 Automatic의 RGB grey / Temperature correlation을 시도해 기본값을 잡고, 그다음 Temperature와 Tint로 미세 조정하는 흐름이 적합합니다. Camera 설정은 카메라가 사용한 화이트밸런스를 따르며, RGB grey는 장면의 평균 색을 중립 회색으로 가정하고, Temperature correlation은 이미지와 분광 기준색의 상관관계에 기반해 색 균형을 계산합니다. [C1S1] 노란색 편향이 색온도 때문인지 확인하려면, 이미 중립색이어야 하는 회색 또는 흰색 영역의 RGB 값이 서로 같은지, L*a*b* 공간의 a*·b* 값이 일치하는지, 또는 메인 히스토그램 아래의 RGB 표시 막대가 서로 겹치는지 확인하세요. 모니터의 색 보정이 부정확할 수 있으므로 눈만 믿기보다 이러한 수치로 확인하는 것이 좋습니다. [C1S1] Tint 슬라이더도 확인하세요. Tint는 마젠타-초록 축을 조절하며, 왼쪽은 마젠타, 오른쪽은 초록 방향입니다. 즉 노란색이 강해 보이지만 실제로는 초록 성분이 함께 들어 있는 편향이라면 Tint를 왼쪽으로 조금 이동해 보세요. [C1S1] Pick(스포이드) 버튼을 사용한다면 중립 회색 또는 흰색 영역을 선택하세요. 단, 선택한 영역은 세 채널 중 어느 하나라도 클리핑되어 있지 않아야 하고, 검게 물린 영역도 피해야 합니다. 여러 곳에서 반복해 측정해 이상적인 지점을 찾을 수 있습니다. [C1S1] 기본 White Balance만으로 원하는 색에 도달하지 못한다면 Channel Mixer를 보조 수단으로 사용할 수 있습니다. 100%에서 시작한 슬라이더 값을 바꾸면 R·G·B 채널 비율이 바뀌어 화이트밸런스가 조정됩니다. 다만 먼저 Channel Mixer로 색을 큰 방향으로 맞춘 뒤, 일반 White Balance의 Temperature/Tint로 미세 조정하는 순서가 권장됩니다. [C3S1] 참고로 이러한 절차는 RawTherapee의 RawPedia 설명을 기준으로 한 것입니다.",
+        "citation_ids": [
+          "C1S1",
+          "C3S1"
+        ]
+      }
+    },
+    {
+      "id": "yellow-candidate-1",
+      "question": "yellow",
+      "request_sha256": "8f6e12c7713e051f0e81d44f1c966a8ad1acf8754bc177ee9118dfc1d6eba359",
+      "raw_response_sha256": "3a93076e4e8aa9fb4fd0f8d59940827428b448e6c2d1648b98ad2ca876773e46",
+      "expected": "correct",
+      "response": {
+        "status": "SUPPORTED",
+        "answer": "노란 기운을 줄이려면 White Balance의 Temperature 슬라이더를 왼쪽(차가운 쪽)으로 이동하세요. Temperature는 청색–황색 축으로 색을 조절하며, 왼쪽으로 옮기면 이미지가 더 차갑고 푸르게, 오른쪽으로 옮기면 더 따뜻하고 노랗게 보입니다. 따라서 현재 노란 기운을 완화하려는 경우에는 왼쪽이 맞고, 노란 색감을 의도적으로 강화하려는 경우에는 오른쪽이 맞습니다. [C1S1]\n\n먼저 카메라 설정이 신뢰할 만하다면 Method를 Camera로 두어 카메라가 사용한 화이트밸런스를 적용할 수 있습니다. RAW만 촬영한다면 카메라의 화이트밸런스를 Auto로 두는 것이 일반적으로 좋은 결과를 낸다고 안내되어 있습니다. [C1S1]\n\n그다음 Pick(단축키 w)을 사용해 사진 속 중성색 영역(회색 또는 흰색)을 클릭할 수 있습니다. 클릭한 영역을 바탕으로 이미지 전체의 화이트밸런스를 설정하며, 여러 위치를 반복해서 이상적인 지점을 찾을 수 있습니다. 단, 선택한 영역은 세 채널 중 어느 것도 클리핑되지 않아야 하고 검은색도 아니어야 합니다. 클리핑된 영역은 정보가 손실되고 검은 영역은 데이터가 부족해 올바른 화이트밸런스를 계산할 수 없기 때문입니다. [C1S1]\n\n자동 보정을 원한다면 Method의 Automatic에서 RGB grey 또는 Temperature correlation을 선택할 수 있습니다. RGB grey는 장면의 평균 색을 중성 회색으로 가정하고, Temperature correlation은 이미지와 200개의 분광 기준 색을 상관 분석하는 방식으로 작동합니다. 다만 Temperature correlation은 CRI가 100에 가까운 조명에서 더 신뢰할 수 있으며, 수중·형광등·LED, 일부 변환된 DNG, 극단적으로 낮은 휘도 조건에서는 오류가 날 수 있습니다. [C1S1]\n\nTemperature로도 충분히 맞지 않으면 Tint 슬라이더도 확인하세요. Tint는 마젠타–녹색 축을 조절하며, 왼쪽은 마젠타 쪽, 오른쪽은 녹색 쪽입니다. 노란 기운만으로 녹색 편향이 동반되어 있는지는 제공된 자료만으로 판단할 수 없으므로, Temperature 조정 후에도 색조가 남으면 중성 영역의 Pick을 다시 수행하거나 Tint를 조금씩 조정해 확인하는 것이 좋습니다. [C1S1]\n\n요약 순서: Camera 또는 Pick으로 중성 영역을 기준으로 기본값을 잡고 → Temperature를 왼쪽으로 이동해 노란 기운을 완화하고 → 필요하면 Tint를 조정하세요. 화이트밸런스 도구 자체는 중성색을 중성으로 유지하는 용도로 사용하고, 창작적인 색조는 Color Toning 등으로 처리하는 것이 권장됩니다. [C1S1]",
+        "citation_ids": [
+          "C1S1"
+        ]
+      }
+    },
+    {
+      "id": "blue-candidate-1",
+      "question": "blue",
+      "request_sha256": "24dd7d1c91fe29056d2e4ee6d225b4c177beacf64e97d65a321d8c80b54eb33c",
+      "raw_response_sha256": "0802f9792517291200ea36dd41880a4ca9959c9b7369a3b65cb99d39a34d1079",
+      "expected": "contradiction",
+      "response": {
+        "status": "SUPPORTED",
+        "answer": "먼저 White Balance의 Temperature 슬라이더를 왼쪽으로 이동해 보세요. 푸른 기운을 줄이려면 이미지를 더 차갑게 만들어야 하며, RawPedia의 White Balance 설명에서 Temperature 슬라이더를 왼쪽으로 옮기면 이미지가 더 차갑고(파랗게) 된다고 안내합니다. 따라서 현재의 푸른 색 기운은 오른쪽(따뜻한 노란빛 쪽)으로 이동해 완화하고, 원하는 결과가 더 차가운 이미지라면 왼쪽으로 이동하면 됩니다. [C1S1]\n\n온도만으로 원하는 색감에 맞지 않으면 Tint 슬라이더도 확인하세요. Tint는 자홍-초록 축을 조절하며, 왼쪽은 자홍, 오른쪽은 초록 방향입니다. [C1S1]\n\n자동 보정 방법도 사용할 수 있습니다. Camera, Automatic의 RGB grey 또는 Temperature correlation 중에서 선택할 수 있으며, RGB grey는 장면의 평균 색을 중립 회색으로 가정하고, Temperature correlation은 이미지와 분광 기준 색의 상관관계를 이용합니다. [C1S1] 다만 Temperature correlation은 CRI가 100에 가까운 조명에서 더 신뢰할 수 있고, LED·형광등·수중 등의 조명이나 극단적인 촬영 조건에서는 잘못된 결과가 나올 수 있습니다. [C1S1]\n\n참고로 White Balance를 끈 상태로 RAW를 처리하면 R=G=B=1 배율이 적용되므로 진단용으로 활용할 수 있습니다. [C1S1] 푸른 기운이 단순히 노출이나 색조 때문인지 확인하려면 이미지를 중립 회색 영역 기준으로 Pick해 보거나, 중립 영역의 RGB 값이 서로 같은지 히스토그램 아래의 RGB 표시 막대를 비교해 확인할 수 있습니다. [C1S1]",
+        "citation_ids": [
+          "C1S1"
+        ]
+      }
+    },
+    {
+      "id": "blue-baseline-1",
+      "question": "blue",
+      "request_sha256": "c9219abb27fa94ff76384cc4673afa93960e0f7ce5f058c480838cb3b3fd786e",
+      "raw_response_sha256": "0242c83212901e6a75cd1288318e2fe0c30cf65a858a82242de285d1b6df9bc8",
+      "expected": "correct",
+      "response": {
+        "status": "SUPPORTED",
+        "answer": "사진이 푸르게 보인다면 White Balance에서 먼저 온도(Temperature) 슬라이더를 오른쪽으로 옮겨 색을 따뜻하게 만드세요. 온도 슬라이더는 청색-황색 축을 조절하며, 왼쪽은 차가운(푸른) 색, 오른쪽은 따뜻한(노란) 색 방향입니다. [C1S1] 다만 푸른 기운이 녹색-자홍 축에 있다면 온도만으로 충분하지 않을 수 있으므로, 필요하면 Tint 슬라이더도 확인하세요. Tint는 자홍-녹색 축을 조절하며 왼쪽은 자홍, 오른쪽은 녹색 방향입니다. [C1S1] 정확한 중립색을 기준으로 잡으려면 Pick 버튼(단축키 w)으로 회색 또는 흰색 영역을 여러 번 선택해 보세요. 선택한 영역은 세 채널 중 어느 것도 클리핑되지 않아야 하며, 검은색 영역도 피해야 합니다. [C1S1] White Balance만으로 원하는 결과가 나오지 않으면 Channel Mixer에서 100%에서 벗어난 값을 조정해 색감을 먼저 큰 폭으로 맞춘 뒤, 다시 White Balance의 Temperature/Tint로 미세 조정할 수 있습니다. [C3S1] 참고로 RawPedia의 이 설명은 RawTherapee 기준이며, 다른 제품의 동일한 기능·UI 동작을 보장하지 않습니다.",
+        "citation_ids": [
+          "C1S1",
+          "C3S1"
+        ]
+      }
+    },
+    {
+      "id": "yellow-candidate-2",
+      "question": "yellow",
+      "request_sha256": "8f6e12c7713e051f0e81d44f1c966a8ad1acf8754bc177ee9118dfc1d6eba359",
+      "raw_response_sha256": "98b1a18278e6a88f15c1e06dee8888306d3da6a0976e73a20b34aa353ff22023",
+      "expected": "correct",
+      "response": {
+        "status": "SUPPORTED",
+        "answer": "노란 기운은 색온도가 낮거나 색조(tint)가 녹색 쪽으로 치우친 경우에 흔히 나타납니다. 다만 먼저 이미지에 실제로 어떤 색 기운이 강한지 확인한 뒤, 그 기운을 줄이는 방향으로 조정하는 것이 좋습니다. RawPedia의 White Balance 설명에 따르면 Temperature 슬라이더를 오른쪽으로 움직이면 이미지가 더 따뜻해지고(노란색), 왼쪽으로 움직이면 더 차가워집니다(푸른색). Tint 슬라이더는 왼쪽으로 갈수록 마젠타, 오른쪽으로 갈수록 녹색이 강해집니다. [C1S1] 따라서 현재 이미지가 노랗게 보인다면 첫 조정으로 Temperature를 오른쪽이 아니라 왼쪽으로 조금 이동해 차가운 쪽으로 보정하는 것을 권합니다. [C1S1] 이때 원하는 결과가 ‘따뜻한 노란색 보정’이 아니라 노란 기운 완화라면, 왼쪽 이동이 온도를 낮춰 푸른 쪽으로 이동시키는 방향이므로 증상을 줄이는 동작과 일치합니다. [C1S1] Tint는 이미지에 녹색 기운이 함께 보일 때만 오른쪽(녹색 방향)으로 조금 조정하고, 마젠타 기운이 보일 때는 왼쪽으로 조정합니다. [C1S1] 참고로 잘못된 화이트밸런스는 일반적으로 따뜻한 주황색이나 차가운 파란색의 색조를 만들며, 색온도만으로 모든 색조 문제를 해결할 수는 없습니다. [C1S1] 화이트밸런스를 끄면 원본 파일에서는 R=G=B=1로 설정되므로 진단 purposes로 활용할 수 있습니다. [C1S1] 또한 Pick(단축키 w)을 사용해 중성 회색 또는 흰색 영역을 여러 번 선택해 이상적인 기준점을 찾을 수 있으며, 선택한 영역은 어느 채널에서도 클리핑되지 않아야 하고 검은색도 피해야 합니다. [C1S1] 기본 White Balance 조정으로 충분하지 않으면 Channel Mixer에서 100%에서 벗어난 값을 입력해 먼저 큰 방향으로 맞춘 뒤, 다시 White Balance의 Temperature/Tint로 미세 조정할 수 있습니다. [C3S1] 창작 목적이 노란 색조를 의도적으로 만드는 것이라면, Temperature를 오른쪽으로 이동해 따뜻하게 만드는 방향이 맞습니다. [C1S1]",
+        "citation_ids": [
+          "C1S1",
+          "C3S1"
+        ]
+      }
+    },
+    {
+      "id": "yellow-baseline-2",
+      "question": "yellow",
+      "request_sha256": "061f02ec8c9277d89bead45e2d03836afb26ed6cdf64ac553693ab253a55c847",
+      "raw_response_sha256": "952f5f5110e64a9bf815c7c8b89c693624013d35dff0737c02f5369f90580460",
+      "expected": "correct",
+      "response": {
+        "status": "SUPPORTED",
+        "answer": "먼저 White Balance의 Temperature 슬라이더를 확인하세요. 슬라이더를 오른쪽으로 움직이면 이미지가 더 따뜻고 노란색으로, 왼쪽으로 움직이면 더 차갑고 푸른색으로 변합니다. 따라서 사진이 노랗게 나온다면 Temperature를 왼쪽(차가운 방향)으로 낮춰 보세요. [C1S1] 다만 주변 조명이 실제로 따뜻한 경우에는 노란색이 자연스러울 수 있으므로, 이미지의 중성색 영역이 중립적으로 보이는지 확인하는 것이 좋습니다. 중성색은 R=G=B이며, RGB 표시 막대나 L*a*b*의 a*, b* 값이 서로 일치하는지 확인할 수 있습니다. [C1S1] 조명이 섞여 있거나 특정 조명 조건에서는 하나의 White Balance 설정만으로 완전히 해결하기 어려울 수 있으며, 이 경우 중립 영역을 유지한 채 Color Toning 등으로 창작적인 색조를 더하는 것이 좋습니다. [C1S1] White Balance만으로 충분하지 않다면 Channel Mixer에서 R·G·B 슬라이더를 조정해 색상 균형을 먼저 맞춘 뒤, 다시 White Balance의 Temperature/Tint로 미세 조정할 수 있습니다. [C3S1] 참고로 이 설명은 RawTherapee의 RawPedia 문서를 기준으로 한 것입니다.",
+        "citation_ids": [
+          "C1S1",
+          "C3S1"
+        ]
+      }
+    },
+    {
+      "id": "blue-baseline-2",
+      "question": "blue",
+      "request_sha256": "c9219abb27fa94ff76384cc4673afa93960e0f7ce5f058c480838cb3b3fd786e",
+      "raw_response_sha256": "0c138a5ac9d5a83d93f8ab712af0c5a47f8b0e731489322da1d3c16210d10fc7",
+      "expected": "correct",
+      "response": {
+        "status": "SUPPORTED",
+        "answer": "먼저 White Balance의 Temperature 슬라이더를 확인하세요. 왼쪽으로 이동하면 이미지가 차가운 파란빛으로, 오른쪽으로 이동하면 따뜻한 노란빛으로 바뀝니다. 따라서 푸르게 보이는 사진은 Temperature를 오른쪽(따뜻한 방향)으로 올려 보세요. [C1S1] 푸른색이나 주황색의 색조는 잘못된 화이트밸런스의 결과일 수 있으며, 중립색 영역이 중립적으로 보이도록 조정하는 것이 목적입니다. [C1S1] 화이트밸런스 도구가 부족할 정도로 색이 강하게 변한다면 Channel Mixer를 이용해 먼저 색상 균형을 대략 맞춘 뒤, 일반적인 White Balance의 Temperature/Tint 슬라이더로 미세 조정할 수도 있습니다. [C3S1] Tint 슬라이더는 마젠타-초록 축을 조절하므로, 색조가 푸른색에 가까운 경우에는 Temperature 조정 후에도 마젠타가 남는지 확인해 보세요. [C1S1] 정확한 중립색을 확인하려면 눈에만 의존하지 말고, 중립 영역의 RGB 값이 서로 같은지 또는 메인 히스토그램 아래의 RGB 표시 막대가 겹쳐지는지 확인하는 것이 좋습니다. [C1S1] 참고로 이 설명은 RawTherapee의 RawPedia 문서를 기준으로 한 것입니다.",
+        "citation_ids": [
+          "C1S1",
+          "C3S1"
+        ]
+      }
+    },
+    {
+      "id": "blue-candidate-2",
+      "question": "blue",
+      "request_sha256": "24dd7d1c91fe29056d2e4ee6d225b4c177beacf64e97d65a321d8c80b54eb33c",
+      "raw_response_sha256": "d31607a468ed063d546fc2abfed7aa22966036d8a747a18baf0bd5bf58c69b2a",
+      "expected": "correct",
+      "response": {
+        "status": "SUPPORTED",
+        "answer": "푸른 기운을 줄이려면 White Balance의 Temperature 슬라이더를 오른쪽(따뜻한 노란색 방향)으로 옮기면 됩니다. Temperature는 청색-황색 축을 조절하며, 왼쪽은 차가운 파란빛, 오른쪽은 따뜻한 노란빛을 만듭니다. 따라서 현재 파랗게 보이는 증상을 완화하는 첫 조작은 오른쪽으로 이동하는 것입니다. [C1S1]\n\n온도만으로 충분하지 않다면 Tint 슬라이더도 확인하세요. Tint는 마젠타-녹색 축을 조절하며, 왼쪽은 마젠타, 오른쪽은 녹색 방향입니다. 다만 문맥에는 푸른 기운에 대한 구체적인 Tint 조정 방향이 명시되어 있지 않으므로, 어느 방향으로 움직여야 하는지는 이 자료만으로 확정할 수 없습니다. [C1S1]\n\n보조적으로는 중립색(회색 또는 흰색) 영역을 여러 번 Pick해 이미지에 맞는 균형을 찾을 수 있습니다. 단, 선택한 영역은 세 채널 중 어느 것도 클리핑되지 않아야 하며 검게도 shouldn't 합니다. [C1S1]\n\n참고로 이 설명은 RawTherapee용 RawPedia 문서이므로, 사용 중인 소프트웨어가 RawTherapee가 아니라면 동일한 메뉴와 슬라이더 구성이 있는지 확인이 필요합니다.",
+        "citation_ids": [
+          "C1S1"
+        ]
+      }
+    },
+    {
+      "id": "yellow-baseline-3",
+      "question": "yellow",
+      "request_sha256": "061f02ec8c9277d89bead45e2d03836afb26ed6cdf64ac553693ab253a55c847",
+      "raw_response_sha256": "81549c575be06ce270659ac6ca353e1ea96c5aa0758835973d45be7eab4a89ff",
+      "expected": "correct",
+      "response": {
+        "status": "SUPPORTED",
+        "answer": "먼저 White Balance의 Method를 확인하세요. 카메라 설정이 노란 기운을 만든다면 Camera를, 자동으로 중립 회색을 가정하는 기본 보정을 원하면 Automatic의 RGB grey를 사용해 보세요. RGB grey는 장면의 평균 색을 중립 회색으로 가정해 자동 보정하며, 여러 장면에 잘 맞아 수동 조정의 출발점이 될 수 있습니다. [C1S1] 더 정밀한 자동 보정으로는 Temperature correlation을 사용할 수 있습니다. 이 방식은 이미지의 색과 200개의 분광 기준색 사이의 상관관계(Student's test)를 이용하며, CRI가 100에 가까운 조명에서 더 신뢰하기 쉽지만 LED·형광등·수중이나 극단적인 저휘도 조건에서는 잘못된 결과가 나올 수 있습니다. [C1S1] 그다음 Temperature 슬라이더로 색온도를 미세 조정하세요. 슬라이더를 왼쪽으로 옮기면 파란색(차가운 쪽), 오른쪽으로 옮기면 노란색(따뜻한 쪽)이 되므로, 노란 기운이 과하면 왼쪽으로 조금 이동해 차갑게 만듭니다. [C1S1] Tint 슬라이더는 마젠타–그린 축을 조절하며, 왼쪽은 마젠타, 오른쪽은 초록 방향입니다. 노랗게 보이는 현상이 색온도 때문인지 틴트 때문인지 구분해 조절하세요. [C1S1] 중립색 영역이 보이는 사진이라면 Pick 버튼(단축키 w)으로 회색 또는 흰색 영역을 여러 번 직접 선택해 보세요. 선택한 영역은 어느 채널에서도 클리핑되지 않아야 하며, 검은색 영역도 피해야 합니다. 여러 위치를 시도해 가장 적합한 중립 영역을 찾을 수 있습니다. [C1S1] 기본 White Balance만으로 충분하지 않다면 Channel Mixer를 보조로 사용할 수 있습니다. 100%에서 시작한 슬라이더 값을 바꾸면 R·G·B 채널의 비율을 조절해 화이트 밸런스를 조정할 수 있으며, 먼저 Channel Mixer로 큰 방향을 잡은 뒤 White Balance의 Temperature/Tint로 미세 조정하는 방식이 제안됩니다. [C3S1] 다만 이러한 조정으로 색을 일부러 만드는 것이 목적이면, 중립 영역을 중립으로 유지한 뒤 Color Toning 등 별도의 색조 도구를 사용하는 편이 좋습니다. [C1S1]",
+        "citation_ids": [
+          "C1S1",
+          "C3S1"
+        ]
+      }
+    },
+    {
+      "id": "blue-candidate-3",
+      "question": "blue",
+      "request_sha256": "24dd7d1c91fe29056d2e4ee6d225b4c177beacf64e97d65a321d8c80b54eb33c",
+      "raw_response_sha256": "3b95bcef6eeaa8ec8540d65552ca2b008c0edd169ba0af9f0dad1eb3cae7f3e3",
+      "expected": "correct",
+      "response": {
+        "status": "SUPPORTED",
+        "answer": "푸른 기운을 줄이려면 White Balance의 Temperature 슬라이더를 오른쪽(따뜻한 노란색 방향)으로 옮기면 됩니다. Temperature는 청색-황색 축을 조절하며, 오른쪽으로 이동할수록 이미지가 더 따뜻해지고 왼쪽으로 이동할수록 더 차가워집니다. 따라서 현재 푸르게 보이는 증상을 완화하려는 첫 조치는 오른쪽으로 이동하는 것입니다. [C1S1]\n\n온도만으로 충분하지 않다면 Tint도 확인하세요. Tint는 자홍-녹색 축을 조절하며, 왼쪽은 자홍, 오른쪽은 녹색 방향입니다. 다만 문맥에는 푸른 기운에 대한 Tint의 구체적인 보정 방향이 제시되어 있지 않으므로, 자홍 쪽으로 옮길지는 사용자 판단에 맡겨야 합니다. [C1S1]\n\n보조적으로 중립색(회색 또는 흰색) 영역을 여러 번 스포이드(Pick)로 지정해 보정할 수도 있습니다. 단, 선택한 영역은 어느 채널에서도 클리핑되지 않아야 하며 검은색 영역도 피해야 합니다. [C1S1]\n\n참고로 이 설명은 RawTherapee용 RawPedia 문서이므로, 사용 중인 소프트웨어가 RawTherapee가 아니라면 동일한 메뉴와 슬라이더 구성이 있는지 확인해야 합니다.",
+        "citation_ids": [
+          "C1S1"
+        ]
+      }
+    },
+    {
+      "id": "blue-baseline-3",
+      "question": "blue",
+      "request_sha256": "c9219abb27fa94ff76384cc4673afa93960e0f7ce5f058c480838cb3b3fd786e",
+      "raw_response_sha256": "e8912df6b31d715a0e34f6a2cd4c5ef9a40a3d2fba9eb8c7a5856f1f518a0d70",
+      "expected": "reverse",
+      "response": {
+        "status": "SUPPORTED",
+        "answer": "먼저 White Balance의 Temperature 슬라이더를 확인하세요. 슬라이더를 왼쪽으로 옮기면 이미지가 더 차갑고 푸르게, 오른쪽으로 옮기면 더 따뜻하고 노랗게 보입니다. 푸른 색감이 있다면 왼쪽(차가운 방향)으로 조절해 보세요. [C1S1]\n\n그다음 Tint 슬라이더를 확인하세요. Tint는 마젠타-초록 축을 조절하며, 왼쪽은 마젠타, 오른쪽은 초록 방향입니다. 푸른 기운이 강한데도 초록이나 마젠타 쪽으로 색이 함께 변한다면 Tint도 함께 조정할 수 있습니다. [C1S1]\n\n정확한 중성색을 기준으로 잡고 싶다면 Pick 버튼(단축키 w)을 사용해 사진 속 회색 또는 흰색 영역을 클릭하세요. 클릭한 영역이 중립색이어야 하며, 세 채널 중 하나라도 클리핑된 영역이나 검게 찍힌 영역은 피해야 합니다. 여러 곳을 반복해서 찍어 가장 적합한 지점을 찾을 수 있습니다. [C1S1]\n\n자동 보정도 시도할 수 있습니다. Automatic의 ‘RGB grey’는 장면의 평균색을 중립 회색으로 가정하고, ‘Temperature correlation’은 이미지의 색과 200개의 분광 기준색을 상관 분석합니다. 다만 CRI가 100에 가까운 조명에서 더 신뢰할 수 있으며, LED·형광등·수중 등의 조건이나 극단적으로 어두운 장면에서는 오류가 날 수 있습니다. [C1S1]\n\nWhite Balance만으로 부족하면 Channel Mixer를 사용할 수 있습니다. 기본값 100%에서 R·G·B 슬라이더를 각각 조정해 색 균형을 잡은 뒤, 다시 White Balance의 Temperature/Tint로 미세 조정하는 방식입니다. [C3S1]\n\n참고로 잘못된 화이트 밸런스는 보통 주황색처럼 따뜻하거나 파란색처럼 차가운 색조를 만듭니다. 화이트 밸런스는 중성 영역을 중성으로 유지하는 용도로 사용하고, 창작적인 색조는 Color Toning 등으로 처리하는 편이 좋습니다. [C1S1]",
+        "citation_ids": [
+          "C1S1",
+          "C3S1"
+        ]
+      }
+    }
+  ]
+}

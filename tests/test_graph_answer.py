@@ -311,6 +311,311 @@ def test_supported_state_success(tmp_path: Path) -> None:
     assert "[출처: Exposure·https://rawpedia.rawtherapee.com/exposure/]" in ans.text
 
 
+YELLOW_CAST_QUESTION = "사진이 노랗게 나와요. White Balance에서 무엇부터 조정해야 하나요?"
+_REPLAY_ROOT = Path(__file__).resolve().parents[1]
+_MINIMAX_TEMPERATURE_REPLAY = json.loads(
+    (_REPLAY_ROOT / "data/eval/rag-service/minimax_temperature_replay_v1.json").read_text(encoding="utf-8")
+)
+
+
+@pytest.fixture(scope="module")
+def minimax_temperature_bundles():
+    retrieval = _MINIMAX_TEMPERATURE_REPLAY["retrieval"]
+    evidence = []
+    for metadata in retrieval["hits"]:
+        location = metadata["source_location"]
+        segment = location["source_segment"]
+        document = (_REPLAY_ROOT / metadata["source_path"]).read_bytes().decode("utf-8")
+        text = document[segment["char_start"]:segment["char_end"]]
+        evidence.append(Evidence(**{
+            **metadata, "source_location": canonical_json_str(location), "text": text,
+        }))
+    return {
+        key: RetrievalBundle(query=question["search_query"], source_filter=retrieval["source_filter"],
+                             hits=evidence, snapshot_ref=retrieval["snapshot_ref"])
+        for key, question in _MINIMAX_TEMPERATURE_REPLAY["questions"].items()
+    }
+
+
+@pytest.mark.parametrize("sample", _MINIMAX_TEMPERATURE_REPLAY["responses"], ids=lambda sample: sample["id"])
+def test_temperature_prescription_replays_minimax_responses(minimax_temperature_bundles, sample):
+    question = _MINIMAX_TEMPERATURE_REPLAY["questions"][sample["question"]]["text"]
+    raw = json.dumps(sample["response"], ensure_ascii=False)
+    assert sha256_str(raw) == sample["raw_response_sha256"]
+    generate = MagicMock(return_value=raw)
+    answer, error = answer_standalone(
+        query=question, bundle=minimax_temperature_bundles[sample["question"]],
+        source_root=_REPLAY_ROOT, generate=generate, assemble_citations=True,
+    )
+    generate.assert_called_once()
+    if sample["expected"] == "correct":
+        assert error is None and answer.status == "SUPPORTED"
+        assert any(ref.doc_id == "rawpedia:White_Balance" for ref in answer.citations)
+    else:
+        assert answer is None and error is not None and error.code == "INSUFFICIENT_EVIDENCE"
+
+
+@pytest.fixture
+def temperature_bundle():
+    root = Path(__file__).resolve().parents[1]
+    source = "data/rawpedia/White_Balance.md"
+    data = (root / source).read_bytes()
+    document = data.decode("utf-8")
+    start = document.index("The temperature slider adjusts colors")
+    end = document.index("\n\n", start)
+    evidence = _make_evidence(
+        doc_id="rawpedia:White_Balance", source_group_id="rawpedia:White_Balance",
+        source_path=source, section_title="Temperature and Tint",
+        target_url="https://rawpedia.rawtherapee.com/white_balance/#temperature-and-tint",
+        text=document[start:end], char_start=start, byte_start=len(document[:start].encode()),
+        source_file_sha=sha256_bytes(data),
+    )
+    return root, RetrievalBundle(query="White Balance temperature", source_filter="RAWPEDIA", hits=[evidence])
+
+
+@pytest.mark.parametrize("text", [
+    "먼저 White Balance의 Temperature 슬라이더를 오른쪽(따뜻한/노란 방향)으로 이동해 색온도를 높여 보세요.",
+    "먼저 White Balance의 Temperature 슬라이더를 오른쪽으로 옮겨 이미지를 따뜻하게 만드십시오.",
+    "Temperature 슬라이더를 오른쪽으로 이동해 색을 더 차갑게 만드세요. 따라서 이미 노란 캐스트가 있다면 오른쪽이 아니라 왼쪽으로 이동해야 합니다.",
+    "Temperature 슬라이더를 왼쪽으로 옮기세요. 같은 설정에서 이어서 오른쪽으로 이동하세요.",
+    "색온도를 높이세요.",
+    "Temperature 슬라이더를 조정하세요.",
+    "Tint는 자홍–녹색 축입니다. Temperature를 왼쪽으로 옮기고 Tint와 색온도를 모두 오른쪽으로 조정하세요.",
+    "Temperature를 왼쪽으로 옮기세요. 이어서 Temperature(색온도)와 Tint(틴트)를 모두 오른쪽으로 조정하세요.",
+    "Temperature를 왼쪽으로 옮기세요. 그리고 Temperature를 6500K로 설정하세요.",
+    "노란 색감을 의도적으로 강화하려는 경우에는 오른쪽이 맞습니다.",
+])
+def test_temperature_prescription_withholds_reversed_or_unverified_action(temperature_bundle, text):
+    root, bundle = temperature_bundle
+    observations = []
+    generate = MagicMock(return_value=json.dumps({
+        "status": "SUPPORTED", "answer": text + " [C1S1]", "citation_ids": ["C1S1"],
+    }))
+    answer, error = answer_standalone(
+        query=YELLOW_CAST_QUESTION, bundle=bundle, source_root=root,
+        generate=generate, observe=observations.append,
+    )
+    generate.assert_called_once()
+    assert answer is None
+    assert error is not None and error.code == "INSUFFICIENT_EVIDENCE"
+    assert "오른쪽" not in error.message
+    assert observations[-1]["direction_check"]["reason"] in {"conflict", "unverified_action"}
+
+
+@pytest.mark.parametrize(("query", "text"), [
+    (YELLOW_CAST_QUESTION, "Temperature 슬라이더를 왼쪽으로 옮겨 차갑게 만들어 보세요."),
+    (YELLOW_CAST_QUESTION, "Temperature 슬라이더를 왼쪽으로 옮겨 따뜻한 색감을 줄이세요."),
+    (YELLOW_CAST_QUESTION, "색온도를 낮춰 보세요."),
+    (YELLOW_CAST_QUESTION, "오른쪽으로 옮기면 따뜻해집니다. 노란 기를 줄이려면 오른쪽이 아니라 왼쪽으로 옮기세요."),
+    (YELLOW_CAST_QUESTION, "오른쪽으로 이동하면 사진이 더 노래집니다. 왼쪽으로 옮기세요."),
+    (YELLOW_CAST_QUESTION, "노란 기가 있다면 왼쪽, 푸른 기가 있다면 오른쪽으로 옮기세요."),
+    (YELLOW_CAST_QUESTION, "Tint는 자홍과 녹색을 다루며, 오른쪽은 녹색입니다. 색온도는 왼쪽으로 낮추세요."),
+    (YELLOW_CAST_QUESTION, "Tint를 오른쪽으로 조금 옮긴 뒤에는 Temperature를 왼쪽으로 내리세요."),
+    ("사진이 푸르게 나와요. 화이트 밸런스는 어떻게 조정하나요?", "색온도 슬라이더를 오른쪽으로 옮겨 따뜻하게 보정하세요."),
+    ("사진이 너무 따뜻해요. 화이트 밸런스를 어떻게 조정하나요?", "색온도 슬라이더를 왼쪽으로 옮겨 차갑게 보정하세요."),
+    ("사진이 노랗지만 더 따뜻하게 연출하고 싶어요. White Balance는 어떻게 조정하나요?", "Temperature 슬라이더를 오른쪽으로 옮기세요."),
+    ("사진을 노랗게 연출하고 싶어요. White Balance는 어떻게 조정하나요?", "Temperature 슬라이더를 오른쪽으로 옮기세요."),
+    ("사진이 노랗게 나와요. 화이트 밸런스의 틴트는 어떻게 조정하나요?", "Tint 슬라이더를 오른쪽으로 옮기세요."),
+    ("White Balance에서 Temperature를 양쪽으로 옮기면 각각 어떤 효과가 있나요?", "왼쪽은 차갑게, 오른쪽은 따뜻하게 만듭니다."),
+])
+def test_temperature_prescription_keeps_correct_actions_and_comparisons(temperature_bundle, query, text):
+    root, bundle = temperature_bundle
+    answer, error = answer_standalone(
+        query=query, bundle=bundle, source_root=root,
+        generate=lambda _: json.dumps({
+            "status": "SUPPORTED", "answer": text + " [C1S1]", "citation_ids": ["C1S1"],
+        }),
+    )
+    assert error is None
+    assert answer.status == "SUPPORTED"
+    assert answer.text.startswith(text)
+    assert [ref.doc_id for ref in answer.citations] == ["rawpedia:White_Balance"]
+
+
+def test_temperature_prescription_uses_confirmed_goal_and_versioned_prompt(temperature_bundle):
+    root, bundle = temperature_bundle
+    observations = []
+    answer, error = answer_standalone(
+        query="White Balance를 어떻게 조정하나요?", bundle=bundle, source_root=root,
+        context=RequestContext(confirmed_goal="이미지를 더 따뜻하게 만들기"),
+        generate=lambda _: json.dumps({
+            "status": "SUPPORTED", "answer": "색온도를 높여 보세요. [C1S1]", "citation_ids": ["C1S1"],
+        }),
+        observe=observations.append,
+    )
+    assert error is None and answer.status == "SUPPORTED"
+    record = observations[-1]
+    assert record["prompt_version"] == "t17-answer-temperature-v1"
+    assert "증상을 완화하는 조작을 첫 권장으로" in record["user_prompt"]
+    assert record["direction_check"]["reason"] is None
+
+
+def test_temperature_prescription_requires_direction_evidence_in_used_citation(tmp_path):
+    source = "data/rawpedia/White_Balance.md"
+    text = "White balance ensures that neutral-colored objects appear neutral."
+    _, source_sha = _setup_mock_source_file(tmp_path, source, text)
+    evidence = _make_evidence(
+        doc_id="rawpedia:White_Balance", source_group_id="rawpedia:White_Balance",
+        source_path=source, text=text, source_file_sha=source_sha,
+    )
+    bundle = RetrievalBundle(query="White Balance", source_filter="RAWPEDIA", hits=[evidence])
+    answer, error = answer_standalone(
+        query=YELLOW_CAST_QUESTION, bundle=bundle, source_root=tmp_path,
+        generate=lambda _: json.dumps({
+            "status": "SUPPORTED", "answer": "Temperature를 왼쪽으로 옮기세요. [C1S1]",
+            "citation_ids": ["C1S1"],
+        }),
+    )
+    assert answer is None and error.code == "INSUFFICIENT_EVIDENCE"
+
+
+@pytest.mark.parametrize("status", ["INSUFFICIENT_EVIDENCE", "UNSUPPORTED"])
+def test_temperature_prescription_does_not_expose_conflicting_low_confidence_text(temperature_bundle, status):
+    root, bundle = temperature_bundle
+    answer, error = answer_standalone(
+        query=YELLOW_CAST_QUESTION, bundle=bundle, source_root=root,
+        generate=lambda _: json.dumps({
+            "status": status, "answer": "모르겠습니다. Temperature를 오른쪽으로 옮기세요. [C1S1]",
+            "citation_ids": ["C1S1"],
+        }),
+    )
+    assert answer is None and error.code == "INSUFFICIENT_EVIDENCE"
+
+
+@pytest.mark.parametrize("entry", ["gui", "cli"])
+@pytest.mark.parametrize(("question", "text", "accepted"), [
+    pytest.param(YELLOW_CAST_QUESTION, "Temperature를 오른쪽으로 옮기세요.", False, id="original"),
+    pytest.param(
+        "사진이 노랗게 나와요. White Balance의 Temperature를 높여야 하나요, 낮춰야 하나요?",
+        "Temperature를 높이세요. 오른쪽으로 옮기면 따뜻해집니다.", False, id="direction-question",
+    ),
+    pytest.param(
+        "사진이 노랗게 보여요. 화이트 밸런스 어디부터 만지면 돼요?",
+        "Temperature 슬라이더를 오른쪽으로 옮기세요.", False, id="colloquial-question",
+    ),
+    pytest.param(
+        YELLOW_CAST_QUESTION, "먼저 화이트 밸런스에서 따뜻한 색감이 더 강해지도록 맞추세요.",
+        False, id="implicit-warming",
+    ),
+    pytest.param(
+        YELLOW_CAST_QUESTION, "사진의 색감을 더 따뜻하게 만들어 보세요.",
+        False, id="implicit-warming-without-control-label",
+    ),
+    pytest.param(
+        YELLOW_CAST_QUESTION, "Temperature 슬라이더를 왼쪽으로 옮기세요. 그다음 색온도는 약간 올리세요.",
+        False, id="contradictory-followup",
+    ),
+    pytest.param(
+        YELLOW_CAST_QUESTION, "Temperature 슬라이더를 왼쪽으로 옮기세요. 이어서 조금 올리세요.",
+        False, id="followup-without-control-label",
+    ),
+    pytest.param(
+        YELLOW_CAST_QUESTION,
+        "Temperature는 오른쪽으로 옮길수록 따뜻해집니다. 노란 기를 줄이려면 왼쪽으로 옮기세요.",
+        True, id="effect-comparison",
+    ),
+    pytest.param(
+        YELLOW_CAST_QUESTION, "색온도를 높이면 이미지가 더 따뜻해집니다. 색온도를 낮춰 보세요.",
+        True, id="value-comparison",
+    ),
+    pytest.param(
+        YELLOW_CAST_QUESTION, "노란 기가 있으면 왼쪽이고 푸른 기가 있으면 오른쪽입니다.",
+        True, id="conditions-in-one-sentence",
+    ),
+    pytest.param(YELLOW_CAST_QUESTION, "색온도를 살짝 낮춰 보세요.", True, id="qualified-adjustment"),
+    pytest.param(
+        "ART에서 " + YELLOW_CAST_QUESTION,
+        "RawTherapee 문서를 참고했습니다. ART의 Temperature 슬라이더를 왼쪽으로 옮기세요.",
+        False, id="unverified-art-claim",
+    ),
+    pytest.param(
+        "ART에서 " + YELLOW_CAST_QUESTION,
+        "RawTherapee 기준으로는 Temperature 슬라이더를 왼쪽으로 옮기세요. ART 동작은 확인할 수 없습니다.",
+        True, id="explicit-reference-scope",
+    ),
+    pytest.param(
+        YELLOW_CAST_QUESTION,
+        "Temperature를 오른쪽으로 옮기면 따뜻해집니다. 왼쪽으로 옮긴 다음 다시 오른쪽으로 조정하세요.",
+        False, id="explanation-with-wrong-action",
+    ),
+    pytest.param(
+        YELLOW_CAST_QUESTION,
+        "노란 기가 있으면 왼쪽으로 옮겨 차갑게 하고 푸른 기가 있으면 오른쪽으로 옮겨 따뜻하게 하세요.",
+        True, id="conditions-with-effects",
+    ),
+    pytest.param(
+        YELLOW_CAST_QUESTION,
+        "노란 기를 없애려면 왼쪽으로, 푸른 기를 없애려면 오른쪽으로 옮기세요.",
+        True, id="remove-casts",
+    ),
+    pytest.param(
+        YELLOW_CAST_QUESTION,
+        "왼쪽으로 옮기세요. 푸른 기가 있으면 오른쪽이고 푸른 기가 없으면 오른쪽입니다.",
+        False, id="negative-condition",
+    ),
+    pytest.param(
+        "사진이 노랗지만 더 따뜻하게 연출하고 싶어요. White Balance는 어떻게 조정하나요?",
+        "노란 기가 있으면 왼쪽이고 푸른 기가 있으면 오른쪽입니다.", False, id="condition-conflicts-with-creative-goal",
+    ),
+    pytest.param(
+        "사진이 노랗지만 더 따뜻하게 연출하고 싶어요. White Balance는 어떻게 조정하나요?",
+        "노란 기가 있는 사진을 더 따뜻하게 표현하려면 Temperature를 오른쪽으로 옮기세요.",
+        True, id="condition-matches-creative-goal",
+    ),
+    pytest.param(
+        "ART에서 " + YELLOW_CAST_QUESTION,
+        "ART의 Temperature를 왼쪽으로 옮기는 걸 RawTherapee 기준으로 안내합니다.",
+        False, id="reference-cannot-override-art-claim",
+    ),
+])
+def test_temperature_prescription_service_output(
+    temperature_bundle, entry, question, text, accepted, monkeypatch,
+):
+    from artagent import cli, gui_bridge
+
+    root, bundle = temperature_bundle
+    search = MagicMock(return_value={"retrieval": bundle})
+    research = MagicMock(side_effect=AssertionError("검사 실패는 재검색을 시작하지 않습니다."))
+    generation = MagicMock(return_value=(json.dumps({
+        "status": "SUPPORTED", "answer": text + " [C1S1]", "citation_ids": [],
+    }), None, {}))
+    expected_status = "COMPLETED" if accepted else "INSUFFICIENT_EVIDENCE"
+    monkeypatch.setenv("ART_RAG_PROFILE", "local")
+    if entry == "gui":
+        monkeypatch.setattr("artagent.rag_service.service_answer_generator", lambda: generation)
+        graph = gui_bridge.create_gui_graph(
+            root, root, root, search_nodes={"SEARCH_RAWPEDIA": search}, research_generate=research,
+        )
+        result = gui_bridge.process_request(
+            {"version": 1, "request_id": "direction-test", "text": question},
+            lambda: graph,
+        )
+        assert result["status"] == expected_status
+        assert bool(result["citations"]) == accepted
+        if accepted:
+            assert result["steps"][0]["text"].startswith(text)
+        else:
+            assert result["steps"][0]["text"] == ""
+            assert result["steps"][0]["error"]["code"] == expected_status
+    else:
+        monkeypatch.setattr("artagent.cli.service_answer_generator", lambda: generation)
+        monkeypatch.setattr("artagent.cli.create_service_search_nodes", lambda *_args, **_kw: {"SEARCH_RAWPEDIA": search})
+        graph = cli.build_repl_graph(None, None, source_root=root, research_generate=research)
+        result = graph.invoke({
+            "request": RequestInput("direction-test", question),
+            "capabilities": RuntimeCapabilities(search_ready=True),
+        })
+        output = []
+        cli.render_response(result["response"], write_fn=output.append)
+        assert result["response"].status == expected_status
+        assert (text in "\n".join(output)) == accepted
+        assert bool(result["response"].citations) == accepted
+        assert "RESEARCH" not in result["trace"]
+    search.assert_called_once()
+    generation.assert_called_once()
+    research.assert_not_called()
+
+
 def test_unsupported_state_success(tmp_path: Path) -> None:
     rel_path = "data/issues/500.json"
     text = "There are no quality settings for JXL export; it is fixed."

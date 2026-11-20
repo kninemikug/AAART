@@ -15,6 +15,7 @@ from typing import Any, Callable, Optional, Sequence, Tuple
 
 from ..answer import (
     SYSTEM_INSTRUCTION,
+    T17_TEMPERATURE_PROMPT_VERSION,
     build_prompt_and_citations,
     citation_marker_ids,
     generate_llm_response,
@@ -23,6 +24,7 @@ from ..answer import (
     validate_and_format_citations,
 )
 from ..retrieval.provenance import canonical_json_str, sha256_bytes, sha256_str
+from .answer_direction import temperature_direction_issue, temperature_goal
 from .state import (
     AgentState,
     AnswerResult,
@@ -324,6 +326,7 @@ def answer_standalone(
     observe: Optional[Callable[[dict[str, Any]], None]] = None,
     assemble_citations: bool = False,
     runtime_generate: Optional[Callable[..., Any]] = None,
+    temperature_consistency: bool = True,
 ) -> Tuple[Optional[AnswerResult], Optional[ErrorInfo]]:
     """단독 답변 생성 및 인용 검증 실행.
 
@@ -380,10 +383,16 @@ def answer_standalone(
     confirmed_context_str = serialize_confirmed_context(context, constraints)
 
     # 4. 프롬프트 및 인용 매핑 구성 (전체 세그먼트 투영, 5개 절단 금지)
+    goal = None
+    if temperature_consistency and bundle.source_filter == "RAWPEDIA":
+        confirmed_goal = context.confirmed_goal if isinstance(context, RequestContext) else None
+        goal = temperature_goal(query_normalized, confirmed_goal)
+    prompt_version = T17_TEMPERATURE_PROMPT_VERSION if goal else T17_PROMPT_VERSION
+    evidence["prompt_version"] = prompt_version
     user_prompt, context_citations, context_citation_ids = build_prompt_and_citations(
         query_normalized=query_normalized,
         segments=segments,
-        prompt_version=T17_PROMPT_VERSION,
+        prompt_version=prompt_version,
         confirmed_context=confirmed_context_str,
         response_schema="t17-answer-v1",
     )
@@ -443,7 +452,7 @@ def answer_standalone(
                 user_prompt=user_prompt,
                 context_citations=context_citations,
                 query_normalized=query_normalized,
-                prompt_version=T17_PROMPT_VERSION,
+                prompt_version=prompt_version,
                 response_schema="t17-answer-v1",
                 observe_request=capture_request,
             )
@@ -619,6 +628,31 @@ def answer_standalone(
                 "elapsed_ms": (time.perf_counter() - started) * 1000,
             })
         return None, error
+
+    if goal:
+        issue = temperature_direction_issue(
+            query_normalized, raw_answer, goal, used_citations, supported=status == "SUPPORTED",
+        )
+        evidence["direction_check"] = {"control": "temperature", "reason": issue}
+        if issue:
+            error = ErrorInfo(
+                code="INSUFFICIENT_EVIDENCE",
+                message="제공된 검색 근거로는 일관된 색온도 조정 방향을 확인할 수 없습니다.",
+                node="ANSWER",
+                recoverable=False,
+            )
+            emit({
+                "query": query_normalized,
+                "system_instruction": SYSTEM_INSTRUCTION,
+                "user_prompt": user_prompt,
+                "prompt_hash": prompt_hash,
+                "raw_response": raw_response,
+                "runtime_meta": runtime_meta,
+                "usage": usage,
+                "elapsed_ms": (time.perf_counter() - started) * 1000,
+                "error": error.__dict__,
+            })
+            return None, error
 
     # 9. Citation 객체 변환 및 적용 범위(applicability) 구성
     citations: list[Citation] = []

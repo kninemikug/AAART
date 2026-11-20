@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""보존된 서비스 답변과 원자 주장 판정으로 faithfulness를 재집계한다."""
+"""보존 자료 또는 명시한 답변·판정의 근거 충실도를 집계한다."""
 
 import argparse
+from collections import Counter
 from pathlib import Path
 import re
 from statistics import mean
@@ -64,14 +65,7 @@ def summarize(rows, reviews):
         review = reviews[qid]
         scores[qid] = faithfulness_score(row, review)
         require(scores[qid]["denominator"], f"원자 주장 누락: {qid}")
-        for claim in review["claims"]:
-            evidence = claim.get("evidence")
-            require(isinstance(evidence, list) and evidence and isinstance(claim.get("reason"), str)
-                    and claim["reason"].strip(), f"판정 설명 또는 원문 위치 누락: {qid}")
-            for citation_id, quote in evidence:
-                context = row["contexts"].get(citation_id, "")
-                require(isinstance(quote, str) and quote.strip() and " ".join(quote.split()) in " ".join(context.split()),
-                        f"제출 문맥에 존재하지 않는 근거 구절: {qid}/{citation_id}")
+        validate_claim_evidence(row, review, require_all=True)
 
     def aggregate(items):
         numerator = sum(item["numerator"] for item in items)
@@ -84,12 +78,61 @@ def summarize(rows, reviews):
             "new_questions": aggregate([v for q, v in scores.items() if q.startswith("S")]), "answers": scores}
 
 
+def validate_claim_evidence(row, review, *, require_all=False):
+    qid = row["query_id"]
+    for claim in review["claims"]:
+        evidence = claim.get("evidence")
+        require(isinstance(evidence, list) and (evidence or not (require_all or claim["supported"]))
+                and isinstance(claim.get("reason"), str) and claim["reason"].strip(),
+                f"판정 설명 또는 원문 위치 누락: {qid}")
+        for citation_id, quote in evidence:
+            context = row["contexts"].get(citation_id, "")
+            require(isinstance(quote, str) and quote.strip() and " ".join(quote.split()) in " ".join(context.split()),
+                    f"제출 문맥에 존재하지 않는 근거 구절: {qid}/{citation_id}")
+
+
+def summarize_recorded_inputs(rows, reviews):
+    """Score one candidate's recorded inputs, including unscored rows in coverage."""
+    require(rows and reviews.keys() <= rows.keys(), "평가 입력이 없거나 입력과 판정의 문항이 불일치합니다.")
+    scores = {}
+    for qid, row in rows.items():
+        payload = {key: value for key, value in row.items() if key != "input_sha256"}
+        require({"question", "answer", "contexts"} <= payload.keys()
+                and isinstance(row["question"], str) and row["question"].strip()
+                and (row["answer"] is None or isinstance(row["answer"], str))
+                and isinstance(row["contexts"], dict)
+                and all(isinstance(text, str) for text in row["contexts"].values())
+                and row.get("input_sha256") == sha256(canonical(payload)),
+                f"답변 평가 입력 형식 또는 지문 오류: {qid}")
+        review = reviews.get(qid)
+        scores[qid] = faithfulness_score(row, review)
+        if review is not None:
+            validate_claim_evidence(row, review)
+    scored = [score["value"] for score in scores.values() if score["value"] is not None]
+    missing = Counter(score["reason"] for score in scores.values() if score["reason"] is not None)
+    return {
+        "overall": {
+            "questions": len(rows), "scored": len(scored),
+            "macro": mean(scored) if scored else None, "missing": dict(missing),
+        },
+        "answers": scores,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--verdicts", type=Path, default=BASE / "faithfulness_verdicts_v1.jsonl")
+    parser.add_argument("--inputs", type=Path, help="새 평가의 질문·답변·제출 문맥·입력 지문 JSONL(.gz)")
+    parser.add_argument("--verdicts", type=Path, help="입력과 대응하는 원자 주장 판정 JSONL(.gz)")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
-    result = canonical(summarize(evaluation_inputs(), index_rows(read_rows(args.verdicts)))) + "\n"
+    if args.inputs and not args.verdicts:
+        parser.error("--inputs에는 같은 평가의 --verdicts가 필요합니다.")
+    reviews = index_rows(read_rows(args.verdicts or BASE / "faithfulness_verdicts_v1.jsonl"))
+    if args.inputs:
+        report = summarize_recorded_inputs(index_rows(read_rows(args.inputs)), reviews)
+    else:
+        report = summarize(evaluation_inputs(), reviews)
+    result = canonical(report) + "\n"
     if args.output:
         args.output.write_text(result, encoding="utf-8")
     else:
