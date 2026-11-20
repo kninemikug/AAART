@@ -14,6 +14,19 @@ T8-1 `t08-1-100-v1` 100문항(RawPedia 80·GitHub 20)의 T15 검색 기록과 10
 
 점수 옆 괄호는 실제 점수를 집계한 행 수와 대상 질문 수다. 질문별 점수를 매크로 평균했다. 세 지표 공통 표본은 세 점수가 모두 있는 동일 문항에서 각 평균을 계산한다. 근거형은 정본의 지원 원문 ID, 반증형은 사전 지정한 반증 원문 ID를 사용했다. 정밀도는 검색한 고유 원문 ID 중 허용된 ID의 비율이고, 재현율은 허용 원문 ID 중 검색된 ID의 비율이다. 평가 단위는 원문 문서이며 GitHub에서는 각 이슈·Discussion·댓글 세그먼트를 해당 원문 ID로 센다. [Precision 정의](https://docs.ragas.io/en/v0.4.0/concepts/metrics/available_metrics/context_precision/) · [Recall 정의](https://docs.ragas.io/en/v0.4.0/concepts/metrics/available_metrics/context_recall/)
 
+## 동일 검색 입력의 Sol·MiniMax 비교
+
+두 모델에 동일 T15 문맥과 `t17-answer-v1` 프롬프트를 전달했다. `nvidia/nvidia/nemotron-3.5-lightning-30b-a3b/t23-blind-paired-v1`가 생성 모델명을 숨긴 답변에서 주장을 분해하고 같은 문맥을 사용해 두 답변을 판정했다. 동일 문항에서 양쪽에 점수가 있는 공통 표본은 97개다. 위 표의 기존 Sol 점수는 MiniMax가 채점한 보존 결과다.
+
+| 답변 모델 | 실답변 | Context precision | Context recall | Faithfulness | 공통 표본 faithfulness |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| GPT-5.6 Sol | 100/100 | 0.276667 | 0.970000 | 0.975773 (97/100) | 0.975773 |
+| MiniMax M3.1 Flash | 100/100 | 0.276667 | 0.970000 | 0.970739 (97/100) | 0.970739 |
+
+검색 지표 열은 100문항 전체의 값이다. 공통 97문항만 집계한 context precision은 0.285223, context recall은 1.000000이다.
+
+[MiniMax 실답변과 요청 원본](ragas_v2/paired/minimax_answers_v1.jsonl.gz) · [독립 판정 원본](ragas_v2/paired/faithfulness_verdicts_v1.jsonl) · [문항별 비교 점수](ragas_v2/paired/scores.jsonl)
+
 ## 실행 증거와 범위
 
 - 검색은 T15 v5의 B 첫 반복을 사용했다. 재작성 on, HyDE off, BM25 후보 20·top 5·최소 점수 0.5·가중치 0.25에서 선택한 청크를 보존 스냅샷으로 복원했다. [T15 결과와 실행 인계](../../docs/T15_results_v5.md)

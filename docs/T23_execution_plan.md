@@ -29,6 +29,14 @@
 
 Q033의 원답변에 있는 “직접 개선한다고 설명되지는 않습니다”는 평가기에서 “직접 개선하지 않는다”로 분해됐다. 이처럼 주장 분해 단계에서 유보의 강도가 달라지면 지지 여부에 영향을 줄 수 있다. 리포트는 검증된 근거 구절과 평가기 판정을 집계한 값이다. [질문별 주장과 판정](../data/eval/ragas_v1/faithfulness_verdicts_v1.jsonl)
 
+### MiniMax 실답변의 모델 간 비교
+
+Sol과 MiniMax의 답변에 같은 T15 검색 bundle과 실제 `t17-answer-v1` 프롬프트를 사용한다. MiniMax의 요청 지문을 Sol 실행의 프롬프트 지문과 대조한다. NVIDIA API에서 성공한 기존 MiniMax 응답은 같은 입력 지문과 프롬프트가 확인된 경우 재사용한다. 일부 복구 요청에는 출력 한도 4,096토큰을 명시했다. 유효한 응답의 모델 ID와 정상 종료 여부를 확인했다. [MiniMax 요청 옵션](https://build.nvidia.com/minimaxai/minimax-m3.1-flash/apireference)
+
+독립 채점기는 NVIDIA Nemotron 3.5 Lightning이다. RawPedia Q001과 ART GitHub Q096 문맥에서 지지 및 미지지 주장 한 개씩을 구분하는지 먼저 확인한다. 모델명이 없는 답변 A·B의 순서를 문항마다 번갈아 배치하고 주장을 각각 분해한다. 문항 안에서 문장이 정확히 같은 주장은 한 번 판정하고 각 답변에 같은 결과를 적용한다. 주장 추출은 직접 출력으로, 근거 판정은 추론 예산 1,200토큰으로 실행한다. 전체 문맥을 순서대로 구획하고, 채점기가 선택한 구절 번호를 해당 문항의 실제 원문과 대조해 근거를 복원한다. 각 모델별 평균과 원문 근거를 남기며 두 모델 모두에 수치가 있는 공통 표본도 집계한다. [NVIDIA 요청 옵션](https://build.nvidia.com/nvidia/nemotron-3.5-lightning-30b-a3b/apireference)
+
+2026-11-20 KST에 MiniMax의 동일 입력 실답변 6건을 재사용하고 94건을 추가했다. Q024·Q030·Q070의 두 답변에서는 채점기가 사실 주장을 추출하지 않아 공통 평균은 97문항이다. Q022 표본 점검에서 색역 Threshold 주장에 조명 설명 구절을 근거로 지정한 사례가 있었다. 점수는 채점기의 원래 판정을 집계했으며 구절 존재 검증과 구절의 의미 검토에는 차이가 있다. [독립 판정 원본](../data/eval/ragas_v2/paired/faithfulness_verdicts_v1.jsonl)
+
 ## 구현과 산출물
 
 1. 입력 조립 및 출처 검증을 구현하고 실제 100행에서 대표 목록과 답변 연결을 확인한다.
@@ -42,6 +50,7 @@ Q033의 원답변에 있는 “직접 개선한다고 설명되지는 않습니�
 | [Faithfulness 판정 JSONL](../data/eval/ragas_v2/faithfulness_verdicts_v1.jsonl) | 고정 응답별 주장과 지지 여부, 판정 사유, 실제 문맥의 근거 세그먼트와 구절. |
 | `data/eval/ragas_v2/scores.jsonl` | 질문 ID·입력 지문, 세 지표의 값·분자·분모·미산출 사유. |
 | `data/eval/ragas_v2/summary.json` | 입력·판정 증거 파일 지문, 채택 설정, 질문 및 답변 커버리지, 집합별 점수·분모·누락 사유. |
+| `data/eval/ragas_v2/paired/` | MiniMax 생성 원본, 두 모델의 동일 평가기 판정과 문항별 점수. |
 | `data/eval/report_v1.md` | 실행 명령, 원본과 산출물 링크, 지표·표본 규모·누락 및 해석 범위. |
 
 기본 평가는 보존 판정을 읽으므로 네트워크 호출 없이 재집계할 수 있다. `--archived-only`와 별도 `--output-dir`로 69건만 포함된 v1을 재생할 수 있다. `--faithfulness-verdicts FILE`로 판정 파일을 명시할 수 있다. JSONL에는 `query_id`, `input_sha256`, 평가기 식별자인 `evaluator`, `claims`를 둔다. `claims`는 `statement`와 불리언 `supported`의 목록이다. 정확한 입력 지문을 가진 실제 답변에만 결합하고, 평가기 식별자와 기록 지문을 남긴다. 주장 목록이 비어 있으면 분모 0으로 처리한다.

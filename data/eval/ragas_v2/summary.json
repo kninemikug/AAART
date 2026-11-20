@@ -169,6 +169,46 @@
       "questions": 15
     }
   },
+  "paired_comparison": {
+    "common_count": 97,
+    "common_search": {
+      "context_precision": {
+        "scored": 97,
+        "value": 0.2852233676975945
+      },
+      "context_recall": {
+        "scored": 97,
+        "value": 1.0
+      }
+    },
+    "evaluator": "nvidia/nvidia/nemotron-3.5-lightning-30b-a3b/t23-blind-paired-v1",
+    "minimax": {
+      "common_value": 0.9707394266672618,
+      "scored": 97,
+      "supported_claims": 528,
+      "total_claims": 544,
+      "value": 0.9707394266672618
+    },
+    "minimax_answers": 100,
+    "minimax_output_limits": {
+      "4096": 14,
+      "provider_default": 86
+    },
+    "minimax_status_counts": {
+      "INSUFFICIENT_EVIDENCE": 3,
+      "SUPPORTED": 92,
+      "UNSUPPORTED": 5
+    },
+    "questions": 100,
+    "sol": {
+      "common_value": 0.9757731958762886,
+      "scored": 97,
+      "supported_claims": 396,
+      "total_claims": 404,
+      "value": 0.9757731958762886
+    },
+    "sol_answers": 100
+  },
   "schema_version": 2,
   "search": {
     "candidate_k": 20,
@@ -185,6 +225,8 @@
     "rawpedia": 80
   },
   "source_sha256": {
+    "data/eval/ragas_v2/paired/faithfulness_verdicts_v1.jsonl": "e63cca0439743fcc9b322162616dec735ffe987dccb0f9f3170e0efa75bf3c7c",
+    "data/eval/ragas_v2/paired/minimax_answers_v1.jsonl.gz": "c86cec0c8b340a8494006750b044eab8946c98b6396355c46b269c549f094f34",
     "data/eval/t14-conn/conn_20261015_pr/store_snapshot.json": "c02b59540fb5ba02485ec7e0a2b7ba20df7008fb478dc82a0259c71ccd89f1a8",
     "data/eval/t15-rerank/audit_v6/answers.json": "1658e4dad0ad91f90422e7bcee25b67e0de3d0baca335a5f691e3a9f1eb1f044",
     "data/eval/t15-rerank/grid_v5/selected_condition.json": "ece0719ba81e7e2a46bbf75c4ee15b743cc97015ea1eb5959581de39ab0854d1",

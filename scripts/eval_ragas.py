@@ -16,6 +16,9 @@ EVAL = Path("data/eval")
 FAITHFULNESS_VERDICTS = ROOT / EVAL / "ragas_v1/faithfulness_verdicts_v1.jsonl"
 SOL_COMPLETION = ROOT / EVAL / "ragas_v2/sol_answers_v1.jsonl.gz"
 COMPLETED_VERDICTS = SOL_COMPLETION.with_name(FAITHFULNESS_VERDICTS.name)
+PAIR_RESULTS = SOL_COMPLETION.parent / "paired"
+MINIMAX_ANSWERS = PAIR_RESULTS / "minimax_answers_v1.jsonl.gz"
+PAIR_VERDICTS = PAIR_RESULTS / "faithfulness_verdicts_v1.jsonl"
 T15 = EVAL / "t15-rerank"
 SEARCH_RUN = T15 / "regression_v5"
 ANSWER_RUN = T15 / "t17_v5_complete_20261020_r3"
@@ -395,6 +398,30 @@ def render_report(summary):
             answer_notes += f" 미생성 {overall['questions'] - overall['answers']}문항을 기록했다."
         sources_link = ("[추가 생성 원본](ragas_v2/sol_answers_v1.jsonl.gz) · "
                         "[주장별 판정](ragas_v2/faithfulness_verdicts_v1.jsonl) · " + sources_link)
+    paired_text = ""
+    if comparison := summary.get("paired_comparison"):
+        paired_rows = []
+        for key, model in (("sol", "GPT-5.6 Sol"), ("minimax", "MiniMax M3.1 Flash")):
+            metric = comparison[key]
+            paired_rows.append(
+                f"| {model} | {comparison[key + '_answers']}/{comparison['questions']} | "
+                f"{display(overall['context_precision'])} | {display(overall['context_recall'])} | "
+                f"{display(metric)} ({metric['scored']}/{comparison['questions']}) | "
+                f"{display({'value': metric['common_value']})} |"
+            )
+        paired_text = f"""
+
+## 동일 검색 입력의 Sol·MiniMax 비교
+
+두 모델에 동일 T15 문맥과 `t17-answer-v1` 프롬프트를 전달했다. `{comparison['evaluator']}`가 생성 모델명을 숨긴 답변에서 주장을 분해하고 같은 문맥을 사용해 두 답변을 판정했다. 동일 문항에서 양쪽에 점수가 있는 공통 표본은 {comparison['common_count']}개다. 위 표의 기존 Sol 점수는 MiniMax가 채점한 보존 결과다.
+
+| 답변 모델 | 실답변 | Context precision | Context recall | Faithfulness | 공통 표본 faithfulness |
+| --- | ---: | ---: | ---: | ---: | ---: |
+{chr(10).join(paired_rows)}
+
+검색 지표 열은 100문항 전체의 값이다. 공통 {comparison['common_count']}문항만 집계한 context precision은 {display(comparison['common_search']['context_precision'])}, context recall은 {display(comparison['common_search']['context_recall'])}이다.
+
+[MiniMax 실답변과 요청 원본](ragas_v2/paired/minimax_answers_v1.jsonl.gz) · [독립 판정 원본](ragas_v2/paired/faithfulness_verdicts_v1.jsonl) · [문항별 비교 점수](ragas_v2/paired/scores.jsonl)"""
     return f"""# T23 RAGAS 평가 리포트 v{version}
 
 T8-1 `{summary['dataset_id']}` {overall['questions']}문항(RawPedia {summary['source_counts']['rawpedia']}·GitHub {summary['source_counts']['github']})의 T15 검색 기록과 {overall['answers']}개 T17 실답변을 재평가했다. T8-2와 T15에서 사용한 회귀 표본이다. WBS §4에 적힌 15개 규모의 대표 실행은 T11·T14에서 서로 다른 부분집합으로 확인했다. Task 23 카드와 WBS의 A-23 상세 항목에 따라 전체 100개를 사용했다. [평가 계획](../../docs/T23_execution_plan.md)
@@ -403,7 +430,7 @@ T8-1 `{summary['dataset_id']}` {overall['questions']}문항(RawPedia {summary['s
 | --- | ---: | ---: | ---: | ---: | ---: |
 {chr(10).join(table)}
 
-점수 옆 괄호는 실제 점수를 집계한 행 수와 대상 질문 수다. 질문별 점수를 매크로 평균했다. 세 지표 공통 표본은 세 점수가 모두 있는 동일 문항에서 각 평균을 계산한다. 근거형은 정본의 지원 원문 ID, 반증형은 사전 지정한 반증 원문 ID를 사용했다. 정밀도는 검색한 고유 원문 ID 중 허용된 ID의 비율이고, 재현율은 허용 원문 ID 중 검색된 ID의 비율이다. 평가 단위는 원문 문서이며 GitHub에서는 각 이슈·Discussion·댓글 세그먼트를 해당 원문 ID로 센다. [Precision 정의](https://docs.ragas.io/en/v0.4.0/concepts/metrics/available_metrics/context_precision/) · [Recall 정의](https://docs.ragas.io/en/v0.4.0/concepts/metrics/available_metrics/context_recall/)
+점수 옆 괄호는 실제 점수를 집계한 행 수와 대상 질문 수다. 질문별 점수를 매크로 평균했다. 세 지표 공통 표본은 세 점수가 모두 있는 동일 문항에서 각 평균을 계산한다. 근거형은 정본의 지원 원문 ID, 반증형은 사전 지정한 반증 원문 ID를 사용했다. 정밀도는 검색한 고유 원문 ID 중 허용된 ID의 비율이고, 재현율은 허용 원문 ID 중 검색된 ID의 비율이다. 평가 단위는 원문 문서이며 GitHub에서는 각 이슈·Discussion·댓글 세그먼트를 해당 원문 ID로 센다. [Precision 정의](https://docs.ragas.io/en/v0.4.0/concepts/metrics/available_metrics/context_precision/) · [Recall 정의](https://docs.ragas.io/en/v0.4.0/concepts/metrics/available_metrics/context_recall/){paired_text}
 
 ## 실행 증거와 범위
 
@@ -425,7 +452,7 @@ venv/bin/python scripts/eval_ragas.py
 """
 
 
-def write_outputs(output, rows, scores, summary):
+def write_outputs(output, rows, scores, summary, paired_scores=None):
     output.mkdir(parents=True, exist_ok=True)
     target = output / f"ragas_v{summary['schema_version']}"
     target.mkdir(exist_ok=True)
@@ -440,6 +467,12 @@ def write_outputs(output, rows, scores, summary):
         (stage / "report_v1.md").write_text(render_report(summary), encoding="utf-8")
         for name in ("inputs.jsonl.gz", "scores.jsonl", "summary.json"):
             (stage / name).replace(target / name)
+        if paired_scores is not None:
+            pair_output = target / "paired"
+            pair_output.mkdir(exist_ok=True)
+            staged_scores = stage / "paired_scores.jsonl"
+            staged_scores.write_text("".join(canonical(s) + "\n" for s in paired_scores), encoding="utf-8")
+            staged_scores.replace(pair_output / "scores.jsonl")
         (stage / "report_v1.md").replace(output / "report_v1.md")
 
 
@@ -481,7 +514,20 @@ def main():
                    **context_scores(row["allowed_source_doc_ids"], row["retrieved_source_doc_ids"]),
                    "faithfulness": faithfulness_score(row, reviews.get(row["query_id"]))} for row in rows]
         summary = build_summary(sources, rows, scores, verdict_sha)
-        write_outputs(args.output_dir, rows, scores, summary)
+        paired_scores = None
+        if (supplemental_path is not None and supplemental_path.resolve() == SOL_COMPLETION
+                and MINIMAX_ANSWERS.is_file() and PAIR_VERDICTS.is_file()):
+            if __package__:
+                from .t23_minimax_pairs import score_comparison
+            else:
+                from t23_minimax_pairs import score_comparison
+            comparison, paired_scores = score_comparison(
+                rows, index_rows(read_rows(MINIMAX_ANSWERS)), index_rows(read_rows(PAIR_VERDICTS)),
+            )
+            summary["paired_comparison"] = comparison
+            for path in (MINIMAX_ANSWERS, PAIR_VERDICTS):
+                summary["source_sha256"][path.relative_to(ROOT).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
+        write_outputs(args.output_dir, rows, scores, summary, paired_scores)
     except (KeyError, TypeError, ValueError, OSError) as error:
         parser.exit(1, f"평가 실패 — {error}\n")
     print(json.dumps(summary["groups"]["all"], ensure_ascii=False, sort_keys=True))

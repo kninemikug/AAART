@@ -115,8 +115,23 @@ def response_rows(raw, field):
     raw = raw.strip()
     if raw.startswith("```") and raw.endswith("```"):
         raw = raw.split("\n", 1)[1][:-3]
+    def preserve_claims(pairs):
+        if pairs and all(key == "claim" and isinstance(value, str) for key, value in pairs):
+            return [value for _, value in pairs]
+        return dict(pairs)
+
+    parsed = json.loads(raw, object_pairs_hook=preserve_claims if field == "claims" else None)
+    if field == "passage_verdicts":
+        grouped = {}
+        for key, evidence in parsed.get("support", parsed).items():
+            qid, number = key.split(".")
+            require(number.isdecimal() and isinstance(evidence, str), "passage verdict structure")
+            grouped.setdefault(qid, {"query_id": qid, field: []})[field].append(
+                {"claim": int(number), "passage_ids": evidence.split() if evidence else []}
+            )
+        return grouped
     rows = []
-    for item in json.loads(raw)["rows"]:
+    for item in parsed["rows"]:
         # Some responses place the last numbered verdict beside its question.
         verdict_fields = {"claim", "supported", "evidence"}
         if ("query_id" not in item and field == "verdicts" and rows
@@ -134,10 +149,12 @@ def response_rows(raw, field):
 
 
 class Judge:
-    def __init__(self, key, cache, interval):
+    def __init__(self, key, cache, interval, model=MODEL, reasoning_budget=None):
         self.key = key
         self.cache = cache
         self.interval = interval
+        self.model = model
+        self.reasoning_budget = reasoning_budget
         self.last_start = 0
         self.start_lock = Lock()
         cache.mkdir(parents=True, exist_ok=True)
@@ -148,11 +165,16 @@ class Judge:
         qids = [item["query_id"] for item in batch]
         batch_name = f"{phase}-{qids[0]}-{qids[-1]}"
         payload = {
-            "model": MODEL, "temperature": 0, "max_tokens": 9000,
+            "model": self.model, "temperature": 0, "max_tokens": 9000,
             "response_format": {"type": "json_object"},
             "messages": [{"role": "system", "content": instruction},
                          {"role": "user", "content": canonical(batch)}],
         }
+        if self.reasoning_budget is not None:
+            thinking = phase != "extraction"
+            payload["chat_template_kwargs"] = {"enable_thinking": thinking}
+            if thinking:
+                payload["reasoning_budget"] = self.reasoning_budget
         request_json = canonical(payload)
         digest = sha256(request_json)
         cache = self.cache / f"{batch_name}-{digest[:12]}.json"
@@ -162,6 +184,17 @@ class Judge:
             choice = response["choices"][0]
             require(choice.get("finish_reason") == "stop", f"{batch_name} incomplete response")
             found = response_rows(choice["message"]["content"], field)
+            if field == "claims" and self.model != MODEL:
+                # Some batches include explicitly labeled duplicate extractions.
+                found = {qid: row for qid, row in found.items()
+                         if not (qid.endswith("_duplicate") and qid.removesuffix("_duplicate") in found)}
+                if len(qids) == len(found) == 1 and qids[0] not in found:
+                    found = {qids[0]: next(iter(found.values()))}
+            if field == "passage_verdicts" and len(qids) == len(found) == 1 and qids[0] not in found:
+                verdicts = next(iter(found.values()))[field]
+                if {v["claim"] for v in verdicts} == set(range(1, len(batch[0]["claims"]) + 1)):
+                    # A single-question response supplies only that question's verdicts.
+                    found = {qids[0]: {"query_id": qids[0], field: verdicts}}
             require(found.keys() <= set(qids), f"{batch_name} unknown query ID")
             return found
 
@@ -183,6 +216,23 @@ class Judge:
                     except (KeyError, ValueError, TypeError, AttributeError):
                         continue
 
+        def collect_valid_claims(response):
+            item = batch[0]
+            try:
+                verdicts = decode(response)[qids[0]][field]
+            except (IndexError, KeyError, ValueError, TypeError, AttributeError):
+                return
+            numbers = [v["claim"] for v in verdicts]
+            for verdict in verdicts:
+                number = verdict["claim"]
+                if number in verified_claims or numbers.count(number) != 1 or not 1 <= number <= len(item["claims"]):
+                    continue
+                isolated = {**item, "claims": [item["claims"][number - 1]]}
+                try:
+                    verified_claims[number] = validate(isolated, [{**verdict, "claim": 1}])[0]
+                except (KeyError, ValueError, TypeError, AttributeError):
+                    continue
+
         def retry_missing(valid):
             for item in batch:
                 if item["query_id"] not in valid:
@@ -197,11 +247,26 @@ class Judge:
             first = self.evaluate(phase, instruction, batch[:midpoint], field, validate)
             return {**first, **self.evaluate(phase, instruction, batch[midpoint:], field, validate)}
 
+        def retry_fewer_claims():
+            item = batch[0]
+            if verified_claims:
+                missing = [n for n in range(1, len(item["claims"]) + 1) if n not in verified_claims]
+                if missing:
+                    subset = {**item, "claims": [item["claims"][n - 1] for n in missing]}
+                    result = self.evaluate(phase, instruction, [subset], field, validate)[qids[0]]
+                    verified_claims.update(zip(missing, result, strict=True))
+                return {qids[0]: [verified_claims[n] for n in range(1, len(item["claims"]) + 1)]}
+            midpoint = len(item["claims"]) // 2
+            first = self.evaluate(phase, instruction, [{**item, "claims": item["claims"][:midpoint]}], field, validate)
+            second = self.evaluate(phase, instruction, [{**item, "claims": item["claims"][midpoint:]}], field, validate)
+            return {qids[0]: first[qids[0]] + second[qids[0]]}
+
         if cache.is_file():
             return read_response(json.loads(cache.read_text(encoding="utf-8")))
         if len(batch) > 1 and split.is_file():
             return retry_smaller_batches()
-        valid = {}
+        valid, verified_claims = {}, {}
+        single_passage = field == "passage_verdicts" and len(batch) == 1
         previous_attempts = sorted(cache.parent.glob(f"{cache.stem}.attempt-*.json"))
         for previous in previous_attempts:
             response = json.loads(previous.read_text(encoding="utf-8"))
@@ -209,12 +274,20 @@ class Judge:
                 verdicts = read_response(response)
             except (IndexError, KeyError, ValueError, TypeError, AttributeError):
                 collect_valid_rows(response, valid)
+                if single_passage:
+                    collect_valid_claims(response)
                 continue
             write_json(cache, response)
             return verdicts
         if valid and len(batch) > 1:
             return retry_missing(valid)
-        if phase == "entailment" and len(batch) == 1 and previous_attempts:
+        if field == "passage_verdicts" and len(previous_attempts) >= 2:
+            if len(batch) > 1:
+                return retry_missing(valid)
+            if single_passage and len(batch[0]["claims"]) > 1:
+                split.write_text("verdict format\n", encoding="utf-8")
+                return retry_fewer_claims()
+        if phase == "entailment" and field == "verdicts" and len(batch) == 1 and previous_attempts:
             return retry_short_quotes()
 
         require(self.key, f"{batch_name}: 캐시가 없는 판정에 NVIDIA_API_KEY가 필요합니다")
@@ -244,16 +317,21 @@ class Judge:
                 if response is not None:
                     failure = cache.with_suffix(f".attempt-{attempt}.json")
                     write_json(failure, response)
+                    if single_passage:
+                        collect_valid_claims(response)
                     if len(batch) > 1:
                         collect_valid_rows(response, valid)
-                        if valid:
+                        if valid or (self.model != MODEL and attempt >= 2):
                             return retry_missing(valid)
-                    elif phase == "entailment":
+                    elif phase == "entailment" and field == "verdicts":
                         return retry_short_quotes()
+                    elif field == "passage_verdicts" and attempt >= 2 and len(batch[0]["claims"]) > 1:
+                        split.write_text("verdict format\n", encoding="utf-8")
+                        return retry_fewer_claims()
                 if attempt == 5:
                     if len(batch) > 1:
                         return retry_missing(valid)
-                    if phase == "entailment":
+                    if phase == "entailment" and field == "verdicts":
                         return retry_short_quotes()
                     raise
                 if isinstance(error, (URLError, TimeoutError)):
